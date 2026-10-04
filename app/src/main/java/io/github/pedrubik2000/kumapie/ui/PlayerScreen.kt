@@ -214,7 +214,7 @@ private fun TopBar(ctl: SceneController, picker: WordPicker) {
         LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 16.dp))
     }
     val hint = when {
-        picker.isOpen && picker.inDef -> "←→ words of the definition   ↓ back to the line   OK: hear the word   hold ↓ / Y: known   Back: close"
+        picker.isOpen && picker.inDef -> "←→ words of the definition   ↓ back to the line   OK: hear the word (twice: definition)   hold ↓ / Y: known   Back: close"
         picker.isOpen -> "←→ words   ↑ definition   ↓ next line   OK: hear (twice: definition)   hold OK / X: replay line   hold ↓ / Y: known"
         ctl.atSceneEnd -> "OK: next scene   ↑: replay line   ↓: pick a word   ←: previous"
         else -> null

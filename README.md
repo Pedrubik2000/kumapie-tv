@@ -37,7 +37,7 @@ on it.
 | next / previous word | → / ← | D-pad → / ← |
 | line below | ↓ | D-pad ↓ |
 | into the German definition (pick its words), back | ↑, ↓ | D-pad ↑, ↓ |
-| hear the word again; twice: the German definition | OK | A |
+| hear the word again; twice: the German definition (also from inside it) | OK | A |
 | replay the word's line | hold OK | X (or hold A) |
 | mark known / undo | hold ↓ | Y |
 | close | Back | B or Select |

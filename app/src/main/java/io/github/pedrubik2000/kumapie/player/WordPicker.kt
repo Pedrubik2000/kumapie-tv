@@ -93,12 +93,15 @@ class WordPicker(
         }
     }
 
-    /** OK: the word again; OK twice in a row (on a line word): its German definition read aloud. */
+    /**
+     * OK: the word again (inside the definition: the definition's word). OK twice in a row, on the line's word
+     * or inside its definition: the whole German definition read aloud.
+     */
     fun hearAgain() {
         val now = android.os.SystemClock.uptimeMillis()
         val def = definition
         val word = selected?.word
-        if (!inDef && def != null && word != null && now - lastOk < 1_500) {
+        if (def != null && word != null && now - lastOk < 1_500) {
             audio.play(api.definitionAudio(ctl.scene.id, line, word))
             lastOk = 0L
             return

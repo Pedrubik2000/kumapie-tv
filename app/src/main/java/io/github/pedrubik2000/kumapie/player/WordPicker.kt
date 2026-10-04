@@ -10,17 +10,16 @@ import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.LineDef
 import io.github.pedrubik2000.kumapie.data.Segment
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * The word picker: a cursor on the words of the paused scene. It lands only on words that are red (never
- * studied) or orange (learning), unless the scene has none; then on every word. Landing on a word plays its
- * audio; resting on it for a moment counts as a lookup (sent to the server).
+ * studied) or orange (learning), unless the scene has none; then on every word. Moving is silent and shows
+ * nothing but the highlight; the card opens only on request:
  *
- * ↑ moves the cursor into the word's German definition (its words can be picked too), ↓ back to the line.
- * OK plays the word again; a second OK right after plays the whole German definition.
+ * OK opens the selected word's card, plays the word and counts a lookup. While the card is open, OK plays
+ * the word again and OK twice in a row reads the whole German definition aloud; ↑ moves the cursor into
+ * the German definition (its words can be picked too), ↓ back to the line. Moving to another word closes it.
  */
 class WordPicker(
     private val ctl: SceneController,
@@ -41,10 +40,12 @@ class WordPicker(
         private set
     var defSeg by mutableIntStateOf(0)
         private set
+    /** The selected word's card is shown (opened with OK, closed by moving to another word). */
+    var cardOpen by mutableStateOf(false)
+        private set
     private var lastOk = 0L
 
     private val audio = WordAudio()
-    private var lookupJob: Job? = null
 
     val selected: Segment? get() = ctl.scene.cues.getOrNull(line)?.segments?.getOrNull(seg)
 
@@ -71,7 +72,7 @@ class WordPicker(
     fun close() {
         isOpen = false
         inDef = false
-        lookupJob?.cancel()
+        cardOpen = false
     }
 
     fun right() = if (inDef) stepInDef(+1) else step(+1)
@@ -80,24 +81,27 @@ class WordPicker(
     /** ↓: out of the definition, else the first word on the next line that has one. */
     fun down() { if (inDef) inDef = false else changeLine(+1) }
 
-    /** ↑: into the selected word's German definition, else the line above. */
+    /** ↑: into the German definition when its card is open, else the line above. */
     fun up() {
         if (inDef) return
         val spots = defSpots()
-        if (spots.isNotEmpty()) {
+        if (cardOpen && spots.isNotEmpty()) {
             inDef = true
             defSeg = spots.first()
-            selectedInDef?.let { audio.play(api.wordAudio(it.text)) }
         } else {
             changeLine(-1)
         }
     }
 
     /**
-     * OK: the word again (inside the definition: the definition's word). OK twice in a row, on the line's word
-     * or inside its definition: the whole German definition read aloud.
+     * OK: opens the card (plays the word, counts a lookup). With the card open: the word again (inside the
+     * definition: the definition's word); OK twice in a row: the whole German definition read aloud.
      */
     fun hearAgain() {
+        if (!cardOpen) {
+            openCard()
+            return
+        }
         val now = android.os.SystemClock.uptimeMillis()
         val def = definition
         val word = selected?.word
@@ -161,23 +165,26 @@ class WordPicker(
     private fun stepInDef(by: Int) {
         val spots = defSpots()
         val i = spots.indexOf(defSeg)
-        spots.getOrNull(if (i < 0) 0 else i + by)?.let {
-            defSeg = it
-            selectedInDef?.let { s -> audio.play(api.wordAudio(s.text)) }
-        }
+        spots.getOrNull(if (i < 0) 0 else i + by)?.let { defSeg = it }
     }
 
+    /** Moving: only the highlight changes; the card closes. */
     private fun land(spot: Spot) {
         inDef = false
+        cardOpen = false
         line = spot.line
         seg = spot.seg
+    }
+
+    /** OK on a word: its card, its audio, and a lookup on the PC. */
+    private fun openCard() {
         val segment = selected ?: return
+        cardOpen = true
+        lastOk = 0L
         audio.play(api.wordAudio(segment.text))
-        lookupJob?.cancel()
         val word = segment.word ?: return
         val scene = ctl.scene.id
-        lookupJob = scope.launch {
-            delay(1_200) // resting on it, not passing through
+        scope.launch {
             runCatching { api.lookup(word, scene) }.onSuccess { n ->
                 ctl.words[word]?.let { ctl.words[word] = it.copy(lookups = n) }
             }

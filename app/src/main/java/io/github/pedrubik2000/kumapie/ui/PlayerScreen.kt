@@ -187,7 +187,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
         )
         if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, picker)
         Subtitles(ctl, picker, onAnchor = { anchor = it })
-        if (picker.isOpen) anchor?.let { MeaningCard(ctl, picker, it) }
+        if (picker.isOpen && picker.cardOpen) anchor?.let { MeaningCard(ctl, picker, it) }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() })
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
@@ -215,7 +215,9 @@ private fun TopBar(ctl: SceneController, picker: WordPicker) {
     }
     val hint = when {
         picker.isOpen && picker.inDef -> "←→ words of the definition   ↓ back to the line   OK: hear the word (twice: definition)   hold ↓ / Y: known   Back: close"
-        picker.isOpen -> "←→ words   ↑ definition   ↓ next line   OK: hear (twice: definition)   hold OK / X: replay line   hold ↓ / Y: known"
+        picker.isOpen && picker.cardOpen ->
+            "OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK / X: replay line   hold ↓ / Y: known"
+        picker.isOpen -> "←→ words   ↑↓ lines   OK: show the meaning   hold OK / X: replay line   hold ↓ / Y: known   Back: close"
         ctl.atSceneEnd -> "OK: next scene   ↑: replay line   ↓: pick a word   ←: previous"
         else -> null
     }

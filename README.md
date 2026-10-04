@@ -27,17 +27,17 @@ Part of **kuma3**, a personal language-learning setup (see also
 | back | Back | B |
 
 **Word picker:** the video pauses and every line of the scene shows; the cursor starts on the first red word
-of the line being said and jumps between red (never studied) and orange (learning) words. A card above the
-word shows its definition for that line: dictionary form, English, a German dictionary definition (its words
-coloured; shown first when you know all of them), and a grammar note. You hear the word when the cursor lands
-on it.
+of the line being said and jumps between red (never studied) and orange (learning) words; moving is silent.
+OK opens a card above the word with its definition for that line: dictionary form, English, a German dictionary definition (its words
+coloured; shown first when you know all of them), and a grammar note. Opening it plays the word and counts as
+a lookup; moving to another word closes it.
 
 | in the picker | remote | gamepad |
 |---|---|---|
 | next / previous word | → / ← | D-pad → / ← |
 | line below | ↓ | D-pad ↓ |
-| into the German definition (pick its words), back | ↑, ↓ | D-pad ↑, ↓ |
-| hear the word again; twice: the German definition (also from inside it) | OK | A |
+| into the German definition (card open; pick its words), back | ↑, ↓ | D-pad ↑, ↓ |
+| open the card (and hear the word); with it open: hear again, twice: the German definition | OK | A |
 | replay the word's line | hold OK | X (or hold A) |
 | mark known / undo | hold ↓ | Y |
 | close | Back | B or Select |

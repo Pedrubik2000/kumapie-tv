@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -53,6 +57,17 @@ fun KumapieTheme(content: @Composable () -> Unit) {
         ),
         content = content,
     )
+}
+
+/**
+ * Back (remote Back, gamepad B) for this part of the screen. Compose on TV first uses Back to move focus out of
+ * the focused group, so a BackHandler only hears the second press; catching the key as it bubbles up from the
+ * focused item avoids that. The innermost enabled one wins (a dialog before the screen under it).
+ */
+fun Modifier.onBackKey(enabled: Boolean = true, onBack: () -> Unit): Modifier = onKeyEvent {
+    if (!enabled || it.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_BACK) return@onKeyEvent false
+    if (it.type == KeyEventType.KeyUp) onBack()
+    true
 }
 
 /** A thin bar: how much of an episode was watched. */

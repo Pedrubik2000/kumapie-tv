@@ -9,7 +9,24 @@ you know live on your own PC, in a small server that the app talks to (see [Serv
 Part of **kuma3**, a personal language-learning setup (see also
 [kuma3-anki](https://github.com/Pedrubik2000/kuma3-anki-app)).
 
-> Status: early. Shows and episodes work; the scene player, word picker and button mapping are next.
+> Status: early. Shows, episodes and the scene player work; the word picker and button mapping are next.
+
+## Buttons
+
+| | remote | gamepad |
+|---|---|---|
+| play / pause (at the end of a scene: next scene) | OK | A |
+| next / previous scene | → / ← | D-pad → / ← |
+| replay the line | ↑ | X |
+| replay the scene | hold ← | Y |
+| subtitles: none → German → German + English | ↓ | L = German, R = English |
+| speed 0.75x | options | L2 |
+| pause at the end of each scene / play on | options | R2 |
+| options | hold ↓ | Start |
+| back | Back | B |
+
+Subtitles start hidden in every scene (or as set in options); while paused they show the whole scene, with
+unknown words in red and words you're learning in yellow. The options are remembered on the TV.
 
 ## Install
 
@@ -57,7 +74,9 @@ never in the repo: the workflow reads it from the repository secrets `KEYSTORE_B
 | `data/Api.kt` | the server API and its data |
 | `data/Settings.kt` | what the TV remembers (server address, later: subtitle mode, buttons) |
 | `ui/HomeScreen.kt`, `ui/ShowScreen.kt` | shows → episodes |
-| `ui/PlayerScreen.kt` | the scene player |
+| `ui/PlayerScreen.kt` | the scene player: video, top bar, subtitles, options |
+| `player/SceneController.kt` | scenes on top of the whole episode: where to stop, replays, progress |
+| `player/PlayerKeys.kt` | which button does what (short and long presses) |
 | `ui/SettingsScreen.kt`, `ui/UpdateDialog.kt` | settings, updates |
 | `update/Updater.kt`, `update/InstallReceiver.kt` | self-update from GitHub Releases |
 | `tools/make_icons.py` | draws the launcher banner and icon |

@@ -56,7 +56,7 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
         Column(Modifier.width(640.dp).background(Colors.surface, RoundedCornerShape(16.dp)).padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("kumapie ${release.version} is out", fontSize = 26.sp, color = Colors.text)

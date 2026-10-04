@@ -26,6 +26,7 @@ import io.github.pedrubik2000.kumapie.ui.PlayerScreen
 import io.github.pedrubik2000.kumapie.ui.SettingsScreen
 import io.github.pedrubik2000.kumapie.ui.ShowScreen
 import io.github.pedrubik2000.kumapie.ui.UpdateDialog
+import io.github.pedrubik2000.kumapie.ui.onBackKey
 import io.github.pedrubik2000.kumapie.update.Updater
 
 /** The app's screens. Back goes one screen back; on Home it leaves the app. */
@@ -58,7 +59,8 @@ fun App(settings: Settings) {
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
 
-    Box(Modifier.fillMaxSize().background(Colors.background)) {
+    Box(Modifier.fillMaxSize().background(Colors.background)
+        .onBackKey(enabled = stack.size > 1 && server.isNotEmpty()) { stack.removeAt(stack.lastIndex) }) {
         if (server.isEmpty()) {
             SettingsScreen(settings, firstRun = true, onSaved = { server = settings.server }, onUpdate = { update = it })
         } else {
@@ -67,7 +69,8 @@ fun App(settings: Settings) {
                 Screen.Home -> HomeScreen(api, onShow = { stack.add(Screen.ShowEpisodes(it)) },
                     onSettings = { stack.add(Screen.Settings) })
                 is Screen.ShowEpisodes -> ShowScreen(api, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
-                is Screen.Player -> PlayerScreen(screen.show, screen.episode)
+                is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,
+                    onClose = { stack.removeAt(stack.lastIndex) })
                 Screen.Settings -> SettingsScreen(settings, firstRun = false,
                     onSaved = { server = settings.server }, onUpdate = { update = it })
             }

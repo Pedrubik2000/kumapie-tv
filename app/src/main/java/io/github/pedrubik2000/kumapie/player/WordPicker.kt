@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.pedrubik2000.kumapie.data.Api
+import io.github.pedrubik2000.kumapie.data.LineDef
 import io.github.pedrubik2000.kumapie.data.Segment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -17,6 +18,9 @@ import kotlinx.coroutines.launch
  * The word picker: a cursor on the words of the paused scene. It lands only on words that are red (never
  * studied) or orange (learning), unless the scene has none; then on every word. Landing on a word plays its
  * audio; resting on it for a moment counts as a lookup (sent to the server).
+ *
+ * ↑ moves the cursor into the word's German definition (its words can be picked too), ↓ back to the line.
+ * OK plays the word again; a second OK right after plays the whole German definition.
  */
 class WordPicker(
     private val ctl: SceneController,
@@ -32,11 +36,23 @@ class WordPicker(
         private set
     var seg by mutableIntStateOf(0)
         private set
+    /** The cursor is inside the selected word's German definition, on segment [defSeg]. */
+    var inDef by mutableStateOf(false)
+        private set
+    var defSeg by mutableIntStateOf(0)
+        private set
+    private var lastOk = 0L
 
     private val audio = WordAudio()
     private var lookupJob: Job? = null
 
     val selected: Segment? get() = ctl.scene.cues.getOrNull(line)?.segments?.getOrNull(seg)
+
+    /** The selected word's definition in this line, if written. */
+    val definition: LineDef? get() = selected?.word?.let { ctl.scene.def(line, it) }
+
+    /** The word picked inside the definition (only while [inDef]). */
+    val selectedInDef: Segment? get() = if (inDef) definition?.german?.getOrNull(defSeg) else null
 
     /** Pauses and puts the cursor on the first red word of the line being said (else orange, else any). */
     fun open(): Boolean {
@@ -54,24 +70,49 @@ class WordPicker(
 
     fun close() {
         isOpen = false
+        inDef = false
         lookupJob?.cancel()
     }
 
-    fun right() = step(+1)
-    fun left() = step(-1)
+    fun right() = if (inDef) stepInDef(+1) else step(+1)
+    fun left() = if (inDef) stepInDef(-1) else step(-1)
 
-    /** The first word on the next (or previous) line that has one. */
-    fun down() = changeLine(+1)
-    fun up() = changeLine(-1)
+    /** ↓: out of the definition, else the first word on the next line that has one. */
+    fun down() { if (inDef) inDef = false else changeLine(+1) }
 
-    fun hearAgain() { selected?.let { audio.play(api.wordAudio(it.text)) } }
+    /** ↑: into the selected word's German definition, else the line above. */
+    fun up() {
+        if (inDef) return
+        val spots = defSpots()
+        if (spots.isNotEmpty()) {
+            inDef = true
+            defSeg = spots.first()
+            selectedInDef?.let { audio.play(api.wordAudio(it.text)) }
+        } else {
+            changeLine(-1)
+        }
+    }
+
+    /** OK: the word again; OK twice in a row (on a line word): its German definition read aloud. */
+    fun hearAgain() {
+        val now = android.os.SystemClock.uptimeMillis()
+        val def = definition
+        val word = selected?.word
+        if (!inDef && def != null && word != null && now - lastOk < 1_500) {
+            audio.play(api.definitionAudio(ctl.scene.id, line, word))
+            lastOk = 0L
+            return
+        }
+        lastOk = now
+        (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text)) }
+    }
 
     /** The selected word's line again; the picker stays open. */
     fun replayLine() = ctl.replayCue(line)
 
     /** Marks the selected word known (no card needed), or undoes it. */
     fun toggleKnown() {
-        val word = selected?.word ?: return
+        val word = (selectedInDef ?: selected)?.word ?: return
         val now = ctl.words[word] ?: return
         val mark = !now.marked
         scope.launch {
@@ -111,7 +152,20 @@ class WordPicker(
         land(spots.first { it.line == target })
     }
 
+    private fun defSpots(): List<Int> =
+        definition?.german?.mapIndexedNotNull { i, s -> if (s.word != null) i else null } ?: emptyList()
+
+    private fun stepInDef(by: Int) {
+        val spots = defSpots()
+        val i = spots.indexOf(defSeg)
+        spots.getOrNull(if (i < 0) 0 else i + by)?.let {
+            defSeg = it
+            selectedInDef?.let { s -> audio.play(api.wordAudio(s.text)) }
+        }
+    }
+
     private fun land(spot: Spot) {
+        inDef = false
         line = spot.line
         seg = spot.seg
         val segment = selected ?: return

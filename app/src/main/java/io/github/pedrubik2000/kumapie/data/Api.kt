@@ -64,6 +64,19 @@ class Api(private val base: String) {
                     (0 until en.length()).map { i -> en.getJSONArray(i).let { Line(it.getDouble(0), it.getDouble(1), it.getString(2)) } }
                 },
                 meanings = s.getJSONObject("g").let { g -> g.keys().asSequence().associateWith { g.getString(it) } },
+                defs = s.optJSONObject("defs")?.let { d ->
+                    d.keys().asSequence().associateWith { k ->
+                        d.getJSONObject(k).let {
+                            val de = it.getJSONArray("de")
+                            LineDef(
+                                lemma = it.optString("lemma"), english = it.optString("en"), grammar = it.optString("gr"),
+                                german = (0 until de.length()).map { i ->
+                                    de.getJSONArray(i).let { a -> Segment(a.getString(0), if (a.isNull(1)) null else a.getString(1)) }
+                                },
+                            )
+                        }
+                    }
+                } ?: emptyMap(),
             )
         }
         return EpisodeDetail(
@@ -88,6 +101,10 @@ class Api(private val base: String) {
         JSONObject(post("/api/tv/known", JSONObject().put("word", word).put("known", known).toString())).optString("s", "u")
 
     /** The word read aloud (the server makes and caches it). */
+    /** A line's German definition read aloud. */
+    fun definitionAudio(scene: String, line: Int, word: String): String =
+        url("/api/tts?d=" + java.net.URLEncoder.encode("$scene|$line|$word", "UTF-8"))
+
     fun wordAudio(surface: String): String = url("/api/tts?w=" + java.net.URLEncoder.encode(surface.lowercase(), "UTF-8"))
 
     private suspend fun post(path: String, body: String): String = withContext(Dispatchers.IO) {
@@ -167,7 +184,19 @@ data class Scene(
     val english: List<Line>,
     /** Meanings that differ from the word's usual one in this scene. */
     val meanings: Map<String, String>,
-)
+    /** Per-line definitions, by "<line>|<word>" (definitions v2). */
+    val defs: Map<String, LineDef> = emptyMap(),
+) {
+    fun def(line: Int, word: String): LineDef? = defs["$line|$word"]
+}
+
+/**
+ * A word's definition in one line: dictionary form, English (translation + explanation), a German
+ * dictionary-style definition split into words (so they can be coloured and picked), and a grammar note.
+ */
+data class LineDef(val lemma: String, val english: String, val german: List<Segment>, val grammar: String) {
+    val germanText: String get() = german.joinToString("") { it.text }
+}
 
 data class Cue(val start: Double, val end: Double, val segments: List<Segment>) {
     val text: String get() = segments.joinToString("") { it.text }

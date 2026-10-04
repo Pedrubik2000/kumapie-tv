@@ -16,35 +16,91 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import io.github.pedrubik2000.kumapie.data.LineDef
 import io.github.pedrubik2000.kumapie.data.Word
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
 import kotlin.math.roundToInt
 
-/** The picked word's meaning, dictionary form, status and lookups, in a card right above the word. */
+/**
+ * The picked word's card, right above the word. With a per-line definition (definitions v2): dictionary form,
+ * the word (if different), English, the German definition with its words coloured (first when all are known),
+ * grammar, status. Without one: the short meaning, as before.
+ */
 @Composable
 fun MeaningCard(ctl: SceneController, picker: WordPicker, anchor: Rect) {
     val segment = picker.selected ?: return
     val key = segment.word ?: return
     val word = ctl.words[key] ?: Word("u", "")
-    val meaning = withoutSameWord(ctl.scene.meanings[key] ?: word.meaning, segment.text)
+    val def = picker.definition
     AboveAnchor(anchor) {
         Column(
-            Modifier.widthIn(max = 620.dp).background(Colors.surface, RoundedCornerShape(12.dp))
+            Modifier.widthIn(max = 720.dp).background(Colors.surface, RoundedCornerShape(12.dp))
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            if (meaning.isNotBlank()) {
-                Text(meaning, color = Colors.text, fontSize = 22.sp)
-            } else {
-                Text(segment.text, color = Colors.text, fontSize = 22.sp)
-                Text("no meaning yet", color = Colors.dim, fontSize = 15.sp)
-            }
-            if (word.lemma.isNotBlank() && word.lemma != key && !word.lemma.equals(segment.text, ignoreCase = true)) {
-                Text("dictionary form: ${word.lemma}", color = Colors.dim, fontSize = 15.sp)
-            }
+            if (def != null) DefinitionParts(ctl, picker, segment.text, def) else ShortMeaning(ctl, key, segment.text, word)
             val (status, color) = statusLine(word)
             Text(status + if (word.lookups > 0) "  ·  looked up ${word.lookups}×" else "", color = color, fontSize = 15.sp)
+            // The word picked inside the German definition: its own short meaning and status.
+            picker.selectedInDef?.word?.let { inner ->
+                val w = ctl.words[inner] ?: Word("u", "")
+                val (s, c) = statusLine(w)
+                Text("${picker.selectedInDef?.text}: " + (w.meaning.substringAfter(" = ").ifBlank { "no meaning yet" }) + "  ·  $s",
+                    color = c, fontSize = 16.sp, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: String, def: LineDef) {
+    val heading = def.lemma.ifBlank { written }
+    Text(heading, color = Colors.text, fontSize = 26.sp)
+    if (!heading.equals(written, ignoreCase = true)) Text(written, color = Colors.dim, fontSize = 18.sp)
+    val germanKnown = def.german.all { s -> s.word == null || (ctl.words[s.word]?.status ?: "u") == "k" }
+    val german = coloredDefinition(def, ctl.words, if (picker.inDef) picker.defSeg else -1)
+    if (germanKnown) {
+        Text(german, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(def.english, color = Colors.dim, fontSize = 17.sp)
+    } else {
+        Text(def.english, color = Colors.text, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(german, fontSize = 17.sp)
+    }
+    if (def.grammar.isNotBlank()) Text(def.grammar, color = Colors.dim, fontSize = 15.sp, modifier = Modifier.padding(top = 2.dp))
+}
+
+@Composable
+private fun ShortMeaning(ctl: SceneController, key: String, written: String, word: Word) {
+    val meaning = withoutSameWord(ctl.scene.meanings[key] ?: word.meaning, written)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (meaning.isNotBlank()) {
+            Text(meaning, color = Colors.text, fontSize = 22.sp)
+        } else {
+            Text(written, color = Colors.text, fontSize = 22.sp)
+            Text("no meaning yet", color = Colors.dim, fontSize = 15.sp)
+        }
+        if (word.lemma.isNotBlank() && word.lemma != key && !word.lemma.equals(written, ignoreCase = true)) {
+            Text("dictionary form: ${word.lemma}", color = Colors.dim, fontSize = 15.sp)
+        }
+    }
+}
+
+/** The German definition, its words coloured like the subtitles (red new, orange learning), [selected] highlighted. */
+private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: Int): AnnotatedString = buildAnnotatedString {
+    def.german.forEachIndexed { i, seg ->
+        val color = when (seg.word?.let { words[it]?.status ?: "u" }) {
+            "u" -> Colors.unknown
+            "l" -> Colors.learning
+            else -> Colors.text
+        }
+        withStyle(if (i == selected) SpanStyle(color = Color.Black, background = color) else SpanStyle(color = color)) {
+            append(seg.text)
         }
     }
 }

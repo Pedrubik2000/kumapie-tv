@@ -28,13 +28,16 @@ Part of **kuma3**, a personal language-learning setup (see also
 
 **Word picker:** the video pauses and every line of the scene shows; the cursor starts on the first red word
 of the line being said and jumps between red (never studied) and orange (learning) words. A card above the
-word shows its meaning, dictionary form and status; you hear the word when the cursor lands on it.
+word shows its definition for that line: dictionary form, English, a German dictionary definition (its words
+coloured; shown first when you know all of them), and a grammar note. You hear the word when the cursor lands
+on it.
 
 | in the picker | remote | gamepad |
 |---|---|---|
 | next / previous word | → / ← | D-pad → / ← |
-| line below / above | ↓ / ↑ | D-pad ↓ / ↑ |
-| hear the word again | OK | A |
+| line below | ↓ | D-pad ↓ |
+| into the German definition (pick its words), back | ↑, ↓ | D-pad ↑, ↓ |
+| hear the word again; twice: the German definition | OK | A |
 | replay the word's line | hold OK | X (or hold A) |
 | mark known / undo | hold ↓ | Y |
 | close | Back | B or Select |
@@ -113,10 +116,12 @@ JSON over HTTP(S). The app needs these routes (the reference server is part of a
 | `GET /api/tv/thumb/<id>.jpg`, `GET /api/tv/poster/<show>.jpg` | images |
 | `POST /api/tv/progress` | body `{"episode", "pos", "seen": [scene ids], "watched": seconds}` |
 | `GET /api/tv/stats` | `{"days": {"2026-10-04": seconds}}` |
+| `GET /api/tts?d=<scene>\|<line>\|<word>` | a line's German definition read aloud |
 | `POST /api/tv/lookup` | body `{"word", "scene"}` → `{"n": times looked up}` |
 | `POST /api/tv/known` | body `{"word", "known": true/false}` → `{"s": "k"/"l"/"u"}` (mark a word known without a card, or undo) |
 | `GET /api/tts?w=<word>` | the word read aloud (MP3) |
 
+A scene's `defs` holds its per-line definitions: `{"<line>|<word>": {"lemma", "en", "de": [[text, word or null]], "gr"}}`.
 A word in an episode's `words` also has `lemma` (dictionary form), `d` (best stability in days, or null),
 `n` (times looked up) and `m` (marked known).
 

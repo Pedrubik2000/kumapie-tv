@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,9 +35,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
@@ -174,7 +179,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
             modifier = Modifier.fillMaxSize(),
         )
         if (!ctl.playing || now < ctl.bannerUntil) TopBar(ctl)
-        Subtitles(ctl, Modifier.align(Alignment.BottomCenter))
+        Subtitles(ctl, Modifier)
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() })
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
@@ -212,17 +217,23 @@ private fun TopBar(ctl: SceneController) {
 fun LevelBadge(level: Int?, modifier: Modifier = Modifier) {
     val (text, color) = when {
         level == null -> "♪" to Colors.dim
-        level == 0 -> "i+0" to Colors.known
-        level == 1 -> "i+1" to Colors.learning
+        level == 0 -> "i+0" to Colors.levelZero
+        level == 1 -> "i+1" to Colors.levelOne
         else -> "i+$level" to Colors.unknown
     }
     Text(text, color = Color.Black, fontSize = 18.sp,
         modifier = modifier.background(color, RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 2.dp))
 }
 
+/** Subtitle sizes to try, largest first; English is set at ENGLISH_SCALE of the German. */
+private val SIZES = listOf(34, 31, 28, 25, 22, 20, 18)
+private const val ENGLISH_SCALE = 0.72f
+
 /**
- * While playing: the line being said. Paused: every line of the scene, the current one bright.
- * Unknown words are coloured; learning words a softer colour.
+ * While playing: the line being said. Paused: every line of the scene (the current one bright), then the
+ * English as one block. The largest size that fits is used: a third of the screen while playing, two thirds
+ * while paused (the video is stopped then), the smallest size if nothing fits.
+ * Unknown words red, learning words orange.
  */
 @Composable
 private fun Subtitles(ctl: SceneController, modifier: Modifier) {
@@ -242,19 +253,41 @@ private fun Subtitles(ctl: SceneController, modifier: Modifier) {
         else -> scene.english.filter { it.start - 0.1 <= pos && pos <= it.end + 0.6 }.takeLast(1)
     }
     if (german.isEmpty() && english.isEmpty()) return
-    Column(
-        modifier.padding(bottom = 48.dp).widthIn(max = 820.dp)
-            .background(Color(0xB3000000), RoundedCornerShape(12.dp)).padding(horizontal = 28.dp, vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        german.forEach { cue ->
-            val dim = !ctl.playing && cue != current
-            Text(colored(cue, ctl.episode.words, dim), fontSize = 34.sp, textAlign = TextAlign.Center)
+    val germanText = buildAnnotatedString {
+        german.forEachIndexed { i, cue ->
+            if (i > 0) append('\n')
+            append(colored(cue, ctl.episode.words, dim = !ctl.playing && cue != current))
         }
-        english.forEach {
-            Text(it.text, color = Colors.dim, fontSize = 24.sp, textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp))
+    }
+    val englishText = english.joinToString(" ") { it.text }
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val padH = 28.dp
+        val padV = 14.dp
+        val bottom = 40.dp
+        val boxWidth = minOf(maxWidth - 64.dp, 900.dp)
+        val budget = (if (ctl.playing) maxHeight / 3 else maxHeight * 2 / 3) - bottom - padV * 2
+        val (textWidth, budgetPx) = with(density) { (boxWidth - padH * 2).roundToPx() to budget.toPx() }
+        fun germanStyle(size: Int) = TextStyle(fontSize = size.sp, lineHeight = (size * 1.22f).sp, textAlign = TextAlign.Center)
+        fun englishStyle(size: Int) = TextStyle(fontSize = (size * ENGLISH_SCALE).sp,
+            lineHeight = (size * ENGLISH_SCALE * 1.22f).sp, textAlign = TextAlign.Center)
+        val size = SIZES.firstOrNull { s ->
+            val limits = Constraints(maxWidth = textWidth)
+            val g = if (germanText.isEmpty()) 0 else measurer.measure(germanText, germanStyle(s), constraints = limits).size.height
+            val e = if (englishText.isEmpty()) 0 else measurer.measure(englishText, englishStyle(s), constraints = limits).size.height
+            g + e + with(density) { 8.dp.toPx() } <= budgetPx
+        } ?: SIZES.last()
+        Column(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = bottom).widthIn(max = boxWidth)
+                .background(Color(0xB3000000), RoundedCornerShape(12.dp)).padding(horizontal = padH, vertical = padV),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (germanText.isNotEmpty()) Text(germanText, style = germanStyle(size), color = Colors.text)
+            if (englishText.isNotEmpty()) {
+                Text(englishText, style = englishStyle(size), color = Colors.dim,
+                    modifier = Modifier.padding(top = if (germanText.isEmpty()) 0.dp else 8.dp))
+            }
         }
     }
 }

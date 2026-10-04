@@ -39,9 +39,13 @@ object Colors {
     val accent = Color(0xFFC98A4B)
     val text = Color(0xFFF2F0F7)
     val dim = Color(0xFFA9A4B8)
-    val known = Color(0xFF7CC47F)
-    val learning = Color(0xFFE6C463)
-    val unknown = Color(0xFFE57373)
+    // Words: white = known (FSRS stability >= 7 days, the server's rule), orange = in Anki but below that,
+    // red = never studied (the only ones a scene's level counts). Same colours as the phone feed.
+    val learning = Color(0xFFFFAA4D)
+    val unknown = Color(0xFFFF6B6B)
+    // Level badges: i+0 green, i+1 yellow, i+2 and up red.
+    val levelZero = Color(0xFF7CC47F)
+    val levelOne = Color(0xFFE6C463)
 }
 
 @Composable

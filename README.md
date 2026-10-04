@@ -25,7 +25,7 @@ Part of **kuma3**, a personal language-learning setup (see also
 | options | hold ↓ | Start |
 | back | Back | B |
 
-Subtitles start hidden in every scene (or as set in options); while paused they show the whole scene, with
+Subtitles stay as you set them, from scene to scene and the next time you watch; while paused they show the whole scene, with
 unknown words in red and words you're learning in yellow. The options are remembered on the TV.
 
 ## Install

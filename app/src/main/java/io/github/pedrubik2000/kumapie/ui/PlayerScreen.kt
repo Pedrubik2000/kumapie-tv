@@ -321,8 +321,8 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit) {
             Button(onClick = ctl::toggleSlow, modifier = Modifier.fillMaxWidth()) {
                 Text("Speed: " + if (ctl.slow) "0.75x" else "normal")
             }
-            Button(onClick = { ctl.changeSubtitleDefault(ctl.subtitleDefault.next()) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Subtitles in each scene: " + ctl.subtitleDefault.label)
+            Button(onClick = { ctl.changeSubtitles(ctl.subtitles.next()) }, modifier = Modifier.fillMaxWidth()) {
+                Text("Subtitles: " + ctl.subtitles.label)
             }
             Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Close") }
         }

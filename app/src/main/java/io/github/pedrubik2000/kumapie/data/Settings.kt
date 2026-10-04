@@ -21,7 +21,7 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("slow", false)
         set(value) = prefs.edit().putBoolean("slow", value).apply()
 
-    /** How subtitles start in every scene: HIDDEN, GERMAN or BOTH. */
+    /** What the subtitles show; kept from scene to scene and between episodes. */
     var subtitles: Subtitles
         get() = runCatching { Subtitles.valueOf(prefs.getString("subtitles", null)!!) }.getOrDefault(Subtitles.HIDDEN)
         set(value) = prefs.edit().putString("subtitles", value.name).apply()
@@ -35,7 +35,16 @@ class Settings(context: Context) {
 }
 
 enum class Subtitles(val label: String) {
-    HIDDEN("Hidden until asked"), GERMAN("German"), BOTH("German + English");
+    HIDDEN("Hidden"), GERMAN("German"), BOTH("German + English"), ENGLISH("English");
 
     fun next(): Subtitles = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun of(german: Boolean, english: Boolean): Subtitles = when {
+            german && english -> BOTH
+            german -> GERMAN
+            english -> ENGLISH
+            else -> HIDDEN
+        }
+    }
 }

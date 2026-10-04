@@ -52,12 +52,11 @@ class SceneController(
         private set
     var slow by mutableStateOf(settings.slow)
         private set
-    var subtitleDefault by mutableStateOf(settings.subtitles)
+    /** What the subtitles show. Stays as set from scene to scene and is remembered for next time. */
+    var subtitles by mutableStateOf(settings.subtitles)
         private set
-    var showGerman by mutableStateOf(false)
-        private set
-    var showEnglish by mutableStateOf(false)
-        private set
+    val showGerman: Boolean get() = subtitles == Subtitles.GERMAN || subtitles == Subtitles.BOTH
+    val showEnglish: Boolean get() = subtitles == Subtitles.ENGLISH || subtitles == Subtitles.BOTH
 
     /** The top bar (show, scene n/N, level) stays up until this uptime (ms), and always while paused. */
     var bannerUntil by mutableLongStateOf(0L)
@@ -71,7 +70,6 @@ class SceneController(
     private var lastReport = SystemClock.uptimeMillis()
 
     init {
-        resetSubtitles()
         player.setPlaybackSpeed(if (slow) 0.75f else 1f)
     }
 
@@ -91,10 +89,9 @@ class SceneController(
         playScene(index)
     }
 
-    fun playScene(i: Int, keepSubtitles: Boolean = false) {
+    fun playScene(i: Int) {
         if (scenes.isEmpty()) return
         index = i.coerceIn(0, scenes.lastIndex)
-        if (!keepSubtitles) resetSubtitles()
         atSceneEnd = false
         seek(scene.start)
         stopAtSceneEnd()
@@ -104,7 +101,7 @@ class SceneController(
 
     fun nextScene() = playScene(index + 1)
     fun previousScene() = playScene(index - 1)
-    fun replayScene() = playScene(index, keepSubtitles = true)
+    fun replayScene() = playScene(index)
 
     /** The line being said (or the last one said) again, then pause. */
     fun replayLine() {
@@ -126,16 +123,14 @@ class SceneController(
     }
 
     /** Remote ↓: hidden → German → German + English → hidden. */
-    fun cycleSubtitles() {
-        when {
-            !showGerman -> showGerman = true
-            !showEnglish -> showEnglish = true
-            else -> { showGerman = false; showEnglish = false }
-        }
-    }
+    fun cycleSubtitles() = changeSubtitles(when (subtitles) {
+        Subtitles.HIDDEN -> Subtitles.GERMAN
+        Subtitles.GERMAN -> Subtitles.BOTH
+        else -> Subtitles.HIDDEN
+    })
 
-    fun toggleGerman() { showGerman = !showGerman }
-    fun toggleEnglish() { showEnglish = !showEnglish }
+    fun toggleGerman() = changeSubtitles(Subtitles.of(german = !showGerman, english = showEnglish))
+    fun toggleEnglish() = changeSubtitles(Subtitles.of(german = showGerman, english = !showEnglish))
 
     fun toggleSlow() {
         slow = !slow
@@ -151,10 +146,9 @@ class SceneController(
         showBanner()
     }
 
-    fun changeSubtitleDefault(value: Subtitles) {
-        subtitleDefault = value
+    fun changeSubtitles(value: Subtitles) {
+        subtitles = value
         settings.subtitles = value
-        resetSubtitles()
     }
 
     fun showBanner(ms: Long = 3_000) { bannerUntil = SystemClock.uptimeMillis() + ms }
@@ -174,7 +168,6 @@ class SceneController(
             val i = scenes.indexOfLast { it.start <= position }
             if (i > index) {
                 index = i
-                resetSubtitles()
                 showBanner()
             }
         }
@@ -223,10 +216,5 @@ class SceneController(
         } else {
             stopAt = null
         }
-    }
-
-    private fun resetSubtitles() {
-        showGerman = subtitleDefault != Subtitles.HIDDEN
-        showEnglish = subtitleDefault == Subtitles.BOTH
     }
 }

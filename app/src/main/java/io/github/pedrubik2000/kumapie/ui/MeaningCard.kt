@@ -27,7 +27,7 @@ fun MeaningCard(ctl: SceneController, picker: WordPicker, anchor: Rect) {
     val segment = picker.selected ?: return
     val key = segment.word ?: return
     val word = ctl.words[key] ?: Word("u", "")
-    val meaning = ctl.scene.meanings[key] ?: word.meaning
+    val meaning = withoutSameWord(ctl.scene.meanings[key] ?: word.meaning, segment.text)
     AboveAnchor(anchor) {
         Column(
             Modifier.widthIn(max = 620.dp).background(Colors.surface, RoundedCornerShape(12.dp))
@@ -47,6 +47,15 @@ fun MeaningCard(ctl: SceneController, picker: WordPicker, anchor: Rect) {
             Text(status + if (word.lookups > 0) "  ·  looked up ${word.lookups}×" else "", color = color, fontSize = 15.sp)
         }
     }
+}
+
+/**
+ * "echt = really" under a highlighted "echt" says the word twice: show "really". The "word =" part stays when
+ * it differs from the selected word (a split verb: "sehen aus = to look" while "sehen" is selected).
+ */
+private fun withoutSameWord(meaning: String, selected: String): String {
+    val head = meaning.substringBefore(" = ", missingDelimiterValue = "")
+    return if (head.isNotEmpty() && head.equals(selected, ignoreCase = true)) meaning.substringAfter(" = ") else meaning
 }
 
 private fun statusLine(w: Word) = when {

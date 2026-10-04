@@ -19,7 +19,7 @@ Part of **kuma3**, a personal language-learning setup (see also
 | next / previous scene | → / ← | D-pad → / ← |
 | replay the line | ↑ | X |
 | replay the scene | hold ← | Y |
-| subtitles: none → German → German + English | ↓ | L = German, R = English |
+| subtitles: none → German blurred → German → German + English | ↓ | L = German (un-blurs), R = English |
 | speed 0.75x | options | L2 |
 | pause at the end of each scene / play on | options | R2 |
 | options | hold ↓ | Start |

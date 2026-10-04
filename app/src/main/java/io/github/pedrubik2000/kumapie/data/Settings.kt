@@ -35,7 +35,7 @@ class Settings(context: Context) {
 }
 
 enum class Subtitles(val label: String) {
-    HIDDEN("Hidden"), GERMAN("German"), BOTH("German + English"), ENGLISH("English");
+    HIDDEN("Hidden"), BLURRED("German, blurred"), GERMAN("German"), BOTH("German + English"), ENGLISH("English");
 
     fun next(): Subtitles = entries[(ordinal + 1) % entries.size]
 

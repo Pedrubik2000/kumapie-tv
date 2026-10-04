@@ -55,7 +55,10 @@ class SceneController(
     /** What the subtitles show. Stays as set from scene to scene and is remembered for next time. */
     var subtitles by mutableStateOf(settings.subtitles)
         private set
-    val showGerman: Boolean get() = subtitles == Subtitles.GERMAN || subtitles == Subtitles.BOTH
+    /** German is on screen (blurred or readable). */
+    val showGerman: Boolean get() = subtitles == Subtitles.BLURRED || subtitles == Subtitles.GERMAN || subtitles == Subtitles.BOTH
+    /** German is there but blurred: you see that (and how much) is said, not what. */
+    val blurGerman: Boolean get() = subtitles == Subtitles.BLURRED
     val showEnglish: Boolean get() = subtitles == Subtitles.ENGLISH || subtitles == Subtitles.BOTH
 
     /** The top bar (show, scene n/N, level) stays up until this uptime (ms), and always while paused. */
@@ -122,14 +125,17 @@ class SceneController(
         showBanner()
     }
 
-    /** Remote ↓: hidden → German → German + English → hidden. */
+    /** Remote ↓: hidden → German blurred → German → German + English → hidden. */
     fun cycleSubtitles() = changeSubtitles(when (subtitles) {
-        Subtitles.HIDDEN -> Subtitles.GERMAN
+        Subtitles.HIDDEN -> Subtitles.BLURRED
+        Subtitles.BLURRED -> Subtitles.GERMAN
         Subtitles.GERMAN -> Subtitles.BOTH
         else -> Subtitles.HIDDEN
     })
 
-    fun toggleGerman() = changeSubtitles(Subtitles.of(german = !showGerman, english = showEnglish))
+    /** Gamepad L: blurred German becomes readable; otherwise German on / off. */
+    fun toggleGerman() = changeSubtitles(
+        if (blurGerman) Subtitles.GERMAN else Subtitles.of(german = !showGerman, english = showEnglish))
     fun toggleEnglish() = changeSubtitles(Subtitles.of(german = showGerman, english = !showEnglish))
 
     fun toggleSlow() {

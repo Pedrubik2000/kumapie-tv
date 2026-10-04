@@ -29,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -283,7 +285,10 @@ private fun Subtitles(ctl: SceneController, modifier: Modifier) {
                 .background(Color(0xB3000000), RoundedCornerShape(12.dp)).padding(horizontal = padH, vertical = padV),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (germanText.isNotEmpty()) Text(germanText, style = germanStyle(size), color = Colors.text)
+            if (germanText.isNotEmpty()) {
+                Text(germanText, style = germanStyle(size), color = Colors.text,
+                    modifier = if (ctl.blurGerman) Modifier.blur(10.dp, BlurredEdgeTreatment.Unbounded) else Modifier)
+            }
             if (englishText.isNotEmpty()) {
                 Text(englishText, style = englishStyle(size), color = Colors.dim,
                     modifier = Modifier.padding(top = if (germanText.isEmpty()) 0.dp else 8.dp))

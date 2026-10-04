@@ -43,7 +43,11 @@ class Api(private val base: String) {
         val e = JSONObject(get("/api/tv/episode/$id"))
         val words = e.getJSONObject("words").let { w ->
             w.keys().asSequence().associateWith { k ->
-                w.getJSONObject(k).let { Word(status = it.optString("s", "u"), meaning = it.optString("g")) }
+                w.getJSONObject(k).let {
+                    Word(status = it.optString("s", "u"), meaning = it.optString("g"), lemma = it.optString("lemma"),
+                        stability = if (it.isNull("d")) null else it.optDouble("d"), lookups = it.optInt("n"),
+                        marked = it.optBoolean("m"))
+                }
             }
         }
         val scenes = e.getJSONArray("scenes").objects().map { s ->
@@ -74,6 +78,17 @@ class Api(private val base: String) {
         val body = JSONObject().put("episode", episode).put("pos", pos).put("seen", JSONArray(seen)).put("watched", watched)
         post("/api/tv/progress", body.toString())
     }
+
+    /** A word looked up in the picker; answers how many times it has been looked up. */
+    suspend fun lookup(word: String, scene: String): Int =
+        JSONObject(post("/api/tv/lookup", JSONObject().put("word", word).put("scene", scene).toString())).optInt("n")
+
+    /** Marks a word known without a card (or undoes it); answers its status now: "k", "l" or "u". */
+    suspend fun markKnown(word: String, known: Boolean): String =
+        JSONObject(post("/api/tv/known", JSONObject().put("word", word).put("known", known).toString())).optString("s", "u")
+
+    /** The word read aloud (the server makes and caches it). */
+    fun wordAudio(surface: String): String = url("/api/tts?w=" + java.net.URLEncoder.encode(surface.lowercase(), "UTF-8"))
 
     private suspend fun post(path: String, body: String): String = withContext(Dispatchers.IO) {
         val conn = URL(url(path)).openConnection() as HttpURLConnection
@@ -163,8 +178,19 @@ data class Segment(val text: String, val word: String?)
 
 data class Line(val start: Double, val end: Double, val text: String)
 
-/** status: "k" known, "l" learning, "u" unknown. */
-data class Word(val status: String, val meaning: String)
+/**
+ * status: "k" known, "l" learning (in Anki, below the known stability), "u" never studied.
+ * lemma: dictionary form; stability: best FSRS stability in days of its cards (null if never reviewed);
+ * lookups: times looked up on the TV; marked: marked known on the TV (no card).
+ */
+data class Word(
+    val status: String,
+    val meaning: String,
+    val lemma: String = "",
+    val stability: Double? = null,
+    val lookups: Int = 0,
+    val marked: Boolean = false,
+)
 
 fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
 

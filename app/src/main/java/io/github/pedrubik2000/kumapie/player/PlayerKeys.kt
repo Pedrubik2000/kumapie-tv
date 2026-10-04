@@ -16,6 +16,15 @@ enum class Action(val label: String) {
     PAUSE_AT_SCENE_END("Pause at scene end"),
     OPTIONS("Options"),
     WORD_PICKER("Pick a word"),
+    // inside the word picker
+    PICK_LEFT("Previous word"),
+    PICK_RIGHT("Next word"),
+    PICK_UP("Line above"),
+    PICK_DOWN("Line below"),
+    PICK_AUDIO("Hear the word again"),
+    PICK_REPLAY_LINE("Replay the word's line"),
+    PICK_MARK_KNOWN("Mark known / undo"),
+    PICK_CLOSE("Close the picker"),
 }
 
 /**
@@ -53,7 +62,7 @@ class KeyMap(
             KeyEvent.KEYCODE_BUTTON_L2 to Action.SLOW,
             KeyEvent.KEYCODE_BUTTON_R2 to Action.PAUSE_AT_SCENE_END,
             KeyEvent.KEYCODE_BUTTON_START to Action.OPTIONS,
-            KeyEvent.KEYCODE_BUTTON_SELECT to Action.OPTIONS,
+            KeyEvent.KEYCODE_BUTTON_SELECT to Action.WORD_PICKER,
         )
         val DEFAULT_LONG = mapOf(
             KeyEvent.KEYCODE_DPAD_CENTER to Action.WORD_PICKER,
@@ -62,20 +71,53 @@ class KeyMap(
             KeyEvent.KEYCODE_DPAD_LEFT to Action.REPLAY_SCENE,
             KeyEvent.KEYCODE_DPAD_DOWN to Action.OPTIONS,
         )
+
+        /** While the word picker is open. Back closes it (handled here so it doesn't close the player). */
+        val PICKER = KeyMap(
+            short = mapOf(
+                KeyEvent.KEYCODE_DPAD_LEFT to Action.PICK_LEFT,
+                KeyEvent.KEYCODE_DPAD_RIGHT to Action.PICK_RIGHT,
+                KeyEvent.KEYCODE_DPAD_UP to Action.PICK_UP,
+                KeyEvent.KEYCODE_DPAD_DOWN to Action.PICK_DOWN,
+                KeyEvent.KEYCODE_DPAD_CENTER to Action.PICK_AUDIO,
+                KeyEvent.KEYCODE_ENTER to Action.PICK_AUDIO,
+                KeyEvent.KEYCODE_BUTTON_A to Action.PICK_AUDIO,
+                KeyEvent.KEYCODE_BUTTON_X to Action.PICK_REPLAY_LINE,
+                KeyEvent.KEYCODE_BUTTON_Y to Action.PICK_MARK_KNOWN,
+                KeyEvent.KEYCODE_BUTTON_SELECT to Action.PICK_CLOSE,
+                KeyEvent.KEYCODE_BUTTON_B to Action.PICK_CLOSE,
+                KeyEvent.KEYCODE_BACK to Action.PICK_CLOSE,
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE to Action.PICK_REPLAY_LINE,
+            ),
+            long = mapOf(
+                KeyEvent.KEYCODE_DPAD_CENTER to Action.PICK_REPLAY_LINE,
+                KeyEvent.KEYCODE_ENTER to Action.PICK_REPLAY_LINE,
+                KeyEvent.KEYCODE_BUTTON_A to Action.PICK_REPLAY_LINE,
+                KeyEvent.KEYCODE_DPAD_DOWN to Action.PICK_MARK_KNOWN,
+            ),
+        )
     }
 }
 
 /** Turns raw key events into actions, with long presses. Returns true when the event was used. */
-class KeyHandler(private val keys: KeyMap, private val onAction: (Action) -> Unit) {
+class KeyHandler(private val keyMap: () -> KeyMap, private val onAction: (Action) -> Unit) {
     private val longFired = mutableSetOf<Int>()
+    // Keys whose press was ours: their release is ours too, even if the map changed in between
+    // (Back closes the picker on press; its release must not then close the player).
+    private val pressed = mutableSetOf<Int>()
 
     fun handle(event: KeyEvent): Boolean {
+        val keys = keyMap()
         val code = event.keyCode
         val short = keys.short[code]
         val long = keys.long[code]
-        if (short == null && long == null) return false
+        if (short == null && long == null) {
+            if (event.action == KeyEvent.ACTION_UP && pressed.remove(code)) return true
+            return false
+        }
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
+                pressed += code
                 if (long == null) {
                     if (event.repeatCount == 0) onAction(short!!)
                 } else if (event.repeatCount == 0) {
@@ -86,8 +128,9 @@ class KeyHandler(private val keys: KeyMap, private val onAction: (Action) -> Uni
                 }
             }
             KeyEvent.ACTION_UP -> {
-                if (long != null && code !in longFired) short?.let(onAction)
+                if (long != null && code !in longFired && code in pressed) short?.let(onAction)
                 longFired -= code
+                pressed -= code
             }
         }
         return true

@@ -14,6 +14,9 @@ import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Scene
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Subtitles
+import io.github.pedrubik2000.kumapie.data.Word
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,6 +37,9 @@ class SceneController(
     private val api: Api,
 ) {
     val scenes: List<Scene> = episode.scenes
+
+    /** Every word's status and meaning; changes when a word is marked known in the picker. */
+    val words: SnapshotStateMap<String, Word> = mutableStateMapOf<String, Word>().apply { putAll(episode.words) }
 
     var index by mutableIntStateOf(startIndex())
         private set
@@ -109,6 +115,12 @@ class SceneController(
     /** The line being said (or the last one said) again, then pause. */
     fun replayLine() {
         val cue = currentCue() ?: return replayScene()
+        replayCue(scene.cues.indexOf(cue))
+    }
+
+    /** Line [i] of the scene again, then pause. */
+    fun replayCue(i: Int) {
+        val cue = scene.cues.getOrNull(i) ?: return
         atSceneEnd = false
         seek((cue.start - 0.15).coerceAtLeast(scene.start))
         stopAt = minOf(cue.end + 0.25, scene.end)
@@ -124,6 +136,17 @@ class SceneController(
         }
         showBanner()
     }
+
+    fun pause() {
+        player.pause()
+        playing = false
+        showBanner()
+    }
+
+    /** Words in the scene never studied (as the server counts, but live: marking a word known lowers it). */
+    fun levelOf(scene: Scene): Int? =
+        if (!scene.german) null
+        else scene.cues.flatMap { c -> c.segments.mapNotNull { it.word } }.toSet().count { (words[it]?.status ?: "u") == "u" }
 
     /** Remote ↓: hidden → German blurred → German → German + English → hidden. */
     fun cycleSubtitles() = changeSubtitles(when (subtitles) {

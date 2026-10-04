@@ -9,7 +9,7 @@ you know live on your own PC, in a small server that the app talks to (see [Serv
 Part of **kuma3**, a personal language-learning setup (see also
 [kuma3-anki](https://github.com/Pedrubik2000/kuma3-anki-app)).
 
-> Status: early. Shows, episodes and the scene player work; the word picker and button mapping are next.
+> Status: early. Shows, episodes, the scene player and the word picker work; button mapping and a help screen are next.
 
 ## Buttons
 
@@ -23,7 +23,21 @@ Part of **kuma3**, a personal language-learning setup (see also
 | speed 0.75x | options | L2 |
 | pause at the end of each scene / play on | options | R2 |
 | options | hold ↓ | Start |
+| pick a word | hold OK, or ↓ when the scene has ended | hold A, or Select |
 | back | Back | B |
+
+**Word picker:** the video pauses and every line of the scene shows; the cursor starts on the first red word
+of the line being said and jumps between red (never studied) and orange (learning) words. A card above the
+word shows its meaning, dictionary form and status; you hear the word when the cursor lands on it.
+
+| in the picker | remote | gamepad |
+|---|---|---|
+| next / previous word | → / ← | D-pad → / ← |
+| line below / above | ↓ / ↑ | D-pad ↓ / ↑ |
+| hear the word again | OK | A |
+| replay the word's line | hold OK | X (or hold A) |
+| mark known / undo | hold ↓ | Y |
+| close | Back | B or Select |
 
 Subtitles stay as you set them, from scene to scene and the next time you watch; while paused they show the whole scene, with
 unknown words in red and words you're learning in yellow. The options are remembered on the TV.
@@ -74,7 +88,9 @@ never in the repo: the workflow reads it from the repository secrets `KEYSTORE_B
 | `data/Api.kt` | the server API and its data |
 | `data/Settings.kt` | what the TV remembers (server address, later: subtitle mode, buttons) |
 | `ui/HomeScreen.kt`, `ui/ShowScreen.kt` | shows → episodes |
-| `ui/PlayerScreen.kt` | the scene player: video, top bar, subtitles, options |
+| `ui/PlayerScreen.kt` | the scene player: video, top bar, options |
+| `ui/Subtitles.kt`, `ui/MeaningCard.kt` | subtitles (shrink to fit, picker cursor), the meaning card |
+| `player/WordPicker.kt` | the word picker: cursor, word audio, lookups, mark known |
 | `player/SceneController.kt` | scenes on top of the whole episode: where to stop, replays, progress |
 | `player/PlayerKeys.kt` | which button does what (short and long presses) |
 | `ui/SettingsScreen.kt`, `ui/UpdateDialog.kt` | settings, updates |
@@ -97,6 +113,12 @@ JSON over HTTP(S). The app needs these routes (the reference server is part of a
 | `GET /api/tv/thumb/<id>.jpg`, `GET /api/tv/poster/<show>.jpg` | images |
 | `POST /api/tv/progress` | body `{"episode", "pos", "seen": [scene ids], "watched": seconds}` |
 | `GET /api/tv/stats` | `{"days": {"2026-10-04": seconds}}` |
+| `POST /api/tv/lookup` | body `{"word", "scene"}` → `{"n": times looked up}` |
+| `POST /api/tv/known` | body `{"word", "known": true/false}` → `{"s": "k"/"l"/"u"}` (mark a word known without a card, or undo) |
+| `GET /api/tts?w=<word>` | the word read aloud (MP3) |
+
+A word in an episode's `words` also has `lemma` (dictionary form), `d` (best stability in days, or null),
+`n` (times looked up) and `m` (marked known).
 
 ## License
 

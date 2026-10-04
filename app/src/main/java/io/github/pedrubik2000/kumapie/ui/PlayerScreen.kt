@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -26,27 +24,18 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -60,16 +49,15 @@ import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Button
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Api
-import io.github.pedrubik2000.kumapie.data.Cue
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
-import io.github.pedrubik2000.kumapie.data.Word
 import io.github.pedrubik2000.kumapie.player.Action
 import io.github.pedrubik2000.kumapie.player.KeyHandler
 import io.github.pedrubik2000.kumapie.player.KeyMap
 import io.github.pedrubik2000.kumapie.player.SceneController
+import io.github.pedrubik2000.kumapie.player.WordPicker
 import kotlinx.coroutines.delay
 
 /** Loads the episode's scenes, then plays it scene by scene. */
@@ -95,6 +83,7 @@ fun PlayerScreen(api: Api, settings: Settings, show: Show, episode: Episode, onC
 @Composable
 private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val player = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(episode.video))
@@ -102,23 +91,37 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
         }
     }
     val ctl = remember { SceneController(episode, player, settings, api) }
+    val picker = remember { WordPicker(ctl, api, scope) }
     var options by remember { mutableStateOf(false) }
+    var anchor by remember { mutableStateOf<Rect?>(null) } // the selected word, in screen coordinates
     val focus = remember { FocusRequester() }
+    fun openPicker() {
+        if (!picker.open()) Toast.makeText(context, "No words in this scene", Toast.LENGTH_SHORT).show()
+    }
     val keys = remember {
-        KeyHandler(KeyMap()) { action ->
+        KeyHandler({ if (picker.isOpen) KeyMap.PICKER else KeyMap() }) { action ->
             when (action) {
                 Action.PLAY_PAUSE -> ctl.togglePlay()
                 Action.NEXT_SCENE -> ctl.nextScene()
                 Action.PREVIOUS_SCENE -> ctl.previousScene()
                 Action.REPLAY_LINE -> ctl.replayLine()
                 Action.REPLAY_SCENE -> ctl.replayScene()
-                Action.CYCLE_SUBTITLES -> ctl.cycleSubtitles()
+                // At the end of a scene ↓ opens the picker; otherwise it steps through the subtitle modes.
+                Action.CYCLE_SUBTITLES -> if (ctl.atSceneEnd) openPicker() else ctl.cycleSubtitles()
                 Action.TOGGLE_GERMAN -> ctl.toggleGerman()
                 Action.TOGGLE_ENGLISH -> ctl.toggleEnglish()
                 Action.SLOW -> ctl.toggleSlow()
                 Action.PAUSE_AT_SCENE_END -> ctl.togglePauseAtSceneEnd()
                 Action.OPTIONS -> options = true
-                Action.WORD_PICKER -> Toast.makeText(context, "The word picker comes in the next version", Toast.LENGTH_SHORT).show()
+                Action.WORD_PICKER -> openPicker()
+                Action.PICK_LEFT -> picker.left()
+                Action.PICK_RIGHT -> picker.right()
+                Action.PICK_UP -> picker.up()
+                Action.PICK_DOWN -> picker.down()
+                Action.PICK_AUDIO -> picker.hearAgain()
+                Action.PICK_REPLAY_LINE -> picker.replayLine()
+                Action.PICK_MARK_KNOWN -> picker.toggleKnown()
+                Action.PICK_CLOSE -> picker.close()
             }
         }
     }
@@ -130,6 +133,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
         onDispose {
             ctl.tick()
             ctl.report()
+            picker.release()
             player.release()
             view.keepScreenOn = false
         }
@@ -144,6 +148,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
                     ctl.tick()
                     ctl.report()
                     options = false
+                    picker.close()
                 }
                 Lifecycle.Event.ON_RESUME -> runCatching { focus.requestFocus() }
                 else -> Unit
@@ -180,16 +185,17 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
             },
             modifier = Modifier.fillMaxSize(),
         )
-        if (!ctl.playing || now < ctl.bannerUntil) TopBar(ctl)
-        Subtitles(ctl, Modifier)
+        if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, picker)
+        Subtitles(ctl, picker, onAnchor = { anchor = it })
+        if (picker.isOpen) anchor?.let { MeaningCard(ctl, picker, it) }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() })
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
-/** Show, scene n/N with its level, and the modes. */
+/** Show, scene n/N with its level, the modes, and a hint of the keys when paused. */
 @Composable
-private fun TopBar(ctl: SceneController) {
+private fun TopBar(ctl: SceneController, picker: WordPicker) {
     val scene = ctl.scene
     Row(
         Modifier.fillMaxWidth()
@@ -205,11 +211,16 @@ private fun TopBar(ctl: SceneController) {
         ).joinToString(" · ")
         Text(modes, color = Colors.text.copy(alpha = 0.8f), fontSize = 16.sp, modifier = Modifier.padding(end = 24.dp))
         Text("Scene ${scene.index + 1} / ${ctl.scenes.size}", color = Colors.text, fontSize = 20.sp)
-        LevelBadge(scene.level, Modifier.padding(start = 16.dp))
+        LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 16.dp))
     }
-    if (ctl.atSceneEnd) {
+    val hint = when {
+        picker.isOpen -> "←→ words   ↑↓ lines   OK: hear again   hold OK / X: replay line   hold ↓ / Y: known   Back: close"
+        ctl.atSceneEnd -> "OK: next scene   ↑: replay line   ↓: pick a word   ←: previous"
+        else -> null
+    }
+    if (hint != null) {
         Box(Modifier.fillMaxSize().padding(top = 110.dp), contentAlignment = Alignment.TopCenter) {
-            Text("OK: next scene   ↑: replay line   ←: previous", color = Colors.text, fontSize = 18.sp,
+            Text(hint, color = Colors.text, fontSize = 17.sp,
                 modifier = Modifier.background(Color(0x99000000), RoundedCornerShape(8.dp)).padding(horizontal = 20.dp, vertical = 10.dp))
         }
     }
@@ -225,88 +236,6 @@ fun LevelBadge(level: Int?, modifier: Modifier = Modifier) {
     }
     Text(text, color = Color.Black, fontSize = 18.sp,
         modifier = modifier.background(color, RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 2.dp))
-}
-
-/** Subtitle sizes to try, largest first; English is set at ENGLISH_SCALE of the German. */
-private val SIZES = listOf(34, 31, 28, 25, 22, 20, 18)
-private const val ENGLISH_SCALE = 0.72f
-
-/**
- * While playing: the line being said. Paused: every line of the scene (the current one bright), then the
- * English as one block. The largest size that fits is used: a third of the screen while playing, two thirds
- * while paused (the video is stopped then), the smallest size if nothing fits.
- * Unknown words red, learning words orange.
- */
-@Composable
-private fun Subtitles(ctl: SceneController, modifier: Modifier) {
-    if (!ctl.showGerman && !ctl.showEnglish) return
-    val scene = ctl.scene
-    val current = ctl.currentCue()
-    val pos = ctl.position
-    val german: List<Cue> = when {
-        !ctl.showGerman -> emptyList()
-        !ctl.playing -> scene.cues
-        current != null && pos <= current.end + 0.6 -> listOf(current)
-        else -> emptyList()
-    }
-    val english = when {
-        !ctl.showEnglish -> emptyList()
-        !ctl.playing -> scene.english
-        else -> scene.english.filter { it.start - 0.1 <= pos && pos <= it.end + 0.6 }.takeLast(1)
-    }
-    if (german.isEmpty() && english.isEmpty()) return
-    val germanText = buildAnnotatedString {
-        german.forEachIndexed { i, cue ->
-            if (i > 0) append('\n')
-            append(colored(cue, ctl.episode.words, dim = !ctl.playing && cue != current))
-        }
-    }
-    val englishText = english.joinToString(" ") { it.text }
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val padH = 28.dp
-        val padV = 14.dp
-        val bottom = 40.dp
-        val boxWidth = minOf(maxWidth - 64.dp, 900.dp)
-        val budget = (if (ctl.playing) maxHeight / 3 else maxHeight * 2 / 3) - bottom - padV * 2
-        val (textWidth, budgetPx) = with(density) { (boxWidth - padH * 2).roundToPx() to budget.toPx() }
-        fun germanStyle(size: Int) = TextStyle(fontSize = size.sp, lineHeight = (size * 1.22f).sp, textAlign = TextAlign.Center)
-        fun englishStyle(size: Int) = TextStyle(fontSize = (size * ENGLISH_SCALE).sp,
-            lineHeight = (size * ENGLISH_SCALE * 1.22f).sp, textAlign = TextAlign.Center)
-        val size = SIZES.firstOrNull { s ->
-            val limits = Constraints(maxWidth = textWidth)
-            val g = if (germanText.isEmpty()) 0 else measurer.measure(germanText, germanStyle(s), constraints = limits).size.height
-            val e = if (englishText.isEmpty()) 0 else measurer.measure(englishText, englishStyle(s), constraints = limits).size.height
-            g + e + with(density) { 8.dp.toPx() } <= budgetPx
-        } ?: SIZES.last()
-        Column(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = bottom).widthIn(max = boxWidth)
-                .background(Color(0xB3000000), RoundedCornerShape(12.dp)).padding(horizontal = padH, vertical = padV),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (germanText.isNotEmpty()) {
-                Text(germanText, style = germanStyle(size), color = Colors.text,
-                    modifier = if (ctl.blurGerman) Modifier.blur(10.dp, BlurredEdgeTreatment.Unbounded) else Modifier)
-            }
-            if (englishText.isNotEmpty()) {
-                Text(englishText, style = englishStyle(size), color = Colors.dim,
-                    modifier = Modifier.padding(top = if (germanText.isEmpty()) 0.dp else 8.dp))
-            }
-        }
-    }
-}
-
-private fun colored(cue: Cue, words: Map<String, Word>, dim: Boolean): AnnotatedString = buildAnnotatedString {
-    val base = if (dim) Colors.dim else Colors.text
-    for (seg in cue.segments) {
-        val color = when (seg.word?.let { words[it]?.status }) {
-            "u" -> if (dim) Colors.unknown.copy(alpha = 0.7f) else Colors.unknown
-            "l" -> if (dim) Colors.learning.copy(alpha = 0.7f) else Colors.learning
-            else -> base
-        }
-        withStyle(SpanStyle(color = color)) { append(seg.text) }
-    }
 }
 
 /** The player's modes, saved on the TV. Back or Close returns to the video. */

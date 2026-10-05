@@ -49,5 +49,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The TV APK first: TV apps up to v0.4.1 take the first .apk of a release.
           gh release create "$GITHUB_REF_NAME" "kumapie-tv-${GITHUB_REF_NAME}.apk" \
             --title "kumapie ${GITHUB_REF_NAME}" --notes-from-tag
+          gh release upload "$GITHUB_REF_NAME" "kumapie-mobile-${GITHUB_REF_NAME}.apk"

@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Settings
+import io.github.pedrubik2000.kumapie.data.keys
 import io.github.pedrubik2000.kumapie.player.Action
 import io.github.pedrubik2000.kumapie.player.Binding
 import io.github.pedrubik2000.kumapie.player.KeyContext

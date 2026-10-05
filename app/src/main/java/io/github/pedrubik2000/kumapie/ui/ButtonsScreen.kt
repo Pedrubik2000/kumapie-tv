@@ -34,6 +34,9 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Settings
+import io.github.pedrubik2000.kumapie.data.keys
+import io.github.pedrubik2000.kumapie.data.resetKeys
+import io.github.pedrubik2000.kumapie.data.setKeys
 import io.github.pedrubik2000.kumapie.player.Action
 import io.github.pedrubik2000.kumapie.player.Binding
 import io.github.pedrubik2000.kumapie.player.KeyContext

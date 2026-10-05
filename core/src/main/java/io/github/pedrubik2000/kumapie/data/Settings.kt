@@ -1,15 +1,11 @@
 package io.github.pedrubik2000.kumapie.data
 
 import android.content.Context
-import io.github.pedrubik2000.kumapie.player.Action
-import io.github.pedrubik2000.kumapie.player.Binding
-import io.github.pedrubik2000.kumapie.player.KeyContext
-import io.github.pedrubik2000.kumapie.player.defaultBindings
-import org.json.JSONObject
 
-/** Everything the app remembers on the TV itself. Progress (resume, scenes seen, minutes) lives on the server. */
+/** Everything the app remembers on the device itself. Progress (resume, scenes seen, minutes) lives on the server. */
 class Settings(context: Context) {
-    private val prefs = context.getSharedPreferences("kumapie", Context.MODE_PRIVATE)
+    /** Public so each app can keep its own settings in the same file (the TV keeps its button map here). */
+    val prefs = context.getSharedPreferences("kumapie", Context.MODE_PRIVATE)
 
     /** The dojo server, e.g. https://<pc>.<tailnet>.ts.net:8445 (no trailing slash). Empty = not set up yet. */
     var server: String
@@ -35,26 +31,6 @@ class Settings(context: Context) {
     var showHelp: Boolean
         get() = prefs.getBoolean("show_help", true)
         set(value) = prefs.edit().putBoolean("show_help", value).apply()
-
-    /** The buttons of a context: what you set in Settings > Change buttons, else the defaults. */
-    fun keys(context: KeyContext): Map<Binding, Action> {
-        val json = prefs.getString("keys_${context.name}", null) ?: return defaultBindings(context)
-        return runCatching {
-            val o = JSONObject(json)
-            o.keys().asSequence().associate { k ->
-                val (kind, code) = k.split(":", limit = 2)
-                Binding(code.toInt(), kind == "long") to Action.valueOf(o.getString(k))
-            }
-        }.getOrElse { defaultBindings(context) }
-    }
-
-    fun setKeys(context: KeyContext, bindings: Map<Binding, Action>) {
-        val o = JSONObject()
-        bindings.forEach { (b, a) -> o.put((if (b.long) "long:" else "short:") + b.code, a.name) }
-        prefs.edit().putString("keys_${context.name}", o.toString()).apply()
-    }
-
-    fun resetKeys(context: KeyContext) = prefs.edit().remove("keys_${context.name}").apply()
 
     companion object {
         fun normalizeServer(value: String): String {

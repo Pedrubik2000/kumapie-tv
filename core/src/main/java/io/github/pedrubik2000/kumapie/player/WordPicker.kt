@@ -6,7 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import io.github.pedrubik2000.kumapie.data.Api
+import io.github.pedrubik2000.kumapie.data.Backend
 import io.github.pedrubik2000.kumapie.data.LineDef
 import io.github.pedrubik2000.kumapie.data.Segment
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
  */
 class WordPicker(
     private val ctl: SceneController,
-    private val api: Api,
+    private val api: Backend,
     private val scope: CoroutineScope,
 ) {
     /** A word's place in the scene: line (cue) and segment. */
@@ -112,6 +112,35 @@ class WordPicker(
         }
         lastOk = now
         (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text)) }
+    }
+
+    // ------------------------------------------------------------ touch (phone and tablet)
+
+    /** A word tapped in the subtitles: pauses, selects it and opens its card (word audio, a lookup). */
+    fun tap(line: Int, seg: Int) {
+        if (ctl.scene.cues.getOrNull(line)?.segments?.getOrNull(seg)?.word == null) return
+        if (!isOpen) ctl.pause()
+        isOpen = true
+        land(Spot(line, seg))
+        openCard()
+    }
+
+    /** A word tapped inside the open card's German definition: selected there, and read aloud. */
+    fun tapInDef(seg: Int) {
+        val segment = definition?.german?.getOrNull(seg) ?: return
+        if (segment.word == null) return
+        inDef = true
+        defSeg = seg
+        audio.play(api.wordAudio(segment.text))
+    }
+
+    /** The selected word read aloud again. */
+    fun hearWord() { (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text)) } }
+
+    /** The selected word's German definition read aloud. */
+    fun hearDefinition() {
+        val word = selected?.word ?: return
+        if (definition != null) audio.play(api.definitionAudio(ctl.scene.id, line, word))
     }
 
     /** The selected word's line again; the picker stays open. */

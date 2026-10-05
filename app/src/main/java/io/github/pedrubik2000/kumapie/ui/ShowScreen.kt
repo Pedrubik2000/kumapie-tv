@@ -71,8 +71,9 @@ private fun EpisodeCard(ep: Episode, onClick: () -> Unit, modifier: Modifier = M
                 Text("${minutes(ep.duration)} min · ${ep.scenes} scenes · ${ep.easy} easy today" +
                     if (ep.seen > 0) " · ${ep.seen} seen" else "", fontSize = 14.sp, color = Colors.dim,
                     modifier = Modifier.padding(vertical = 6.dp))
-                if (ep.resume != null && ep.duration > 0) {
-                    ProgressBar((ep.resume / ep.duration).toFloat(), Modifier.fillMaxWidth(0.6f))
+                val resume = ep.resume
+                if (resume != null && ep.duration > 0) {
+                    ProgressBar((resume / ep.duration).toFloat(), Modifier.fillMaxWidth(0.6f))
                 }
             }
         }

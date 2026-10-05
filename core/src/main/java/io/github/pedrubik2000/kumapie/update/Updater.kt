@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.provider.Settings
-import io.github.pedrubik2000.kumapie.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -16,22 +15,27 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Self-update from the GitHub repo's releases (BuildConfig.UPDATE_REPO): every tag vX.Y.Z has a signed APK
- * built by .github/workflows/release.yml. Android always asks before installing; the first time it also asks
- * to allow this app to install apps ("unknown sources").
+ * Self-update from the GitHub repo's releases: every tag vX.Y.Z has the signed APKs (TV and phone/tablet)
+ * built by .github/workflows/release.yml; each app takes the one whose name starts with its [asset] prefix.
+ * Android always asks before installing; the first time it also asks to allow this app to install apps
+ * ("unknown sources").
  */
 object Updater {
+    /** Set by each app when it starts: "owner/repo", the app's version name and its APK's name prefix. */
+    var repo = ""
+    var version = ""
+    var asset = ""
 
     data class Release(val version: String, val apkUrl: String, val notes: String)
 
     /** The latest release if it is newer than this app, else null. */
     suspend fun newer(): Release? {
         val latest = latest() ?: return null
-        return if (isNewer(latest.version, BuildConfig.VERSION_NAME)) latest else null
+        return if (isNewer(latest.version, version)) latest else null
     }
 
     suspend fun latest(): Release? = withContext(Dispatchers.IO) {
-        val conn = URL("https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases/latest")
+        val conn = URL("https://api.github.com/repos/$repo/releases/latest")
             .openConnection() as HttpURLConnection
         conn.setRequestProperty("Accept", "application/vnd.github+json")
         conn.connectTimeout = 8_000
@@ -42,7 +46,7 @@ object Updater {
             val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
             val assets = json.getJSONArray("assets")
             val apk = (0 until assets.length()).map { assets.getJSONObject(it) }
-                .firstOrNull { it.getString("name").endsWith(".apk") } ?: return@withContext null
+                .firstOrNull { it.getString("name").let { n -> n.startsWith(asset) && n.endsWith(".apk") } } ?: return@withContext null
             Release(json.getString("tag_name").removePrefix("v"), apk.getString("browser_download_url"),
                 json.optString("body"))
         } finally {

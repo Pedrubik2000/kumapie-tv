@@ -44,6 +44,9 @@ sealed interface Screen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Updater.repo = BuildConfig.UPDATE_REPO
+        Updater.version = BuildConfig.VERSION_NAME
+        Updater.asset = "kumapie-tv-"
         val settings = Settings(this)
         // The server address can be sent from the PC instead of typed with the remote:
         //   adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.MainActivity --es server https://...

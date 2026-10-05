@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,11 +17,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -35,7 +37,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Cue
 import io.github.pedrubik2000.kumapie.data.Word
 import io.github.pedrubik2000.kumapie.player.SceneController
@@ -53,9 +54,12 @@ private const val ENGLISH_SCALE = 0.72f
  *
  * With the word picker open: every line of the scene, German readable (whatever the subtitle mode), the
  * picker's line bright and its word highlighted; [onAnchor] gets that word's place on screen.
+ *
+ * Touch (phone/tablet): [onTap] hears a tapped word as [SubtitleTap.Word] (only while the German is readable)
+ * and any other tap on the subtitle box as [SubtitleTap.Box]. Without it (the TV) taps do nothing.
  */
 @Composable
-fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Unit) {
+fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Unit, onTap: ((SubtitleTap) -> Unit)? = null) {
     val picking = picker.isOpen
     if (!picking && !ctl.showGerman && !ctl.showEnglish) {
         SideEffect { onAnchor(null) }
@@ -84,12 +88,19 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
 
     // The German as one text; remember where the picker's word starts and ends in it.
     var selectedRange: IntRange? = null
+    // Where each word is in the German text, for taps: character range -> (line, segment).
+    val wordRanges = mutableListOf<Pair<IntRange, SubtitleTap.Word>>()
     val germanText = buildAnnotatedString {
         german.forEachIndexed { i, cue ->
             if (i > 0) append('\n')
             val lineIndex = scene.cues.indexOf(cue)
             val selectedSeg = if (picking && lineIndex == picker.line) picker.seg else -1
             val start = length
+            var at = start
+            cue.segments.forEachIndexed { s, seg ->
+                if (seg.word != null) wordRanges += (at until at + seg.text.length) to SubtitleTap.Word(lineIndex, s)
+                at += seg.text.length
+            }
             append(colored(cue, ctl.words, dim = paused && cue != current, selected = selectedSeg))
             if (selectedSeg >= 0) {
                 val before = cue.segments.take(selectedSeg).sumOf { it.text.length }
@@ -104,6 +115,9 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val range by rememberUpdatedState(selectedRange)
+    val ranges by rememberUpdatedState(wordRanges.toList())
+    val tapHandler by rememberUpdatedState(onTap)
+    val blurred by rememberUpdatedState(ctl.blurGerman && !picking)
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val padH = 28.dp
@@ -125,18 +139,29 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
         } ?: SIZES.last()
         Column(
             Modifier.align(Alignment.BottomCenter).padding(bottom = bottom).widthIn(max = boxWidth)
-                .background(Color(0xB3000000), RoundedCornerShape(12.dp)).padding(horizontal = padH, vertical = padV),
+                .background(Color(0xB3000000), RoundedCornerShape(12.dp))
+                .then(if (onTap == null) Modifier else Modifier.pointerInput(Unit) {
+                    detectTapGestures { tapHandler?.invoke(SubtitleTap.Box) }
+                })
+                .padding(horizontal = padH, vertical = padV),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (germanText.isNotEmpty()) {
-                val blur = ctl.blurGerman && !picking
-                Text(germanText, style = germanStyle(size), color = Colors.text,
+                // Blurred = each word drawn only as its soft coloured shadow. (Modifier.blur blurred the video
+                // under it on phones, where the video is a SurfaceView behind the window.)
+                Text(if (blurred) shadowOnly(germanText, with(density) { 9.dp.toPx() }) else germanText,
+                    style = germanStyle(size), color = Colors.text,
                     onTextLayout = { layout = it },
                     modifier = Modifier
                         // The box moves when its size changes (opening the picker shrinks the text): report the
                         // word's place again whenever the text is placed, not only when the cursor moves.
                         .onGloballyPositioned { coords = it; onAnchor(anchorOf(it, layout, range)) }
-                        .then(if (blur) Modifier.blur(10.dp, BlurredEdgeTreatment.Unbounded) else Modifier))
+                        .then(if (onTap == null) Modifier else Modifier.pointerInput(Unit) {
+                            detectTapGestures { p ->
+                                val word = if (blurred) null else layout?.let { wordAt(it, p, ranges) }
+                                tapHandler?.invoke(word ?: SubtitleTap.Box)
+                            }
+                        }))
             }
             if (englishText.isNotEmpty()) {
                 Text(englishText, style = englishStyle(size), color = Colors.dim,
@@ -147,6 +172,29 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
 
     // Where the selected word is on screen, for the meaning box.
     SideEffect { onAnchor(coords?.let { anchorOf(it, layout, range) }) }
+}
+
+/** The text with every span drawn as a blurred shadow of its colour and no letters. */
+private fun shadowOnly(text: AnnotatedString, radius: Float): AnnotatedString = AnnotatedString(
+    text.text,
+    spanStyles = text.spanStyles.map { r ->
+        val color = if (r.item.color.isSpecified) r.item.color else Colors.text
+        r.copy(item = SpanStyle(color = Color.Transparent, shadow = Shadow(color, blurRadius = radius)))
+    },
+)
+
+/** A tap on the subtitles: on a word (line and segment of the scene), or anywhere else on the box. */
+sealed interface SubtitleTap {
+    data class Word(val line: Int, val seg: Int) : SubtitleTap
+    data object Box : SubtitleTap
+}
+
+/** The word under [p] (local to the text), only when the finger is really on it, not just nearest to it. */
+private fun wordAt(l: TextLayoutResult, p: Offset, ranges: List<Pair<IntRange, SubtitleTap.Word>>): SubtitleTap.Word? {
+    val slop = 6f // px around a word that still counts as on it
+    return ranges.firstOrNull { (r, _) ->
+        r.any { i -> l.getBoundingBox(i).inflate(slop).contains(p) }
+    }?.second
 }
 
 /** The screen rectangle of characters [range] of the laid-out text, or null. */

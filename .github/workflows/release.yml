@@ -1,5 +1,6 @@
-# Push a tag vX.Y.Z -> a signed APK on the repo's Releases page. The app checks the latest release when it
-# starts and offers to update. The annotated tag's message becomes the release notes the app shows.
+# Push a tag vX.Y.Z -> two signed APKs on the repo's Releases page: kumapie-tv-vX.Y.Z.apk (TV) and
+# kumapie-mobile-vX.Y.Z.apk (phone/tablet); each app picks its own by name. The apps check the latest release
+# when they start and offer to update. The annotated tag's message becomes the release notes the app shows.
 #   git tag -a v0.2.0 -m "What changed"; git push origin v0.2.0
 # Secrets (Settings > Secrets and variables > Actions): KEYSTORE_BASE64 (the .jks, base64),
 # KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD.
@@ -27,19 +28,22 @@ jobs:
       - name: Release key
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
 
-      - name: Build the signed APK
+      - name: Build the signed APKs
         env:
           KUMAPIE_KEYSTORE: ${{ runner.temp }}/release.jks
           KUMAPIE_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KUMAPIE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KUMAPIE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease --console=plain -PversionName="${GITHUB_REF_NAME#v}"
+          ./gradlew :app:assembleRelease :mobile:assembleRelease --console=plain -PversionName="${GITHUB_REF_NAME#v}"
           cp app/build/outputs/apk/release/app-release.apk "kumapie-tv-${GITHUB_REF_NAME}.apk"
+          cp mobile/build/outputs/apk/release/mobile-release.apk "kumapie-mobile-${GITHUB_REF_NAME}.apk"
 
-      - name: Check the APK is signed with the release key
+      - name: Check the APKs are signed with the release key
         run: |
-          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "kumapie-tv-${GITHUB_REF_NAME}.apk" | head -3
+          for apk in kumapie-*-"${GITHUB_REF_NAME}".apk; do
+            "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$apk" | head -3
+          done
 
       - name: Publish the release
         env:

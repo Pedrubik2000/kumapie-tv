@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,14 +9,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Text
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -31,20 +38,31 @@ import kotlin.math.roundToInt
  * The picked word's card, right above the word. With a per-line definition (definitions v2): dictionary form,
  * the word (if different), English, the German definition with its words coloured (first when all are known),
  * grammar, status. Without one: the short meaning, as before.
+ *
+ * Touch: [onTapDef] gets the segment of a word tapped in the German definition; [footer] goes at the bottom
+ * (the phone's buttons). [maxWidth] keeps the card narrower on small screens.
  */
 @Composable
-fun MeaningCard(ctl: SceneController, picker: WordPicker, anchor: Rect) {
+fun MeaningCard(
+    ctl: SceneController,
+    picker: WordPicker,
+    anchor: Rect,
+    maxWidth: androidx.compose.ui.unit.Dp = 720.dp,
+    onTapDef: ((Int) -> Unit)? = null,
+    footer: (@Composable () -> Unit)? = null,
+) {
     val segment = picker.selected ?: return
     val key = segment.word ?: return
     val word = ctl.words[key] ?: Word("u", "")
     val def = picker.definition
     AboveAnchor(anchor) {
         Column(
-            Modifier.widthIn(max = 720.dp).background(Colors.surface, RoundedCornerShape(12.dp))
+            Modifier.widthIn(max = maxWidth).background(Colors.surface, RoundedCornerShape(12.dp))
+                .pointerInput(Unit) { detectTapGestures { } } // taps on the card stay on the card
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            if (def != null) DefinitionParts(ctl, picker, segment.text, def) else ShortMeaning(ctl, key, segment.text, word)
+            if (def != null) DefinitionParts(ctl, picker, segment.text, def, onTapDef) else ShortMeaning(ctl, key, segment.text, word)
             val (status, color) = statusLine(word)
             Text(status + if (word.lookups > 0) "  ·  looked up ${word.lookups}×" else "", color = color, fontSize = 15.sp)
             // The word picked inside the German definition: its own short meaning and status.
@@ -54,23 +72,28 @@ fun MeaningCard(ctl: SceneController, picker: WordPicker, anchor: Rect) {
                 Text("${picker.selectedInDef?.text}: " + (w.meaning.substringAfter(" = ").ifBlank { "no meaning yet" }) + "  ·  $s",
                     color = c, fontSize = 16.sp, modifier = Modifier.padding(top = 6.dp))
             }
+            footer?.invoke()
         }
     }
 }
 
 @Composable
-private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: String, def: LineDef) {
+private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: String, def: LineDef, onTapDef: ((Int) -> Unit)?) {
     val heading = def.lemma.ifBlank { written }
     Text(heading, color = Colors.text, fontSize = 26.sp)
     if (!heading.equals(written, ignoreCase = true)) Text(written, color = Colors.dim, fontSize = 18.sp)
     val germanKnown = def.german.all { s -> s.word == null || (ctl.words[s.word]?.status ?: "u") == "k" }
     val german = coloredDefinition(def, ctl.words, if (picker.inDef) picker.defSeg else -1)
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val tappable = if (onTapDef == null) Modifier else Modifier.pointerInput(def) {
+        detectTapGestures { p -> layout?.let { segmentAt(it, p, def) }?.let(onTapDef) }
+    }
     if (germanKnown) {
-        Text(german, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(german, fontSize = 20.sp, onTextLayout = { layout = it }, modifier = Modifier.padding(top = 4.dp).then(tappable))
         Text(def.english, color = Colors.dim, fontSize = 17.sp)
     } else {
         Text(def.english, color = Colors.text, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
-        Text(german, fontSize = 17.sp)
+        Text(german, fontSize = 17.sp, onTextLayout = { layout = it }, modifier = tappable)
     }
     if (def.grammar.isNotBlank()) Text(def.grammar, color = Colors.dim, fontSize = 15.sp, modifier = Modifier.padding(top = 2.dp))
 }
@@ -89,6 +112,17 @@ private fun ShortMeaning(ctl: SceneController, key: String, written: String, wor
             Text("dictionary form: ${word.lemma}", color = Colors.dim, fontSize = 15.sp)
         }
     }
+}
+
+/** The segment of the definition whose word is under [p], or null. */
+private fun segmentAt(l: TextLayoutResult, p: Offset, def: LineDef): Int? {
+    var at = 0
+    def.german.forEachIndexed { i, seg ->
+        val range = at until at + seg.text.length
+        at += seg.text.length
+        if (seg.word != null && range.any { c -> l.getBoundingBox(c).inflate(6f).contains(p) }) return i
+    }
+    return null
 }
 
 /** The German definition, its words coloured like the subtitles (red new, orange learning), [selected] highlighted. */

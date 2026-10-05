@@ -15,4 +15,4 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v6
-      - run: ./gradlew assembleDebug --console=plain
+      - run: ./gradlew :app:assembleDebug :mobile:assembleDebug --console=plain

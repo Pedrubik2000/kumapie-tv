@@ -8,7 +8,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.media3.common.Player
-import io.github.pedrubik2000.kumapie.data.Api
+import io.github.pedrubik2000.kumapie.data.Backend
 import io.github.pedrubik2000.kumapie.data.Cue
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Scene
@@ -34,7 +34,7 @@ class SceneController(
     val episode: EpisodeDetail,
     private val player: Player,
     private val settings: Settings,
-    private val api: Api,
+    private val api: Backend,
 ) {
     val scenes: List<Scene> = episode.scenes
 
@@ -74,6 +74,8 @@ class SceneController(
     private var stopAt: Double? = null
     private var stopIsSceneEnd = false
     private val seenNew = mutableSetOf<String>()
+    /** The position last sent to the server, so a paused player doesn't send the same one every 20 s. */
+    private var reportedPos = episode.resume
     private var watchedMs = 0L
     private var lastTick = SystemClock.uptimeMillis()
     private var lastReport = SystemClock.uptimeMillis()
@@ -225,7 +227,8 @@ class SceneController(
         val seen = seenNew.toList()
         val watched = watchedMs / 1000.0
         val pos = position
-        if (seen.isEmpty() && watched < 1 && episode.resume == pos) return
+        if (seen.isEmpty() && watched < 1 && reportedPos == pos) return
+        reportedPos = pos
         seenNew.clear()
         watchedMs = 0
         AppScope.launch { runCatching { api.progress(episode.id, pos, seen, watched) } }

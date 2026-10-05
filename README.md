@@ -9,7 +9,8 @@ you know live on your own PC, in a small server that the app talks to (see [Serv
 Part of **kuma3**, a personal language-learning setup (see also
 [kuma3-anki](https://github.com/Pedrubik2000/kuma3-anki-app)).
 
-> Status: early. Shows, episodes, the scene player, the word picker, button mapping and the help screen work.
+> Status: early. Shows, episodes, the scene player, the word picker, button mapping, the help screen and stats
+> work on the TV; the phone/tablet app is new.
 
 ## Buttons
 
@@ -49,6 +50,25 @@ a lookup; moving to another word closes it.
 Subtitles stay as you set them, from scene to scene and the next time you watch; while paused they show the whole scene, with
 unknown words in red and words you're learning in yellow. The options are remembered on the TV.
 
+## Phone and tablet
+
+`kumapie-mobile-vX.Y.Z.apk` (same Releases page) is the same player for Android phones and tablets: the same
+server, scenes, meanings and progress (start an episode on the TV, go on with it on the phone). It plays full
+screen in landscape and is driven by touch:
+
+| | |
+|---|---|
+| play / pause (at the end of a scene: next scene) | tap the video |
+| next / previous scene | swipe ← / → |
+| replay the line / the scene | double-tap the left / right half |
+| subtitles: none → German blurred → German → German + English | tap the subtitles (when hidden: the bottom of the screen) |
+| a word's meaning | tap the word (German readable); in the card: hear the word, hear the definition, replay the line, mark known; tap words of the German definition |
+| pause at the end of each scene, 0.75x, subtitle mode | ⋮ |
+
+**Downloads:** each episode has a download button. It saves the video, the scenes and meanings, and the audio of
+every word and definition, so the episode plays with no connection. What you do offline (progress, lookups,
+words marked known) waits on the device and goes to the server the next time it answers.
+
 ## Install
 
 1. On the TV, allow installing apps from your browser/file manager (Settings → Privacy → Security & restrictions → Unknown sources), or use `adb install`.
@@ -67,15 +87,16 @@ first time, Android asks you to allow kumapie to install apps.
 Android Studio, or the command line with JDK 17 and the Android SDK (`local.properties`: `sdk.dir=...`):
 
 ```
-./gradlew assembleDebug
+./gradlew :app:assembleDebug :mobile:assembleDebug
 ```
 
-Debug builds are called `io.github.pedrubik2000.kumapie.debug`, so they install next to the release app.
+Debug builds are called `io.github.pedrubik2000.kumapie.debug` (TV) and `io.github.pedrubik2000.kumapie.mobile.debug`
+(phone/tablet), so they install next to the release apps.
 They don't update themselves.
 
 ## Releases
 
-Push an annotated tag; GitHub Actions builds a signed APK and publishes it (`.github/workflows/release.yml`):
+Push an annotated tag; GitHub Actions builds both signed APKs (`kumapie-tv-…`, `kumapie-mobile-…`) and publishes them (`.github/workflows/release.yml`):
 
 ```
 git tag -a v0.2.0 -m "What changed (shown in the app's update dialog)"
@@ -89,24 +110,28 @@ never in the repo: the workflow reads it from the repository secrets `KEYSTORE_B
 
 ## Code
 
+Three modules: `core` (shared), `app` (TV), `mobile` (phone/tablet). Paths below are under each module's
+`src/main/java/io/github/pedrubik2000/kumapie/`.
+
 | file | what |
 |---|---|
-| `MainActivity.kt` | the screens and Back |
-| `data/Api.kt` | the server API and its data |
-| `data/Settings.kt` | what the TV remembers (server address, later: subtitle mode, buttons) |
-| `ui/HomeScreen.kt`, `ui/ShowScreen.kt` | shows → episodes |
-| `ui/PlayerScreen.kt` | the scene player: video, top bar, options |
-| `ui/Subtitles.kt`, `ui/MeaningCard.kt` | subtitles (shrink to fit, picker cursor), the meaning card |
-| `player/WordPicker.kt` | the word picker: cursor, word audio, lookups, mark known |
-| `player/SceneController.kt` | scenes on top of the whole episode: where to stop, replays, progress |
-| `player/PlayerKeys.kt` | which button does what (short and long presses) |
-| `ui/SettingsScreen.kt`, `ui/UpdateDialog.kt` | settings, updates |
-| `ui/ButtonsScreen.kt`, `ui/HelpOverlay.kt` | change buttons, the help screen |
-| `ui/StatsScreen.kt` | watch time (today, 7 days, total, streak, year heatmap, 30 days), scenes and words |
-| `update/Updater.kt`, `update/InstallReceiver.kt` | self-update from GitHub Releases |
+| core `data/Api.kt`, `data/Backend.kt` | the server API and its data; what the player needs from it |
+| core `data/Settings.kt` | what the device remembers (server address, subtitle mode, modes); the TV's buttons: app `data/KeySettings.kt` |
+| core `player/SceneController.kt`, `player/WordPicker.kt` | scenes on top of the whole episode; the word picker (D-pad and touch) |
+| core `ui/Subtitles.kt`, `ui/MeaningCard.kt`, `ui/Colors.kt` | subtitles (shrink to fit, picker cursor, taps), the meaning card, colours |
+| core `update/Updater.kt`, `update/InstallReceiver.kt` | self-update from GitHub Releases (each app takes its own APK) |
+| mobile `MainActivity.kt`, `ui/*` | phone/tablet screens: shows, episodes with downloads, touch player, stats, settings |
+| mobile `offline/*` | downloads (WorkManager), reports waiting while offline, PC-or-device data |
+| app `MainActivity.kt` | the TV screens and Back |
+| app `ui/HomeScreen.kt`, `ui/ShowScreen.kt` | shows → episodes |
+| app `ui/PlayerScreen.kt` | the scene player: video, top bar, options |
+| app `player/PlayerKeys.kt` | which button does what (short and long presses) |
+| app `ui/SettingsScreen.kt`, `ui/UpdateDialog.kt` | settings, updates |
+| app `ui/ButtonsScreen.kt`, `ui/HelpOverlay.kt` | change buttons, the help screen |
+| app `ui/StatsScreen.kt` | watch time (today, 7 days, total, streak, year heatmap, 30 days), scenes and words |
 | `tools/make_icons.py` | draws the launcher banner and icon |
 
-Compose for TV, Media3 ExoPlayer, Coil. JSON is parsed with `org.json`, no code generation.
+Compose for TV (TV) / Material 3 (phone), Media3 ExoPlayer, Coil, WorkManager (downloads). JSON is parsed with `org.json`, no code generation.
 
 ## Server API
 

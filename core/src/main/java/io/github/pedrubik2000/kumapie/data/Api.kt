@@ -10,7 +10,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /** The dojo server's /api/tv (services/feed/tv.py in the dojo repo). Every call runs on the IO dispatcher. */
-class Api(private val base: String) {
+class Api(private val base: String) : Backend {
 
     /** A server path ("/api/tv/thumb/abc.jpg") as a full URL. */
     fun url(path: String): String = if (path.startsWith("http")) path else base + path
@@ -20,8 +20,13 @@ class Api(private val base: String) {
             translation = it.optString("translation"), episodes = it.optInt("episodes"))
     }
 
-    suspend fun shows(): List<Show> {
-        val shows = JSONObject(get("/api/tv/shows")).getJSONArray("shows")
+    suspend fun shows(): List<Show> = parseShows(showsJson())
+
+    /** The shows as the server sends them (the phone keeps a copy for when it is offline). */
+    suspend fun showsJson(): String = get("/api/tv/shows")
+
+    fun parseShows(json: String): List<Show> {
+        val shows = JSONObject(json).getJSONArray("shows")
         return shows.objects().map { s ->
             Show(
                 id = s.getString("id"), title = s.getString("title"), kind = s.optString("kind"),
@@ -39,8 +44,13 @@ class Api(private val base: String) {
         }
     }
 
-    suspend fun episode(id: String): EpisodeDetail {
-        val e = JSONObject(get("/api/tv/episode/$id"))
+    suspend fun episode(id: String): EpisodeDetail = parseEpisode(episodeJson(id))
+
+    /** An episode as the server sends it (the phone saves it with a downloaded episode). */
+    suspend fun episodeJson(id: String): String = get("/api/tv/episode/$id")
+
+    fun parseEpisode(json: String): EpisodeDetail {
+        val e = JSONObject(json)
         val words = e.getJSONObject("words").let { w ->
             w.keys().asSequence().associateWith { k ->
                 w.getJSONObject(k).let {
@@ -87,7 +97,7 @@ class Api(private val base: String) {
     }
 
     /** Where the episode was left, scenes watched to their end, and seconds watched since the last report. */
-    suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {
+    override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {
         val body = JSONObject().put("episode", episode).put("pos", pos).put("seen", JSONArray(seen)).put("watched", watched)
         post("/api/tv/progress", body.toString())
     }
@@ -108,19 +118,19 @@ class Api(private val base: String) {
     }
 
     /** A word looked up in the picker; answers how many times it has been looked up. */
-    suspend fun lookup(word: String, scene: String): Int =
+    override suspend fun lookup(word: String, scene: String): Int =
         JSONObject(post("/api/tv/lookup", JSONObject().put("word", word).put("scene", scene).toString())).optInt("n")
 
     /** Marks a word known without a card (or undoes it); answers its status now: "k", "l" or "u". */
-    suspend fun markKnown(word: String, known: Boolean): String =
+    override suspend fun markKnown(word: String, known: Boolean): String =
         JSONObject(post("/api/tv/known", JSONObject().put("word", word).put("known", known).toString())).optString("s", "u")
 
-    /** The word read aloud (the server makes and caches it). */
     /** A line's German definition read aloud. */
-    fun definitionAudio(scene: String, line: Int, word: String): String =
+    override fun definitionAudio(scene: String, line: Int, word: String): String =
         url("/api/tts?d=" + java.net.URLEncoder.encode("$scene|$line|$word", "UTF-8"))
 
-    fun wordAudio(surface: String): String = url("/api/tts?w=" + java.net.URLEncoder.encode(surface.lowercase(), "UTF-8"))
+    /** The word read aloud (the server makes and caches it). */
+    override fun wordAudio(surface: String): String = url("/api/tts?w=" + java.net.URLEncoder.encode(surface.lowercase(), "UTF-8"))
 
     private suspend fun post(path: String, body: String): String = withContext(Dispatchers.IO) {
         val conn = URL(url(path)).openConnection() as HttpURLConnection

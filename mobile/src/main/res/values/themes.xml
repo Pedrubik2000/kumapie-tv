@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only the window behind Compose: dark, no action bar. The UI's colours are in ui/MobileTheme.kt. -->
+    <style name="Theme.Kumapie" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF1D1B26</item>
+    </style>
+</resources>

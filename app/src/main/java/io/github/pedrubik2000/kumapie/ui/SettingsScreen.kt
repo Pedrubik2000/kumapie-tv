@@ -31,7 +31,8 @@ import kotlinx.coroutines.launch
  * or sent from the PC: adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.MainActivity --es server <url>
  */
 @Composable
-fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
+fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
+                   onButtons: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var server by remember { mutableStateOf(settings.server) }
     var status by remember { mutableStateOf("") }
@@ -66,6 +67,14 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         if (status.isNotEmpty()) Text(status, color = Colors.dim)
 
         if (!firstRun) {
+            Text("Buttons and help", fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            var showHelp by remember { mutableStateOf(settings.showHelp) }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Button(onClick = onButtons) { Text("Change buttons") }
+                Button(onClick = { showHelp = !showHelp; settings.showHelp = showHelp }) {
+                    Text("Help screen and key hints: " + if (showHelp) "on" else "off")
+                }
+            }
             Text("Updates", fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = {

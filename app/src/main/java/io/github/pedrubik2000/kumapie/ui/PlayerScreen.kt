@@ -55,7 +55,8 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.player.Action
 import io.github.pedrubik2000.kumapie.player.KeyHandler
-import io.github.pedrubik2000.kumapie.player.KeyMap
+import io.github.pedrubik2000.kumapie.player.KeyContext
+import io.github.pedrubik2000.kumapie.player.keyMapOf
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
 import kotlinx.coroutines.delay
@@ -98,8 +99,12 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
     fun openPicker() {
         if (!picker.open()) Toast.makeText(context, "No words in this scene", Toast.LENGTH_SHORT).show()
     }
+    var help by remember { mutableStateOf(settings.showHelp) } // the list of buttons, when an episode opens
+    var helpKey by remember { mutableStateOf<Int?>(null) } // the button that closed it: its release is ours too
+    val watchKeys = remember { keyMapOf(KeyContext.WATCH, settings.keys(KeyContext.WATCH)) }
+    val pickerKeys = remember { keyMapOf(KeyContext.PICKER, settings.keys(KeyContext.PICKER)) }
     val keys = remember {
-        KeyHandler({ if (picker.isOpen) KeyMap.PICKER else KeyMap() }) { action ->
+        KeyHandler({ if (picker.isOpen) pickerKeys else watchKeys }) { action ->
             when (action) {
                 Action.PLAY_PAUSE -> ctl.togglePlay()
                 Action.NEXT_SCENE -> ctl.nextScene()
@@ -113,6 +118,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
                 Action.SLOW -> ctl.toggleSlow()
                 Action.PAUSE_AT_SCENE_END -> ctl.togglePauseAtSceneEnd()
                 Action.OPTIONS -> options = true
+                Action.HELP -> help = true
                 Action.WORD_PICKER -> openPicker()
                 Action.PICK_LEFT -> picker.left()
                 Action.PICK_RIGHT -> picker.right()
@@ -170,7 +176,18 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
     Box(
         Modifier.fillMaxSize()
             .focusRequester(focus)
-            .onPreviewKeyEvent { !options && keys.handle(it.nativeKeyEvent) }
+            .onPreviewKeyEvent {
+                val k = it.nativeKeyEvent
+                when {
+                    help -> { // any button closes the help screen (and does nothing else)
+                        if (k.action == android.view.KeyEvent.ACTION_DOWN) { help = false; helpKey = k.keyCode }
+                        true
+                    }
+                    helpKey == k.keyCode && k.action == android.view.KeyEvent.ACTION_UP -> { helpKey = null; true }
+                    options -> false
+                    else -> keys.handle(k)
+                }
+            }
             .focusable(),
     ) {
         AndroidView(
@@ -185,17 +202,19 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
             },
             modifier = Modifier.fillMaxSize(),
         )
-        if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, picker)
+        if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, picker, hints = settings.showHelp)
         Subtitles(ctl, picker, onAnchor = { anchor = it })
         if (picker.isOpen && picker.cardOpen) anchor?.let { MeaningCard(ctl, picker, it) }
-        if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() })
+        if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() },
+            onHelp = { options = false; help = true; focus.requestFocus() })
+        if (help) HelpOverlay(settings)
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
 /** Show, scene n/N with its level, the modes, and a hint of the keys when paused. */
 @Composable
-private fun TopBar(ctl: SceneController, picker: WordPicker) {
+private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean) {
     val scene = ctl.scene
     Row(
         Modifier.fillMaxWidth()
@@ -221,7 +240,7 @@ private fun TopBar(ctl: SceneController, picker: WordPicker) {
         ctl.atSceneEnd -> "OK: next scene   ↑: replay line   ↓: pick a word   ←: previous"
         else -> null
     }
-    if (hint != null) {
+    if (hint != null && hints) {
         Box(Modifier.fillMaxSize().padding(top = 110.dp), contentAlignment = Alignment.TopCenter) {
             Text(hint, color = Colors.text, fontSize = 17.sp,
                 modifier = Modifier.background(Color(0x99000000), RoundedCornerShape(8.dp)).padding(horizontal = 20.dp, vertical = 10.dp))
@@ -243,7 +262,7 @@ fun LevelBadge(level: Int?, modifier: Modifier = Modifier) {
 
 /** The player's modes, saved on the TV. Back or Close returns to the video. */
 @Composable
-private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit) {
+private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () -> Unit) {
     val first = remember { FocusRequester() }
     BackHandler(onBack = onClose)
     Box(Modifier.fillMaxSize().background(Color(0x99000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.CenterEnd) {
@@ -261,6 +280,7 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit) {
             Button(onClick = { ctl.changeSubtitles(ctl.subtitles.next()) }, modifier = Modifier.fillMaxWidth()) {
                 Text("Subtitles: " + ctl.subtitles.label)
             }
+            Button(onClick = onHelp, modifier = Modifier.fillMaxWidth()) { Text("Help: the buttons") }
             Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Close") }
         }
     }

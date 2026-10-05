@@ -19,6 +19,7 @@ import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
+import io.github.pedrubik2000.kumapie.ui.ButtonsScreen
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.ui.HomeScreen
 import io.github.pedrubik2000.kumapie.ui.KumapieTheme
@@ -35,6 +36,7 @@ sealed interface Screen {
     data class ShowEpisodes(val show: Show) : Screen
     data class Player(val show: Show, val episode: Episode) : Screen
     data object Settings : Screen
+    data object Buttons : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -71,7 +73,8 @@ fun App(settings: Settings) {
                 is Screen.ShowEpisodes -> ShowScreen(api, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
                 is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,
                     onClose = { stack.removeAt(stack.lastIndex) })
-                Screen.Settings -> SettingsScreen(settings, firstRun = false,
+                Screen.Buttons -> ButtonsScreen(settings)
+                Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
                     onSaved = { server = settings.server }, onUpdate = { update = it })
             }
         }

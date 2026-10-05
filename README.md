@@ -9,9 +9,13 @@ you know live on your own PC, in a small server that the app talks to (see [Serv
 Part of **kuma3**, a personal language-learning setup (see also
 [kuma3-anki](https://github.com/Pedrubik2000/kuma3-anki-app)).
 
-> Status: early. Shows, episodes, the scene player and the word picker work; button mapping and a help screen are next.
+> Status: early. Shows, episodes, the scene player, the word picker, button mapping and the help screen work.
 
 ## Buttons
+
+These are the defaults. **Settings > Change buttons** gives any action any button on the remote or a gamepad
+(a short press or a held one); Back always stays Back. A help screen with the current buttons shows when an
+episode opens (turn it off in Settings; Options > Help shows it any time).
 
 | | remote | gamepad |
 |---|---|---|
@@ -97,6 +101,7 @@ never in the repo: the workflow reads it from the repository secrets `KEYSTORE_B
 | `player/SceneController.kt` | scenes on top of the whole episode: where to stop, replays, progress |
 | `player/PlayerKeys.kt` | which button does what (short and long presses) |
 | `ui/SettingsScreen.kt`, `ui/UpdateDialog.kt` | settings, updates |
+| `ui/ButtonsScreen.kt`, `ui/HelpOverlay.kt` | change buttons, the help screen |
 | `update/Updater.kt`, `update/InstallReceiver.kt` | self-update from GitHub Releases |
 | `tools/make_icons.py` | draws the launcher banner and icon |
 

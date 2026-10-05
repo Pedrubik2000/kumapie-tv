@@ -61,7 +61,8 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         }
         Text("Server", fontSize = 18.sp, color = Colors.dim)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            TvTextField(server, { server = it }, onDone = ::save, modifier = Modifier.width(640.dp).focusRequester(focus))
+            TvTextField(server, { server = it }, onDone = ::save,
+                modifier = Modifier.width(640.dp).let { if (firstRun) it.focusRequester(focus) else it })
             Button(onClick = ::save) { Text("Save") }
         }
         if (status.isNotEmpty()) Text(status, color = Colors.dim)
@@ -70,7 +71,8 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             Text("Buttons and help", fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
             var showHelp by remember { mutableStateOf(settings.showHelp) }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(onClick = onButtons) { Text("Change buttons") }
+                // Focus starts here, not in the server field: focusing a text field opens the TV's keyboard.
+                Button(onClick = onButtons, modifier = Modifier.focusRequester(focus)) { Text("Change buttons") }
                 Button(onClick = { showHelp = !showHelp; settings.showHelp = showHelp }) {
                     Text("Help screen and key hints: " + if (showHelp) "on" else "off")
                 }

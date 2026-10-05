@@ -21,6 +21,7 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.player.Action
 import io.github.pedrubik2000.kumapie.player.Binding
 import io.github.pedrubik2000.kumapie.player.KeyContext
+import io.github.pedrubik2000.kumapie.player.keyNames
 
 /** Every action and its buttons, as set now (Settings > Change buttons). Any button closes it. */
 @Composable
@@ -49,7 +50,7 @@ fun HelpOverlay(settings: Settings) {
 @Composable
 private fun HelpRow(action: Action?, keys: Set<Binding>, text: String? = null) {
     Row(Modifier.fillMaxWidth()) {
-        val names = keys.sortedBy { it.long }.joinToString(", ") { it.label }
+        val names = keyNames(keys)
         Text(text ?: action!!.label, fontSize = 15.sp, color = Colors.text, modifier = Modifier.weight(1f))
         if (text == null) {
             Text(names.ifEmpty { "—" }, fontSize = 15.sp, color = if (names.isEmpty()) Colors.dim else Colors.learning,

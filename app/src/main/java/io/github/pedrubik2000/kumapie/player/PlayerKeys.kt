@@ -148,6 +148,10 @@ data class Binding(val code: Int, val long: Boolean) {
     val label: String get() = (if (long) "hold " else "") + keyLabel(code)
 }
 
+/** "OK, Play/Pause, hold ←": the buttons' names, each once (OK and Enter are both "OK"), short ones first. */
+fun keyNames(bindings: Collection<Binding>): String =
+    bindings.sortedBy { it.long }.map { it.label }.distinct().joinToString(", ")
+
 /** The default buttons of a context, as bindings. */
 fun defaultBindings(context: KeyContext): Map<Binding, Action> {
     val map = if (context == KeyContext.WATCH) KeyMap() else KeyMap.PICKER

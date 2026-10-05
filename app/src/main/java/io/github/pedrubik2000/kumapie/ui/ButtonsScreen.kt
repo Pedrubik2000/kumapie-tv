@@ -31,6 +31,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.player.Action
@@ -38,6 +39,7 @@ import io.github.pedrubik2000.kumapie.player.Binding
 import io.github.pedrubik2000.kumapie.player.KeyContext
 import io.github.pedrubik2000.kumapie.player.defaultBindings
 import io.github.pedrubik2000.kumapie.player.isReservedKey
+import io.github.pedrubik2000.kumapie.player.keyNames
 
 /**
  * Settings > Change buttons. Every action with its buttons; choosing one waits for a button (a short press, or
@@ -81,10 +83,9 @@ fun ButtonsScreen(settings: Settings) {
                     }
                     items(Action.entries.filter { it.context == context }, key = { it.name }) { action ->
                         val fr = focus.getOrPut(action) { FocusRequester() }
-                        val buttons = keys.getValue(context).filterValues { it == action }.keys
-                            .sortedBy { it.long }.joinToString(", ") { it.label }
+                        val buttons = keyNames(keys.getValue(context).filterValues { it == action }.keys)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(onClick = { capturing = action },
+                            Button(onClick = { capturing = action }, scale = ButtonDefaults.scale(focusedScale = 1.02f),
                                 modifier = Modifier.weight(1f).focusRequester(fr)
                                     .let { if (action == Action.entries.first()) it.focusRequester(firstRow) else it }) {
                                 Text(action.label, modifier = Modifier.weight(1f))

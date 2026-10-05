@@ -18,7 +18,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.KeyEventType
@@ -86,6 +89,7 @@ fun ProgressBar(fraction: Float, modifier: Modifier = Modifier) {
 @Composable
 fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -96,6 +100,15 @@ fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Un
         keyboardActions = KeyboardActions(onDone = { onDone() }),
         modifier = modifier
             .onFocusChanged { focused = it.isFocused }
+            // A one-line field has no use for up/down: let the D-pad leave it (it would trap focus otherwise).
+            .onPreviewKeyEvent {
+                if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (it.nativeKeyEvent.keyCode) {
+                    KeyEvent.KEYCODE_DPAD_DOWN -> focusManager.moveFocus(FocusDirection.Down)
+                    KeyEvent.KEYCODE_DPAD_UP -> focusManager.moveFocus(FocusDirection.Up)
+                    else -> false
+                }
+            }
             .background(Colors.surface, RoundedCornerShape(8.dp))
             .border(2.dp, if (focused) Colors.accent else Colors.surface, RoundedCornerShape(8.dp))
             .padding(horizontal = 16.dp, vertical = 12.dp),

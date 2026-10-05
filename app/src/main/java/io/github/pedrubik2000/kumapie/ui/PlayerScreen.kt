@@ -135,7 +135,6 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
     val view = LocalView.current
     DisposableEffect(Unit) {
         view.keepScreenOn = true
-        ctl.begin()
         onDispose {
             ctl.tick()
             ctl.report()
@@ -167,6 +166,14 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
         while (true) {
             ctl.tick()
             delay(40)
+        }
+    }
+    // The episode starts when the help screen (shown first) is closed; opening help later pauses.
+    var begun by remember { mutableStateOf(false) }
+    LaunchedEffect(help) {
+        when {
+            help && begun -> ctl.pause()
+            !help && !begun -> { begun = true; ctl.begin() }
         }
     }
     var now by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }

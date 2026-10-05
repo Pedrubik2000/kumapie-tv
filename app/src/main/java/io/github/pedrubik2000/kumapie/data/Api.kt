@@ -92,6 +92,21 @@ class Api(private val base: String) {
         post("/api/tv/progress", body.toString())
     }
 
+    suspend fun stats(): Stats {
+        val o = JSONObject(get("/api/tv/stats"))
+        val days = o.getJSONObject("days").let { d -> d.keys().asSequence().associateWith { d.getDouble(it) } }
+        return Stats(
+            days = days, today = o.optDouble("today"), week = o.optDouble("week"), total = o.optDouble("total"),
+            streak = o.optInt("streak"), scenesSeen = o.optInt("scenes_seen"), scenesTotal = o.optInt("scenes_total"),
+            lookups = o.optInt("lookups"), wordsLookedUp = o.optInt("words_looked_up"),
+            topLookups = o.getJSONArray("top_lookups").let { a ->
+                (0 until a.length()).map { i -> a.getJSONArray(i).let { TopLookup(it.getString(0), it.getInt(1), it.optString(2)) } }
+            },
+            markedKnown = o.optInt("marked_known"),
+            shows = o.getJSONArray("shows").objects().map { ShowProgress(it.getString("title"), it.getInt("seen"), it.getInt("scenes")) },
+        )
+    }
+
     /** A word looked up in the picker; answers how many times it has been looked up. */
     suspend fun lookup(word: String, scene: String): Int =
         JSONObject(post("/api/tv/lookup", JSONObject().put("word", word).put("scene", scene).toString())).optInt("n")
@@ -156,6 +171,27 @@ data class Episode(
     /** Seconds into the episode where it was left, or null. */
     val resume: Double?,
 )
+
+/** Watch time (seconds) per study day ("2026-10-04", days start at 4 am) and what was done. */
+data class Stats(
+    val days: Map<String, Double>,
+    val today: Double,
+    val week: Double,
+    val total: Double,
+    /** Days in a row with at least a minute watched. */
+    val streak: Int,
+    val scenesSeen: Int,
+    val scenesTotal: Int,
+    val lookups: Int,
+    val wordsLookedUp: Int,
+    val topLookups: List<TopLookup>,
+    val markedKnown: Int,
+    val shows: List<ShowProgress>,
+)
+
+data class TopLookup(val word: String, val times: Int, val meaning: String)
+
+data class ShowProgress(val title: String, val seen: Int, val scenes: Int)
 
 /** An episode as the player needs it. Times are seconds in the episode's video. */
 data class EpisodeDetail(

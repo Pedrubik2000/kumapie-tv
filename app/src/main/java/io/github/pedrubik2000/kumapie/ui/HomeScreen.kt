@@ -37,7 +37,7 @@ import io.github.pedrubik2000.kumapie.data.Show
 
 /** The shows as a row of posters. OK opens a show's episodes. */
 @Composable
-fun HomeScreen(api: Api, onShow: (Show) -> Unit, onSettings: () -> Unit) {
+fun HomeScreen(api: Api, onShow: (Show) -> Unit, onSettings: () -> Unit, onStats: () -> Unit) {
     var shows by remember { mutableStateOf<List<Show>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -50,6 +50,8 @@ fun HomeScreen(api: Api, onShow: (Show) -> Unit, onSettings: () -> Unit) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("kumapie", fontSize = 32.sp, color = Colors.text)
             Spacer(Modifier.weight(1f))
+            Button(onClick = onStats) { Text("Stats") }
+            Spacer(Modifier.width(16.dp))
             Button(onClick = onSettings) { Text("Settings") }
         }
         Spacer(Modifier.padding(12.dp))

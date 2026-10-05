@@ -102,6 +102,7 @@ never in the repo: the workflow reads it from the repository secrets `KEYSTORE_B
 | `player/PlayerKeys.kt` | which button does what (short and long presses) |
 | `ui/SettingsScreen.kt`, `ui/UpdateDialog.kt` | settings, updates |
 | `ui/ButtonsScreen.kt`, `ui/HelpOverlay.kt` | change buttons, the help screen |
+| `ui/StatsScreen.kt` | watch time (today, 7 days, total, streak, year heatmap, 30 days), scenes and words |
 | `update/Updater.kt`, `update/InstallReceiver.kt` | self-update from GitHub Releases |
 | `tools/make_icons.py` | draws the launcher banner and icon |
 
@@ -120,7 +121,7 @@ JSON over HTTP(S). The app needs these routes (the reference server is part of a
 | `GET /api/tv/video/<id>` | the episode file (H.264/AAC MP4), with HTTP Range |
 | `GET /api/tv/thumb/<id>.jpg`, `GET /api/tv/poster/<show>.jpg` | images |
 | `POST /api/tv/progress` | body `{"episode", "pos", "seen": [scene ids], "watched": seconds}` |
-| `GET /api/tv/stats` | `{"days": {"2026-10-04": seconds}}` |
+| `GET /api/tv/stats` | `{"days": {"2026-10-04": seconds}, "today", "week", "total", "streak", "scenes_seen", "scenes_total", "lookups", "words_looked_up", "top_lookups": [[word, times, meaning]], "marked_known", "shows": [{"title", "seen", "scenes"}]}` (days start at 4 am) |
 | `GET /api/tts?d=<scene>\|<line>\|<word>` | a line's German definition read aloud |
 | `POST /api/tv/lookup` | body `{"word", "scene"}` → `{"n": times looked up}` |
 | `POST /api/tv/known` | body `{"word", "known": true/false}` → `{"s": "k"/"l"/"u"}` (mark a word known without a card, or undo) |

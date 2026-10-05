@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Updater.repo = BuildConfig.UPDATE_REPO
         Updater.version = BuildConfig.VERSION_NAME
-        Updater.asset = "kumapie-mobile-"
+        Updater.asset = "kumapie-v" // kumapie-vX.Y.Z-mobile.apk (sorts after kumapie-tv-*, see release.yml)
         val settings = Settings(this)
         // The server address can be sent from the PC instead of typed:
         //   adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.mobile.MainActivity --es server https://...

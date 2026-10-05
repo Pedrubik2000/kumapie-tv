@@ -52,7 +52,7 @@ unknown words in red and words you're learning in yellow. The options are rememb
 
 ## Phone and tablet
 
-`kumapie-mobile-vX.Y.Z.apk` (same Releases page) is the same player for Android phones and tablets: the same
+`kumapie-vX.Y.Z-mobile.apk` (same Releases page) is the same player for Android phones and tablets: the same
 server, scenes, meanings and progress (start an episode on the TV, go on with it on the phone). It plays full
 screen in landscape and is driven by touch:
 
@@ -96,7 +96,7 @@ They don't update themselves.
 
 ## Releases
 
-Push an annotated tag; GitHub Actions builds both signed APKs (`kumapie-tv-…`, `kumapie-mobile-…`) and publishes them (`.github/workflows/release.yml`):
+Push an annotated tag; GitHub Actions builds both signed APKs (`kumapie-tv-vX.Y.Z.apk`, `kumapie-vX.Y.Z-mobile.apk`) and publishes them (`.github/workflows/release.yml`):
 
 ```
 git tag -a v0.2.0 -m "What changed (shown in the app's update dialog)"

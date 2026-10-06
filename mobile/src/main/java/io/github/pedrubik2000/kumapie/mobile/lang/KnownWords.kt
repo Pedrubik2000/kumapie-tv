@@ -18,18 +18,22 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Which German words Pedro knows, worked out on the device from his Anki (kuma3 Anki) the way morphs does on
+ * Which words of a language Pedro knows, worked out on the device from his Anki (kuma3 Anki) the way morphs does on
  * the PC, so the subtitles' colours no longer need the PC:
- * - the German notes' fields are parsed by spaCy (same model as the PC) into morphs, keyed by inflection;
+ * - German notes' fields are parsed by spaCy (same model as the PC) into morphs, keyed by inflection; Japanese
+ *   notes' by Sudachi ([JapaneseModel]), keyed by dictionary form;
  * - a word is **known** (white) when one of its reviewed cards has FSRS stability >= the threshold (Settings,
  *   7 days by default), its note is tagged known-manually, or it was marked known in the app;
  *   **learning** (orange) when it is only on reviewed cards below that; else **unknown** (red).
  * The result is saved, so the app colours words offline and at once on start; [refresh] reads Anki again.
  */
-class KnownWords(val context: Context, private val settings: Settings) {
+class KnownWords(val context: Context, private val settings: Settings, val lang: Lang = Lang.GERMAN) {
     private val anki = AnkiCards(context)
     val model = GermanModel(context)
-    private val dir = File(context.filesDir, "known").apply { mkdirs() }
+    val japanese = JapaneseModel(context)
+    /** This language's parser is downloaded. */
+    val modelReady: Boolean get() = if (lang == Lang.JAPANESE) japanese.isReady else model.isReady
+    private val dir = File(context.filesDir, if (lang == Lang.GERMAN) "known" else "known-${lang.code}").apply { mkdirs() }
     private val savedFile = File(dir, "words.json")
     private val parseCache = File(dir, "parses.json")
     private val markedFile = File(dir, "marked.txt")
@@ -65,7 +69,7 @@ class KnownWords(val context: Context, private val settings: Settings) {
         }
 
     /** The Anki note type with the German sentences and Core 1000 words: its new name first, then the old one. */
-    val noteTypes = Lang.GERMAN.noteTypes
+    val noteTypes = lang.noteTypes
 
     /** The AnkiDroid to read: the first installed one (kuma3 Anki first), or null. */
     fun ankiApp(): String? = anki.installed().firstOrNull()
@@ -128,7 +132,7 @@ class KnownWords(val context: Context, private val settings: Settings) {
             runCatching {
                 val pkg = ankiApp() ?: error("No AnkiDroid found on this device.")
                 if (!hasPermission(pkg)) error("kumapie may not read Anki yet: allow it in Settings.")
-                if (!model.isReady) error("The German model isn't downloaded yet.")
+                if (!modelReady) error("The ${lang.name} ${if (lang == Lang.JAPANESE) "dictionary" else "model"} isn't downloaded yet.")
                 val started = System.currentTimeMillis()
                 _status.value = "Reading Anki…"
                 val search = noteTypes.joinToString(" OR ", "(", ")") { "\"note:$it\"" }
@@ -139,6 +143,9 @@ class KnownWords(val context: Context, private val settings: Settings) {
 
                 // The field each note is judged by (as morphs' filters on the PC).
                 val fields = notes.mapNotNull { n ->
+                    // Japanese (Kaishi, mined words): the card's word when it has one, else its sentence.
+                    if (lang == Lang.JAPANESE) return@mapNotNull (n.fields["Word"]?.takeIf { it.isNotBlank() } ?: n.fields["Sentence"])
+                        ?.let { n.id to it }
                     val name = when {
                         n.hasTag(CORE1000) || n.hasTag(MINED_WORD) -> "Word"
                         n.hasTag(NICOS_WEG) -> null
@@ -185,7 +192,8 @@ class KnownWords(val context: Context, private val settings: Settings) {
     private fun parse(fields: Map<Long, String>): Map<Long, Set<String>> {
         val cache = runCatching { JSONObject(parseCache.readText()) }.getOrDefault(JSONObject())
         val key = { nid: Long -> "$nid" }
-        val hash = { text: String -> "${GermanModel.NAME}-${GermanModel.VERSION}:${text.hashCode()}" }
+        val hash = { text: String -> (if (lang == Lang.JAPANESE) "sudachi-B-${JapaneseModel.VERSION}" else "${GermanModel.NAME}-${GermanModel.VERSION}") +
+            ":${text.hashCode()}" }
         val out = HashMap<Long, Set<String>>()
         val todo = ArrayList<Long>()
         for ((nid, text) in fields) {
@@ -196,7 +204,13 @@ class KnownWords(val context: Context, private val settings: Settings) {
                 todo += nid
             }
         }
-        if (todo.isNotEmpty()) {
+        if (todo.isNotEmpty() && lang == Lang.JAPANESE) {
+            japanese.parse(todo.map { plainJapanese(fields[it]!!) }).forEachIndexed { i, tokens ->
+                val words = tokens.filter { it.isWord }.map { it.base }.toSet()
+                out[todo[i]] = words
+                cache.put(key(todo[i]), JSONObject().put("h", hash(fields[todo[i]]!!)).put("m", JSONArray(words.toList())))
+            }
+        } else if (todo.isNotEmpty()) {
             if (!Python.isStarted()) Python.start(AndroidPlatform(context))
             val result = Python.getInstance().getModule("german")
                 .callAttr("parse_fields", model.dir.path, JSONArray(todo.map { fields[it] }).toString()).toString()
@@ -259,7 +273,7 @@ class KnownWords(val context: Context, private val settings: Settings) {
     }.getOrNull()
 
     private fun describe(): String {
-        val snap = snapshot ?: return "Colours come from the PC until Anki is read here."
+        val snap = snapshot ?: return if (lang == Lang.GERMAN) "Colours come from the PC until Anki is read here." else "Anki not read yet."
         var known = 0
         var learning = 0
         for (w in snap.words.keys) when (status(w)) { "k" -> known++; "l" -> learning++ }
@@ -274,6 +288,13 @@ class KnownWords(val context: Context, private val settings: Settings) {
     }
 
     companion object {
+        /**
+         * A Japanese field as plain text: no HTML, no MvJ furigana (" 私[わたし]" -> "私"), no pitch ("私[わたし]:0-" in
+         * Word fields), no spaces.
+         */
+        fun plainJapanese(field: String): String = android.text.Html.fromHtml(field, 0).toString()
+            .replace(Regex("""\[[^\]]*]"""), "").replace(Regex(""":[0-9A-Za-z\-,]*"""), "").replace(Regex("""\s+"""), "")
+
         val CORE1000 = Lang.GERMAN.tag("core1000")
         /** Word cards mined in kumapie ([Miner]): judged by their Word field, like Core 1000. */
         val MINED_WORD = Lang.GERMAN.tag("word")

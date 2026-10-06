@@ -3,9 +3,9 @@ package io.github.pedrubik2000.kumapie.data
 import java.util.Locale
 
 /**
- * A language kumapie plays: what an episode is spoken in ([code]) and what its translation is in. German only so
- * far (kumapie_languages_plan.md: Japanese, then English); [of] answers German for episodes that don't say (older
- * ones, the PC's /api/tv).
+ * A language kumapie plays: what an episode is spoken in ([code]) and what its translation is in
+ * (kumapie_languages_plan.md: German, then Japanese, then English); [of] answers German for episodes that don't say
+ * (older ones, the PC's /api/tv).
  */
 data class Lang(
     /** ISO 639-1: the episode's `lang`, the audio track to keep, Wiktionary's section. */
@@ -26,7 +26,9 @@ data class Lang(
 
     companion object {
         val GERMAN = Lang("de", "German", "en", "English", Locale.GERMANY, listOf("🐻 German", "🇩🇪 MvJ"), "Deutsch::Mined", "_de")
-        val ALL = listOf(GERMAN)
+        /** Kaishi 1.5k came in as 🇯🇵 MvJ+; mined cards go next to it under Japanese::. */
+        val JAPANESE = Lang("ja", "Japanese", "en", "English", Locale.JAPAN, listOf("🐻 Japanese", "🇯🇵 MvJ+"), "Japanese::Mined", "_ja")
+        val ALL = listOf(GERMAN, JAPANESE)
 
         fun of(code: String?): Lang = ALL.firstOrNull { it.code == code } ?: GERMAN
     }

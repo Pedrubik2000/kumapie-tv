@@ -31,6 +31,8 @@ class Library(context: Context, val settings: Settings) {
     val pending = Pending(context)
     /** Word colours from the device's own Anki (kuma3-anki), once read; until then the PC's. */
     val known = KnownWords(context, settings)
+    /** The same for Japanese (🐻 Japanese, Sudachi); used by Japanese episodes once they exist (plan step 4). */
+    val knownJa = KnownWords(context, settings, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE)
     /** Meanings without the PC: the offline Wiktionary file, Wiktionary online (cached), recordings. */
     val dictionary = Dictionary(context)
     /** The device's German voice, for words without a recording. */

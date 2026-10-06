@@ -96,6 +96,7 @@ fun App(library: Library, sharedLink: String? = null) {
         // Only once Anki has been read here by hand: reading wakes AnkiDroid, and an AnkiDroid that was never opened
         // then sets itself up with a new empty collection in /sdcard/AnkiDroid.
         if (library.known.ready && library.known.model.isReady) library.known.refresh()
+        if (library.knownJa.ready && library.knownJa.modelReady) library.knownJa.refresh()
         library.syncProgress() // positions, scenes, time and marks from the other devices (through Anki)
     }
     LaunchedEffect(shows) { // fresh i+1 scenes for the unlock screen (only when it's on)

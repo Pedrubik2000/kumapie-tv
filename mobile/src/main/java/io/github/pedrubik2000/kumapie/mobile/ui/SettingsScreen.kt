@@ -97,6 +97,7 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
             if (!firstRun) {
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 KnownWordsSection(library)
+                JapaneseWordsSection(library)
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 DictionarySection(library)
@@ -217,6 +218,35 @@ private fun KnownWordsSection(library: Library) {
         Text("Like morphs recalc on the PC: after reviewing, new cards with one unknown word come first. Run it on " +
             "one device only (the PC's morphs and this would undo each other's marked-known words).", fontSize = 13.sp, color = Colors.dim)
     }
+}
+
+/** Japanese words from 🐻 Japanese (Kaishi): the Sudachi dictionary (downloaded once) and reading Anki for Japanese. */
+@Composable
+private fun JapaneseWordsSection(library: Library) {
+    val known = library.knownJa
+    val scope = rememberCoroutineScope()
+    val status by known.status.collectAsState()
+    val state by remember { known.japanese.state() }.collectAsState(initial = null)
+    var ready by remember { mutableStateOf(known.modelReady) }
+    LaunchedEffect(state) { ready = known.modelReady }
+    var busy by remember { mutableStateOf(false) }
+    val app = remember { known.ankiApp() }
+
+    Text("Japanese words", color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
+    Text(status, fontSize = 15.sp)
+    when {
+        ready -> Text("Japanese dictionary: ready (Sudachi core).", fontSize = 14.sp, color = Colors.dim)
+        state != null -> Text("Japanese dictionary: $state", fontSize = 14.sp, color = Colors.dim)
+        else -> {
+            Text("The Japanese dictionary (about 80 MB to download, 200 MB on the device, once) splits Japanese into words.",
+                fontSize = 14.sp, color = Colors.dim)
+            OutlinedButton(onClick = { known.japanese.download() }) { Text("Download the Japanese dictionary") }
+        }
+    }
+    if (ready && app != null && known.hasPermission(app)) OutlinedButton(enabled = !busy, onClick = {
+        busy = true
+        scope.launch { known.refresh(); busy = false }
+    }) { Text(if (busy) "Reading Anki…" else "Read Japanese cards now") }
 }
 
 /** The offline dictionary (download / update), the device's German voice, and the data's attribution. */

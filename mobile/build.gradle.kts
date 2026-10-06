@@ -114,6 +114,7 @@ dependencies {
     implementation("androidx.media3:media3-effect:1.11.1")
     implementation("androidx.media3:media3-muxer:1.11.1") // WebM clips (lang/WebmMuxer.kt)
     implementation("com.google.mlkit:translate:17.0.3") // German -> English on the device (local/ProcessWorker.kt)
+    implementation("com.worksap.nlp:sudachi:0.8.2") // Japanese words (lang/JapaneseModel.kt); dictionary downloaded
     implementation("androidx.work:work-runtime-ktx:2.11.0")
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")

@@ -7,6 +7,7 @@ import io.github.pedrubik2000.kumapie.data.Backend
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
+import io.github.pedrubik2000.kumapie.mobile.german.KnownWords
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -19,6 +20,8 @@ import java.io.IOException
 class Library(context: Context, val settings: Settings) {
     val downloads = Downloads(context)
     val pending = Pending(context)
+    /** Word colours from the device's own Anki (kuma3-anki), once read; until then the PC's. */
+    val known = KnownWords(context, settings)
     private val showsCache = File(context.filesDir, "shows.json")
 
     val api: Api get() = Api(settings.server)
@@ -50,7 +53,7 @@ class Library(context: Context, val settings: Settings) {
             if (fresh != null && downloaded) downloads.episodeJson(id).writeText(fresh) // fresher word colours offline
             fresh ?: if (downloaded) downloads.episodeJson(id).readText() else null
         } ?: throw IOException("The PC doesn't answer and this episode isn't downloaded.")
-        val detail = api.parseEpisode(json)
+        val detail = known.apply(api.parseEpisode(json))
         return detail.copy(
             video = if (downloaded) Uri.fromFile(downloads.video(id)).toString() else detail.video,
             resume = pending.lastPosition(id) ?: detail.resume,
@@ -61,11 +64,16 @@ class Library(context: Context, val settings: Settings) {
     fun thumb(id: String, url: String): Any = downloads.thumb(id).takeIf { it.exists() } ?: url
     fun poster(showId: String, url: String): Any = downloads.poster(showId).takeIf { it.exists() } ?: url
 
-    fun backend(): Backend = OfflineBackend(api, downloads, pending)
+    fun backend(): Backend = OfflineBackend(api, downloads, pending, known)
 }
 
 /** The server API with local audio files when downloaded, and reports queued when the PC can't be reached. */
-private class OfflineBackend(private val api: Api, private val downloads: Downloads, private val pending: Pending) : Backend {
+private class OfflineBackend(
+    private val api: Api,
+    private val downloads: Downloads,
+    private val pending: Pending,
+    private val known: KnownWords,
+) : Backend {
 
     override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {
         pending.add(Pending.progress(episode, pos, seen, watched))
@@ -79,9 +87,11 @@ private class OfflineBackend(private val api: Api, private val downloads: Downlo
     }
 
     override suspend fun markKnown(word: String, known: Boolean): String {
-        if (pending.flush(api)) runCatching { return api.markKnown(word, known) }
+        // Kept on the device too, so the colour is right offline and once the PC is no longer asked.
+        val here = if (this.known.ready) this.known.mark(word, known) else null
+        if (pending.flush(api)) runCatching { val pc = api.markKnown(word, known); return here ?: pc }
         pending.add(Pending.known(word, known))
-        return if (known) "k" else "u" // the PC's real answer comes with the next fresh episode
+        return here ?: if (known) "k" else "u" // the PC's real answer comes with the next fresh episode
     }
 
     override fun wordAudio(surface: String): String =

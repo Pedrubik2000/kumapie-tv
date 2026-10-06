@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.chaquo.python")
 }
 
 // The phone/tablet app. Same version scheme and release key as the TV app (see app/build.gradle.kts);
@@ -20,6 +21,8 @@ android {
         versionCode = appVersionCode
         versionName = appVersion
         buildConfigField("String", "UPDATE_REPO", "\"Pedrubik2000/kumapie-tv\"")
+        // Python (spaCy) is built for 64-bit ARM only: every phone and tablet it runs on.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     val keystore = System.getenv("KUMAPIE_KEYSTORE")
@@ -60,6 +63,22 @@ android {
     dependenciesInfo {
         includeInApk = false
         includeInBundle = false
+    }
+}
+
+// Python inside the app for German parsing: spaCy finds each word's dictionary form and joins split verbs, exactly
+// as morphs does on the PC (src/main/python). spaCy's Android wheels are for Python 3.10. The build needs a
+// Python 3.10 too: `chaquopy.buildPython=<path>` in local.properties, else `python3.10` on the PATH (CI).
+val localBuildPython: String? = rootProject.file("local.properties").takeIf { it.exists() }
+    ?.readLines()?.firstOrNull { it.startsWith("chaquopy.buildPython=") }?.substringAfter("=")?.trim()
+chaquopy {
+    defaultConfig {
+        version = "3.10"
+        localBuildPython?.let { buildPython(it) }
+        pip {
+            install("spacy==3.8.7")
+            install("click") // spaCy imports it; the typer it pulls in no longer does
+        }
     }
 }
 

@@ -79,6 +79,11 @@ fun App(library: Library) {
     LaunchedEffect(Unit) { // once per start; debug builds have their own app id, so they don't self-update
         if (!BuildConfig.DEBUG) update = runCatching { Updater.newer() }.getOrNull()
     }
+    LaunchedEffect(Unit) { // fresh word colours from Anki (cheap after the first time: only new or changed notes are parsed)
+        // Only once Anki has been read here by hand: reading wakes AnkiDroid, and an AnkiDroid that was never opened
+        // then sets itself up with a new empty collection in /sdcard/AnkiDroid.
+        if (library.known.ready && library.known.model.isReady) library.known.refresh()
+    }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
 
     Box(Modifier.fillMaxSize().background(Colors.background)) {

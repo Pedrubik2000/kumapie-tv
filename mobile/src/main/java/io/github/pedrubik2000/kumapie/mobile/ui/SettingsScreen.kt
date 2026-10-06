@@ -1,5 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -88,6 +91,9 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
 
             if (!firstRun) {
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                KnownWordsSection(library)
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text("On this device", color = Colors.accent)
                 Text("Downloads: ${"%.1f".format(used / 1e9)} GB", fontSize = 15.sp)
                 OutlinedButton(onClick = { library.downloads.deleteAll(); refresh++ }) { Text("Remove all downloads") }
@@ -110,4 +116,61 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
             Text("Version ${BuildConfig.VERSION_NAME}", color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
         }
     }
+}
+
+/**
+ * Word colours from the device's own Anki: the German model (downloaded once), permission to read AnkiDroid,
+ * the stability that makes a word known, and reading Anki again (it is also read when the app starts).
+ */
+@Composable
+private fun KnownWordsSection(library: Library) {
+    val known = library.known
+    val scope = rememberCoroutineScope()
+    val status by known.status.collectAsState()
+    val modelState by remember { known.model.state() }.collectAsState(initial = null)
+    var modelReady by remember { mutableStateOf(known.model.isReady) }
+    LaunchedEffect(modelState) { modelReady = known.model.isReady }
+    val app = remember { known.ankiApp() }
+    var allowed by remember { mutableStateOf(app != null && known.hasPermission(app)) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        allowed = granted
+    }
+    var days by remember { mutableStateOf(known.threshold.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }) }
+    var busy by remember { mutableStateOf(false) }
+
+    Text("Word colours from Anki", color = Colors.accent)
+    Text(status, fontSize = 15.sp)
+
+    // 1. The German model (spaCy, the same as morphs on the PC).
+    when {
+        modelReady -> Text("German model: ready (de_core_news_lg).", fontSize = 14.sp, color = Colors.dim)
+        modelState != null -> Text("German model: $modelState", fontSize = 14.sp, color = Colors.dim)
+        else -> {
+            Text("The German model (about 550 MB, once) finds each word's form like morphs on the PC.", fontSize = 14.sp, color = Colors.dim)
+            OutlinedButton(onClick = { known.model.download() }) { Text("Download the German model") }
+        }
+    }
+
+    // 2. Reading AnkiDroid.
+    when {
+        app == null -> Text("No kuma3 Anki or AnkiDroid on this device.", fontSize = 14.sp, color = Colors.dim)
+        !allowed -> OutlinedButton(onClick = { ask.launch(known.permission(app)) }) { Text("Allow reading Anki") }
+        else -> Text("Anki: " + when (app) {
+            "io.github.pedrubik2000.kuma3" -> "kuma3 Anki"
+            "com.ichi2.anki.debug" -> "kuma3 test build"
+            else -> app
+        } + ".", fontSize = 14.sp, color = Colors.dim)
+    }
+
+    // 3. Known from this stability (days) on.
+    OutlinedTextField(days, { v ->
+        days = v
+        v.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }?.let { known.threshold = it }
+    }, label = { Text("Known from stability (days)") }, singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+
+    if (modelReady && allowed) OutlinedButton(enabled = !busy, onClick = {
+        busy = true
+        scope.launch { known.refresh(); busy = false }
+    }) { Text(if (busy) "Reading Anki…" else "Read Anki now") }
 }

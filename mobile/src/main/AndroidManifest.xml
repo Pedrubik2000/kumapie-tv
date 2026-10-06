@@ -7,6 +7,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Reading the German cards from kuma3 Anki (or AnkiDroid) for the word colours: see german/AnkiCards.kt. -->
+    <uses-permission android:name="io.github.pedrubik2000.kuma3.permission.READ_WRITE_DATABASE" />
+    <uses-permission android:name="com.ichi2.anki.debug.permission.READ_WRITE_DATABASE" />
+    <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE" />
+
+    <queries>
+        <provider android:authorities="io.github.pedrubik2000.kuma3.flashcards" />
+        <provider android:authorities="com.ichi2.anki.debug.flashcards" />
+        <provider android:authorities="com.ichi2.anki.flashcards" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"

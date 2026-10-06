@@ -50,6 +50,8 @@ fun MeaningCard(
     maxWidth: androidx.compose.ui.unit.Dp = 720.dp,
     onTapDef: ((Int) -> Unit)? = null,
     footer: (@Composable () -> Unit)? = null,
+    /** The episode's own meaning of the word (and its German definition); off when the footer has the dictionaries. */
+    ownMeaning: Boolean = true,
 ) {
     val segment = picker.selected ?: return
     val key = segment.word ?: return
@@ -62,7 +64,11 @@ fun MeaningCard(
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            if (def != null) DefinitionParts(ctl, picker, segment.text, def, onTapDef) else ShortMeaning(ctl, key, segment.text, word)
+            when {
+                !ownMeaning -> Text(segment.text, color = Colors.text, fontSize = 26.sp)
+                def != null -> DefinitionParts(ctl, picker, segment.text, def, onTapDef)
+                else -> ShortMeaning(ctl, key, segment.text, word)
+            }
             val (status, color) = statusLine(word)
             Text(status + if (word.lookups > 0) "  ·  looked up ${word.lookups}×" else "", color = color, fontSize = 15.sp)
             // The word picked inside the German definition: its own short meaning and status.

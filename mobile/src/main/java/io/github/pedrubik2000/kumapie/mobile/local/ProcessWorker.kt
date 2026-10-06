@@ -116,6 +116,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         report("Transcribing with Soniox…", 0.45f)
         val transcript = py.getModule("newepisode").callAttr("transcribe", audio.path, key, "de", if (soniox) "en" else "", logger).toString()
         audio.delete()
+        File(dir, "transcript.json").writeText(transcript) // Soniox's answer, kept (redoing it would cost again)
         val cues = py.getModule("newepisode").callAttr("cues", transcript).toString()
 
         // 4. English.

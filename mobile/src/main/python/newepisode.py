@@ -77,8 +77,7 @@ def transcribe(audio_path: str, key: str, language: str, translate_to: str, log)
             pass
     tokens = raw.get("tokens", [])
     spoken = [t for t in tokens if t.get("translation_status") != "translation"]
-    translated = [t for t in tokens if t.get("translation_status") == "translation"]
-    return json.dumps({"words": canonical(spoken), "english": translation_cues(translated)}, ensure_ascii=False)
+    return json.dumps({"words": canonical(spoken), "english": translation_cues(tokens), "raw": raw}, ensure_ascii=False)
 
 
 def canonical(tokens: list) -> list:
@@ -102,18 +101,32 @@ def canonical(tokens: list) -> list:
 
 
 def translation_cues(tokens: list) -> list:
-    """Soniox's translated tokens -> English sentences [[start, end, text]] (times from the tokens that have them)."""
-    out, cur, start, end = [], "", None, None
+    """Soniox's token stream (spoken German, then its English translation, then more German...) -> English sentences
+    [[start, end, text]]. Translated tokens have no times: each translated stretch gets the times of the German stretch
+    just before it."""
+    out = []
+    seg_start = seg_end = None   # the German since the last translation
+    eng, eng_start, eng_end = "", None, None
+
+    def flush():
+        nonlocal eng, eng_start, eng_end
+        if eng.strip() and eng_start is not None:
+            out.append([round(eng_start, 3), round(eng_end, 3), eng.strip()])
+        eng, eng_start, eng_end = "", None, None
+
     for t in tokens:
-        cur += t.get("text", "")
-        if t.get("start_ms") is not None:
-            start = t["start_ms"] / 1000 if start is None else start
-            end = t.get("end_ms", t["start_ms"]) / 1000
-        if re.search(r"[.!?…]\s*$", cur) and start is not None:
-            out.append([round(start, 3), round(end, 3), cur.strip()])
-            cur, start, end = "", None, None
-    if cur.strip() and start is not None:
-        out.append([round(start, 3), round(end, 3), cur.strip()])
+        if t.get("translation_status") == "translation":
+            if eng == "" and seg_start is not None:
+                eng_start, eng_end = seg_start, seg_end
+                seg_start = seg_end = None
+            eng += t.get("text", "")
+        else:
+            if eng:
+                flush()
+            if t.get("start_ms") is not None and t.get("text", "").strip():
+                seg_start = t["start_ms"] / 1000 if seg_start is None else seg_start
+                seg_end = t.get("end_ms", t["start_ms"]) / 1000
+    flush()
     return out
 
 

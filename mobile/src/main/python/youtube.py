@@ -24,25 +24,31 @@ def download(url: str, folder: str, qjs: str, log) -> str:
                 last[0] = pct
                 log.log(f"Downloading {d.get('info_dict', {}).get('format_id', '')}: {pct}%")
 
-    opts = {
-        "format": "bv*[vcodec^=avc1][height<=720][ext=mp4]+ba[ext=m4a]/18/b[ext=mp4]",
-        "outtmpl": os.path.join(folder, "video.%(ext)s"),
-        "noplaylist": True,
-        "quiet": True,
-        "no_warnings": True,
-        "fixup": "never",
-        "progress_hooks": [hook],
-        "js_runtimes": {"quickjs": {"path": qjs}},
-    }
-    # Without ffmpeg yt-dlp downloads the requested video and audio separately ("<name>.f136.mp4", "<name>.f140.m4a")
-    # instead of merging them; the files are found in the folder afterwards.
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-    files = [os.path.join(folder, n) for n in os.listdir(folder) if not n.endswith((".part", ".ytdl"))]
-    videos = [f for f in files if f.endswith(".mp4")]
-    audios = [f for f in files if f.endswith(".m4a")]
-    if not videos:
+    base = {"noplaylist": True, "quiet": True, "no_warnings": True, "fixup": "never", "progress_hooks": [hook],
+            "js_runtimes": {"quickjs": {"path": qjs}}}
+    # No ffmpeg, so never ask yt-dlp to merge: the H.264 video and the AAC audio are two downloads (Kotlin muxes
+    # them); if either is missing, format 18 (360p, video and sound in one file).
+    video = audio = None
+    info = {}
+    try:
+        with yt_dlp.YoutubeDL({**base, "format": "bv*[vcodec^=avc1][height<=720][ext=mp4]",
+                               "outtmpl": os.path.join(folder, "video.%(ext)s")}) as ydl:
+            info = ydl.extract_info(url, download=True)
+            video = os.path.join(folder, "video.mp4")
+        with yt_dlp.YoutubeDL({**base, "format": "ba[ext=m4a]",
+                               "outtmpl": os.path.join(folder, "audio.%(ext)s")}) as ydl:
+            ydl.extract_info(url, download=True)
+            audio = os.path.join(folder, "audio.m4a")
+    except yt_dlp.utils.DownloadError as e:
+        log.log(f"Separate video/audio failed ({e}); trying the 360p file")
+        for n in os.listdir(folder):
+            os.remove(os.path.join(folder, n))
+        with yt_dlp.YoutubeDL({**base, "format": "18/b[ext=mp4][acodec!=none]",
+                               "outtmpl": os.path.join(folder, "video.%(ext)s")}) as ydl:
+            info = ydl.extract_info(url, download=True)
+        video, audio = os.path.join(folder, "video.mp4"), None
+    if not os.path.exists(video):
         raise RuntimeError("yt-dlp gave no MP4 video")
     return json.dumps({"title": info.get("title") or "YouTube video", "duration": info.get("duration") or 0,
-                       "video": max(videos, key=os.path.getsize), "audio": audios[0] if audios else None,
+                       "video": video, "audio": audio if audio and os.path.exists(audio) else None,
                        "channel": info.get("channel") or info.get("uploader") or ""}, ensure_ascii=False)

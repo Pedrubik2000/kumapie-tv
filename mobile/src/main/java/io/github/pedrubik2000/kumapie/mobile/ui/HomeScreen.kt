@@ -70,6 +70,12 @@ fun HomeScreen(
     var attempt by remember { mutableIntStateOf(0) }
     val states by library.downloads.states().collectAsState(initial = emptyMap())
 
+    // A new episode finished on the tablet: show it.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val jobs by remember { io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker.states(context) }.collectAsState(initial = emptyList())
+    val finished = jobs.count { it.startsWith("Done") }
+    LaunchedEffect(finished) { if (finished > 0) attempt++ }
+
     LaunchedEffect(attempt) {
         error = null
         runCatching { library.shows() }

@@ -1,0 +1,45 @@
+package io.github.pedrubik2000.kumapie.mobile.german
+
+import android.content.Context
+import android.speech.tts.TextToSpeech
+import java.util.Locale
+
+/**
+ * The device's own German text-to-speech (Google's or Samsung's engine), for words without a recording: works
+ * offline once the engine's German voice is installed (Settings shows whether it is, with a button to the
+ * engine's settings).
+ */
+class GermanVoice(context: Context) {
+    @Volatile private var ready = false
+    private var pending: String? = null
+    private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
+        if (status == TextToSpeech.SUCCESS) {
+            ready = tts.setLanguage(Locale.GERMANY) >= TextToSpeech.LANG_AVAILABLE
+            if (ready) pending?.let { speak(it) }
+        }
+        pending = null
+    }
+
+    fun speak(text: String) {
+        if (!ready) {
+            pending = text
+            return
+        }
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "word")
+    }
+
+    fun stop() {
+        tts.stop()
+    }
+
+    /** For Settings: whether a German voice works without internet. */
+    fun describe(): String {
+        if (!ready) return "No German voice yet: install one in the speech engine's settings."
+        val german = runCatching { tts.voices?.filter { it.locale.language == "de" } }.getOrNull().orEmpty()
+        val offline = german.any {
+            !it.isNetworkConnectionRequired && TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in it.features.orEmpty()
+        }
+        return if (offline) "German voice: installed, works offline (${tts.defaultEngine})."
+        else "German voice: needs internet. Install the German voice data in the speech engine's settings."
+    }
+}

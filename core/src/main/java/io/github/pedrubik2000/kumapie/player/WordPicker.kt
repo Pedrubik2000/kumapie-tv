@@ -45,7 +45,7 @@ class WordPicker(
         private set
     private var lastOk = 0L
 
-    private val audio = WordAudio()
+    private val audio = WordAudio(api)
 
     val selected: Segment? get() = ctl.scene.cues.getOrNull(line)?.segments?.getOrNull(seg)
 
@@ -111,7 +111,7 @@ class WordPicker(
             return
         }
         lastOk = now
-        (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text)) }
+        (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text), it.text) }
     }
 
     // ------------------------------------------------------------ touch (phone and tablet)
@@ -131,11 +131,11 @@ class WordPicker(
         if (segment.word == null) return
         inDef = true
         defSeg = seg
-        audio.play(api.wordAudio(segment.text))
+        audio.play(api.wordAudio(segment.text), segment.text)
     }
 
     /** The selected word read aloud again. */
-    fun hearWord() { (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text)) } }
+    fun hearWord() { (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text), it.text) } }
 
     /** The selected word's German definition read aloud. */
     fun hearDefinition() {
@@ -210,7 +210,7 @@ class WordPicker(
         val segment = selected ?: return
         cardOpen = true
         lastOk = 0L
-        audio.play(api.wordAudio(segment.text))
+        audio.play(api.wordAudio(segment.text), segment.text)
         val word = segment.word ?: return
         val scene = ctl.scene.id
         scope.launch {
@@ -221,21 +221,28 @@ class WordPicker(
     }
 }
 
-/** Plays one short clip at a time (a new one stops the last). */
-class WordAudio {
+/**
+ * Plays one short clip at a time (a new one stops the last). "tts:<text>" is said by the backend's voice, which also
+ * says [play]'s text when the clip can't be played (e.g. a URL while offline).
+ */
+class WordAudio(private val backend: Backend? = null) {
     private var player: MediaPlayer? = null
 
-    fun play(url: String) {
+    fun play(url: String, text: String? = null) {
         release()
+        if (url.startsWith("tts:")) {
+            backend?.speak(url.removePrefix("tts:"))
+            return
+        }
         player = MediaPlayer().apply {
             setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
             setOnPreparedListener { it.start() }
-            setOnErrorListener { _, _, _ -> true }
+            setOnErrorListener { _, _, _ -> text?.let { backend?.speak(it) }; true }
             runCatching {
                 setDataSource(url)
                 prepareAsync()
-            }
+            }.onFailure { text?.let { backend?.speak(it) } }
         }
     }
 

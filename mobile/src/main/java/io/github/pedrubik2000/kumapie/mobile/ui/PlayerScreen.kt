@@ -112,7 +112,7 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, onBack: () -> U
             }
             d == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 18.sp,
                 modifier = Modifier.align(Alignment.Center))
-            else -> ScenePlayer(library.settings, library.backend(), d, onBack)
+            else -> ScenePlayer(library, library.settings, library.backend(), d, onBack)
         }
     }
 }
@@ -144,7 +144,7 @@ private fun FullScreenLandscape() {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ScenePlayer(settings: Settings, backend: Backend, episode: EpisodeDetail, onBack: () -> Unit) {
+private fun ScenePlayer(library: Library, settings: Settings, backend: Backend, episode: EpisodeDetail, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val player = remember {
@@ -252,7 +252,10 @@ private fun ScenePlayer(settings: Settings, backend: Backend, episode: EpisodeDe
             }
         })
         if (picker.isOpen && picker.cardOpen) anchor?.let {
-            MeaningCard(ctl, picker, it, maxWidth = 460.dp, onTapDef = picker::tapInDef, footer = { CardButtons(ctl, picker) })
+            MeaningCard(ctl, picker, it, maxWidth = 460.dp, onTapDef = picker::tapInDef, footer = {
+                DictionaryPanel(library, ctl, picker)
+                CardButtons(ctl, picker)
+            })
         }
 
         if (flash != null && now - flashAt < 900) {

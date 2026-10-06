@@ -94,6 +94,9 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                 KnownWordsSection(library)
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                DictionarySection(library)
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text("On this device", color = Colors.accent)
                 Text("Downloads: ${"%.1f".format(used / 1e9)} GB", fontSize = 15.sp)
                 OutlinedButton(onClick = { library.downloads.deleteAll(); refresh++ }) { Text("Remove all downloads") }
@@ -173,4 +176,37 @@ private fun KnownWordsSection(library: Library) {
         busy = true
         scope.launch { known.refresh(); busy = false }
     }) { Text(if (busy) "Reading Anki…" else "Read Anki now") }
+}
+
+/** The offline dictionary (download / update), the device's German voice, and the data's attribution. */
+@Composable
+private fun DictionarySection(library: Library) {
+    val dictionary = library.dictionary
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val state by remember { dictionary.state() }.collectAsState(initial = null)
+    var built by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(state) { built = withContext(Dispatchers.IO) { dictionary.built() } }
+    var voice by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        library.voice // starts the speech engine
+        kotlinx.coroutines.delay(1500)
+        voice = library.voice.describe()
+    }
+
+    Text("Dictionary and word audio", color = Colors.accent)
+    when {
+        state != null -> Text("Dictionary: $state", fontSize = 15.sp)
+        built != null -> Text("Dictionary: offline, built $built. Words it lacks are looked up on Wiktionary and saved.", fontSize = 15.sp)
+        else -> Text("Meanings offline: the German-English dictionary (about 25 MB download, 85 MB on the device).", fontSize = 15.sp)
+    }
+    if (state == null) OutlinedButton(onClick = { dictionary.download() }) {
+        Text(if (built == null) "Download the dictionary" else "Update the dictionary")
+    }
+    if (voice.isNotEmpty()) Text(voice, fontSize = 14.sp, color = Colors.dim)
+    OutlinedButton(onClick = {
+        runCatching { context.startActivity(android.content.Intent("com.android.settings.TTS_SETTINGS")) }
+    }) { Text("Speech settings") }
+    Text("Words are read by a person's recording when Wikimedia Commons has one, else by this voice.",
+        fontSize = 13.sp, color = Colors.dim)
+    Text(io.github.pedrubik2000.kumapie.mobile.german.Dictionary.ATTRIBUTION, fontSize = 12.sp, color = Colors.dim)
 }

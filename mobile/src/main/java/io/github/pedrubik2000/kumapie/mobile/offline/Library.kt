@@ -7,7 +7,12 @@ import io.github.pedrubik2000.kumapie.data.Backend
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
+import io.github.pedrubik2000.kumapie.mobile.german.Dictionary
+import io.github.pedrubik2000.kumapie.mobile.german.GermanVoice
 import io.github.pedrubik2000.kumapie.mobile.german.KnownWords
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -22,6 +27,11 @@ class Library(context: Context, val settings: Settings) {
     val pending = Pending(context)
     /** Word colours from the device's own Anki (kuma3-anki), once read; until then the PC's. */
     val known = KnownWords(context, settings)
+    /** Meanings without the PC: the offline Wiktionary file, Wiktionary online (cached), recordings. */
+    val dictionary = Dictionary(context)
+    /** The device's German voice, for words without a recording. */
+    val voice by lazy { GermanVoice(context) }
+    private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
 
     val api: Api get() = Api(settings.server)
@@ -64,7 +74,9 @@ class Library(context: Context, val settings: Settings) {
     fun thumb(id: String, url: String): Any = downloads.thumb(id).takeIf { it.exists() } ?: url
     fun poster(showId: String, url: String): Any = downloads.poster(showId).takeIf { it.exists() } ?: url
 
-    fun backend(): Backend = OfflineBackend(api, downloads, pending, known)
+    fun backend(): Backend = OfflineBackend(api, downloads, pending, known, dictionary, { voice.speak(it) }) { surface, url ->
+        background.launch { dictionary.keepRecording(surface, url) }
+    }
 }
 
 /** The server API with local audio files when downloaded, and reports queued when the PC can't be reached. */
@@ -73,6 +85,9 @@ private class OfflineBackend(
     private val downloads: Downloads,
     private val pending: Pending,
     private val known: KnownWords,
+    private val dictionary: Dictionary,
+    private val say: (String) -> Unit,
+    private val keepRecording: (String, String) -> Unit,
 ) : Backend {
 
     override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {
@@ -94,8 +109,22 @@ private class OfflineBackend(
         return here ?: if (known) "k" else "u" // the PC's real answer comes with the next fresh episode
     }
 
-    override fun wordAudio(surface: String): String =
-        downloads.wordFile(surface).takeIf { it.exists() }?.path ?: api.wordAudio(surface)
+    /**
+     * A human recording of the word (saved, or from Wikimedia Commons, then saved), else the audio a download brought
+     * from the PC, else the device's German voice. No longer asks the PC for words.
+     */
+    override fun wordAudio(surface: String): String {
+        val recording = dictionary.recording(surface)
+        if (recording != null && !recording.startsWith("http")) return recording
+        downloads.wordFile(surface).takeIf { it.exists() }?.let { return it.path }
+        if (recording != null) {
+            keepRecording(surface, recording)
+            return recording
+        }
+        return "tts:$surface"
+    }
+
+    override fun speak(text: String) = say(text)
 
     override fun definitionAudio(scene: String, line: Int, word: String): String =
         downloads.definitionFile(scene, line, word).takeIf { it.exists() }?.path

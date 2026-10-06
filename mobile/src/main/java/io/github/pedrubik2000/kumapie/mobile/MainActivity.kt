@@ -60,7 +60,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val library = Library(applicationContext, settings)
         io.github.pedrubik2000.kumapie.mobile.unlock.UnlockService.sync(this) // the unlock listener, if it's on
-        setContent { MobileTheme { App(library) } }
+        // A YouTube link shared to kumapie opens "Add an episode" with it.
+        val shared = intent?.takeIf { it.action == android.content.Intent.ACTION_SEND }?.getStringExtra(android.content.Intent.EXTRA_TEXT)
+        setContent { MobileTheme { App(library, shared) } }
     }
 
     /** A server address sent while the app is already open: save it and start over with it. */
@@ -74,7 +76,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun App(library: Library) {
+fun App(library: Library, sharedLink: String? = null) {
     val settings = library.settings
     var server by remember { mutableStateOf(settings.server) }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
@@ -106,6 +108,7 @@ fun App(library: Library) {
                 onStats = { stack += Screen.Stats },
                 onIPlusOne = { stack += Screen.IPlusOne },
                 onFeed = { stack += Screen.Feed },
+                sharedLink = sharedLink,
                 onSettings = { stack += Screen.Settings },
             )
             is Screen.ShowEpisodes -> shows.firstOrNull { it.id == screen.showId }?.let { show ->

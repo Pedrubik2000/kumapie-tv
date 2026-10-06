@@ -76,7 +76,8 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(show.episodes, key = { it.id }) { ep ->
                 val state = states[ep.id] ?: DownloadState.None
-                val playable = !offline || state == DownloadState.Done
+                val onDevice = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) // made here
+                val playable = onDevice || !offline || state == DownloadState.Done
                 Row(
                     Modifier.fillMaxWidth().clickable(enabled = playable) { onPlay(ep) }
                         .alpha(if (playable) 1f else 0.4f).padding(horizontal = 16.dp, vertical = 10.dp),
@@ -86,12 +87,12 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
                         modifier = Modifier.width(128.dp).height(72.dp).clip(RoundedCornerShape(8.dp)))
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(ep.title, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text("${minutes(ep.duration)} · ${ep.easy} of ${ep.scenes} scenes easy" +
+                        Text(if (onDevice) "${minutes(ep.duration)} · on this tablet" else "${minutes(ep.duration)} · ${ep.easy} of ${ep.scenes} scenes easy" +
                             if (ep.seen > 0) " · ${ep.seen} seen" else "", fontSize = 12.sp, color = Colors.dim)
                         val resume = ep.resume
                         if (resume != null && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(), Modifier.fillMaxWidth())
                     }
-                    DownloadButton(state, enabled = !offline || state == DownloadState.Done,
+                    if (!onDevice) DownloadButton(state, enabled = !offline || state == DownloadState.Done,
                         onStart = { library.downloads.start(show, ep) },
                         onCancel = { library.downloads.cancel(ep.id) },
                         onDelete = { deleting = ep })

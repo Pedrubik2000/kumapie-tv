@@ -41,6 +41,8 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.mobile.BuildConfig
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
+import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
+import io.github.pedrubik2000.kumapie.mobile.local.englishSource
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.update.Updater
 import kotlinx.coroutines.Dispatchers
@@ -96,6 +98,9 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 DictionarySection(library)
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                NewEpisodesSection(library)
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 UnlockSection(library)
@@ -252,4 +257,22 @@ private fun UnlockSection(library: Library) {
     if (on) Text(if (pool > 0) "$pool i+1 scenes to pick from (refreshed when kumapie opens)."
         else "Reading the episodes for i+1 scenes…", fontSize = 13.sp, color = Colors.dim)
     Text("If the separate Unlock Cards app is still on, turn it off so only one opens.", fontSize = 13.sp, color = Colors.dim)
+}
+
+/** New episodes made on the tablet: the Soniox key (kept only in kumapie's private settings) and the English source. */
+@Composable
+private fun NewEpisodesSection(library: Library) {
+    var key by remember { mutableStateOf(library.settings.sonioxKey) }
+    var english by remember { mutableStateOf(library.settings.englishSource) }
+    Text("New episodes (YouTube)", color = Colors.accent)
+    OutlinedTextField(key, { key = it; library.settings.sonioxKey = it }, label = { Text("Soniox API key") }, singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+    Text("English subtitles", fontSize = 15.sp)
+    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        androidx.compose.material3.FilterChip(selected = english == "device", label = { Text("On the device (free)") },
+            onClick = { english = "device"; library.settings.englishSource = "device" })
+        androidx.compose.material3.FilterChip(selected = english == "soniox", label = { Text("Soniox (better, no extra cost)") },
+            onClick = { english = "soniox"; library.settings.englishSource = "soniox" })
+    }
+    Text("Add episodes with + on the home screen, or share a YouTube link to kumapie.", fontSize = 13.sp, color = Colors.dim)
 }

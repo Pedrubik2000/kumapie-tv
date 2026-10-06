@@ -11,6 +11,7 @@ import io.github.pedrubik2000.kumapie.mobile.german.Dictionary
 import io.github.pedrubik2000.kumapie.mobile.german.GermanVoice
 import io.github.pedrubik2000.kumapie.mobile.german.KnownWords
 import io.github.pedrubik2000.kumapie.mobile.german.Miner
+import io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes
 import io.github.pedrubik2000.kumapie.mobile.unlock.UnlockPool
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -38,26 +39,37 @@ class Library(context: Context, val settings: Settings) {
     val miner by lazy { Miner(context, known, dictionary) { voice } }
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
+    /** Episodes made on this device (YouTube links processed here), listed first. */
+    val local = LocalEpisodes(context)
 
     val api: Api get() = Api(settings.server)
 
     /** The shows, and whether they came from the saved copy (offline). */
     suspend fun shows(): Pair<List<Show>, Boolean> {
         val api = api
-        return runCatching {
+        val mine = withContext(Dispatchers.IO) { local.shows() }
+        val (pc, offline) = runCatching {
             val json = api.showsJson()
             pending.flush(api, force = true)
             withContext(Dispatchers.IO) { showsCache.writeText(json) }
             api.parseShows(json) to false
         }.getOrElse { e ->
-            val saved = withContext(Dispatchers.IO) { if (showsCache.exists()) showsCache.readText() else null } ?: throw e
-            api.parseShows(saved) to true
+            val saved = withContext(Dispatchers.IO) { if (showsCache.exists()) showsCache.readText() else null }
+            if (saved == null && mine.isEmpty()) throw e
+            (saved?.let { api.parseShows(it) } ?: emptyList()) to true
         }
+        return (mine + pc) to offline
     }
 
     /** An episode to play: fresh from the PC if it answers, else its download. A downloaded video plays from the device. */
     suspend fun episode(id: String): EpisodeDetail {
         val api = api
+        if (LocalEpisodes.isLocal(id)) {
+            val json = withContext(Dispatchers.IO) { local.json(id).readText() }
+            val detail = known.apply(api.parseEpisode(json))
+            return detail.copy(video = Uri.fromFile(local.video(id)).toString(),
+                resume = settings.prefs.getFloat("resume_$id", -1f).takeIf { it >= 0 }?.toDouble())
+        }
         val downloaded = downloads.isComplete(id)
         // When the PC answers, send what waited, then fetch again so the episode has that progress in it.
         val fresh = runCatching {
@@ -91,9 +103,9 @@ class Library(context: Context, val settings: Settings) {
     fun thumb(id: String, url: String): Any = downloads.thumb(id).takeIf { it.exists() } ?: url
     fun poster(showId: String, url: String): Any = downloads.poster(showId).takeIf { it.exists() } ?: url
 
-    fun backend(): Backend = OfflineBackend(api, downloads, pending, known, dictionary, { voice.speak(it) }) { surface, url ->
+    fun backend(): Backend = OfflineBackend(api, downloads, pending, known, dictionary, { voice.speak(it) }, { surface, url ->
         background.launch { dictionary.keepRecording(surface, url) }
-    }
+    }, settings)
 }
 
 /** The server API with local audio files when downloaded, and reports queued when the PC can't be reached. */
@@ -105,9 +117,14 @@ private class OfflineBackend(
     private val dictionary: Dictionary,
     private val say: (String) -> Unit,
     private val keepRecording: (String, String) -> Unit,
+    private val settings: Settings,
 ) : Backend {
 
     override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {
+        if (LocalEpisodes.isLocal(episode)) { // made on this device: the PC doesn't know it
+            settings.prefs.edit().putFloat("resume_$episode", pos.toFloat()).apply()
+            return
+        }
         pending.add(Pending.progress(episode, pos, seen, watched))
         pending.flush(api)
     }

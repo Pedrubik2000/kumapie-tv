@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Swipe
@@ -59,7 +60,10 @@ fun HomeScreen(
     onIPlusOne: () -> Unit,
     onFeed: () -> Unit,
     onSettings: () -> Unit,
+    /** A link shared to kumapie (YouTube): opens "Add an episode" with it. */
+    sharedLink: String? = null,
 ) {
+    var adding by remember { mutableStateOf(sharedLink != null) }
     var shows by remember { mutableStateOf<List<Show>?>(null) }
     var offline by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -77,6 +81,7 @@ fun HomeScreen(
         TopAppBar(
             title = { Text(if (offline) "kumapie · offline" else "kumapie") },
             actions = {
+                IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, "Add an episode") }
                 IconButton(onClick = { attempt++ }) { Icon(Icons.Default.Refresh, "Refresh") }
                 IconButton(onClick = onFeed) { Icon(Icons.Default.Swipe, "Feed") }
                 IconButton(onClick = onIPlusOne) { Icon(Icons.Default.AutoAwesome, "i+1 scenes") }
@@ -115,6 +120,11 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+    }
+    if (adding) {
+        androidx.compose.material3.ModalBottomSheet(onDismissRequest = { adding = false; attempt++ }) {
+            AddEpisodeSheet(library, sharedLink)
         }
     }
 }

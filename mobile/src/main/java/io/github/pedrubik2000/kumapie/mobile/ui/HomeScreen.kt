@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Healing
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Swipe
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -87,18 +88,33 @@ fun HomeScreen(
             .onFailure { error = it.message ?: it.toString() }
     }
 
+    // A phone has room for the title and three icons; the rest go in the ⋮ menu there (a tablet shows them all).
+    val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 600
+    var menu by remember { mutableStateOf(false) }
+    val more = listOf(
+        Triple(Icons.Default.Refresh, "Refresh") { attempt += 1 },
+        Triple(Icons.Default.School, "Grammar", onGrammar),
+        Triple(Icons.Default.Healing, "Cards that don't stick", onImprove),
+        Triple(Icons.Default.BarChart, "Stats", onStats),
+        Triple(Icons.Default.Settings, "Settings", onSettings),
+    )
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text(if (offline) "kumapie · offline" else "kumapie") },
+            title = { Text(if (offline) "kumapie · offline" else "kumapie", maxLines = 1, overflow = TextOverflow.Ellipsis) },
             actions = {
                 IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, "Add an episode") }
-                IconButton(onClick = { attempt++ }) { Icon(Icons.Default.Refresh, "Refresh") }
                 IconButton(onClick = onFeed) { Icon(Icons.Default.Swipe, "Feed") }
                 IconButton(onClick = onIPlusOne) { Icon(Icons.Default.AutoAwesome, "i+1 scenes") }
-                IconButton(onClick = onGrammar) { Icon(Icons.Default.School, "Grammar") }
-                IconButton(onClick = onImprove) { Icon(Icons.Default.Healing, "Cards that don't stick") }
-                IconButton(onClick = onStats) { Icon(Icons.Default.BarChart, "Stats") }
-                IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings") }
+                if (!narrow) more.forEach { (icon, label, go) -> IconButton(onClick = go) { Icon(icon, label) } }
+                else Box {
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More") }
+                    androidx.compose.material3.DropdownMenu(menu, { menu = false }) {
+                        more.forEach { (icon, label, go) ->
+                            androidx.compose.material3.DropdownMenuItem(text = { Text(label) }, leadingIcon = { Icon(icon, null) },
+                                onClick = { menu = false; go() })
+                        }
+                    }
+                }
             },
         )
     }) { padding ->

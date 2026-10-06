@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,7 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBack: () -> Unit) {
+    val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 600
     var show by remember { mutableStateOf(initial) }
     var offline by remember { mutableStateOf(false) }
     val states by library.downloads.states().collectAsState(initial = emptyMap())
@@ -86,10 +88,10 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     AsyncImage(library.thumb(ep.id, ep.thumb), null, contentScale = ContentScale.Crop,
-                        modifier = Modifier.width(128.dp).height(72.dp).clip(RoundedCornerShape(8.dp)))
+                        modifier = Modifier.width(if (narrow) 96.dp else 128.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)))
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(ep.title, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(if (onDevice) "${minutes(ep.duration)} · on this tablet" else "${minutes(ep.duration)} · ${ep.easy} of ${ep.scenes} scenes easy" +
+                        Text(if (onDevice) "${minutes(ep.duration)} · on this device" else "${minutes(ep.duration)} · ${ep.easy} of ${ep.scenes} scenes easy" +
                             if (ep.seen > 0) " · ${ep.seen} seen" else "", fontSize = 12.sp, color = Colors.dim)
                         val resume = ep.resume
                         if (resume != null && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(), Modifier.fillMaxWidth())

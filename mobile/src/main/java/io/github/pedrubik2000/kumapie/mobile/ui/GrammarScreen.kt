@@ -109,7 +109,7 @@ fun GrammarScreen(library: Library, onBack: () -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("${p.number}. ${p.title}", color = Colors.accent, fontSize = 20.sp)
                     Text(p.explanation, fontSize = 15.sp)
-                    Text("$waiting point(s) waiting on this tablet. Choose a picture for each sentence, then add the point.",
+                    Text("$waiting point(s) waiting on this device. Choose a picture for each sentence, then add the point.",
                         fontSize = 13.sp, color = Colors.dim)
                 }
             }

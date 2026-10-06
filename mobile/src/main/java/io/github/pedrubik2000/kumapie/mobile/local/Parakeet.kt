@@ -95,8 +95,8 @@ class Parakeet(private val context: Context) {
     private fun f(part: String) = dir.listFiles()!!.first { it.name.contains(part) }.path
 
     /** Speech stretches (start sample, 16 kHz samples) of at most 20 s, cut at pauses (Silero VAD). */
-    private fun speech(audio: FloatArray): List<Pair<Int, FloatArray>> {
-        val vad = Vad(null, VadModelConfig(sileroVadModelConfig = SileroVadModelConfig(model = File(dir, "silero_vad.onnx").path,
+    internal fun speech(audio: FloatArray, vadModel: File = File(dir, "silero_vad.onnx")): List<Pair<Int, FloatArray>> {
+        val vad = Vad(null, VadModelConfig(sileroVadModelConfig = SileroVadModelConfig(model = vadModel.path,
             threshold = 0.5f, minSilenceDuration = 0.3f, minSpeechDuration = 0.25f, windowSize = 512, maxSpeechDuration = 20f),
             sampleRate = 16000, numThreads = 1))
         val out = ArrayList<Pair<Int, FloatArray>>()
@@ -116,7 +116,7 @@ class Parakeet(private val context: Context) {
     }
 
     /** Decodes the audio track to mono 16 kHz floats (MediaCodec, then averaging channels and linear resampling). */
-    private fun decode16k(file: File): FloatArray {
+    internal fun decode16k(file: File): FloatArray {
         val ex = MediaExtractor().apply { setDataSource(file.path) }
         val track = (0 until ex.trackCount).first { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true }
         ex.selectTrack(track)

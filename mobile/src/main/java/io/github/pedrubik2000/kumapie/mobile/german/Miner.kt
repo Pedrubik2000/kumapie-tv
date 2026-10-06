@@ -110,7 +110,7 @@ class Miner(
      * shows only .webm clips as video), from the downloaded file or the PC's stream.
      */
     @OptIn(UnstableApi::class)
-    private suspend fun clip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
+    internal suspend fun clip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
             val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
             val item = MediaItem.Builder().setUri(uri).setClippingConfiguration(
@@ -142,7 +142,7 @@ class Miner(
     }
 
     /** A person's recording (saved or fetched), else the device's voice saying it; null if neither works. */
-    private suspend fun wordAudio(surface: String): File? {
+    internal suspend fun wordAudio(surface: String): File? {
         val recording = dictionary.recording(surface)
         if (recording != null && !recording.startsWith("http")) return File(recording)
         if (recording != null) {
@@ -175,7 +175,7 @@ class Miner(
     }
 
     /** The English of those cues: the scene's English lines that overlap them, else all of them. */
-    private fun english(scene: Scene, cues: List<Cue>): String {
+    internal fun english(scene: Scene, cues: List<Cue>): String {
         val start = cues.first().start
         val end = cues.last().end
         val overlapping = scene.english.filter { it.end > start + 0.1 && it.start < end - 0.1 }
@@ -185,7 +185,7 @@ class Miner(
     private fun esc(s: String) = TextUtils.htmlEncode(s)
 
     /** "You and I Are Polar Opposites" -> "you_and_i_are_polar_opposites", the show tag of the PC's cards. */
-    private fun slug(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "_").trim('_')
+    internal fun slug(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "_").trim('_')
 
     companion object {
         const val DECK = "Deutsch::Mined"

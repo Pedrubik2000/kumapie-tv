@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.Swipe
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -61,6 +62,7 @@ fun HomeScreen(
     onIPlusOne: () -> Unit,
     onFeed: () -> Unit,
     onGrammar: () -> Unit,
+    onImprove: () -> Unit,
     onSettings: () -> Unit,
     /** A link shared to kumapie (YouTube): opens "Add an episode" with it. */
     sharedLink: String? = null,
@@ -94,6 +96,7 @@ fun HomeScreen(
                 IconButton(onClick = onFeed) { Icon(Icons.Default.Swipe, "Feed") }
                 IconButton(onClick = onIPlusOne) { Icon(Icons.Default.AutoAwesome, "i+1 scenes") }
                 IconButton(onClick = onGrammar) { Icon(Icons.Default.School, "Grammar") }
+                IconButton(onClick = onImprove) { Icon(Icons.Default.Healing, "Cards that don't stick") }
                 IconButton(onClick = onStats) { Icon(Icons.Default.BarChart, "Stats") }
                 IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings") }
             },

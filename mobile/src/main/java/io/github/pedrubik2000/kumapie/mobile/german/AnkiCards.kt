@@ -27,7 +27,8 @@ class AnkiCards(private val context: Context) {
     data class Note(val id: Long, val fields: Map<String, String>, val tags: Set<String>)
 
     /** [due]: a new card's position (what morphs' recalc orders). */
-    data class Card(val id: Long, val noteId: Long, val reviewed: Boolean, val stability: Double?, val due: Long)
+    data class Card(val id: Long, val noteId: Long, val reviewed: Boolean, val stability: Double?, val due: Long,
+                    val reps: Int = 0, val lapses: Int = 0, val ord: Int = 0)
 
     /** Notes found by an Anki search (`note:"🇩🇪 MvJ"`), with their fields by name. */
     fun notes(pkg: String, search: String): List<Note> {
@@ -48,10 +49,11 @@ class AnkiCards(private val context: Context) {
     /** Cards found by an Anki search: reviewed or new, and FSRS stability (days) when it has one. */
     fun cards(pkg: String, search: String): List<Card> {
         val out = ArrayList<Card>()
-        context.contentResolver.query(Uri.parse("content://$pkg.flashcards/cards"), arrayOf("_id", "note_id", "type", "fsrs_stability", "due"),
+        context.contentResolver.query(Uri.parse("content://$pkg.flashcards/cards"), arrayOf("_id", "note_id", "type", "fsrs_stability", "due", "reps", "lapses", "ord"),
             search, null, null)?.use { c ->
             while (c.moveToNext()) {
-                out += Card(c.getLong(0), c.getLong(1), c.getInt(2) != 0, if (c.isNull(3)) null else c.getDouble(3), c.getLong(4))
+                out += Card(c.getLong(0), c.getLong(1), c.getInt(2) != 0, if (c.isNull(3)) null else c.getDouble(3), c.getLong(4),
+                    c.getInt(5), c.getInt(6), c.getInt(7))
             }
         }
         return out
@@ -136,6 +138,12 @@ class AnkiCards(private val context: Context) {
             put("field_names", fields.joinToString(SEPARATOR))
             put("num_cards", 1)
         })?.lastPathSegment?.toLong() ?: error("Anki didn't add the note type $name")
+
+    /** Sets a card's flag (2 = orange: changed by kumapie, as the PC's improve-card does). */
+    fun flag(pkg: String, nid: Long, ord: Int, flag: Int) {
+        context.contentResolver.update(Uri.parse("content://$pkg.flashcards/notes/$nid/cards/$ord"),
+            ContentValues().apply { put("flags", flag) }, null, null)
+    }
 
     fun deleteNote(pkg: String, nid: Long) {
         context.contentResolver.delete(Uri.parse("content://$pkg.flashcards/notes/$nid"), null, null)

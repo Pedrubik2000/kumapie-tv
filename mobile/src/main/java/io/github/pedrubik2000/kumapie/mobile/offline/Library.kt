@@ -35,7 +35,7 @@ class Library(context: Context, val settings: Settings) {
     /** The same for Japanese (🐻 Japanese, Sudachi); used by Japanese episodes once they exist (plan step 4). */
     val knownJa = KnownWords(context, settings, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE)
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
-    val yomitan = YomitanDictionaries(context)
+    val yomitan = YomitanDictionaries.get(context).also { io.github.pedrubik2000.kumapie.mobile.lang.YomitanUpdateWorker.schedule(context) }
     /** Meanings without the PC: Yomitan dictionaries, else the offline Wiktionary file, Wiktionary online (cached), recordings. */
     val dictionary = Dictionary(context, yomitan)
     /** The device's German voice, for words without a recording. */

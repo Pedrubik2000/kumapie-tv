@@ -112,6 +112,11 @@ void term_json(std::string& o, const TermResult& t) {
       if (j) o += ',';
       o += std::to_string(t.pitches[i].pitches[j].position);
     }
+    o += "],\"ipa\":[";
+    for (size_t j = 0; j < t.pitches[i].transcriptions.size(); j++) {
+      if (j) o += ',';
+      esc(o, t.pitches[i].transcriptions[j]);
+    }
     o += "]}";
   }
   o += "]}";
@@ -144,7 +149,7 @@ JNIEXPORT jstring JNICALL FN(nativeImport)(JNIEnv* env, jclass, jstring source, 
     size_t freq = 0, pitch = 0;
     for (const auto& [mode, n] : s.counts.termMeta) {
       if (mode == "freq") freq += n;
-      if (mode == "pitch") pitch += n;
+      if (mode == "pitch" || mode == "ipa") pitch += n;  // IPA dictionaries load as the pitch kind
     }
     o += ",\"freq\":" + std::to_string(freq) + ",\"pitch\":" + std::to_string(pitch);
     o += ",\"kanji\":" + std::to_string(s.counts.kanji.total);
@@ -189,7 +194,17 @@ JNIEXPORT jstring JNICALL FN(nativeQuery)(JNIEnv* env, jclass, jlong p, jstring 
     auto& q = h(p)->query;
     auto res = q.query(str(env, word));
     q.query_freq(res);
+    // Pitch/IPA rows only match a term with the same reading; kty's German terms have none while their IPA rows use
+    // the word itself, so look those up with the expression as the reading.
+    std::vector<bool> no_reading;
+    for (auto& t : res) {
+      no_reading.push_back(t.reading.empty());
+      if (t.reading.empty()) t.reading = t.expression;
+    }
     q.query_pitch(res);
+    for (size_t i = 0; i < res.size(); i++) {
+      if (no_reading[i]) res[i].reading.clear();
+    }
     for (size_t i = 0; i < res.size(); i++) {
       if (i) o += ',';
       term_json(o, res[i]);

@@ -289,7 +289,8 @@ private fun YomitanSection(library: Library) {
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(d.title, fontSize = 15.sp)
-                Text(d.kinds + (if (d.revision.isNotBlank()) " · ${d.revision}" else ""), fontSize = 12.sp, color = Colors.dim)
+                Text(d.kinds + (if (d.revision.isNotBlank()) " · ${d.revision}" else "") + (if (d.updatable) " · updates itself" else ""),
+                    fontSize = 12.sp, color = Colors.dim)
             }
             IconButton(enabled = i > 0, onClick = { dicts.move(d.folder, -1) }) { Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowUp, "Up") }
             IconButton(enabled = i < mine.lastIndex, onClick = { dicts.move(d.folder, 1) }) { Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowDown, "Down") }
@@ -298,8 +299,17 @@ private fun YomitanSection(library: Library) {
         }
     }
     OutlinedButton(enabled = !busy, onClick = { pick.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) }) {
-        Text(if (busy) "Importing…" else "Import ${lang.name} dictionaries (.zip)")
+        Text(if (busy) "Working…" else "Import ${lang.name} dictionaries (.zip)")
     }
+    if (io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.RECOMMENDED[lang.code] != null) OutlinedButton(enabled = !busy, onClick = {
+        busy = true
+        scope.launch { said = dicts.installRecommended(lang) { said = it }.joinToString("\n"); busy = false }
+    }) { Text("Download the recommended ${lang.name} dictionaries") }
+    if (all.any { it.updatable }) OutlinedButton(enabled = !busy, onClick = {
+        busy = true
+        scope.launch { said = dicts.update { said = it }.ifEmpty { listOf("Every dictionary is up to date.") }.joinToString("\n"); busy = false }
+    }) { Text("Check for updates now") }
+    Text("Dictionaries that can update themselves are checked weekly on Wi-Fi.", fontSize = 12.sp, color = Colors.dim)
     if (said.isNotEmpty()) Text(said, fontSize = 13.sp, color = Colors.dim)
     deleting?.let { d ->
         androidx.compose.material3.AlertDialog(onDismissRequest = { deleting = null },

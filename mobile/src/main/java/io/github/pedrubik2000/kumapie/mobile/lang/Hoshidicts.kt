@@ -7,6 +7,7 @@ import io.github.pedrubik2000.kumapie.data.Lang
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -33,10 +34,12 @@ internal object Hoshidicts {
  * in the user's order: what they hold (term / frequency / pitch / kanji), on or off. Each lives in its own folder
  * under the app's external files; the list is a small JSON file next to them.
  */
-class YomitanDictionaries(private val context: Context) {
+class YomitanDictionaries private constructor(private val context: Context) {
     private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "yomitan").apply { mkdirs() }
     private val listFile = File(base, "dictionaries.json")
     private val handles = HashMap<String, Long>()
+    /** One import, download or update at a time (they share the temporary import folder). */
+    private val work = kotlinx.coroutines.sync.Mutex()
 
     data class Dict(
         val folder: String, val title: String, val lang: String, val revision: String,
@@ -52,36 +55,117 @@ class YomitanDictionaries(private val context: Context) {
 
     fun of(lang: Lang): List<Dict> = _all.value.filter { it.lang == lang.code }
 
-    /** Imports Yomitan zips for [lang]; a dictionary with a title already there is replaced in place. Answers one line per file. */
-    suspend fun import(uris: List<Uri>, lang: Lang, progress: (String) -> Unit): List<String> = withContext(Dispatchers.IO) {
+    /** Imports Yomitan zips picked by the user for [lang]. Answers one line per file. */
+    suspend fun import(uris: List<Uri>, lang: Lang, progress: (String) -> Unit): List<String> = work.withLock { withContext(Dispatchers.IO) {
         uris.map { uri ->
+            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "dictionary.zip"
             runCatching {
-                val name = uri.lastPathSegment?.substringAfterLast('/') ?: "dictionary.zip"
                 progress("Importing $name…")
                 val zip = File(context.cacheDir, "yomitan-import.zip")
                 context.contentResolver.openInputStream(uri)?.use { input -> zip.outputStream().use { input.copyTo(it) } }
                     ?: throw IOException("can't read $name")
-                val tmp = File(base, ".import").apply { deleteRecursively(); mkdirs() }
-                val r = JSONObject(Hoshidicts.nativeImport(zip.path, tmp.path))
-                zip.delete()
-                if (!r.optBoolean("ok")) throw IOException(r.optString("error").ifBlank { "not a Yomitan dictionary" })
-                val folder = r.getString("folder")
-                synchronized(this@YomitanDictionaries) {
-                    closeAll()
-                    File(base, folder).deleteRecursively()
-                    if (!File(tmp, folder).renameTo(File(base, folder))) throw IOException("couldn't move $folder into place")
-                    val d = Dict(folder, r.getString("title"), lang.code, r.optString("revision"), r.optLong("terms"),
-                        r.optLong("freq"), r.optLong("pitch"), r.optLong("kanji"), true, r.optBoolean("isUpdatable"),
-                        r.optString("indexUrl").takeIf { it.isNotBlank() && it != "null" },
-                        r.optString("downloadUrl").takeIf { it.isNotBlank() && it != "null" })
-                    val old = _all.value.indexOfFirst { it.folder == folder }
-                    save(if (old >= 0) _all.value.toMutableList().also { it[old] = d.copy(enabled = it[old].enabled) } else _all.value + d)
-                }
-                tmp.deleteRecursively()
-                "${r.getString("title")}: imported (${listOf(r.optLong("terms") to "words", r.optLong("freq") to "frequencies",
-                    r.optLong("pitch") to "pitch accents").filter { it.first > 0 }.joinToString { "${it.first} ${it.second}" }})"
-            }.getOrElse { "${uri.lastPathSegment}: ${it.message}" }
+                importFile(zip, lang, null)
+            }.getOrElse { "$name: ${it.message}" }
         }
+    } }
+
+    /**
+     * Imports one zip (then deletes it). A dictionary with the same title, or [replacing] (an update, whose title may
+     * have changed: kty-de-en became wty-de-en), is replaced in place: same position, same on/off.
+     */
+    private fun importFile(zip: File, lang: Lang, replacing: Dict?): String {
+        val tmp = File(base, ".import").apply { deleteRecursively(); mkdirs() }
+        try {
+            val r = JSONObject(Hoshidicts.nativeImport(zip.path, tmp.path))
+            if (!r.optBoolean("ok")) throw IOException(r.optString("error").ifBlank { "not a Yomitan dictionary" })
+            val folder = r.getString("folder")
+            synchronized(this) {
+                closeAll()
+                replacing?.let { if (it.folder != folder) File(base, it.folder).deleteRecursively() }
+                File(base, folder).deleteRecursively()
+                if (!File(tmp, folder).renameTo(File(base, folder))) throw IOException("couldn't move $folder into place")
+                val d = Dict(folder, r.getString("title"), lang.code, r.optString("revision"), r.optLong("terms"),
+                    r.optLong("freq"), r.optLong("pitch"), r.optLong("kanji"), true, r.optBoolean("isUpdatable"),
+                    r.optString("indexUrl").takeIf { it.isNotBlank() && it != "null" },
+                    r.optString("downloadUrl").takeIf { it.isNotBlank() && it != "null" })
+                val old = _all.value.indexOfFirst { it.folder == folder || it.folder == replacing?.folder }
+                save(if (old >= 0) _all.value.toMutableList().also { it[old] = d.copy(enabled = it[old].enabled) }
+                     else _all.value + d)
+            }
+            return "${r.getString("title")} ${r.optString("revision")}: imported (" + listOf(r.optLong("terms") to "words",
+                r.optLong("freq") to "frequencies", r.optLong("pitch") to "pronunciations").filter { it.first > 0 }
+                .joinToString { "${it.first} ${it.second}" } + ")"
+        } finally {
+            zip.delete()
+            tmp.deleteRecursively()
+        }
+    }
+
+    /** Downloads [url] (a dictionary zip) and imports it for [lang]. */
+    private fun install(url: String, lang: Lang, replacing: Dict?, progress: (String) -> Unit): String {
+        val zip = File(context.cacheDir, "yomitan-download.zip")
+        download(url, zip) { mb -> progress("Downloading… $mb MB") }
+        progress("Importing…")
+        return importFile(zip, lang, replacing)
+    }
+
+    /** The starter set for [lang] ([RECOMMENDED]): installs those not there yet. Answers one line per dictionary. */
+    suspend fun installRecommended(lang: Lang, progress: (String) -> Unit): List<String> = work.withLock { withContext(Dispatchers.IO) {
+        RECOMMENDED[lang.code].orEmpty().map { indexUrl ->
+            runCatching {
+                val index = JSONObject(fetchText(indexUrl))
+                val title = index.getString("title")
+                if (of(lang).any { it.title == title || it.indexUrl == indexUrl }) return@runCatching "$title: already there"
+                progress("$title…")
+                install(index.getString("downloadUrl"), lang, null) { progress("$title: $it") }
+            }.getOrElse { "${indexUrl.substringAfterLast('/').substringBefore('?')}: ${it.message}" }
+        }
+    } }
+
+    /**
+     * Checks every updatable dictionary (Yomitan's isUpdatable + indexUrl + downloadUrl, as Hachidori does): a
+     * different revision is downloaded, imported and swapped in; a failed update keeps the working one. Answers one
+     * line per updated or failed dictionary.
+     */
+    suspend fun update(progress: (String) -> Unit = {}): List<String> = work.withLock { withContext(Dispatchers.IO) {
+        _all.value.filter { it.updatable && it.indexUrl != null }.mapNotNull { d ->
+            runCatching {
+                progress("Checking ${d.title}…")
+                val index = JSONObject(fetchText(d.indexUrl!!))
+                val revision = index.optString("revision")
+                if (revision.isBlank() || revision == d.revision) return@runCatching null
+                val url = index.optString("downloadUrl").ifBlank { d.downloadUrl ?: throw IOException("no download link") }
+                install(url, Lang.of(d.lang), d) { progress("${d.title}: $it") }
+            }.getOrElse { "${d.title}: update failed (${it.message})" }
+        }
+    } }
+
+    private fun fetchText(url: String): String = open(url).use { it.readBytes().toString(Charsets.UTF_8) }
+
+    private fun download(url: String, out: File, progress: (Long) -> Unit) {
+        open(url).use { input ->
+            out.outputStream().use { output ->
+                val buf = ByteArray(1 shl 16)
+                var total = 0L
+                var shown = -1L
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    output.write(buf, 0, n)
+                    total += n
+                    if (total / 1_000_000 != shown) { shown = total / 1_000_000; progress(shown) }
+                }
+            }
+        }
+    }
+
+    private fun open(url: String): java.io.InputStream {
+        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 15_000
+        conn.readTimeout = 60_000
+        conn.setRequestProperty("User-Agent", AssetWorker.USER_AGENT)
+        if (conn.responseCode != 200) throw IOException("HTTP ${conn.responseCode}")
+        return conn.inputStream
     }
 
     @Synchronized fun setEnabled(folder: String, on: Boolean) = edit { l -> l.map { if (it.folder == folder) it.copy(enabled = on) else it } }
@@ -160,12 +244,29 @@ class YomitanDictionaries(private val context: Context) {
 
     /** A headword with what each dictionary says about it. */
     data class Term(val expression: String, val reading: String, val glossaries: List<Glossary>,
-                    val frequencies: List<Pair<String, String>>, val pitches: List<Pair<String, List<Int>>>)
+                    val frequencies: List<Pair<String, String>>, val pitches: List<Pair<String, List<Int>>>,
+                    /** IPA transcriptions from IPA dictionaries (wty-de-en-ipa: "/fʁaɪ̯/"). */
+                    val ipa: List<String> = emptyList())
 
     /** One dictionary's entry: its senses as plain text (structured content flattened), and its tags. */
     data class Glossary(val dict: String, val senses: List<String>, val tags: String, val formOf: List<String> = emptyList())
 
     companion object {
+        @Volatile private var instance: YomitanDictionaries? = null
+
+        /** One per process: the app and the update job share the list and the open dictionaries. */
+        fun get(context: Context): YomitanDictionaries =
+            instance ?: synchronized(this) { instance ?: YomitanDictionaries(context.applicationContext).also { instance = it } }
+
+        /**
+         * Starter sets per language (index.json URLs; updatable): German = wty-de-en (Wiktionary, the source of the old
+         * de-en.sqlite) + its IPA. Japanese comes with step 3 (Jitendex, JMnedict, a frequency and a pitch dictionary).
+         */
+        private const val WTY = "https://huggingface.co/datasets/daxida/wty-release/resolve/main/latest/index"
+        val RECOMMENDED = mapOf(
+            "de" to listOf("$WTY/wty-de-en-index.json?download=true", "$WTY/wty-de-en-ipa-index.json?download=true"),
+        )
+
         fun parseTerms(a: JSONArray): List<Term> = (0 until a.length()).map { i ->
             val t = a.getJSONObject(i)
             val g = t.getJSONArray("glossaries")
@@ -192,7 +293,10 @@ class YomitanDictionaries(private val context: Context) {
                         val pos = e.getJSONArray("positions")
                         e.getString("dict") to (0 until pos.length()).map { pos.getInt(it) }
                     }
-                })
+                },
+                (0 until p.length()).flatMap { j ->
+                    p.getJSONObject(j).optJSONArray("ipa")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
+                }.distinct())
         }
 
         /**
@@ -263,6 +367,26 @@ class YomitanDictionaries(private val context: Context) {
                     }
                 }
             }
+        }
+    }
+}
+
+/** Weekly, on an unmetered network: updates every updatable Yomitan dictionary ([YomitanDictionaries.update]). */
+class YomitanUpdateWorker(context: android.content.Context, params: androidx.work.WorkerParameters) :
+    androidx.work.CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        val lines = YomitanDictionaries.get(applicationContext).update()
+        lines.forEach { Log.i("kumapie", "yomitan update: $it") }
+        return Result.success()
+    }
+
+    companion object {
+        fun schedule(context: android.content.Context) {
+            val request = androidx.work.PeriodicWorkRequestBuilder<YomitanUpdateWorker>(7, java.util.concurrent.TimeUnit.DAYS)
+                .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.UNMETERED).build())
+                .build()
+            androidx.work.WorkManager.getInstance(context)
+                .enqueueUniquePeriodicWork("yomitan-update", androidx.work.ExistingPeriodicWorkPolicy.KEEP, request)
         }
     }
 }

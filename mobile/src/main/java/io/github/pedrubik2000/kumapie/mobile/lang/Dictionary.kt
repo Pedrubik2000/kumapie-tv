@@ -117,13 +117,19 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
         // Form-of entries ("glaubst": second-person singular present of glauben) lead to the dictionary form: its
         // meanings come first, the form-of notes after.
         val bases = found.flatMap { t -> t.glossaries.flatMap { it.formOf } }.distinct().filter { it !in words }
-        val all = bases.flatMap { y.query(de, it) } + found
+        // A split verb's key ("sag bescheid", "rufe an"): the verb's dictionary form with its particle, as a phrase
+        // ("Bescheid sagen") or one word ("anrufen").
+        val phrases = key?.split(' ')?.takeIf { it.size == 2 }?.let { (verb, particle) ->
+            val verbBases = (listOf(verb) + y.query(de, verb).flatMap { t -> t.glossaries.flatMap { it.formOf } }).distinct()
+            verbBases.flatMap { b -> listOf(particle + b, "${particle.replaceFirstChar { it.uppercase() }} $b", "$particle $b") }
+        }.orEmpty()
+        val all = phrases.flatMap { y.query(de, it) } + bases.flatMap { y.query(de, it) } + found
         val terms = all.filter { t -> t.glossaries.any { it.formOf.isEmpty() } } + all.filter { t -> t.glossaries.all { it.formOf.isNotEmpty() } }
         val seen = HashSet<String>()
         return terms.flatMap { t ->
             t.glossaries.filter { seen.add("${t.expression}|${t.reading}|${it.dict}|${it.senses.firstOrNull()}") }.map { g ->
                 DictEntry(t.expression, g.tags, listOf(t.reading.takeIf { it.isNotBlank() && it != t.expression }, g.dict)
-                    .filterNotNull().joinToString(" · "), "", g.senses.map { Sense(it, "", emptyList()) })
+                    .filterNotNull().joinToString(" · "), t.ipa.joinToString(", "), g.senses.map { Sense(it, "", emptyList()) })
             }
         }
     }

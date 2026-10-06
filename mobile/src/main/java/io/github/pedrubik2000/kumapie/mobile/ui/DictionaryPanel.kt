@@ -48,7 +48,8 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
         when {
             found == null -> Text("Looking it up…", color = Colors.dim, fontSize = 14.sp)
             found.isEmpty() -> Text(
-                if (library.dictionary.isReady) "Not in the dictionary." else "Download the dictionary in Settings to see meanings here.",
+                if (library.yomitan.of(io.github.pedrubik2000.kumapie.data.Lang.GERMAN).any { it.enabled && it.terms > 0 }) "Not in the dictionary."
+                else "Download the recommended German dictionaries in Settings to see meanings here.",
                 color = Colors.dim, fontSize = 14.sp,
             )
             else -> {

@@ -38,17 +38,20 @@ data class DictEntry(
 data class Sense(val gloss: String, val tags: String, val examples: List<Pair<String, String>>)
 
 /**
- * German-English meanings without the PC and without paying:
- * - offline: an SQLite file built from English Wiktionary (kaikki.org) by the repo's Dictionary workflow
- *   (tools/dictionary/build.py), downloaded once: entries with every sense, forms -> dictionary form, recordings;
- * - online, for words the file doesn't have: Wiktionary's definition API, every answer kept in a local cache
- *   (also "not found"), so a word is asked for once.
+ * German meanings and word recordings without the PC and without paying:
+ * - meanings: the imported Yomitan dictionaries ([YomitanDictionaries], wty-de-en: English Wiktionary);
+ * - online, for words they don't have: Wiktionary's definition API, every answer kept in a local cache (also "not
+ *   found"), so a word is asked for once;
+ * - recordings: a small index (word -> Wikimedia Commons file) built monthly by the repo's Dictionary workflow
+ *   (tools/dictionary/build.py), downloaded once (~3 MB).
  * Wiktionary content is CC BY-SA 4.0 ([ATTRIBUTION]).
  */
 class Dictionary(private val context: Context, private val yomitan: YomitanDictionaries? = null) {
     private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "dictionary")
-    val file = File(base, "de-en.sqlite")
+    /** The recordings index (word -> Commons file). */
+    val file = File(base, "de-recordings.sqlite")
     val isReady: Boolean get() = file.exists()
+    init { File(base, "de-en.sqlite").delete() } // the old meanings file (84 MB), replaced by Yomitan dictionaries
     private val recordings = File(base, "recordings")
     private val work get() = WorkManager.getInstance(context)
 
@@ -69,7 +72,7 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
 
     fun state(): Flow<String?> = AssetWorker.state(work, WORK)
 
-    /** When the offline file was built ("2026-10-05"), or null. */
+    /** When the recordings index was built ("2026-10-05"), or null. */
     fun built(): String? = runCatching {
         open()?.rawQuery("select value from meta where key = 'built'", null)?.use { if (it.moveToFirst()) it.getString(0) else null }
     }.getOrNull()
@@ -93,29 +96,27 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
 
     /**
      * Every entry for the word as it appears in the subtitles: [surface] ("Hunde"), its morph key ([key], "rufe an"
-     * for a split verb) and spaCy's dictionary form ([lemma]). The dictionary form's entries come first. Online
-     * only when the file has nothing (and [online] is allowed).
+     * for a split verb) and spaCy's dictionary form ([lemma]). Online only when the Yomitan dictionaries have
+     * nothing (and [online] is allowed).
      */
     suspend fun lookup(surface: String, key: String?, lemma: String?, online: Boolean = true): List<DictEntry> =
         withContext(Dispatchers.IO) {
-            // Imported Yomitan dictionaries first (kumapie_languages_plan.md step 2b); the Wiktionary file stays the fallback.
-            val yomi = runCatching { yomitan(surface, key, lemma) }.onFailure { Log.w("kumapie", "yomitan: $it") }.getOrDefault(emptyList())
-            if (yomi.isNotEmpty()) return@withContext yomi
-            val found = runCatching { offline(surface, key, lemma) }.onFailure { Log.w("kumapie", "dictionary: $it") }
-                .getOrDefault(emptyList())
+            val found = runCatching { yomitan(surface, key, lemma) }.onFailure { Log.w("kumapie", "yomitan: $it") }.getOrDefault(emptyList())
             if (found.isNotEmpty() || !online) return@withContext found
             val term = lemma?.takeIf { it.isNotBlank() } ?: surface
             onlineEntries(term).ifEmpty { if (!term.equals(surface, true)) onlineEntries(surface) else emptyList() }
         }
 
-    /** The imported German Yomitan dictionaries' entries: the dictionary form first, then the written forms. */
+    /**
+     * The imported German Yomitan dictionaries' entries, in this order: a split verb's phrase ("Bescheid sagen"), the
+     * word as written ("glaubst": second-person singular present of glauben), then its dictionary forms ("glauben").
+     */
     private fun yomitan(surface: String, key: String?, lemma: String?): List<DictEntry> {
         val y = yomitan ?: return emptyList()
         val de = io.github.pedrubik2000.kumapie.data.Lang.GERMAN
-        val words = listOfNotNull(lemma, key, surface).flatMap { listOf(it, it.lowercase()) }.filter { it.isNotBlank() }.distinct()
+        val words = listOfNotNull(surface, key, lemma).flatMap { listOf(it, it.lowercase()) }.filter { it.isNotBlank() }.distinct()
         val found = words.flatMap { y.query(de, it) }
-        // Form-of entries ("glaubst": second-person singular present of glauben) lead to the dictionary form: its
-        // meanings come first, the form-of notes after.
+        // Form-of entries ("glaubst": second-person singular present of glauben) lead to the dictionary form.
         val bases = found.flatMap { t -> t.glossaries.flatMap { it.formOf } }.distinct().filter { it !in words }
         // A split verb's key ("sag bescheid", "rufe an"): the verb's dictionary form with its particle, as a phrase
         // ("Bescheid sagen") or one word ("anrufen").
@@ -123,45 +124,13 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
             val verbBases = (listOf(verb) + y.query(de, verb).flatMap { t -> t.glossaries.flatMap { it.formOf } }).distinct()
             verbBases.flatMap { b -> listOf(particle + b, "${particle.replaceFirstChar { it.uppercase() }} $b", "$particle $b") }
         }.orEmpty()
-        val all = phrases.flatMap { y.query(de, it) } + bases.flatMap { y.query(de, it) } + found
-        val terms = all.filter { t -> t.glossaries.any { it.formOf.isEmpty() } } + all.filter { t -> t.glossaries.all { it.formOf.isNotEmpty() } }
+        val terms = phrases.flatMap { y.query(de, it) } + found + bases.flatMap { y.query(de, it) }
         val seen = HashSet<String>()
         return terms.flatMap { t ->
             t.glossaries.filter { seen.add("${t.expression}|${t.reading}|${it.dict}|${it.senses.firstOrNull()}") }.map { g ->
                 DictEntry(t.expression, g.tags, listOf(t.reading.takeIf { it.isNotBlank() && it != t.expression }, g.dict)
                     .filterNotNull().joinToString(" · "), t.ipa.joinToString(", "), g.senses.map { Sense(it, "", emptyList()) })
             }
-        }
-    }
-
-    private fun offline(surface: String, key: String?, lemma: String?): List<DictEntry> {
-        val db = open() ?: return emptyList()
-        val written = listOfNotNull(surface, key, lemma).map { it.lowercase() }.distinct()
-        // Dictionary forms of what is written ("ging" -> "gehen", "ruft an" -> "anrufen").
-        val viaForms = LinkedHashSet<String>()
-        db.rawQuery("select lemma from forms where form in (${written.joinToString(",") { "?" }})", written.toTypedArray()).use { c ->
-            while (c.moveToNext()) viaForms += c.getString(0).lowercase()
-        }
-        val order = (listOfNotNull(lemma?.lowercase()) + viaForms + written).distinct()
-        val out = ArrayList<Pair<Int, DictEntry>>()
-        db.rawQuery("select word, lower, pos, head, ipa, senses from entries where lower in (${order.joinToString(",") { "?" }})",
-            order.toTypedArray()).use { c ->
-            while (c.moveToNext()) {
-                val rank = order.indexOf(c.getString(1))
-                out += rank to DictEntry(c.getString(0), c.getString(2), c.getString(3), c.getString(4), senses(c.getString(5)))
-            }
-        }
-        // Same rank: the written capitalisation first (a noun "Halt" vs the particle "halt").
-        return out.sortedWith(compareBy({ it.first }, { if (it.second.word == surface || it.second.word == lemma) 0 else 1 }))
-            .map { it.second }
-    }
-
-    private fun senses(json: String): List<Sense> {
-        val a = JSONArray(json)
-        return (0 until a.length()).map { i ->
-            val s = a.getJSONArray(i)
-            val ex = s.getJSONArray(2)
-            Sense(s.getString(0), s.getString(1), (0 until ex.length()).map { j -> ex.getJSONArray(j).let { it.getString(0) to it.getString(1) } })
         }
     }
 
@@ -217,6 +186,16 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
                 .put(JSONArray(s.examples.map { JSONArray().put(it.first).put(it.second) })) }))
     }).toString()
 
+    /** Cached senses: [[gloss, "tag tag", [[german example, english], ...]], ...]. */
+    private fun senses(json: String): List<Sense> {
+        val a = JSONArray(json)
+        return (0 until a.length()).map { i ->
+            val s = a.getJSONArray(i)
+            val ex = s.getJSONArray(2)
+            Sense(s.getString(0), s.getString(1), (0 until ex.length()).map { j -> ex.getJSONArray(j).let { it.getString(0) to it.getString(1) } })
+        }
+    }
+
     private fun fromJson(json: String): List<DictEntry> {
         val a = JSONArray(json)
         return (0 until a.length()).map { i ->
@@ -264,9 +243,9 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
     private fun hash(s: String) = MessageDigest.getInstance("SHA-1").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }.take(20)
 
     companion object {
-        const val URL_FILE = "https://github.com/Pedrubik2000/kumapie-tv/releases/download/dictionary/de-en.sqlite.gz"
-        const val ATTRIBUTION = "Meanings: English Wiktionary (CC BY-SA 4.0), extracted by kaikki.org. " +
-            "Recordings: Wikimedia Commons, each under its own free license."
+        const val URL_FILE = "https://github.com/Pedrubik2000/kumapie-tv/releases/download/dictionary/de-recordings.sqlite.gz"
+        const val ATTRIBUTION = "Meanings: Yomitan dictionaries (wty-de-en: English Wiktionary, CC BY-SA 4.0, via kaikki.org " +
+            "and wiktionary-to-yomitan). Recordings: Wikimedia Commons, each under its own free license."
         private const val COMMONS_MP3 = "https://upload.wikimedia.org/wikipedia/commons/transcoded/"
         private const val WORK = "dictionary"
     }
@@ -275,18 +254,18 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
 /** Downloads the gzipped dictionary from the repo's "dictionary" release and puts it in place. */
 class DictionaryWorker(context: Context, params: WorkerParameters) : AssetWorker(context, params) {
     private val dictionary = Dictionary(context)
-    override val what = "the dictionary"
+    override val what = "the word recordings list"
     override val notificationId = 998
 
     override suspend fun run() {
         val dir = dictionary.file.parentFile!!.apply { mkdirs() }
-        val gz = File(dir, "de-en.sqlite.gz.part")
+        val gz = File(dir, "de-recordings.sqlite.gz.part")
         fetch(Dictionary.URL_FILE, gz)
         report("Unpacking…", 0.95f)
-        val tmp = File(dir, "de-en.sqlite.tmp")
+        val tmp = File(dir, "de-recordings.sqlite.tmp")
         GZIPInputStream(gz.inputStream().buffered(1 shl 16)).use { input -> tmp.outputStream().use { input.copyTo(it, 1 shl 16) } }
         runCatching { SQLiteDatabase.openDatabase(tmp.path, null, SQLiteDatabase.OPEN_READONLY).close() }
-            .onFailure { tmp.delete(); gz.delete(); throw IOException("the download is not the dictionary") }
+            .onFailure { tmp.delete(); gz.delete(); throw IOException("the download is not the recordings list") }
         dictionary.close()
         if (!tmp.renameTo(dictionary.file)) {
             dictionary.file.delete()

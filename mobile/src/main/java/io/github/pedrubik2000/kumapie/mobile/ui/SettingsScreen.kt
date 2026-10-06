@@ -334,14 +334,14 @@ private fun DictionarySection(library: Library) {
         voice = library.voice.describe()
     }
 
-    Text("Dictionary and word audio", color = Colors.accent)
+    Text("Word audio", color = Colors.accent)
     when {
-        state != null -> Text("Dictionary: $state", fontSize = 15.sp)
-        built != null -> Text("Dictionary: offline, built $built. Words it lacks are looked up on Wiktionary and saved.", fontSize = 15.sp)
-        else -> Text("Meanings offline: the German-English dictionary (about 25 MB download, 85 MB on the device).", fontSize = 15.sp)
+        state != null -> Text("Recordings list: $state", fontSize = 15.sp)
+        built != null -> Text("Recordings list: offline, built $built (which German words have a person's recording).", fontSize = 15.sp)
+        else -> Text("Which German words have a person's recording on Wikimedia Commons: a small list (about 3 MB), once.", fontSize = 15.sp)
     }
     if (state == null) OutlinedButton(onClick = { dictionary.download() }) {
-        Text(if (built == null) "Download the dictionary" else "Update the dictionary")
+        Text(if (built == null) "Download the recordings list" else "Update the recordings list")
     }
     if (voice.isNotEmpty()) Text(voice, fontSize = 14.sp, color = Colors.dim)
     OutlinedButton(onClick = {

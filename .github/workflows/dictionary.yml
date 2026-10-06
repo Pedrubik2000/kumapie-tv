@@ -1,0 +1,40 @@
+# The phone app's offline German-English dictionary (tools/dictionary/build.py), rebuilt monthly from kaikki.org's
+# Wiktionary data and published as the asset de-en.sqlite.gz of the pre-release "dictionary" (a pre-release, so the
+# apps' update check, which reads releases/latest, never sees it). The app downloads it from
+#   https://github.com/Pedrubik2000/kumapie-tv/releases/download/dictionary/de-en.sqlite.gz
+name: Dictionary
+on:
+  schedule:
+    - cron: "17 6 3 * *" # the 3rd of each month (kaikki rebuilds from each new Wiktionary dump)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dictionary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: |
+          python tools/dictionary/build.py kaikki-German.jsonl.gz de-en.sqlite
+          gzip -9 de-en.sqlite
+          ls -la de-en.sqlite.gz
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="German-English dictionary for the phone/tablet app, built $(date +%F) from English Wiktionary
+          (kaikki.org extraction). License: CC BY-SA 4.0, Wiktionary contributors; recordings from Wikimedia Commons."
+          if gh release view dictionary > /dev/null 2>&1; then
+            gh release upload dictionary de-en.sqlite.gz --clobber
+            gh release edit dictionary --notes "$notes"
+          else
+            gh release create dictionary de-en.sqlite.gz --prerelease --latest=false --title "Dictionary" --notes "$notes"
+          fi

@@ -75,6 +75,11 @@ var Settings.rdToken: String
     get() = prefs.getString("rd_token", "") ?: ""
     set(value) = prefs.edit().putString("rd_token", value.trim()).apply()
 
+/** The Jimaku API key (jimaku.cc > Account) for Japanese subtitles, typed into Settings by the user, kept only here. */
+var Settings.jimakuKey: String
+    get() = prefs.getString("jimaku_key", "") ?: ""
+    set(value) = prefs.edit().putString("jimaku_key", value.trim()).apply()
+
 /** The highest video quality for new episodes (360 / 480 / 720 / 1080, H.264), remembered. */
 var Settings.videoHeight: Int
     get() = prefs.getInt("video_height", 720)

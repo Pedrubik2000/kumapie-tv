@@ -45,6 +45,7 @@ import io.github.pedrubik2000.kumapie.mobile.BuildConfig
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
 import io.github.pedrubik2000.kumapie.mobile.local.rdToken
+import io.github.pedrubik2000.kumapie.mobile.local.jimakuKey
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
 import io.github.pedrubik2000.kumapie.mobile.local.englishSource
 import io.github.pedrubik2000.kumapie.mobile.local.transcriber
@@ -408,6 +409,7 @@ private fun UnlockSection(library: Library) {
 private fun NewEpisodesSection(library: Library) {
     var key by remember { mutableStateOf(library.settings.sonioxKey) }
     var rd by remember { mutableStateOf(library.settings.rdToken) }
+    var jimaku by remember { mutableStateOf(library.settings.jimakuKey) }
     var english by remember { mutableStateOf(library.settings.englishSource) }
     var transcriber by remember { mutableStateOf(library.settings.transcriber) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -436,6 +438,8 @@ private fun NewEpisodesSection(library: Library) {
     OutlinedTextField(key, { key = it; library.settings.sonioxKey = it }, label = { Text("Soniox API key") }, singleLine = true,
         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
     OutlinedTextField(rd, { rd = it; library.settings.rdToken = it }, label = { Text("Real-Debrid token (real-debrid.com/apitoken)") },
+        singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, label = { Text("Jimaku API key (jimaku.cc > Account), Japanese subtitles") },
         singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
     Text("English subtitles", fontSize = 15.sp)
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)

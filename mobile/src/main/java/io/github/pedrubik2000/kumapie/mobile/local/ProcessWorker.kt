@@ -49,6 +49,11 @@ var Settings.sonioxKey: String
     get() = prefs.getString("soniox_key", "") ?: ""
     set(value) = prefs.edit().putString("soniox_key", value.trim()).apply()
 
+/** The highest video quality for new episodes (360 / 480 / 720 / 1080, H.264), remembered. */
+var Settings.videoHeight: Int
+    get() = prefs.getInt("video_height", 720)
+    set(value) = prefs.edit().putInt("video_height", value).apply()
+
 /** "device" (Google's on-device translator, free, offline) or "soniox" (Soniox translates while transcribing). */
 var Settings.englishSource: String
     get() = prefs.getString("english_source", "device") ?: "device"
@@ -63,10 +68,12 @@ var Settings.englishSource: String
 class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     private val local = LocalEpisodes(context)
     private val settings = Settings(context)
+    private var height = 720
 
     override suspend fun doWork(): Result {
         val url = inputData.getString(URL) ?: return Result.failure()
         val show = inputData.getString(SHOW)?.takeIf { it.isNotBlank() }
+        height = inputData.getInt(HEIGHT, 720)
         val id = idFor(url)
         runCatching { setForeground(foreground("Starting…", 0f)) }
         return try {
@@ -91,7 +98,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         // 1. Download.
         report("Downloading…", 0.02f)
         val qjs = File(applicationContext.applicationInfo.nativeLibraryDir, "libqjs.so").path
-        val got = JSONObject(py.getModule("youtube").callAttr("download", url, dl.path, qjs, logger).toString())
+        val got = JSONObject(py.getModule("youtube").callAttr("download", url, dl.path, qjs, logger, height).toString())
         val title = got.getString("title")
         val show = showName ?: got.optString("channel").ifBlank { "YouTube" }
 
@@ -250,6 +257,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     companion object {
         const val URL = "url"
         const val SHOW = "show"
+        const val HEIGHT = "height"
         const val STAGE = "stage"
         const val ERROR = "error"
         private const val CHANNEL = "downloads"
@@ -258,9 +266,9 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         fun idFor(url: String) = "local-" + MessageDigest.getInstance("SHA-1").digest(url.trim().toByteArray())
             .joinToString("") { "%02x".format(it) }.take(12)
 
-        fun start(context: Context, url: String, show: String?) {
+        fun start(context: Context, url: String, show: String?, height: Int) {
             val req = OneTimeWorkRequestBuilder<ProcessWorker>()
-                .setInputData(workDataOf(URL to url.trim(), SHOW to show))
+                .setInputData(workDataOf(URL to url.trim(), SHOW to show, HEIGHT to height))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .addTag(TAG).build()
             WorkManager.getInstance(context).enqueueUniqueWork(TAG + idFor(url), ExistingWorkPolicy.KEEP, req)

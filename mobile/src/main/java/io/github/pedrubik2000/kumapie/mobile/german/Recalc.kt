@@ -3,18 +3,20 @@ package io.github.pedrubik2000.kumapie.mobile.german
 /**
  * morphs' Recalc (tools/morphs on the PC: recalc.py and scoring.py; keep them alike) on the device, behind a button:
  * new German cards ordered by their unknown words (i+1 by how common its unknown is, then i+2, ..., i+0 last), the
- * `_card-status` tags (Unlock and the PC read i+1) and the `am-study-morphs` field ("Sentence: <unknowns>", MvJ's
- * "| Definition: .." kept). Words come from [KnownWords] (same spaCy model, same known rules), so the plan matches the
+ * `_card-status` tags (Unlock and the PC read i+1) and the `am-study-morphs` field ("Sentence: <unknowns>"). Also MvJ's
+ * definition unlock: a note whose monolingual definition has only known words (the card's own word aside) gets
+ * `_mvj::def-is-ready` (the card then shows it unlocked), else `_mvj::def-has-unknowns` and "| Definition: <unknowns>". Words come from [KnownWords] (same spaCy model, same known rules), so the plan matches the
  * PC's. [plan] only reads; [apply] writes just what differs, through kuma3 Anki's provider.
  */
 class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCards(known.context)) {
 
     class NoteChange(val id: Long, val tags: Set<String>, val fields: List<String>?)
 
-    class Plan(val pkg: String, val dues: Map<Long, Long>, val notes: List<NoteChange>, val newCards: Int, val levels: Map<String, Int>) {
+    class Plan(val pkg: String, val dues: Map<Long, Long>, val notes: List<NoteChange>, val newCards: Int, val levels: Map<String, Int>,
+               val defsReady: Int = 0, val defs: Int = 0) {
         val empty: Boolean get() = dues.isEmpty() && notes.isEmpty()
         fun describe(): String = "${levels[READY] ?: 0} new cards at i+1, ${levels[NOT_READY] ?: 0} at i+2 or more, " +
-            "${levels[KNOWN] ?: 0} at i+0 (of $newCards new). " +
+            "${levels[KNOWN] ?: 0} at i+0 (of $newCards new). $defsReady of $defs German definitions unlocked. " +
             if (empty) "Nothing to change." else "${dues.size} change place, ${notes.size} notes get new tags or study words."
     }
 
@@ -44,21 +46,30 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
             if (due != card.due) dues[card.id] = due
         }
 
+        // The definition's words that aren't known yet, the card's own word aside (MvJ's study morphs).
+        val defUnknowns = r.defMorphs.mapValues { (nid, ws) -> ws.filter { it !in keys[nid].orEmpty() && known.status(it) != "k" } }
+
         val changes = ArrayList<NoteChange>()
-        for (nid in modify) {
-            val note = notes[nid]!!
-            val want = if (nid in newNotes) setOfNotNull(wantTag[nid]) else note.tags.filter { it == KNOWN }.toSet()
-            val have = note.tags.filter { it in STATUS_TAGS }.toSet()
-            val tags = if (want == have) note.tags else note.tags - (have - want) + (want - have)
+        for (nid in modify + defUnknowns.keys) {
+            val note = notes[nid] ?: continue
+            var tags = note.tags
+            if (nid in modify) {
+                val want = if (nid in newNotes) setOfNotNull(wantTag[nid]) else note.tags.filter { it == KNOWN }.toSet()
+                val have = note.tags.filter { it in STATUS_TAGS }.toSet()
+                if (want != have) tags = tags - (have - want) + (want - have)
+            }
+            val defs = defUnknowns[nid]
+            if (defs != null) tags = tags - DEF_TAGS + (if (defs.isEmpty()) KnownWords.DEF_READY else KnownWords.DEF_UNKNOWNS)
             var fields: List<String>? = null
             val old = note.fields[STUDY_FIELD]
-            if (nid in newNotes && old != null) {
-                val new = studyField(old, keys[nid]!!.filter { known.status(it) == null })
+            if ((nid in newNotes || defs != null) && old != null) {
+                val sentence = if (nid in newNotes) keys[nid]!!.filter { known.status(it) == null } else null
+                val new = studyField(old, sentence, defs)
                 if (words(new) != words(old)) fields = note.fields.map { (name, v) -> if (name == STUDY_FIELD) new else v }
             }
             if (tags != note.tags || fields != null) changes += NoteChange(nid, tags, fields)
         }
-        return Plan(r.pkg, dues, changes, newCards.size, levels)
+        return Plan(r.pkg, dues, changes, newCards.size, levels, defUnknowns.count { it.value.isEmpty() }, defUnknowns.size)
     }
 
     /** Writes the plan: the new cards' order in one go, then each changed note. */
@@ -74,6 +85,7 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
         const val KNOWN = "_card-status::i+0"
         val STATUS_TAGS = setOf(READY, NOT_READY, KNOWN)
         const val STUDY_FIELD = "am-study-morphs"
+        val DEF_TAGS = setOf(KnownWords.DEF_READY, KnownWords.DEF_UNKNOWNS)
 
         // scoring.py, with the PC's [morphs.scoring] settings.
         private const val ONE_UNKNOWN_MAX = 999_999L
@@ -116,14 +128,11 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
             else -> NOT_READY
         }
 
-        /** New am-study-morphs value: our "Sentence: .." part, MvJ's "Definition: .." kept. */
-        fun studyField(current: String, unknowns: List<String>): String {
-            var definition = ""
-            val cur = current.trim()
-            if ("Sentence:" in cur || "Definition:" in cur) {
-                for (part in cur.split("|").map { it.trim() }) if (part.startsWith("Definition:")) definition = part.removePrefix("Definition:").trim()
-            }
-            val sentence = unknowns.joinToString(", ")
+        /** New am-study-morphs value: "Sentence: <unknowns> | Definition: <unknowns>"; a null list keeps that part as it is. */
+        fun studyField(current: String, unknowns: List<String>?, defUnknowns: List<String>? = null): String {
+            val (oldSentence, oldDefinition) = words(current)
+            val sentence = (unknowns ?: oldSentence.toList()).joinToString(", ")
+            val definition = (defUnknowns ?: oldDefinition.toList()).joinToString(", ")
             return when {
                 sentence.isNotEmpty() && definition.isNotEmpty() -> "Sentence: $sentence | Definition: $definition"
                 sentence.isNotEmpty() -> "Sentence: $sentence"

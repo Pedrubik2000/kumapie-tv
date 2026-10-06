@@ -41,8 +41,12 @@ class KnownWords(val context: Context, private val settings: Settings) {
 
     @Volatile private var snapshot: Snapshot? = load()
 
-    /** What the last [refresh] read from Anki: notes, cards, and each judged note's inflections in text order. */
-    class Reading(val pkg: String, val notes: List<AnkiCards.Note>, val cards: List<AnkiCards.Card>, val morphs: Map<Long, List<String>>)
+    /**
+     * What the last [refresh] read from Anki: notes, cards, each judged note's inflections in text order, and the
+     * inflections of each note's monolingual definition ([DEF_MONO], when it has one).
+     */
+    class Reading(val pkg: String, val notes: List<AnkiCards.Note>, val cards: List<AnkiCards.Card>, val morphs: Map<Long, List<String>>,
+                  val defMorphs: Map<Long, List<String>> = emptyMap())
     @Volatile var lastReading: Reading? = null
         private set
     @Volatile private var marked: Set<String> = runCatching { markedFile.readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet() }
@@ -141,8 +145,12 @@ class KnownWords(val context: Context, private val settings: Settings) {
                     }
                     n.fields[name]?.let { n.id to it }
                 }.toMap()
+                // Monolingual definitions too (Recalc unlocks them), keyed by -note id in the same parse cache.
+                val defs = notes.mapNotNull { n -> n.fields[DEF_MONO]?.takeIf { it.isNotBlank() }?.let { -n.id to it } }.toMap()
                 _status.value = "Parsing ${fields.size} notes…"
-                val morphs = parse(fields)
+                val parsedAll = parse(fields + defs)
+                val morphs = parsedAll.filterKeys { it > 0 }
+                val defMorphs = parsedAll.filterKeys { it < 0 }.mapKeys { -it.key }
                 val parsed = System.currentTimeMillis()
 
                 val manualNotes = notes.filter { it.hasTag(KNOWN_MANUALLY) }.map { it.id }.toSet()
@@ -157,7 +165,7 @@ class KnownWords(val context: Context, private val settings: Settings) {
                         words[w] = f.copy(best = best, reviewed = true)
                     }
                 }
-                lastReading = Reading(pkg, notes, cards, morphs.mapValues { it.value.toList() })
+                lastReading = Reading(pkg, notes, cards, morphs.mapValues { it.value.toList() }, defMorphs.mapValues { it.value.toList() })
                 val snap = Snapshot(words, System.currentTimeMillis(), pkg, notes.size, cards.size)
                 save(snap)
                 snapshot = snap
@@ -272,6 +280,9 @@ class KnownWords(val context: Context, private val settings: Settings) {
         /** The definition fields (the card's template marks the second as locked monolingual). */
         const val DEF_BI = "Definition (bilingual)"
         const val DEF_MONO = "Definition (monolingual)"
+        /** MvJ's tags: every word of the monolingual definition is known (set by [Recalc]; -manually by hand), or not. */
+        const val DEF_READY = "_mvj::def-is-ready"
+        const val DEF_UNKNOWNS = "_mvj::def-has-unknowns"
         const val KNOWN_MANUALLY = "_card-status::i+0-manually"
     }
 }

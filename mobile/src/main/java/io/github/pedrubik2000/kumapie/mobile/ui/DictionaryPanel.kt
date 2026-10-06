@@ -40,13 +40,27 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
     val lemma = key?.let { ctl.words[it]?.lemma }?.takeIf { it.isNotBlank() }
     var entries by remember(segment.text, key) { mutableStateOf<List<DictEntry>?>(null) }
     var all by remember(segment.text, key) { mutableStateOf(false) }
-    LaunchedEffect(segment.text, key) { entries = library.dictionary.lookup(segment.text, key, lemma) }
+    // The Yomitan dictionaries' entries as headwords for the popup (one per spelling, in the lookup's order).
+    var headwords by remember(segment.text, key) { mutableStateOf<List<io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.Headword>>(emptyList()) }
+    LaunchedEffect(segment.text, key) {
+        entries = library.dictionary.lookup(segment.text, key, lemma)
+        headwords = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { library.dictionary.yomitanTerms(segment.text, key, lemma) }.getOrDefault(emptyList())
+                .groupBy { it.expression }.map { (e, ts) -> io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.Headword(e, "", ts) }
+        }
+    }
 
     HorizontalDivider(Modifier.padding(top = 8.dp, bottom = 4.dp), color = Colors.dim.copy(alpha = 0.3f))
-    Column(Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(Modifier.heightIn(max = if (headwords.isNotEmpty()) 460.dp else 260.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(3.dp)) {
         val found = entries
         when {
             found == null -> Text("Looking it up…", color = Colors.dim, fontSize = 14.sp)
+            headwords.isNotEmpty() && found.isNotEmpty() -> {
+                val fits = remember(found) { if (picker.selectedInDef != null) null else SensePick.best(found, SensePick.english(ctl.scene, picker.line)) }
+                fits?.let { (i, j) -> Text("In this line: " + found[i].senses[j].gloss, color = Colors.accent, fontSize = 15.sp) }
+                YomitanPopup(library, io.github.pedrubik2000.kumapie.data.Lang.GERMAN, headwords, onSpeak = { library.voice.speak(it) }, compact = true)
+            }
             found.isEmpty() -> Text(
                 if (library.yomitan.of(io.github.pedrubik2000.kumapie.data.Lang.GERMAN).any { it.enabled && it.terms > 0 }) "Not in the dictionary."
                 else "Download the recommended German dictionaries in Settings to see meanings here.",

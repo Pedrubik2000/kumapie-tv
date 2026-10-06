@@ -372,7 +372,8 @@ class YomitanDictionaries private constructor(private val context: Context) {
                 (items.ifEmpty { listOf(item) }).mapNotNull { node ->
                     val sb = StringBuilder()
                     flatten(node, sb)
-                    sb.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString("; ").ifBlank { null }
+                    sb.toString().lines().map { it.trim().replace(Regex(" {2,}"), " ").replace(Regex(" ([;,.)])"), "$1") }
+                        .filter { it.isNotEmpty() }.joinToString("; ").ifBlank { null }
                 }
             }
         }.getOrDefault(listOf(glossary))
@@ -422,6 +423,8 @@ class YomitanDictionaries private constructor(private val context: Context) {
                         if (block && sb.isNotEmpty() && sb.last() != '\n') sb.append('\n')
                         flatten(node.opt("content"), sb)
                         if (block && sb.isNotEmpty() && sb.last() != '\n') sb.append('\n')
+                        // Tag labels are separate spans ("vi" "vt" "rare"): keep them apart in plain text.
+                        if (!block && sb.isNotEmpty() && !sb.last().isWhitespace()) sb.append(' ')
                     }
                 }
             }

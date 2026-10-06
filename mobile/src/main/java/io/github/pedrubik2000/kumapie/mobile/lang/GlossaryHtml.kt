@@ -30,7 +30,7 @@ object GlossaryHtml {
         if (node is JSONArray && node.length() == 2 && node.opt(0) is String && node.opt(1) is JSONArray) {
             val rules = node.getJSONArray(1)
             sb.append(esc((0 until rules.length()).joinToString(", ") { rules.optString(it) })).append(" of ")
-                .append("<span class=\"form-of\">").append(esc(node.getString(0))).append("</span>")
+                .append("<span class=\"form-of\" onclick=\"kumapie.open(this.textContent)\">").append(esc(node.getString(0))).append("</span>")
             return
         }
         content(node, dict, sb)

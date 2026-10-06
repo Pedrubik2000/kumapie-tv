@@ -87,7 +87,7 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
                 }
             }
             if (said.isNotEmpty()) Text(said, fontSize = 12.sp, color = Colors.dim)
-            headwords?.let { YomitanPopup(library, Lang.JAPANESE, it) { s -> library.voiceJa.speak(s) } }
+            headwords?.let { YomitanPopup(library, Lang.JAPANESE, it, onSpeak = { s -> library.voiceJa.speak(s) }) }
         }
     }
 }

@@ -112,6 +112,17 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
      * word as written ("glaubst": second-person singular present of glauben), then its dictionary forms ("glauben").
      */
     private fun yomitan(surface: String, key: String?, lemma: String?): List<DictEntry> {
+        val seen = HashSet<String>()
+        return yomitanTerms(surface, key, lemma).flatMap { t ->
+            t.glossaries.filter { seen.add("${t.expression}|${t.reading}|${it.dict}|${it.senses.firstOrNull()}") }.map { g ->
+                DictEntry(t.expression, g.tags, listOf(t.reading.takeIf { it.isNotBlank() && it != t.expression }, g.dict)
+                    .filterNotNull().joinToString(" · "), t.ipa.joinToString(", "), g.senses.map { Sense(it, "", emptyList()) })
+            }
+        }
+    }
+
+    /** The same lookup as Yomitan terms (for the popup), in the same order. */
+    fun yomitanTerms(surface: String, key: String?, lemma: String?): List<YomitanDictionaries.Term> {
         val y = yomitan ?: return emptyList()
         val de = io.github.pedrubik2000.kumapie.data.Lang.GERMAN
         val words = listOfNotNull(surface, key, lemma).flatMap { listOf(it, it.lowercase()) }.filter { it.isNotBlank() }.distinct()
@@ -124,14 +135,7 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
             val verbBases = (listOf(verb) + y.query(de, verb).flatMap { t -> t.glossaries.flatMap { it.formOf } }).distinct()
             verbBases.flatMap { b -> listOf(particle + b, "${particle.replaceFirstChar { it.uppercase() }} $b", "$particle $b") }
         }.orEmpty()
-        val terms = phrases.flatMap { y.query(de, it) } + found + bases.flatMap { y.query(de, it) }
-        val seen = HashSet<String>()
-        return terms.flatMap { t ->
-            t.glossaries.filter { seen.add("${t.expression}|${t.reading}|${it.dict}|${it.senses.firstOrNull()}") }.map { g ->
-                DictEntry(t.expression, g.tags, listOf(t.reading.takeIf { it.isNotBlank() && it != t.expression }, g.dict)
-                    .filterNotNull().joinToString(" · "), t.ipa.joinToString(", "), g.senses.map { Sense(it, "", emptyList()) })
-            }
-        }
+        return phrases.flatMap { y.query(de, it) } + found + bases.flatMap { y.query(de, it) }
     }
 
     /** Wiktionary's definitions of [term] in German, from the cache or asked once. */

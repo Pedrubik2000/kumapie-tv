@@ -88,8 +88,19 @@ chaquopy {
     }
 }
 
+// sherpa-onnx (on-device speech recognition: Parakeet, local/Parakeet.kt) is published as an AAR on its GitHub
+// releases, not on Maven: fetched once into build/ (48 MB, kept out of the repo).
+val sherpaVersion = "1.13.8"
+val sherpaAar = layout.buildDirectory.file("libs/sherpa-onnx-$sherpaVersion.aar").get().asFile
+if (!sherpaAar.exists()) {
+    sherpaAar.parentFile.mkdirs()
+    val url = uri("https://github.com/k2-fsa/sherpa-onnx/releases/download/v$sherpaVersion/sherpa-onnx-$sherpaVersion.aar").toURL()
+    sherpaAar.writeBytes(url.readBytes())
+}
+
 dependencies {
     implementation(project(":core"))
+    implementation(files(sherpaAar))
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
     implementation("androidx.activity:activity-compose:1.13.0")

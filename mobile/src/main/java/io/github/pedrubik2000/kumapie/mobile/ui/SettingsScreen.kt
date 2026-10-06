@@ -43,6 +43,7 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
 import io.github.pedrubik2000.kumapie.mobile.local.englishSource
+import io.github.pedrubik2000.kumapie.mobile.local.transcriber
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.update.Updater
 import kotlinx.coroutines.Dispatchers
@@ -264,7 +265,26 @@ private fun UnlockSection(library: Library) {
 private fun NewEpisodesSection(library: Library) {
     var key by remember { mutableStateOf(library.settings.sonioxKey) }
     var english by remember { mutableStateOf(library.settings.englishSource) }
+    var transcriber by remember { mutableStateOf(library.settings.transcriber) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val parakeet = remember { io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context) }
+    val parakeetState by remember { parakeet.state() }.collectAsState(initial = null)
+    var parakeetReady by remember { mutableStateOf(parakeet.isReady) }
+    LaunchedEffect(parakeetState) { parakeetReady = parakeet.isReady }
     Text("New episodes (YouTube)", color = Colors.accent)
+    Text("Transcription", fontSize = 15.sp)
+    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        androidx.compose.material3.FilterChip(selected = transcriber == "soniox", label = { Text("Soniox (best, paid)") },
+            onClick = { transcriber = "soniox"; library.settings.transcriber = "soniox" })
+        androidx.compose.material3.FilterChip(selected = transcriber == "parakeet", label = { Text("Parakeet on the tablet (free, offline)") },
+            onClick = { transcriber = "parakeet"; library.settings.transcriber = "parakeet" })
+    }
+    if (transcriber == "parakeet") when {
+        parakeetReady -> Text("Parakeet: ready. More mistakes than Soniox (about 1 word in 9 differed in a test); English from the device.",
+            fontSize = 13.sp, color = Colors.dim)
+        parakeetState != null -> Text("Parakeet: $parakeetState", fontSize = 13.sp, color = Colors.dim)
+        else -> OutlinedButton(onClick = { parakeet.download() }) { Text("Download Parakeet (about 640 MB, once)") }
+    }
     OutlinedTextField(key, { key = it; library.settings.sonioxKey = it }, label = { Text("Soniox API key") }, singleLine = true,
         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
     Text("English subtitles", fontSize = 15.sp)

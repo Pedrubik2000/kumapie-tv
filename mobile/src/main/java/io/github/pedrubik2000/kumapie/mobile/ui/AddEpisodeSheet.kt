@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
+import io.github.pedrubik2000.kumapie.mobile.local.transcriber
 import io.github.pedrubik2000.kumapie.mobile.local.videoHeight
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
@@ -35,9 +37,13 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     var show by remember { mutableStateOf("") }
     var height by remember { mutableStateOf(library.settings.videoHeight) }
     val jobs by remember { ProcessWorker.states(context) }.collectAsState(initial = emptyList())
-    val ready = library.settings.sonioxKey.isNotBlank() && library.known.model.isReady
+    val parakeet = library.settings.transcriber == "parakeet"
+    val ready = library.known.model.isReady && if (parakeet) io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context).isReady
+        else library.settings.sonioxKey.isNotBlank()
 
-    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).navigationBarsPadding().padding(bottom = 16.dp),
+    // Scrolls: in landscape the sheet is taller than the screen (the button ended up under the navigation bar).
+    Column(Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 24.dp)
+        .navigationBarsPadding().padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Add an episode", color = Colors.accent, fontSize = 18.sp)
         OutlinedTextField(link, { link = it }, label = { Text("YouTube link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -52,12 +58,14 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         }
         Text("Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p.",
             fontSize = 12.sp, color = Colors.dim)
-        if (!ready) Text("First: Settings > the German model, and your Soniox key.", color = Colors.unknown, fontSize = 14.sp)
+        if (!ready) Text(if (parakeet) "First: Settings > the German model and the speech model (Parakeet)."
+            else "First: Settings > the German model, and your Soniox key.", color = Colors.unknown, fontSize = 14.sp)
         Button(enabled = ready && link.startsWith("http"), onClick = {
             ProcessWorker.start(context, link, show.takeIf { it.isNotBlank() }, height)
             link = ""
         }) { Text("Make it an episode") }
-        Text("Download → Soniox (paid, about \$0.10 an hour) → German and English subtitles → scenes. It runs in the " +
+        Text("Download → " + (if (parakeet) "Parakeet on the tablet (free)" else "Soniox (paid, about \$0.10 an hour)") +
+            " → German and English subtitles → scenes. It runs in the " +
             "background; the episode appears on the home screen when done.", color = Colors.dim, fontSize = 13.sp)
         jobs.forEach { Text(it, fontSize = 14.sp) }
     }

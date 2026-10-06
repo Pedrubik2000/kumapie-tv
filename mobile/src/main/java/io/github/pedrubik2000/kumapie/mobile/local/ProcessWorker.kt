@@ -86,7 +86,9 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     }
 
     private suspend fun process(id: String, url: String, showName: String?) {
-        val key = settings.sonioxKey.ifBlank { error("Add your Soniox key in Settings first.") }
+        val parakeetHere = settings.transcriber == "parakeet"
+        val key = if (parakeetHere) "" else settings.sonioxKey.ifBlank { error("Add your Soniox key in Settings first.") }
+        if (parakeetHere && !Parakeet(applicationContext).isReady) error("Download the speech model (Parakeet) in Settings first.")
         val model = GermanModel(applicationContext)
         if (!model.isReady) error("Download the German model in Settings first.")
         val dir = local.dir(id).apply { mkdirs() }
@@ -118,10 +120,14 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         thumbnail(video, local.thumb(id))
         val duration = got.optDouble("duration").takeIf { it > 0 } ?: durationOf(video)
 
-        // 3. Soniox.
-        val soniox = settings.englishSource == "soniox"
-        report("Transcribing with Soniox…", 0.45f)
-        val transcript = py.getModule("newepisode").callAttr("transcribe", audio.path, key, "de", if (soniox) "en" else "", logger).toString()
+        // 3. Soniox, or Parakeet on the tablet (then the English always comes from the device's translator).
+        val soniox = settings.englishSource == "soniox" && !parakeetHere
+        val transcript = if (parakeetHere) {
+            Parakeet(applicationContext).transcribe(audio) { report(it, 0.55f) }
+        } else {
+            report("Transcribing with Soniox…", 0.45f)
+            py.getModule("newepisode").callAttr("transcribe", audio.path, key, "de", if (soniox) "en" else "", logger).toString()
+        }
         audio.delete()
         File(dir, "transcript.json").writeText(transcript) // Soniox's answer, kept (redoing it would cost again)
         val cues = py.getModule("newepisode").callAttr("cues", transcript).toString()

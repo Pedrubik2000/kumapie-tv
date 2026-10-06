@@ -1,5 +1,6 @@
-package io.github.pedrubik2000.kumapie.mobile.german
+package io.github.pedrubik2000.kumapie.mobile.lang
 
+import io.github.pedrubik2000.kumapie.data.Lang
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -7,7 +8,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
-import java.util.Locale
 import kotlin.coroutines.resume
 
 /**
@@ -20,7 +20,7 @@ class GermanVoice(context: Context) {
     private var pending: String? = null
     private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
         if (status == TextToSpeech.SUCCESS) {
-            ready = tts.setLanguage(Locale.GERMANY) >= TextToSpeech.LANG_AVAILABLE
+            ready = tts.setLanguage(Lang.GERMAN.locale) >= TextToSpeech.LANG_AVAILABLE
             if (ready) pending?.let { speak(it) }
         }
         pending = null
@@ -60,7 +60,7 @@ class GermanVoice(context: Context) {
     /** For Settings: whether a German voice works without internet. */
     fun describe(): String {
         if (!ready) return "No German voice yet: install one in the speech engine's settings."
-        val german = runCatching { tts.voices?.filter { it.locale.language == "de" } }.getOrNull().orEmpty()
+        val german = runCatching { tts.voices?.filter { it.locale.language == Lang.GERMAN.code } }.getOrNull().orEmpty()
         val offline = german.any {
             !it.isNetworkConnectionRequired && TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in it.features.orEmpty()
         }

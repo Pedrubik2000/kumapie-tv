@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Reading the German cards from kuma3 Anki (or AnkiDroid) for the word colours: see german/AnkiCards.kt. -->
+    <!-- Reading the German cards from kuma3 Anki (or AnkiDroid) for the word colours: see lang/AnkiCards.kt. -->
     <uses-permission android:name="io.github.pedrubik2000.kuma3.permission.READ_WRITE_DATABASE" />
     <uses-permission android:name="com.ichi2.anki.debug.permission.READ_WRITE_DATABASE" />
     <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE" />

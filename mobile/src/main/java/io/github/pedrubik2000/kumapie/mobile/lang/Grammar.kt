@@ -1,4 +1,4 @@
-package io.github.pedrubik2000.kumapie.mobile.german
+package io.github.pedrubik2000.kumapie.mobile.lang
 
 import android.content.Context
 import android.graphics.Bitmap

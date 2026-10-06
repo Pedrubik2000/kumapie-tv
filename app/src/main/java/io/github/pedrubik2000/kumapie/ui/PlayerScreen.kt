@@ -114,7 +114,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
                 Action.REPLAY_SCENE -> ctl.replayScene()
                 // At the end of a scene ↓ opens the picker; otherwise it steps through the subtitle modes.
                 Action.CYCLE_SUBTITLES -> if (ctl.atSceneEnd) openPicker() else ctl.cycleSubtitles()
-                Action.TOGGLE_GERMAN -> ctl.toggleGerman()
+                Action.TOGGLE_GERMAN -> ctl.toggleTarget()
                 Action.TOGGLE_ENGLISH -> ctl.toggleEnglish()
                 Action.SLOW -> ctl.toggleSlow()
                 Action.PAUSE_AT_SCENE_END -> ctl.togglePauseAtSceneEnd()
@@ -286,7 +286,7 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
                 Text("Speed: " + if (ctl.slow) "0.75x" else "normal")
             }
             Button(onClick = { ctl.changeSubtitles(ctl.subtitles.next()) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Subtitles: " + ctl.subtitles.label)
+                Text("Subtitles: " + ctl.subtitles.label(ctl.lang))
             }
             Button(onClick = onHelp, modifier = Modifier.fillMaxWidth()) { Text("Help: the buttons") }
             Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Close") }

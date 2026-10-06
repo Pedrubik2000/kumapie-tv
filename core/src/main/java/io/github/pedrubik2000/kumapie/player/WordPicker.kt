@@ -53,7 +53,7 @@ class WordPicker(
     val definition: LineDef? get() = selected?.word?.let { ctl.scene.def(line, it) }
 
     /** The word picked inside the definition (only while [inDef]). */
-    val selectedInDef: Segment? get() = if (inDef) definition?.german?.getOrNull(defSeg) else null
+    val selectedInDef: Segment? get() = if (inDef) definition?.target?.getOrNull(defSeg) else null
 
     /** Pauses and puts the cursor on the first red word of the line being said (else orange, else any). */
     fun open(): Boolean {
@@ -127,7 +127,7 @@ class WordPicker(
 
     /** A word tapped inside the open card's German definition: selected there, and read aloud. */
     fun tapInDef(seg: Int) {
-        val segment = definition?.german?.getOrNull(seg) ?: return
+        val segment = definition?.target?.getOrNull(seg) ?: return
         if (segment.word == null) return
         inDef = true
         defSeg = seg
@@ -189,7 +189,7 @@ class WordPicker(
     }
 
     private fun defSpots(): List<Int> =
-        definition?.german?.mapIndexedNotNull { i, s -> if (s.word != null) i else null } ?: emptyList()
+        definition?.target?.mapIndexedNotNull { i, s -> if (s.word != null) i else null } ?: emptyList()
 
     private fun stepInDef(by: Int) {
         val spots = defSpots()

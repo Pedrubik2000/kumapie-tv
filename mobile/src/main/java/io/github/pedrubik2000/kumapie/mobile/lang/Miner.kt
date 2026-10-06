@@ -1,5 +1,6 @@
-package io.github.pedrubik2000.kumapie.mobile.german
+package io.github.pedrubik2000.kumapie.mobile.lang
 
+import io.github.pedrubik2000.kumapie.data.Lang
 import android.content.Context
 import android.net.Uri
 import android.text.TextUtils
@@ -94,9 +95,9 @@ class Miner(
             fields["Word"] = esc(written) + (w.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
             if (audio != null) fields["Word Audio"] = "[audio:$audio]"
             fields[KnownWords.DEF_BI] = definition(written, w)
-            w.definition?.germanText?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
+            w.definition?.targetText?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
             tags += KnownWords.MINED_WORD
-        } ?: tags.add("_de::sentence")
+        } ?: tags.add(Lang.GERMAN.tag("sentence"))
 
         val missing = (listOf("Sentence", "Video") + if (r.word != null) listOf(KnownWords.DEF_BI, KnownWords.DEF_MONO) else emptyList())
             .filter { it !in fieldNames }
@@ -186,7 +187,7 @@ class Miner(
     internal fun slug(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "_").trim('_')
 
     companion object {
-        const val DECK = "Deutsch::Mined"
+        val DECK = Lang.GERMAN.deck
 
         /**
          * The whole sentence cue [line] is part of: subtitle cues split sentences ("Aber warum…" / "fühle ich mich …" /

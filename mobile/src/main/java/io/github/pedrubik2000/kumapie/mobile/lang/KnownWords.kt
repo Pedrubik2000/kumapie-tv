@@ -1,5 +1,6 @@
-package io.github.pedrubik2000.kumapie.mobile.german
+package io.github.pedrubik2000.kumapie.mobile.lang
 
+import io.github.pedrubik2000.kumapie.data.Lang
 import android.content.Context
 import android.util.Log
 import com.chaquo.python.Python
@@ -64,7 +65,7 @@ class KnownWords(val context: Context, private val settings: Settings) {
         }
 
     /** The Anki note type with the German sentences and Core 1000 words: its new name first, then the old one. */
-    val noteTypes = listOf("🐻 German", "🇩🇪 MvJ")
+    val noteTypes = Lang.GERMAN.noteTypes
 
     /** The AnkiDroid to read: the first installed one (kuma3 Anki first), or null. */
     fun ankiApp(): String? = anki.installed().firstOrNull()
@@ -96,7 +97,7 @@ class KnownWords(val context: Context, private val settings: Settings) {
             w.copy(status = status(key) ?: "u", stability = snap.words[key]?.best, marked = key in marked)
         }
         val scenes = episode.scenes.map { s ->
-            if (!s.german) s else s.copy(level = s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }.toSet()
+            if (!s.target) s else s.copy(level = s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }.toSet()
                 .count { words[it]?.status == "u" })
         }
         return episode.copy(words = words, scenes = scenes)
@@ -273,9 +274,9 @@ class KnownWords(val context: Context, private val settings: Settings) {
     }
 
     companion object {
-        const val CORE1000 = "_de::core1000"
+        val CORE1000 = Lang.GERMAN.tag("core1000")
         /** Word cards mined in kumapie ([Miner]): judged by their Word field, like Core 1000. */
-        const val MINED_WORD = "_de::word"
+        val MINED_WORD = Lang.GERMAN.tag("word")
         const val NICOS_WEG = "Nicos_Weg_A1"
         /** The definition fields (the card's template marks the second as locked monolingual). */
         const val DEF_BI = "Definition (bilingual)"

@@ -11,6 +11,7 @@ import androidx.media3.common.Player
 import io.github.pedrubik2000.kumapie.data.Backend
 import io.github.pedrubik2000.kumapie.data.Cue
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
+import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Scene
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Subtitles
@@ -39,6 +40,7 @@ class SceneController(
     private val subtitlesHere: Subtitles? = null,
 ) {
     val scenes: List<Scene> = episode.scenes
+    val lang: Lang = Lang.of(episode.lang)
 
     /** Every word's status and meaning; changes when a word is marked known in the picker. */
     val words: SnapshotStateMap<String, Word> = mutableStateMapOf<String, Word>().apply { putAll(episode.words) }
@@ -66,10 +68,10 @@ class SceneController(
     /** What the subtitles show. Stays as set from scene to scene and is remembered for next time. */
     var subtitles by mutableStateOf(subtitlesHere ?: settings.subtitles)
         private set
-    /** German is on screen (blurred or readable). */
-    val showGerman: Boolean get() = subtitles == Subtitles.BLURRED || subtitles == Subtitles.GERMAN || subtitles == Subtitles.BOTH
-    /** German is there but blurred: you see that (and how much) is said, not what. */
-    val blurGerman: Boolean get() = subtitles == Subtitles.BLURRED
+    /** The episode's language is on screen (blurred or readable). */
+    val showTarget: Boolean get() = subtitles == Subtitles.BLURRED || subtitles == Subtitles.TARGET || subtitles == Subtitles.BOTH
+    /** It is there but blurred: you see that (and how much) is said, not what. */
+    val blurTarget: Boolean get() = subtitles == Subtitles.BLURRED
     val showEnglish: Boolean get() = subtitles == Subtitles.ENGLISH || subtitles == Subtitles.BOTH
 
     /** The top bar (show, scene n/N, level) stays up until this uptime (ms), and always while paused. */
@@ -162,21 +164,21 @@ class SceneController(
 
     /** Words in the scene never studied (as the server counts, but live: marking a word known lowers it). */
     fun levelOf(scene: Scene): Int? =
-        if (!scene.german) null
+        if (!scene.target) null
         else scene.cues.flatMap { c -> c.segments.mapNotNull { it.word } }.toSet().count { (words[it]?.status ?: "u") == "u" }
 
     /** Remote ↓: hidden → German blurred → German → German + English → hidden. */
     fun cycleSubtitles() = changeSubtitles(when (subtitles) {
         Subtitles.HIDDEN -> Subtitles.BLURRED
-        Subtitles.BLURRED -> Subtitles.GERMAN
-        Subtitles.GERMAN -> Subtitles.BOTH
+        Subtitles.BLURRED -> Subtitles.TARGET
+        Subtitles.TARGET -> Subtitles.BOTH
         else -> Subtitles.HIDDEN
     })
 
     /** Gamepad L: blurred German becomes readable; otherwise German on / off. */
-    fun toggleGerman() = changeSubtitles(
-        if (blurGerman) Subtitles.GERMAN else Subtitles.of(german = !showGerman, english = showEnglish))
-    fun toggleEnglish() = changeSubtitles(Subtitles.of(german = showGerman, english = !showEnglish))
+    fun toggleTarget() = changeSubtitles(
+        if (blurTarget) Subtitles.TARGET else Subtitles.of(target = !showTarget, english = showEnglish))
+    fun toggleEnglish() = changeSubtitles(Subtitles.of(target = showTarget, english = !showEnglish))
 
     fun toggleSlow() {
         slow = !slow

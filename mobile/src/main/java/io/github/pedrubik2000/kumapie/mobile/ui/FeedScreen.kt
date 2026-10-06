@@ -68,7 +68,7 @@ fun FeedScreen(library: Library, shows: List<Show>, onBack: () -> Unit) {
         if (items != null && FeedKept.levels == levels) return@LaunchedEffect
         items = null
         val found = library.allEpisodes(shows) { loading = it }.flatMap { (show, ep) ->
-            ep.scenes.filter { it.german && it.level != null && it.level!!.coerceAtMost(2) in levels }.map { FeedItem(show, ep, it) }
+            ep.scenes.filter { it.target && it.level != null && it.level!!.coerceAtMost(2) in levels }.map { FeedItem(show, ep, it) }
         }.shuffled()
         FeedKept.levels = levels
         FeedKept.items = found

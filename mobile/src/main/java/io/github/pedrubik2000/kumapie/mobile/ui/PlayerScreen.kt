@@ -367,8 +367,8 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         if (onUpright != null) OptionRow("Upright: scene by scene, swipe up", uprightNow, onUpright)
         Text("Subtitles", color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf(SubtitleMode.HIDDEN, SubtitleMode.BLURRED, SubtitleMode.GERMAN, SubtitleMode.BOTH).forEach { m ->
-                FilterChip(selected = ctl.subtitles == m, onClick = { ctl.changeSubtitles(m) }, label = { Text(m.label, fontSize = 12.sp) })
+            listOf(SubtitleMode.HIDDEN, SubtitleMode.BLURRED, SubtitleMode.TARGET, SubtitleMode.BOTH).forEach { m ->
+                FilterChip(selected = ctl.subtitles == m, onClick = { ctl.changeSubtitles(m) }, label = { Text(m.label(ctl.lang), fontSize = 12.sp) })
             }
         }
         Text(

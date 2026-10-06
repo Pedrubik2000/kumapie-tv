@@ -190,9 +190,9 @@ private fun KnownWordsSection(library: Library) {
 
     // 4. morphs' Recalc (the PC's daily `morphs recalc`): first what would change, then Apply. kuma3 Anki only.
     if (modelReady && allowed && app != "com.ichi2.anki") {
-        var plan by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.german.Recalc.Plan?>(null) }
+        var plan by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.Recalc.Plan?>(null) }
         var said by remember { mutableStateOf("") }
-        val recalc = remember { io.github.pedrubik2000.kumapie.mobile.german.Recalc(known) }
+        val recalc = remember { io.github.pedrubik2000.kumapie.mobile.lang.Recalc(known) }
         OutlinedButton(enabled = !busy, onClick = {
             busy = true
             said = "Working out the order…"
@@ -249,7 +249,7 @@ private fun DictionarySection(library: Library) {
     }) { Text("Speech settings") }
     Text("Words are read by a person's recording when Wikimedia Commons has one, else by this voice.",
         fontSize = 13.sp, color = Colors.dim)
-    Text(io.github.pedrubik2000.kumapie.mobile.german.Dictionary.ATTRIBUTION, fontSize = 12.sp, color = Colors.dim)
+    Text(io.github.pedrubik2000.kumapie.mobile.lang.Dictionary.ATTRIBUTION, fontSize = 12.sp, color = Colors.dim)
 }
 
 /** A scene on every unlock: the switch, "Display over other apps" (needed to open over the lock screen), the pool. */

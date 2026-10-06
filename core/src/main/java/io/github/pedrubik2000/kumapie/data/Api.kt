@@ -63,7 +63,7 @@ class Api(private val base: String) : Backend {
         val scenes = e.getJSONArray("scenes").objects().map { s ->
             Scene(
                 id = s.getString("id"), index = s.getInt("i"), start = s.getDouble("start"), end = s.getDouble("end"),
-                german = s.optBoolean("german"), level = s.optIntOrNull("level"), seen = s.optBoolean("seen"),
+                target = s.optBoolean("german"), level = s.optIntOrNull("level"), seen = s.optBoolean("seen"),
                 cues = s.getJSONArray("cues").objects().map { c ->
                     val seg = c.getJSONArray("seg")
                     Cue(c.getDouble("start"), c.getDouble("end"), (0 until seg.length()).map { i ->
@@ -80,7 +80,7 @@ class Api(private val base: String) : Backend {
                             val de = it.getJSONArray("de")
                             LineDef(
                                 lemma = it.optString("lemma"), english = it.optString("en"), grammar = it.optString("gr"),
-                                german = (0 until de.length()).map { i ->
+                                target = (0 until de.length()).map { i ->
                                     de.getJSONArray(i).let { a -> Segment(a.getString(0), if (a.isNull(1)) null else a.getString(1)) }
                                 },
                             )
@@ -90,7 +90,7 @@ class Api(private val base: String) : Backend {
             )
         }
         return EpisodeDetail(
-            id = e.getString("id"), show = e.getString("show"), title = e.getString("title"),
+            id = e.getString("id"), show = e.getString("show"), title = e.getString("title"), lang = e.optString("lang", "de"),
             duration = e.optDouble("duration", 0.0), video = url(e.getString("video")),
             resume = if (e.isNull("resume")) null else e.getDouble("resume"), scenes = scenes, words = words,
         )
@@ -211,6 +211,8 @@ data class EpisodeDetail(
     val id: String,
     val show: String,
     val title: String,
+    /** The language it is spoken in ([Lang.code]); "de" when the JSON doesn't say. */
+    val lang: String = "de",
     val duration: Double,
     val video: String,
     val resume: Double?,
@@ -224,9 +226,9 @@ data class Scene(
     val index: Int,
     val start: Double,
     val end: Double,
-    /** False for lines that are not German speech (songs, English): no level, no words. */
-    val german: Boolean,
-    /** Words in the scene that are neither known nor learning; null when not German. */
+    /** False for lines not in the episode's language (songs, English in a German show): no level, no words. JSON "german". */
+    val target: Boolean,
+    /** Words in the scene that are neither known nor learning; null when not [target]. */
     val level: Int?,
     val seen: Boolean,
     val cues: List<Cue>,
@@ -240,11 +242,12 @@ data class Scene(
 }
 
 /**
- * A word's definition in one line: dictionary form, English (translation + explanation), a German
- * dictionary-style definition split into words (so they can be coloured and picked), and a grammar note.
+ * A word's definition in one line: dictionary form, English (translation + explanation), a dictionary-style
+ * definition in the episode's language split into words (so they can be coloured and picked; JSON "de"), and a
+ * grammar note.
  */
-data class LineDef(val lemma: String, val english: String, val german: List<Segment>, val grammar: String) {
-    val germanText: String get() = german.joinToString("") { it.text }
+data class LineDef(val lemma: String, val english: String, val target: List<Segment>, val grammar: String) {
+    val targetText: String get() = target.joinToString("") { it.text }
 }
 
 data class Cue(val start: Double, val end: Double, val segments: List<Segment>) {

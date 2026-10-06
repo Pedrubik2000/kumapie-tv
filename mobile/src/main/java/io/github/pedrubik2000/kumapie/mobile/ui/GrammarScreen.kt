@@ -42,7 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import io.github.pedrubik2000.kumapie.mobile.german.Grammar
+import io.github.pedrubik2000.kumapie.mobile.lang.Grammar
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.Dispatchers

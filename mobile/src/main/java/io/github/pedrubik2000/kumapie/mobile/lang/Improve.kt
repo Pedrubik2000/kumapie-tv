@@ -1,4 +1,4 @@
-package io.github.pedrubik2000.kumapie.mobile.german
+package io.github.pedrubik2000.kumapie.mobile.lang
 
 import android.text.Html
 import android.text.TextUtils
@@ -55,7 +55,7 @@ class Improve(private val library: Library) {
         for ((show, detail) in library.allEpisodes(shows, progress)) {
             val episode = show.episodes.firstOrNull { it.id == detail.id } ?: continue
             for (scene in detail.scenes) {
-                if (!scene.german) continue
+                if (!scene.target) continue
                 val line = scene.cues.indexOfFirst { c -> c.segments.any { it.word == key } }
                 if (line < 0) continue
                 val (sentence, cues) = Miner.sentence(scene, line)

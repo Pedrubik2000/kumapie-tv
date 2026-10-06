@@ -82,7 +82,7 @@ private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: S
     val heading = def.lemma.ifBlank { written }
     Text(heading, color = Colors.text, fontSize = 26.sp)
     if (!heading.equals(written, ignoreCase = true)) Text(written, color = Colors.dim, fontSize = 18.sp)
-    val germanKnown = def.german.all { s -> s.word == null || (ctl.words[s.word]?.status ?: "u") == "k" }
+    val germanKnown = def.target.all { s -> s.word == null || (ctl.words[s.word]?.status ?: "u") == "k" }
     val german = coloredDefinition(def, ctl.words, if (picker.inDef) picker.defSeg else -1)
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val tappable = if (onTapDef == null) Modifier else Modifier.pointerInput(def) {
@@ -117,7 +117,7 @@ private fun ShortMeaning(ctl: SceneController, key: String, written: String, wor
 /** The segment of the definition whose word is under [p], or null. */
 private fun segmentAt(l: TextLayoutResult, p: Offset, def: LineDef): Int? {
     var at = 0
-    def.german.forEachIndexed { i, seg ->
+    def.target.forEachIndexed { i, seg ->
         val range = at until at + seg.text.length
         at += seg.text.length
         if (seg.word != null && range.any { c -> l.getBoundingBox(c).inflate(6f).contains(p) }) return i
@@ -127,7 +127,7 @@ private fun segmentAt(l: TextLayoutResult, p: Offset, def: LineDef): Int? {
 
 /** The German definition, its words coloured like the subtitles (red new, orange learning), [selected] highlighted. */
 private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: Int): AnnotatedString = buildAnnotatedString {
-    def.german.forEachIndexed { i, seg ->
+    def.target.forEachIndexed { i, seg ->
         val color = when (seg.word?.let { words[it]?.status ?: "u" }) {
             "u" -> Colors.unknown
             "l" -> Colors.learning

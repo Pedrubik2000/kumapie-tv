@@ -63,7 +63,7 @@ fun IPlusOneScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, 
             loading = "Reading episodes ${i + 1} of ${episodes.size}…"
             val detail = runCatching { library.episode(ep.id) }.getOrNull() ?: return@forEachIndexed
             for (sc in detail.scenes) {
-                if (!sc.german || sc.level != 1) continue
+                if (!sc.target || sc.level != 1) continue
                 val red = sc.cues.flatMap { it.segments }.firstOrNull { s -> s.word != null && detail.words[s.word]?.status == "u" }
                     ?: continue
                 found += Easy(show, ep, sc, red.word!!, sc.english.joinToString(" ") { it.text })

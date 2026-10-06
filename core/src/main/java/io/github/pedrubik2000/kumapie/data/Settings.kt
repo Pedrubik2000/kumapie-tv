@@ -29,7 +29,7 @@ class Settings(context: Context) {
 
     /** What the subtitles show; kept from scene to scene and between episodes. */
     var subtitles: Subtitles
-        get() = runCatching { Subtitles.valueOf(prefs.getString("subtitles", null)!!) }.getOrDefault(Subtitles.HIDDEN)
+        get() = runCatching { Subtitles.valueOf(prefs.getString("subtitles", null)!!.replace("GERMAN", "TARGET")) }.getOrDefault(Subtitles.HIDDEN)
         set(value) = prefs.edit().putString("subtitles", value.name).apply()
 
     /** Phone/tablet: play episodes upright, one scene per page (swipe up), instead of landscape. */
@@ -55,15 +55,24 @@ class Settings(context: Context) {
     }
 }
 
-enum class Subtitles(val label: String) {
-    HIDDEN("Hidden"), BLURRED("German, blurred"), GERMAN("German"), BOTH("German + English"), ENGLISH("English");
+/** What the subtitles show: the episode's language (target), its translation (English), both, or nothing. */
+enum class Subtitles {
+    HIDDEN, BLURRED, TARGET, BOTH, ENGLISH;
+
+    fun label(lang: Lang): String = when (this) {
+        HIDDEN -> "Hidden"
+        BLURRED -> "${lang.name}, blurred"
+        TARGET -> lang.name
+        BOTH -> "${lang.name} + ${lang.translationName}"
+        ENGLISH -> lang.translationName
+    }
 
     fun next(): Subtitles = entries[(ordinal + 1) % entries.size]
 
     companion object {
-        fun of(german: Boolean, english: Boolean): Subtitles = when {
-            german && english -> BOTH
-            german -> GERMAN
+        fun of(target: Boolean, english: Boolean): Subtitles = when {
+            target && english -> BOTH
+            target -> TARGET
             english -> ENGLISH
             else -> HIDDEN
         }

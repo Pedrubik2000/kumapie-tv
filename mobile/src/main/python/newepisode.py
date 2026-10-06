@@ -207,7 +207,7 @@ def segments(text, tokens):
 
 
 def build(model_dir: str, episode_id: str, show: str, title: str, duration: float, video: str,
-          cues_json: str, english_json: str) -> str:
+          cues_json: str, english_json: str, lang: str = "de") -> str:
     """German and English cues -> the episode JSON (scenes, their cues as word segments, English, every word)."""
     cues = [tuple(c) for c in json.loads(cues_json)]
     english = json.loads(english_json)
@@ -236,5 +236,5 @@ def build(model_dir: str, episode_id: str, show: str, title: str, duration: floa
                        "cues": sc_cues, "english": en, "g": {}, "defs": {}})
     for infl, lemma in lemmas.items():
         words[infl]["lemma"] = lemma
-    return json.dumps({"id": episode_id, "show": show, "title": title, "duration": duration, "video": video,
+    return json.dumps({"id": episode_id, "show": show, "title": title, "lang": lang, "duration": duration, "video": video,
                        "resume": None, "scenes": scenes, "words": words}, ensure_ascii=False)

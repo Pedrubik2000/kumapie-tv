@@ -58,7 +58,7 @@ object UnlockPool {
     fun save(context: Context, episodes: List<EpisodeDetail>) {
         val a = JSONArray()
         for (ep in episodes) for (sc in ep.scenes) {
-            if (sc.german && sc.level == 1) a.put(JSONObject().put("e", ep.id).put("s", sc.index))
+            if (sc.target && sc.level == 1) a.put(JSONObject().put("e", ep.id).put("s", sc.index))
         }
         runCatching { file(context).writeText(a.toString()) }
     }

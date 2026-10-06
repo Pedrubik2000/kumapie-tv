@@ -7,10 +7,10 @@ import io.github.pedrubik2000.kumapie.data.Backend
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
-import io.github.pedrubik2000.kumapie.mobile.german.Dictionary
-import io.github.pedrubik2000.kumapie.mobile.german.GermanVoice
-import io.github.pedrubik2000.kumapie.mobile.german.KnownWords
-import io.github.pedrubik2000.kumapie.mobile.german.Miner
+import io.github.pedrubik2000.kumapie.mobile.lang.Dictionary
+import io.github.pedrubik2000.kumapie.mobile.lang.GermanVoice
+import io.github.pedrubik2000.kumapie.mobile.lang.KnownWords
+import io.github.pedrubik2000.kumapie.mobile.lang.Miner
 import io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes
 import io.github.pedrubik2000.kumapie.mobile.unlock.UnlockPool
 import kotlinx.coroutines.CoroutineScope

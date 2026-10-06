@@ -62,7 +62,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
         // Audio: every word of the subtitles and of the definitions, and every definition read aloud.
         val words = (episode.scenes.flatMap { s -> s.cues.flatMap { c -> c.segments } } +
-            episode.scenes.flatMap { s -> s.defs.values.flatMap { it.german } })
+            episode.scenes.flatMap { s -> s.defs.values.flatMap { it.target } })
             .filter { it.word != null }.map { it.text.lowercase() }.distinct()
         val defs = episode.scenes.flatMap { s ->
             s.defs.keys.map { k -> Triple(s.id, k.substringBefore('|').toInt(), k.substringAfter('|')) }

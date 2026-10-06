@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Show
-import io.github.pedrubik2000.kumapie.mobile.german.Improve
+import io.github.pedrubik2000.kumapie.mobile.lang.Improve
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.Dispatchers

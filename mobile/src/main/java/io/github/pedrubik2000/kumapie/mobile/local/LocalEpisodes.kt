@@ -23,7 +23,9 @@ class LocalEpisodes(context: Context) {
     fun thumb(id: String) = File(dir(id), "thumb.jpg")
 
     data class Entry(val id: String, val show: String, val title: String, val duration: Double, val source: String,
-                     val season: Int? = null, val number: Int? = null, val scenes: Int = -1)
+                     val season: Int? = null, val number: Int? = null, val scenes: Int = -1,
+                     /** [io.github.pedrubik2000.kumapie.data.Lang.code]; "de" for episodes added before languages. */
+                     val lang: String = "de")
 
     @Synchronized
     fun entries(): List<Entry> = runCatching {
@@ -32,7 +34,7 @@ class LocalEpisodes(context: Context) {
             a.getJSONObject(i).let {
                 Entry(it.getString("id"), it.getString("show"), it.getString("title"), it.optDouble("duration"), it.optString("source"),
                     it.optInt("season").takeIf { _ -> it.has("season") }, it.optInt("number").takeIf { _ -> it.has("number") },
-                    it.optInt("scenes", -1))
+                    it.optInt("scenes", -1), it.optString("lang", "de"))
             }
         }
     }.getOrDefault(emptyList()).filter { json(it.id).exists() }.let { list ->
@@ -56,7 +58,7 @@ class LocalEpisodes(context: Context) {
     private fun save(list: List<Entry>) = index.writeText(JSONArray(list.map {
         JSONObject().put("id", it.id).put("show", it.show).put("title", it.title).put("duration", it.duration).put("source", it.source)
             .put("season", it.season).put("number", it.number) // null leaves the key out
-            .put("scenes", it.scenes)
+            .put("scenes", it.scenes).put("lang", it.lang)
     }).toString())
 
     /** The local episodes as shows for the home screen ("local-show-<name>"). */

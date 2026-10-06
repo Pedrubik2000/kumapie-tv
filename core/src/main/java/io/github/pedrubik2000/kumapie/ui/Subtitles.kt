@@ -61,7 +61,7 @@ private const val ENGLISH_SCALE = 0.72f
 @Composable
 fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Unit, onTap: ((SubtitleTap) -> Unit)? = null) {
     val picking = picker.isOpen
-    if (!picking && !ctl.showGerman && !ctl.showEnglish) {
+    if (!picking && !ctl.showTarget && !ctl.showEnglish) {
         SideEffect { onAnchor(null) }
         return
     }
@@ -71,7 +71,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     val paused = !ctl.playing || picking
     val german: List<Cue> = when {
         picking -> scene.cues
-        !ctl.showGerman -> emptyList()
+        !ctl.showTarget -> emptyList()
         paused -> scene.cues
         current != null && pos <= current.end + 0.6 -> listOf(current)
         else -> emptyList()
@@ -117,7 +117,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     val range by rememberUpdatedState(selectedRange)
     val ranges by rememberUpdatedState(wordRanges.toList())
     val tapHandler by rememberUpdatedState(onTap)
-    val blurred by rememberUpdatedState(ctl.blurGerman && !picking)
+    val blurred by rememberUpdatedState(ctl.blurTarget && !picking)
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val padH = 28.dp

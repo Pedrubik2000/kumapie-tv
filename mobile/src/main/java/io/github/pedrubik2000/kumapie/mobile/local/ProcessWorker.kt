@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.mobile.local
 
+import io.github.pedrubik2000.kumapie.data.Lang
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -47,7 +48,7 @@ import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
 import io.github.pedrubik2000.kumapie.data.Settings
-import io.github.pedrubik2000.kumapie.mobile.german.GermanModel
+import io.github.pedrubik2000.kumapie.mobile.lang.GermanModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -245,7 +246,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     private suspend fun remux(source: Uri, out: File) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
             val ctx = applicationContext
-            val german = DefaultTrackSelector.Parameters.Builder(ctx).setPreferredAudioLanguage("de")
+            val german = DefaultTrackSelector.Parameters.Builder(ctx).setPreferredAudioLanguage(Lang.GERMAN.code)
                 .setForceHighestSupportedBitrate(true).setConstrainAudioChannelCountToDeviceCapabilities(false).build()
             val loader = ExoPlayerAssetLoader.Factory(ctx, DefaultDecoderFactory(ctx), Clock.DEFAULT, DefaultMediaSourceFactory(ctx),
                 { c -> DefaultTrackSelector(c).apply { setParameters(german) } }, null, DefaultLoadControl())

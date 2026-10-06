@@ -26,8 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
-import io.github.pedrubik2000.kumapie.mobile.german.Miner
-import io.github.pedrubik2000.kumapie.mobile.german.SensePick
+import io.github.pedrubik2000.kumapie.mobile.lang.Miner
+import io.github.pedrubik2000.kumapie.mobile.lang.SensePick
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker

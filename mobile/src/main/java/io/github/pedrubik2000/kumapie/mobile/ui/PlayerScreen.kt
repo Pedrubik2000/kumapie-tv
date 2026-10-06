@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -92,15 +94,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double? = null, onBack: () -> Unit) {
     var upright by remember { mutableStateOf(library.settings.upright) }
-    if (upright) {
-        // Upright: the episode's scenes one per page (FeedScreen.kt); its options switch back here.
-        var d by remember { mutableStateOf<EpisodeDetail?>(null) }
-        LaunchedEffect(Unit) { d = runCatching { library.episode(episode.id) }.getOrNull()?.let { if (startAt != null) it.copy(resume = startAt + 0.05) else it } }
-        d?.let { UprightEpisode(library, it, onBack, onLandscape = { library.settings.upright = false; upright = false }) }
-            ?: Box(Modifier.fillMaxSize().background(Color.Black))
-        return
-    }
-    FullScreenLandscape()
+    // Upright: the same player (one video for the episode), held upright, swipe up/down for the scenes.
+    key(upright) { FullScreen(if (upright) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) }
     var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -123,7 +118,7 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
             d == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 18.sp,
                 modifier = Modifier.align(Alignment.Center))
             else -> ScenePlayer(library, library.settings, library.backend(), d, startPaused = startAt != null, onBack,
-                onUpright = { library.settings.upright = true; upright = true })
+                onUpright = { upright = !upright; library.settings.upright = upright }, uprightNow = upright)
         }
     }
 }
@@ -249,16 +244,19 @@ internal fun ScenePlayer(
                         },
                     )
                 }
-                .pointerInput(Unit) {
-                    var dx = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { dx = 0f },
-                        onDragEnd = {
-                            val min = 60.dp.toPx()
-                            if (dx < -min) { picker.close(); ctl.nextScene() }
-                            if (dx > min) { picker.close(); ctl.previousScene() }
-                        },
-                    ) { _, amount -> dx += amount }
+                .pointerInput(uprightNow) {
+                    // Landscape: swipe left = next scene. Upright: swipe up = next. Same player, the video seeks.
+                    var d = 0f
+                    val end = {
+                        val min = 60.dp.toPx()
+                        if (d < -min) { picker.close(); ctl.nextScene() }
+                        if (d > min) { picker.close(); ctl.previousScene() }
+                    }
+                    if (uprightNow) {
+                        detectVerticalDragGestures(onDragStart = { d = 0f }, onDragEnd = end) { _, amount -> d += amount }
+                    } else {
+                        detectHorizontalDragGestures(onDragStart = { d = 0f }, onDragEnd = end) { _, amount -> d += amount }
+                    }
                 },
         )
 

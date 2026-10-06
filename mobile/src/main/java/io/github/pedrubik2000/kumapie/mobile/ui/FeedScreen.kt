@@ -137,35 +137,3 @@ fun FeedScreen(library: Library, shows: List<Show>, onBack: () -> Unit) {
     }
 }
 
-/**
- * An episode upright: every scene in order, one per page, swipe up for the next; starts on the scene it was left
- * in and reports progress like the landscape player. ⋮ > "Upright" off goes back to landscape.
- */
-@Composable
-fun UprightEpisode(library: Library, episode: EpisodeDetail, onBack: () -> Unit, onLandscape: () -> Unit) {
-    FullScreen(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT)
-    val scenes = episode.scenes
-    if (scenes.isEmpty()) return
-    val start = remember {
-        val resume = episode.resume ?: 0.0
-        scenes.indexOfLast { it.start <= resume + 0.05 }.coerceAtLeast(0)
-    }
-    val backend = remember { library.backend() }
-    val pager = rememberPagerState(initialPage = start) { scenes.size }
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        VerticalPager(state = pager, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 0) { page ->
-            val scene = scenes[page]
-            if (page == pager.settledPage) {
-                key(scene.id) {
-                    ScenePlayer(library, library.settings, backend, episode.copy(scenes = listOf(scene), resume = scene.start),
-                        startPaused = false, onBack = onBack, onUpright = onLandscape, uprightNow = true)
-                }
-            } else {
-                Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                    Text(scene.cues.joinToString(" ") { it.text }, color = Colors.dim, fontSize = 20.sp,
-                        textAlign = TextAlign.Center, modifier = Modifier.padding(32.dp))
-                }
-            }
-        }
-    }
-}

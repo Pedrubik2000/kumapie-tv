@@ -313,7 +313,8 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Colors.text) }
         Text("${ctl.episode.show} · ${ctl.episode.title}", color = Colors.text, fontSize = 15.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        val modes = listOfNotNull(if (ctl.pauseAtSceneEnd) null else "plays on", if (ctl.slow) "0.75x" else null)
+        val modes = listOfNotNull(if (ctl.pauseAtSceneStart) "primed" else null, if (ctl.pauseAtSceneEnd) null else "plays on",
+            if (ctl.slow) "0.75x" else null)
         if (modes.isNotEmpty()) Text(modes.joinToString(" · "), color = Colors.dim, fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 8.dp))
         // One scene alone (feed, unlock): its place in the episode.
@@ -360,6 +361,7 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> 
 private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprightNow: Boolean = false) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        OptionRow("Primed Listening: pause at the start of each scene (read, then play)", ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
         OptionRow("Pause at the end of each scene", ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
         OptionRow("Slow (0.75x)", ctl.slow, ctl::toggleSlow)
         if (onUpright != null) OptionRow("Upright: scene by scene, swipe up", uprightNow, onUpright)

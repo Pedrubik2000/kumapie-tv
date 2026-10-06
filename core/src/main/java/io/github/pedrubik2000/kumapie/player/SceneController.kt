@@ -58,6 +58,9 @@ class SceneController(
 
     var pauseAtSceneEnd by mutableStateOf(settings.pauseAtSceneEnd)
         private set
+    /** Primed Listening: a new scene waits on its start (all its lines shown while paused) until play. */
+    var pauseAtSceneStart by mutableStateOf(settings.pauseAtSceneStart)
+        private set
     var slow by mutableStateOf(settings.slow)
         private set
     /** What the subtitles show. Stays as set from scene to scene and is remembered for next time. */
@@ -99,19 +102,26 @@ class SceneController(
     /** Start the episode: the resume scene, paused or playing as the mode says; [paused]: on its start, not playing. */
     fun begin(paused: Boolean = false) {
         if (scenes.isEmpty()) return
-        if (!paused) return playScene(index)
+        if (!paused && !pauseAtSceneStart) return playScene(index)
         atSceneEnd = false
         seek(scene.start)
         showBanner()
     }
 
+    /** Scene [i] from its start; a different scene with Primed Listening on waits there (replaying one plays). */
     fun playScene(i: Int) {
         if (scenes.isEmpty()) return
+        val other = i.coerceIn(0, scenes.lastIndex) != index
         index = i.coerceIn(0, scenes.lastIndex)
         atSceneEnd = false
         seek(scene.start)
-        stopAtSceneEnd()
-        player.play()
+        if (other && pauseAtSceneStart) {
+            player.pause()
+            playing = false
+        } else {
+            stopAtSceneEnd()
+            player.play()
+        }
         showBanner()
     }
 
@@ -182,6 +192,12 @@ class SceneController(
         showBanner()
     }
 
+    fun togglePauseAtSceneStart() {
+        pauseAtSceneStart = !pauseAtSceneStart
+        settings.pauseAtSceneStart = pauseAtSceneStart
+        showBanner()
+    }
+
     fun changeSubtitles(value: Subtitles) {
         subtitles = value
         if (subtitlesHere == null) settings.subtitles = value
@@ -204,6 +220,11 @@ class SceneController(
             val i = scenes.indexOfLast { it.start <= position }
             if (i > index) {
                 index = i
+                if (pauseAtSceneStart && playing) { // wait on the new scene's start to read it
+                    player.pause()
+                    playing = false
+                    seek(scene.start)
+                }
                 showBanner()
             }
         }

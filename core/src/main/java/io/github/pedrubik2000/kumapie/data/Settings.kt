@@ -13,6 +13,11 @@ class Settings(context: Context) {
         set(value) = prefs.edit().putString("server", normalizeServer(value)).apply()
 
     /** Pause when a scene ends (true) or play on into the next one. */
+    /** Primed Listening: each new scene waits on its start, its lines on screen, until play (read first, then hear). */
+    var pauseAtSceneStart: Boolean
+        get() = prefs.getBoolean("pause_at_scene_start", false)
+        set(value) = prefs.edit().putBoolean("pause_at_scene_start", value).apply()
+
     var pauseAtSceneEnd: Boolean
         get() = prefs.getBoolean("pause_at_scene_end", true)
         set(value) = prefs.edit().putBoolean("pause_at_scene_end", value).apply()

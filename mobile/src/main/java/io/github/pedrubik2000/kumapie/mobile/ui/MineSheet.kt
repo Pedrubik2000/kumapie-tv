@@ -74,7 +74,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Add to Anki · ${Miner.DECK}", color = Colors.accent, fontSize = 18.sp)
-        Text(cue.text, color = Colors.text, fontSize = 18.sp)
+        Text(Miner.sentence(scene, line).first, color = Colors.text, fontSize = 18.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text("Sentence card") })
             if (segment?.word != null) FilterChip(selected = wordCard, onClick = { wordCard = true },
@@ -92,7 +92,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
                 }
             }
         } else {
-            Text("The line, a clip of the scene and its English.", color = Colors.dim, fontSize = 14.sp)
+            Text("The sentence, a video clip of the whole scene and the English.", color = Colors.dim, fontSize = 14.sp)
         }
         Button(enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
             busy = true

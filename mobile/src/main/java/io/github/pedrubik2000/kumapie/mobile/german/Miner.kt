@@ -12,6 +12,7 @@ import androidx.media3.effect.Presentation
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.EncoderUtil
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
@@ -32,7 +33,7 @@ import kotlin.coroutines.resumeWithException
 
 /**
  * Mines a card from kumapie into kuma3 Anki (deck [DECK]), on the device: a new note of the German note type with
- * the line, a clip of the whole scene (cut and shrunk here with Media3 Transformer), the English and, for a word
+ * the line, a video clip of the whole scene (cut here with Media3 Transformer, WebM like the PC's), the English and, for a word
  * card, the word, its audio and the meaning picked, in the same layout as the Core 1000 cards. Mined cards count
  * as known only once reviewed (their words are new until then).
  */
@@ -69,12 +70,12 @@ class Miner(
         if (!known.hasPermission(pkg)) error("kumapie may not use Anki yet: allow it in Settings.")
         val (mid, fieldNames) = anki.noteType(pkg, listOf(known.noteType, "kuma3 German", "🇩🇪 MvJ").distinct())
             ?: error("The German note type isn't in Anki.")
-        val cue = r.scene.cues[r.line]
+        val (sentence, cues) = sentence(r.scene, r.line)
         val slug = slug(r.episode.show)
         dir.mkdirs()
 
         progress("Cutting the scene…")
-        val clipFile = File(dir, "clip.mp4").apply { delete() }
+        val clipFile = File(dir, "clip.webm").apply { delete() }
         val start = (r.scene.start * 1000).toLong()
         val end = (r.scene.end * 1000).toLong()
         clip(r.episode.video, start, end, clipFile)
@@ -82,9 +83,9 @@ class Miner(
         val clip = anki.addMedia(pkg, clipFile, "${slug}_$start-$end")
 
         val fields = HashMap<String, String>()
-        fields["Sentence"] = esc(cue.text)
+        fields["Sentence"] = esc(sentence)
         fields["Video"] = "[audio:$clip]"
-        fields["Notes"] = esc(english(r.scene, cue))
+        fields["Notes"] = esc(english(r.scene, cues))
         fields["Context"] = esc("Mined in kumapie: ${r.episode.show} · ${r.episode.title}, scene ${r.scene.index + 1}.")
         val tags = mutableListOf(slug, "kumapie")
         r.word?.let { w ->
@@ -104,7 +105,10 @@ class Miner(
         "Added to $DECK" + (r.word?.let { ": ${it.surface}" } ?: "")
     }
 
-    /** The scene from [startMs] to [endMs], 360 p H.264 + AAC (a few hundred KB), from a file or the PC's URL. */
+    /**
+     * The scene from [startMs] to [endMs] as WebM like the PC's clips (VP9 480 p + Opus, ~450 kbps: the card template
+     * shows only .webm clips as video), from the downloaded file or the PC's stream.
+     */
     @OptIn(UnstableApi::class)
     private suspend fun clip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
@@ -113,13 +117,14 @@ class Miner(
                 MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build(),
             ).build()
             val edited = EditedMediaItem.Builder(item)
-                .setEffects(Effects(listOf(), listOf(Presentation.createForHeight(360))))
+                .setEffects(Effects(listOf(), listOf(Presentation.createForHeight(480))))
                 .build()
             val transformer = Transformer.Builder(context)
-                .setVideoMimeType(MimeTypes.VIDEO_H264)
-                .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                .setMuxerFactory(WebmMuxer.Factory())
+                .setVideoMimeType(if (EncoderUtil.getSupportedEncoders(MimeTypes.VIDEO_VP9).isNotEmpty()) MimeTypes.VIDEO_VP9 else MimeTypes.VIDEO_VP8)
+                .setAudioMimeType(MimeTypes.AUDIO_OPUS)
                 .setEncoderFactory(DefaultEncoderFactory.Builder(context)
-                    .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(500_000).build()).build())
+                    .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(400_000).build()).build())
                 .addListener(object : Transformer.Listener {
                     override fun onCompleted(composition: Composition, result: ExportResult) {
                         if (cont.isActive) cont.resume(Unit)
@@ -169,9 +174,11 @@ class Miner(
             "$example\n<!-- def-end -->$german"
     }
 
-    /** The English of the line: the scene's English lines that overlap it, else all of them. */
-    private fun english(scene: Scene, cue: Cue): String {
-        val overlapping = scene.english.filter { it.end > cue.start + 0.1 && it.start < cue.end - 0.1 }
+    /** The English of those cues: the scene's English lines that overlap them, else all of them. */
+    private fun english(scene: Scene, cues: List<Cue>): String {
+        val start = cues.first().start
+        val end = cues.last().end
+        val overlapping = scene.english.filter { it.end > start + 0.1 && it.start < end - 0.1 }
         return (overlapping.ifEmpty { scene.english }).joinToString(" ") { it.text }
     }
 
@@ -182,5 +189,25 @@ class Miner(
 
     companion object {
         const val DECK = "Deutsch::Mined"
+
+        /**
+         * The whole sentence cue [line] is part of: subtitle cues split sentences ("Aber warum…" / "fühle ich mich …" /
+         * "ausgelaugt?"), so the scene's cues are joined and cut at sentence ends (. ! ? followed by a capital); "…"
+         * before a small letter goes on. Answers the sentence and its cues.
+         */
+        fun sentence(scene: Scene, line: Int): Pair<String, List<Cue>> {
+            val cues = scene.cues
+            fun ends(i: Int): Boolean {
+                val text = cues[i].text.trimEnd()
+                val next = cues.getOrNull(i + 1)?.text?.trimStart() ?: return true
+                return text.isEmpty() || (text.last() in ".!?…\"»“" && next.firstOrNull()?.isUpperCase() != false)
+            }
+            var first = line
+            while (first > 0 && !ends(first - 1)) first--
+            var last = line
+            while (last < cues.lastIndex && !ends(last)) last++
+            val part = cues.subList(first, last + 1)
+            return part.joinToString(" ") { it.text.trim() } to part
+        }
     }
 }

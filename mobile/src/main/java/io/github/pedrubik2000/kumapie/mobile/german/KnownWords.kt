@@ -25,7 +25,7 @@ import java.io.File
  *   **learning** (orange) when it is only on reviewed cards below that; else **unknown** (red).
  * The result is saved, so the app colours words offline and at once on start; [refresh] reads Anki again.
  */
-class KnownWords(private val context: Context, private val settings: Settings) {
+class KnownWords(val context: Context, private val settings: Settings) {
     private val anki = AnkiCards(context)
     val model = GermanModel(context)
     private val dir = File(context.filesDir, "known").apply { mkdirs() }
@@ -40,6 +40,11 @@ class KnownWords(private val context: Context, private val settings: Settings) {
     data class Snapshot(val words: Map<String, Facts>, val time: Long, val app: String, val notes: Int, val cards: Int)
 
     @Volatile private var snapshot: Snapshot? = load()
+
+    /** What the last [refresh] read from Anki: notes, cards, and each judged note's inflections in text order. */
+    class Reading(val pkg: String, val notes: List<AnkiCards.Note>, val cards: List<AnkiCards.Card>, val morphs: Map<Long, List<String>>)
+    @Volatile var lastReading: Reading? = null
+        private set
     @Volatile private var marked: Set<String> = runCatching { markedFile.readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet() }
         .getOrDefault(emptySet())
 
@@ -146,6 +151,7 @@ class KnownWords(private val context: Context, private val settings: Settings) {
                         words[w] = f.copy(best = best, reviewed = true)
                     }
                 }
+                lastReading = Reading(pkg, notes, cards, morphs.mapValues { it.value.toList() })
                 val snap = Snapshot(words, System.currentTimeMillis(), pkg, notes.size, cards.size)
                 save(snap)
                 snapshot = snap
@@ -214,7 +220,7 @@ class KnownWords(private val context: Context, private val settings: Settings) {
         return read()
     }
 
-    private fun AnkiCards.Note.hasTag(tag: String) = tags.any { it.equals(tag, true) || it.startsWith("$tag::", true) }
+    internal fun AnkiCards.Note.hasTag(tag: String) = tags.any { it.equals(tag, true) || it.startsWith("$tag::", true) }
 
     private fun save(snap: Snapshot) {
         val words = JSONObject()

@@ -187,6 +187,36 @@ private fun KnownWordsSection(library: Library) {
         busy = true
         scope.launch { known.refresh(); busy = false }
     }) { Text(if (busy) "Reading Anki…" else "Read Anki now") }
+
+    // 4. morphs' Recalc (the PC's daily `morphs recalc`): first what would change, then Apply. kuma3 Anki only.
+    if (modelReady && allowed && app != "com.ichi2.anki") {
+        var plan by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.german.Recalc.Plan?>(null) }
+        var said by remember { mutableStateOf("") }
+        val recalc = remember { io.github.pedrubik2000.kumapie.mobile.german.Recalc(known) }
+        OutlinedButton(enabled = !busy, onClick = {
+            busy = true
+            said = "Working out the order…"
+            scope.launch {
+                runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { recalc.plan() } }
+                    .onSuccess { plan = it; said = it.describe() }.onFailure { said = it.message ?: it.toString() }
+                busy = false
+            }
+        }) { Text("Order new cards (morphs)") }
+        if (said.isNotEmpty()) Text(said, fontSize = 14.sp, color = Colors.dim)
+        plan?.takeIf { !it.empty }?.let { p ->
+            androidx.compose.material3.Button(enabled = !busy, onClick = {
+                busy = true
+                scope.launch {
+                    said = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { recalc.apply(p) } }
+                        .getOrElse { it.message ?: it.toString() }
+                    plan = null
+                    busy = false
+                }
+            }) { Text("Apply") }
+        }
+        Text("Like morphs recalc on the PC: after reviewing, new cards with one unknown word come first. Run it on " +
+            "one device only (the PC's morphs and this would undo each other's marked-known words).", fontSize = 13.sp, color = Colors.dim)
+    }
 }
 
 /** The offline dictionary (download / update), the device's German voice, and the data's attribution. */

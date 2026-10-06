@@ -26,7 +26,8 @@ class AnkiCards(private val context: Context) {
 
     data class Note(val id: Long, val fields: Map<String, String>, val tags: Set<String>)
 
-    data class Card(val noteId: Long, val reviewed: Boolean, val stability: Double?)
+    /** [due]: a new card's position (what morphs' recalc orders). */
+    data class Card(val id: Long, val noteId: Long, val reviewed: Boolean, val stability: Double?, val due: Long)
 
     /** Notes found by an Anki search (`note:"🇩🇪 MvJ"`), with their fields by name. */
     fun notes(pkg: String, search: String): List<Note> {
@@ -47,10 +48,10 @@ class AnkiCards(private val context: Context) {
     /** Cards found by an Anki search: reviewed or new, and FSRS stability (days) when it has one. */
     fun cards(pkg: String, search: String): List<Card> {
         val out = ArrayList<Card>()
-        context.contentResolver.query(Uri.parse("content://$pkg.flashcards/cards"), arrayOf("note_id", "type", "fsrs_stability"),
+        context.contentResolver.query(Uri.parse("content://$pkg.flashcards/cards"), arrayOf("_id", "note_id", "type", "fsrs_stability", "due"),
             search, null, null)?.use { c ->
             while (c.moveToNext()) {
-                out += Card(c.getLong(0), c.getInt(1) != 0, if (c.isNull(2)) null else c.getDouble(2))
+                out += Card(c.getLong(0), c.getLong(1), c.getInt(2) != 0, if (c.isNull(3)) null else c.getDouble(3), c.getLong(4))
             }
         }
         return out
@@ -111,6 +112,21 @@ class AnkiCards(private val context: Context) {
                 ContentValues().apply { put("deck_id", deck) }, null, null)
         }
         return nid
+    }
+
+    // ------------------------------------------------------------------ writing (morphs recalc)
+
+    /** New cards' order in one bulk update (kuma3 Anki only: its provider's `kuma3_new_due`); answers how many changed. */
+    fun setNewDues(pkg: String, dues: Map<Long, Long>): Int = context.contentResolver.update(
+        Uri.parse("content://$pkg.flashcards/cards"),
+        ContentValues().apply { put("kuma3_new_due", org.json.JSONObject(dues.mapKeys { it.key.toString() }).toString()) }, null, null)
+
+    /** A note's tags, and its fields (in order) when [fields] is given. */
+    fun updateNote(pkg: String, nid: Long, tags: Set<String>, fields: List<String>?) {
+        context.contentResolver.update(Uri.parse("content://$pkg.flashcards/notes/$nid"), ContentValues().apply {
+            put("tags", tags.joinToString(" "))
+            if (fields != null) put("flds", fields.joinToString(SEPARATOR))
+        }, null, null)
     }
 
     private fun fieldNames(pkg: String, mid: Long): List<String> =

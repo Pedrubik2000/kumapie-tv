@@ -269,6 +269,9 @@ class KnownWords(val context: Context, private val settings: Settings) {
         /** Word cards mined in kumapie ([Miner]): judged by their Word field, like Core 1000. */
         const val MINED_WORD = "_de::word"
         const val NICOS_WEG = "Nicos_Weg_A1"
+        /** The definition fields (the card's template marks the second as locked monolingual). */
+        const val DEF_BI = "Definition (bilingual)"
+        const val DEF_MONO = "Definition (monolingual)"
         const val KNOWN_MANUALLY = "_card-status::i+0-manually"
     }
 }

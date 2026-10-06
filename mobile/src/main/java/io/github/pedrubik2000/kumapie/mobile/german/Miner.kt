@@ -93,11 +93,13 @@ class Miner(
             val written = w.key?.takeIf { ' ' in it } ?: w.surface
             fields["Word"] = esc(written) + (w.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
             if (audio != null) fields["Word Audio"] = "[audio:$audio]"
-            fields["Definition"] = definition(written, w)
+            fields[KnownWords.DEF_BI] = definition(written, w)
+            w.definition?.germanText?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
             tags += KnownWords.MINED_WORD
         } ?: tags.add("_de::sentence")
 
-        val missing = listOf("Sentence", "Video").filter { it !in fieldNames }
+        val missing = (listOf("Sentence", "Video") + if (r.word != null) listOf(KnownWords.DEF_BI, KnownWords.DEF_MONO) else emptyList())
+            .filter { it !in fieldNames }
         if (missing.isNotEmpty()) error("The note type has no field ${missing.joinToString()}.")
         val deck = anki.deck(pkg, DECK)
         anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, deck)
@@ -163,15 +165,11 @@ class Miner(
         return if (voice().toFile(surface, wav)) wav else null
     }
 
-    /** The Core 1000 layout: "<b>word</b> (lemma)", the meaning, an example; kumapie's German definition if any. */
+    /** The Core 1000 layout of the bilingual definition: "<b>word</b> (lemma)", the meaning, an example. */
     private fun definition(written: String, w: Word): String {
         val lemma = w.lemma?.takeIf { !it.equals(written, true) }?.let { " (${esc(it)})" } ?: ""
         val example = w.example?.let { "<br>${esc(it.first)} = ${esc(it.second)}" } ?: ""
-        val german = w.definition?.germanText?.takeIf { it.isNotBlank() }?.let {
-            "\n\n<!-- def-br-start --><br><br><!-- def-br-end -->\n\n<!-- def-type=\"LOCKED_monolingual\" -->\n${esc(it)}\n<!-- def-end -->"
-        } ?: ""
-        return "<!-- def-type=\"bilingual\" -->\n<span style=\"font-size:1.4em\"><b>${esc(written)}</b>$lemma</span><br><b>${esc(w.gloss)}</b>" +
-            "$example\n<!-- def-end -->$german"
+        return "<span style=\"font-size:1.4em\"><b>${esc(written)}</b>$lemma</span><br><b>${esc(w.gloss)}</b>$example"
     }
 
     /** The English of those cues: the scene's English lines that overlap them, else all of them. */

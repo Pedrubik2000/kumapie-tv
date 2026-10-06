@@ -22,7 +22,8 @@ class Improve(private val library: Library) {
     class Struggling(val note: AnkiCards.Note, val cards: List<AnkiCards.Card>, val word: String, val key: String?,
                      val lapses: Int, val stability: Double?) {
         val sentence: String get() = plain(note.fields["Sentence"] ?: "")
-        val definition: String get() = note.fields["Definition"] ?: ""
+        val bilingual: String get() = note.fields[KnownWords.DEF_BI] ?: ""
+        val monolingual: String get() = note.fields[KnownWords.DEF_MONO] ?: ""
     }
 
     /** [unknown]: words of the sentence never studied (the "i+" of the sentence alone). */
@@ -68,9 +69,9 @@ class Improve(private val library: Library) {
 
     /**
      * Writes the choices into the note: the new scene ([c], with its clip, English and context) and its [sentence] as
-     * edited, the [definition] as edited, the word's recording when [recording]; then flags the cards orange.
+     * edited, the definitions as edited, the word's recording when [recording]; then flags the cards orange.
      */
-    suspend fun apply(s: Struggling, c: Candidate?, sentence: String, definition: String, recording: Boolean, progress: (String) -> Unit): String {
+    suspend fun apply(s: Struggling, c: Candidate?, sentence: String, bilingual: String, monolingual: String, recording: Boolean, progress: (String) -> Unit): String {
         val pkg = library.known.ankiApp() ?: error("No kuma3 Anki on this device.")
         val fields = LinkedHashMap(s.note.fields)
         if (c != null) {
@@ -87,7 +88,8 @@ class Improve(private val library: Library) {
             fields["Context"] = esc("Improved in kumapie: ${c.detail.show} · ${c.detail.title}, scene ${c.scene.index + 1}.")
         }
         if (sentence.trim() != s.sentence.trim()) fields["Sentence"] = esc(sentence.trim())
-        if (definition != s.definition) fields["Definition"] = definition
+        if (bilingual != s.bilingual) fields[KnownWords.DEF_BI] = bilingual
+        if (monolingual != s.monolingual) fields[KnownWords.DEF_MONO] = monolingual
         if (recording) {
             progress("Getting the recording…")
             library.miner.wordAudio(s.word)?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-${library.miner.slug(s.word)}")}]" }

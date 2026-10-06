@@ -53,7 +53,8 @@ private object ImproveKept {
     var candidates: List<Improve.Candidate>? = null
     var chosen: Improve.Candidate? = null
     var sentence = ""
-    var definition = ""
+    var bilingual = ""
+    var monolingual = ""
     var recording = false
 }
 
@@ -71,13 +72,14 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
     var candidates by remember { mutableStateOf(ImproveKept.candidates) }
     var chosen by remember { mutableStateOf(ImproveKept.chosen) }
     var sentence by remember { mutableStateOf(ImproveKept.sentence) }
-    var definition by remember { mutableStateOf(ImproveKept.definition) }
+    var bilingual by remember { mutableStateOf(ImproveKept.bilingual) }
+    var monolingual by remember { mutableStateOf(ImproveKept.monolingual) }
     var recording by remember { mutableStateOf(ImproveKept.recording) }
     var said by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     fun keep() {
         ImproveKept.cards = cards; ImproveKept.card = card; ImproveKept.candidates = candidates; ImproveKept.chosen = chosen
-        ImproveKept.sentence = sentence; ImproveKept.definition = definition; ImproveKept.recording = recording
+        ImproveKept.sentence = sentence; ImproveKept.bilingual = bilingual; ImproveKept.monolingual = monolingual; ImproveKept.recording = recording
     }
     fun leave() { ImproveKept.cards = null; ImproveKept.card = null; onBack() }
 
@@ -91,7 +93,7 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
     LaunchedEffect(card) {
         val c = card ?: return@LaunchedEffect
         if (candidates != null) return@LaunchedEffect
-        sentence = c.sentence; definition = c.definition; chosen = null
+        sentence = c.sentence; bilingual = c.bilingual; monolingual = c.monolingual; chosen = null
         candidates = withContext(Dispatchers.IO) { runCatching { improve.candidates(c, shows) { said = it } }.getOrDefault(emptyList()) }
         said = ""
     }
@@ -123,7 +125,9 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Now: ${c.sentence}", fontSize = 15.sp, color = Colors.dim)
                     OutlinedTextField(sentence, { sentence = it }, label = { Text("Sentence") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(definition, { definition = it }, label = { Text("Definition (as on the card)") },
+                    OutlinedTextField(bilingual, { bilingual = it }, label = { Text("Definition (bilingual)") },
+                        modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp))
+                    OutlinedTextField(monolingual, { monolingual = it }, label = { Text("Definition (monolingual)") },
                         modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp))
                     if (hasRecording) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Use a person's recording of \"${c.word}\" (Wiktionary)", modifier = Modifier.weight(1f))
@@ -132,7 +136,7 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
                     Button(enabled = !busy, onClick = {
                         busy = true
                         scope.launch {
-                            said = runCatching { improve.apply(c, chosen, sentence, definition, recording) { said = it } }.getOrElse { it.message ?: it.toString() }
+                            said = runCatching { improve.apply(c, chosen, sentence, bilingual, monolingual, recording) { said = it } }.getOrElse { it.message ?: it.toString() }
                             busy = false
                             cards = cards?.filter { it.note.id != c.note.id }
                             card = null; candidates = null

@@ -102,6 +102,9 @@ class Api(private val base: String) : Backend {
         post("/api/tv/progress", body.toString())
     }
 
+    /** Everything the PC recorded (TV), as kumapie's progress JSON (see the phone app's Progress). */
+    suspend fun history(): String = get("/api/tv/history")
+
     suspend fun stats(): Stats {
         val o = JSONObject(get("/api/tv/stats"))
         val days = o.getJSONObject("days").let { d -> d.keys().asSequence().associateWith { d.getDouble(it) } }

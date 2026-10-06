@@ -106,6 +106,14 @@ class KnownWords(val context: Context, private val settings: Settings) {
         return status(word) ?: "u"
     }
 
+    /** Words marked known in kumapie (and the PC's), as [Progress] merged them from every device. */
+    val markedWords: Set<String> get() = marked
+
+    fun useMarked(words: Set<String>) {
+        if (words != marked) setMarked(words)
+        _status.value = describe()
+    }
+
     private fun setMarked(words: Set<String>) {
         marked = words
         runCatching { markedFile.writeText(words.sorted().joinToString("\n")) }

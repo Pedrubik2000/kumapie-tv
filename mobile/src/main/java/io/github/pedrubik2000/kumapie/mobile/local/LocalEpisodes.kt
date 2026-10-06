@@ -23,7 +23,7 @@ class LocalEpisodes(context: Context) {
     fun thumb(id: String) = File(dir(id), "thumb.jpg")
 
     data class Entry(val id: String, val show: String, val title: String, val duration: Double, val source: String,
-                     val season: Int? = null, val number: Int? = null)
+                     val season: Int? = null, val number: Int? = null, val scenes: Int = -1)
 
     @Synchronized
     fun entries(): List<Entry> = runCatching {
@@ -31,10 +31,16 @@ class LocalEpisodes(context: Context) {
         (0 until a.length()).map { i ->
             a.getJSONObject(i).let {
                 Entry(it.getString("id"), it.getString("show"), it.getString("title"), it.optDouble("duration"), it.optString("source"),
-                    it.optInt("season").takeIf { _ -> it.has("season") }, it.optInt("number").takeIf { _ -> it.has("number") })
+                    it.optInt("season").takeIf { _ -> it.has("season") }, it.optInt("number").takeIf { _ -> it.has("number") },
+                    it.optInt("scenes", -1))
             }
         }
-    }.getOrDefault(emptyList()).filter { json(it.id).exists() }
+    }.getOrDefault(emptyList()).filter { json(it.id).exists() }.let { list ->
+        // Scene counts (for Stats), counted once from episode.json and kept in the index.
+        if (list.none { it.scenes < 0 }) list
+        else list.map { e -> if (e.scenes >= 0) e else e.copy(scenes = runCatching { JSONObject(json(e.id).readText()).getJSONArray("scenes").length() }.getOrDefault(0)) }
+            .also { save(it) }
+    }
 
     @Synchronized
     fun add(e: Entry) {
@@ -50,6 +56,7 @@ class LocalEpisodes(context: Context) {
     private fun save(list: List<Entry>) = index.writeText(JSONArray(list.map {
         JSONObject().put("id", it.id).put("show", it.show).put("title", it.title).put("duration", it.duration).put("source", it.source)
             .put("season", it.season).put("number", it.number) // null leaves the key out
+            .put("scenes", it.scenes)
     }).toString())
 
     /** The local episodes as shows for the home screen ("local-show-<name>"). */
@@ -61,7 +68,7 @@ class LocalEpisodes(context: Context) {
             poster = Uri.fromFile(thumb(first.id)).toString(),
             episodes = eps.map { e ->
                 Episode(id = e.id, title = e.title, season = e.season, number = e.number, duration = e.duration,
-                    thumb = Uri.fromFile(thumb(e.id)).toString(), scenes = 0, seen = 0, easy = 0, resume = null)
+                    thumb = Uri.fromFile(thumb(e.id)).toString(), scenes = maxOf(e.scenes, 0), seen = 0, easy = 0, resume = null)
             })
     }
 

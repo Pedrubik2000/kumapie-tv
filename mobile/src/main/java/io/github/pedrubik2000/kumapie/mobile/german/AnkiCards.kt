@@ -129,6 +129,28 @@ class AnkiCards(private val context: Context) {
         }, null, null)
     }
 
+    /** A new note type with [fields] and one card showing the first field; answers its id. */
+    fun addNoteType(pkg: String, name: String, fields: List<String>): Long =
+        context.contentResolver.insert(Uri.parse("content://$pkg.flashcards/models"), ContentValues().apply {
+            put("name", name)
+            put("field_names", fields.joinToString(SEPARATOR))
+            put("num_cards", 1)
+        })?.lastPathSegment?.toLong() ?: error("Anki didn't add the note type $name")
+
+    fun deleteNote(pkg: String, nid: Long) {
+        context.contentResolver.delete(Uri.parse("content://$pkg.flashcards/notes/$nid"), null, null)
+    }
+
+    /** Suspends the note's cards (kuma3 Anki only: its provider's `kuma3_suspend`). */
+    fun suspendCards(pkg: String, nid: Long) {
+        val ords = ArrayList<Int>()
+        context.contentResolver.query(Uri.parse("content://$pkg.flashcards/notes/$nid/cards"), arrayOf("ord"), null, null, null)?.use { c ->
+            while (c.moveToNext()) ords += c.getInt(0)
+        }
+        for (ord in ords) context.contentResolver.update(Uri.parse("content://$pkg.flashcards/notes/$nid/cards/$ord"),
+            ContentValues().apply { put("kuma3_suspend", true) }, null, null)
+    }
+
     private fun fieldNames(pkg: String, mid: Long): List<String> =
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/models/$mid"), arrayOf("field_names"), null, null, null)
             ?.use { c -> if (c.moveToFirst()) c.getString(0).split(SEPARATOR) else null } ?: emptyList()

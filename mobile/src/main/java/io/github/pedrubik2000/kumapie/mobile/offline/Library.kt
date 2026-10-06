@@ -41,6 +41,30 @@ class Library(context: Context, val settings: Settings) {
     private val showsCache = File(context.filesDir, "shows.json")
     /** Episodes made on this device (YouTube links processed here), listed first. */
     val local = LocalEpisodes(context)
+    /** Positions, scenes seen, watch time, lookups and marks: this device's and the others' (in Anki), merged. */
+    val progress = Progress.of(context).also { p ->
+        // Once: positions of episodes made here, from before progress was kept in Anki.
+        if (!settings.prefs.getBoolean("progress_migrated", false)) {
+            settings.prefs.all.filterKeys { it.startsWith("resume_") }.forEach { (k, v) -> p.record(k.removePrefix("resume_"), (v as Float).toDouble(), emptyList(), 0.0) }
+            known.markedWords.forEach { p.mark(it, true) }
+            settings.prefs.edit().putBoolean("progress_migrated", true).apply()
+        }
+    }
+
+    /** Sends this device's progress to Anki and reads the others' (when Anki was read here once). */
+    suspend fun syncProgress() {
+        if (!known.ready) return
+        progress.sync(runCatching { api }.getOrNull())
+        known.useMarked(progress.merged.marked)
+    }
+
+    private var syncSoon: kotlinx.coroutines.Job? = null
+
+    /** A sync a few minutes from now (one at a time), so playing doesn't write the Anki note every 20 seconds. */
+    private fun syncLater() {
+        if (syncSoon?.isActive == true) return
+        syncSoon = background.launch { kotlinx.coroutines.delay(180_000); syncProgress() }
+    }
 
     val api: Api get() = Api(settings.server)
 
@@ -58,7 +82,10 @@ class Library(context: Context, val settings: Settings) {
             if (saved == null && mine.isEmpty()) throw e
             (saved?.let { api.parseShows(it) } ?: emptyList()) to true
         }
-        return (mine + pc) to offline
+        val m = progress.merged
+        return (mine + pc).map { s ->
+            s.copy(episodes = s.episodes.map { e -> e.copy(resume = m.pos[e.id] ?: e.resume, seen = maxOf(e.seen, m.seenIn(e.id))) })
+        } to offline
     }
 
     /** An episode to play: fresh from the PC if it answers, else its download. A downloaded video plays from the device. */
@@ -66,9 +93,8 @@ class Library(context: Context, val settings: Settings) {
         val api = api
         if (LocalEpisodes.isLocal(id)) {
             val json = withContext(Dispatchers.IO) { local.json(id).readText() }
-            val detail = known.apply(api.parseEpisode(json))
-            return detail.copy(video = Uri.fromFile(local.video(id)).toString(),
-                resume = settings.prefs.getFloat("resume_$id", -1f).takeIf { it >= 0 }?.toDouble())
+            val detail = withSeen(known.apply(api.parseEpisode(json)))
+            return detail.copy(video = Uri.fromFile(local.video(id)).toString(), resume = progress.merged.pos[id])
         }
         val downloaded = downloads.isComplete(id)
         // When the PC answers, send what waited, then fetch again so the episode has that progress in it.
@@ -80,10 +106,40 @@ class Library(context: Context, val settings: Settings) {
             if (fresh != null && downloaded) downloads.episodeJson(id).writeText(fresh) // fresher word colours offline
             fresh ?: if (downloaded) downloads.episodeJson(id).readText() else null
         } ?: throw IOException("The PC doesn't answer and this episode isn't downloaded.")
-        val detail = known.apply(api.parseEpisode(json))
+        val detail = withSeen(known.apply(api.parseEpisode(json)))
         return detail.copy(
             video = if (downloaded) Uri.fromFile(downloads.video(id)).toString() else detail.video,
-            resume = pending.lastPosition(id) ?: detail.resume,
+            resume = progress.merged.pos[id] ?: pending.lastPosition(id) ?: detail.resume,
+        )
+    }
+
+    /** Scenes watched to the end on any device. */
+    private fun withSeen(d: EpisodeDetail): EpisodeDetail {
+        val seen = progress.merged.seen
+        return d.copy(scenes = d.scenes.map { if (it.seen || it.id !in seen) it else it.copy(seen = true) })
+    }
+
+    /**
+     * Stats from [Progress] (this device, the others through Anki, the PC's history), so they need no PC: watch time
+     * per study day, today / 7 days / total, the streak (days with at least a minute), scenes, lookups, marks.
+     */
+    suspend fun stats(): io.github.pedrubik2000.kumapie.data.Stats {
+        syncProgress()
+        val shows = runCatching { shows().first }.getOrDefault(emptyList())
+        val m = progress.merged
+        val today = java.time.LocalDate.parse(Progress.studyDay())
+        fun day(d: java.time.LocalDate) = m.watch[d.toString()] ?: 0.0
+        var streak = 0
+        var d = if (day(today) < 60) today.minusDays(1) else today // today not started: the streak counts to yesterday
+        while (day(d) >= 60) { streak++; d = d.minusDays(1) }
+        val top = m.lookups.entries.sortedWith(compareBy({ -it.value }, { it.key })).take(10)
+            .map { io.github.pedrubik2000.kumapie.data.TopLookup(it.key, it.value, m.gloss[it.key] ?: "") }
+        return io.github.pedrubik2000.kumapie.data.Stats(
+            days = m.watch, today = day(today), week = (0L..6L).sumOf { day(today.minusDays(it)) }, total = m.watch.values.sum(),
+            streak = streak, scenesSeen = m.seen.size, scenesTotal = shows.sumOf { s -> s.episodes.sumOf { it.scenes } },
+            lookups = m.lookups.values.sum(), wordsLookedUp = m.lookups.size, topLookups = top, markedKnown = m.marked.size,
+            shows = shows.map { s -> io.github.pedrubik2000.kumapie.data.ShowProgress(s.title, s.episodes.sumOf { m.seenIn(it.id) }, s.episodes.sumOf { it.scenes }) }
+                .sortedByDescending { it.seen },
         )
     }
 
@@ -105,7 +161,7 @@ class Library(context: Context, val settings: Settings) {
 
     fun backend(): Backend = OfflineBackend(api, downloads, pending, known, dictionary, { voice.speak(it) }, { surface, url ->
         background.launch { dictionary.keepRecording(surface, url) }
-    }, settings)
+    }, progress, ::syncLater)
 }
 
 /** The server API with local audio files when downloaded, and reports queued when the PC can't be reached. */
@@ -117,26 +173,28 @@ private class OfflineBackend(
     private val dictionary: Dictionary,
     private val say: (String) -> Unit,
     private val keepRecording: (String, String) -> Unit,
-    private val settings: Settings,
+    private val progress: Progress,
+    private val syncLater: () -> Unit,
 ) : Backend {
 
+    /**
+     * Kept in [Progress] (Anki). The PC gets only the position of its own episodes, so the TV resumes there; its
+     * scenes and time would count twice (the PC's history is part of Progress as the "pc" note).
+     */
     override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {
-        if (LocalEpisodes.isLocal(episode)) { // made on this device: the PC doesn't know it
-            settings.prefs.edit().putFloat("resume_$episode", pos.toFloat()).apply()
-            return
-        }
-        pending.add(Pending.progress(episode, pos, seen, watched))
+        progress.record(episode, pos, seen, watched)
+        syncLater()
+        if (LocalEpisodes.isLocal(episode)) return // made on this device: the PC doesn't know it
+        pending.add(Pending.progress(episode, pos, emptyList(), 0.0))
         pending.flush(api)
     }
 
-    override suspend fun lookup(word: String, scene: String): Int {
-        if (pending.flush(api)) runCatching { return api.lookup(word, scene) }
-        pending.add(Pending.lookup(word, scene))
-        throw IOException("offline: lookup queued")
-    }
+    override suspend fun lookup(word: String, scene: String): Int = progress.lookup(word).also { syncLater() }
 
     override suspend fun markKnown(word: String, known: Boolean): String {
         // Kept on the device too, so the colour is right offline and once the PC is no longer asked.
+        progress.mark(word, known)
+        syncLater()
         val here = if (this.known.ready) this.known.mark(word, known) else null
         if (pending.flush(api)) runCatching { val pc = api.markKnown(word, known); return here ?: pc }
         pending.add(Pending.known(word, known))

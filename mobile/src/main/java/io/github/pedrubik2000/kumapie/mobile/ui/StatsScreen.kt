@@ -53,7 +53,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * Watch time and what was done, from the PC (TV and phone together): today / 7 days / total / streak, a year
+ * Watch time and what was done, from kumapie's progress in Anki (every device, plus the PC's history: TV): today / 7 days / total / streak, a year
  * heatmap, the last 30 days as bars, scenes, lookups, words marked known. A study day starts at 4 am.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,7 +64,7 @@ fun StatsScreen(library: Library, onBack: () -> Unit) {
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(attempt) {
         error = null
-        runCatching { library.pending.flush(library.api); library.api.stats() }
+        runCatching { library.stats() }
             .onSuccess { stats = it }.onFailure { error = it.message ?: it.toString() }
     }
     Scaffold(topBar = {
@@ -76,7 +76,7 @@ fun StatsScreen(library: Library, onBack: () -> Unit) {
             when {
                 error != null -> Column(Modifier.align(Alignment.Center).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Stats come from the PC, and it doesn't answer.")
+                    Text("The stats couldn't be worked out.")
                     Text(error ?: "", color = Colors.dim, fontSize = 13.sp)
                     Button(onClick = { attempt++ }) { Text("Try again") }
                 }

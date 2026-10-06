@@ -42,7 +42,7 @@ class Miner(
     private val context: Context,
     private val known: KnownWords,
     private val dictionary: Dictionary,
-    private val voice: () -> GermanVoice,
+    private val voice: () -> Voice,
 ) {
     private val anki = AnkiCards(context)
     private val dir = File(context.cacheDir, "mining")

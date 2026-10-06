@@ -27,6 +27,8 @@ internal object Hoshidicts {
     @JvmStatic external fun nativeAdd(handle: Long, path: String, kind: Int): Boolean
     @JvmStatic external fun nativeQuery(handle: Long, word: String): String
     @JvmStatic external fun nativeLookup(handle: Long, text: String, max: Int): String
+    @JvmStatic external fun nativeStyles(handle: Long): String
+    @JvmStatic external fun nativeMedia(handle: Long, dict: String, path: String): ByteArray?
 }
 
 /**
@@ -45,6 +47,8 @@ class YomitanDictionaries private constructor(private val context: Context) {
         val folder: String, val title: String, val lang: String, val revision: String,
         val terms: Long, val freq: Long, val pitch: Long, val kanji: Long, val enabled: Boolean = true,
         val updatable: Boolean = false, val indexUrl: String? = null, val downloadUrl: String? = null,
+        /** The popup's chip: "Bilingual", "Monolingual", "Freq"... (from a "[Group] name.zip" file name), or "". */
+        val group: String = "",
     ) {
         val kinds: String get() = listOfNotNull("meanings".takeIf { terms > 0 }, "frequency".takeIf { freq > 0 },
             "pitch".takeIf { pitch > 0 }, "kanji".takeIf { kanji > 0 }).joinToString(" · ")
@@ -55,16 +59,39 @@ class YomitanDictionaries private constructor(private val context: Context) {
 
     fun of(lang: Lang): List<Dict> = _all.value.filter { it.lang == lang.code }
 
+    /** Every .zip under a folder the user picked (subfolders too), sorted by folder and name: for [import]. */
+    fun zipsIn(tree: Uri): List<Uri> {
+        val out = ArrayList<Pair<String, Uri>>()
+        fun walk(docId: String, path: String) {
+            val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId)
+            context.contentResolver.query(children, arrayOf(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME, android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE),
+                null, null, null)?.use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getString(0)
+                    val name = c.getString(1)
+                    if (c.getString(2) == android.provider.DocumentsContract.Document.MIME_TYPE_DIR) walk(id, "$path$name/")
+                    else if (name.endsWith(".zip", true)) out += "$path$name" to android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, id)
+                }
+            }
+        }
+        walk(android.provider.DocumentsContract.getTreeDocumentId(tree), "")
+        return out.sortedBy { it.first }.map { it.second }
+    }
+
     /** Imports Yomitan zips picked by the user for [lang]. Answers one line per file. */
     suspend fun import(uris: List<Uri>, lang: Lang, progress: (String) -> Unit): List<String> = work.withLock { withContext(Dispatchers.IO) {
         uris.map { uri ->
-            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "dictionary.zip"
+            val name = runCatching {
+                context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { if (it.moveToFirst()) it.getString(0) else null }
+            }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "dictionary.zip"
             runCatching {
                 progress("Importing $name…")
                 val zip = File(context.cacheDir, "yomitan-import.zip")
                 context.contentResolver.openInputStream(uri)?.use { input -> zip.outputStream().use { input.copyTo(it) } }
                     ?: throw IOException("can't read $name")
-                importFile(zip, lang, null)
+                importFile(zip, lang, null, groupOf(name))
             }.getOrElse { "$name: ${it.message}" }
         }
     } }
@@ -73,7 +100,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
      * Imports one zip (then deletes it). A dictionary with the same title, or [replacing] (an update, whose title may
      * have changed: kty-de-en became wty-de-en), is replaced in place: same position, same on/off.
      */
-    private fun importFile(zip: File, lang: Lang, replacing: Dict?): String {
+    private fun importFile(zip: File, lang: Lang, replacing: Dict?, group: String = replacing?.group ?: ""): String {
         val tmp = File(base, ".import").apply { deleteRecursively(); mkdirs() }
         try {
             val r = JSONObject(Hoshidicts.nativeImport(zip.path, tmp.path))
@@ -87,7 +114,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
                 val d = Dict(folder, r.getString("title"), lang.code, r.optString("revision"), r.optLong("terms"),
                     r.optLong("freq"), r.optLong("pitch"), r.optLong("kanji"), true, r.optBoolean("isUpdatable"),
                     r.optString("indexUrl").takeIf { it.isNotBlank() && it != "null" },
-                    r.optString("downloadUrl").takeIf { it.isNotBlank() && it != "null" })
+                    r.optString("downloadUrl").takeIf { it.isNotBlank() && it != "null" }, group)
                 val old = _all.value.indexOfFirst { it.folder == folder || it.folder == replacing?.folder }
                 save(if (old >= 0) _all.value.toMutableList().also { it[old] = d.copy(enabled = it[old].enabled) }
                      else _all.value + d)
@@ -106,7 +133,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
         val zip = File(context.cacheDir, "yomitan-download.zip")
         download(url, zip) { mb -> progress("Downloading… $mb MB") }
         progress("Importing…")
-        return importFile(zip, lang, replacing)
+        return importFile(zip, lang, replacing, replacing?.group ?: "")
     }
 
     /** The starter set for [lang] ([RECOMMENDED]): installs those not there yet. Answers one line per dictionary. */
@@ -195,6 +222,29 @@ class YomitanDictionaries private constructor(private val context: Context) {
         parseTerms(JSONArray(Hoshidicts.nativeQuery(h, word)))
     }
 
+    /** Yomitan's scan from the start of [text] (Japanese deinflection, longest match first): (matched text, term). */
+    fun scan(lang: Lang, text: String, max: Int = 16): List<Pair<String, Term>> = synchronized(this) {
+        val h = handle(lang) ?: return emptyList()
+        val a = JSONArray(Hoshidicts.nativeLookup(h, text, max))
+        (0 until a.length()).map { i -> a.getJSONObject(i).let { it.getString("matched") to parseTerms(JSONArray().put(it.getJSONObject("term"))).first() } }
+    }
+
+    /** Each enabled dictionary's styles.css, by dictionary title. */
+    fun styles(lang: Lang): Map<String, String> = synchronized(this) {
+        val h = handle(lang) ?: return emptyMap()
+        val o = JSONObject(Hoshidicts.nativeStyles(h))
+        o.keys().asSequence().associateWith { o.getString(it) }
+    }
+
+    /** A dictionary's media file (an image in its structured content), or null. */
+    fun media(lang: Lang, dict: String, path: String): ByteArray? = synchronized(this) {
+        handle(lang)?.let { Hoshidicts.nativeMedia(it, dict, path) }
+    }
+
+    /** The group a dictionary belongs to, by its title. */
+    fun groupOf(lang: Lang, title: String): String =
+        of(lang).firstOrNull { it.title == title }?.group.orEmpty().let { if (it.startsWith("JA-JA")) "Monolingual" else it }
+
     private fun handle(lang: Lang): Long? {
         handles[lang.code]?.let { return it }
         val dicts = of(lang).filter { it.enabled }
@@ -227,6 +277,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
             JSONObject().put("folder", it.folder).put("title", it.title).put("lang", it.lang).put("revision", it.revision)
                 .put("terms", it.terms).put("freq", it.freq).put("pitch", it.pitch).put("kanji", it.kanji)
                 .put("enabled", it.enabled).put("updatable", it.updatable).put("indexUrl", it.indexUrl).put("downloadUrl", it.downloadUrl)
+                .put("group", it.group)
         }).toString())
     }
 
@@ -237,7 +288,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
                 Dict(it.getString("folder"), it.getString("title"), it.getString("lang"), it.optString("revision"),
                     it.optLong("terms"), it.optLong("freq"), it.optLong("pitch"), it.optLong("kanji"), it.optBoolean("enabled", true),
                     it.optBoolean("updatable"), it.optString("indexUrl").takeIf { s -> s.isNotBlank() },
-                    it.optString("downloadUrl").takeIf { s -> s.isNotBlank() })
+                    it.optString("downloadUrl").takeIf { s -> s.isNotBlank() }, it.optString("group"))
             }
         }.filter { File(base, it.folder).isDirectory }
     }.onFailure { if (listFile.exists()) Log.w("kumapie", "yomitan list: $it") }.getOrDefault(emptyList())
@@ -249,9 +300,16 @@ class YomitanDictionaries private constructor(private val context: Context) {
                     val ipa: List<String> = emptyList())
 
     /** One dictionary's entry: its senses as plain text (structured content flattened), and its tags. */
-    data class Glossary(val dict: String, val senses: List<String>, val tags: String, val formOf: List<String> = emptyList())
+    data class Glossary(val dict: String, val senses: List<String>, val tags: String, val formOf: List<String> = emptyList(),
+                        /** The glossary as the dictionary has it (JSON: strings and structured content), for HTML. */
+                        val raw: String = "")
 
     companion object {
+        /** "[Bilingual, onomatopoeia] Onomatoproject.zip" -> "Bilingual"; no brackets -> "". */
+        fun groupOf(fileName: String): String =
+            Regex("""^\[([^\]]+)]""").find(fileName.substringAfterLast('/'))?.groupValues?.get(1)?.split(',', '・')?.first()?.trim()
+                ?.let { if (it.startsWith("JA-JA")) "Monolingual" else it }.orEmpty()
+
         @Volatile private var instance: YomitanDictionaries? = null
 
         /** One per process: the app and the update job share the list and the open dictionaries. */
@@ -277,7 +335,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
                     g.getJSONObject(j).let { e ->
                         Glossary(e.getString("dict"), senses(e.getString("glossary")),
                             listOf(e.optString("termTags"), e.optString("defTags")).filter { it.isNotBlank() }.joinToString(" "),
-                            formOf(e.getString("glossary")))
+                            formOf(e.getString("glossary")), e.getString("glossary"))
                     }
                 },
                 (0 until f.length()).map { j ->

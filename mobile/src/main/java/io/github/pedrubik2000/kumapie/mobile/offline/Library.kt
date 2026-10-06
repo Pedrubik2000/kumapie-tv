@@ -8,7 +8,7 @@ import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.lang.Dictionary
-import io.github.pedrubik2000.kumapie.mobile.lang.GermanVoice
+import io.github.pedrubik2000.kumapie.mobile.lang.Voice
 import io.github.pedrubik2000.kumapie.mobile.lang.KnownWords
 import io.github.pedrubik2000.kumapie.mobile.lang.Miner
 import io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries
@@ -39,7 +39,9 @@ class Library(context: Context, val settings: Settings) {
     /** Meanings without the PC: Yomitan dictionaries, else the offline Wiktionary file, Wiktionary online (cached), recordings. */
     val dictionary = Dictionary(context, yomitan)
     /** The device's German voice, for words without a recording. */
-    val voice by lazy { GermanVoice(context) }
+    val voice by lazy { Voice(context) }
+    /** The device's Japanese voice (the Japanese popup's 🔊). */
+    val voiceJa by lazy { Voice(context, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) }
     /** Cards mined into kuma3 Anki. */
     val miner by lazy { Miner(context, known, dictionary) { voice } }
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)

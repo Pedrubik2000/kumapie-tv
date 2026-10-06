@@ -11,16 +11,16 @@ import java.io.File
 import kotlin.coroutines.resume
 
 /**
- * The device's own German text-to-speech (Google's or Samsung's engine), for words without a recording: works
- * offline once the engine's German voice is installed (Settings shows whether it is, with a button to the
+ * The device's own text-to-speech in a language (Google's or Samsung's engine), for words without a recording:
+ * works offline once the engine's voice for it is installed (Settings shows whether it is, with a button to the
  * engine's settings).
  */
-class GermanVoice(context: Context) {
+class Voice(context: Context, private val lang: Lang = Lang.GERMAN) {
     @Volatile private var ready = false
     private var pending: String? = null
     private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
         if (status == TextToSpeech.SUCCESS) {
-            ready = tts.setLanguage(Lang.GERMAN.locale) >= TextToSpeech.LANG_AVAILABLE
+            ready = tts.setLanguage(lang.locale) >= TextToSpeech.LANG_AVAILABLE
             if (ready) pending?.let { speak(it) }
         }
         pending = null
@@ -59,12 +59,12 @@ class GermanVoice(context: Context) {
 
     /** For Settings: whether a German voice works without internet. */
     fun describe(): String {
-        if (!ready) return "No German voice yet: install one in the speech engine's settings."
-        val german = runCatching { tts.voices?.filter { it.locale.language == Lang.GERMAN.code } }.getOrNull().orEmpty()
-        val offline = german.any {
+        if (!ready) return "No ${lang.name} voice yet: install one in the speech engine's settings."
+        val voices = runCatching { tts.voices?.filter { it.locale.language == lang.code } }.getOrNull().orEmpty()
+        val offline = voices.any {
             !it.isNetworkConnectionRequired && TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in it.features.orEmpty()
         }
-        return if (offline) "German voice: installed, works offline (${tts.defaultEngine})."
-        else "German voice: needs internet. Install the German voice data in the speech engine's settings."
+        return if (offline) "${lang.name} voice: installed, works offline (${tts.defaultEngine})."
+        else "${lang.name} voice: needs internet. Install the ${lang.name} voice data in the speech engine's settings."
     }
 }

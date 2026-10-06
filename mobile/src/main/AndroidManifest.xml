@@ -42,6 +42,12 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Selected text in any app > "kumapie": the Japanese dictionary search. -->
+            <intent-filter android:label="Look up in kumapie">
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
             <!-- Share a YouTube link to kumapie: "Add an episode". -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

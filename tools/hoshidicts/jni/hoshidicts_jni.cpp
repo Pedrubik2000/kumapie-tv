@@ -215,6 +215,39 @@ JNIEXPORT jstring JNICALL FN(nativeQuery)(JNIEnv* env, jclass, jlong p, jstring 
   return jstr(env, o);
 }
 
+// Every loaded dictionary's styles.css: {"dict name": "css", ...}.
+JNIEXPORT jstring JNICALL FN(nativeStyles)(JNIEnv* env, jclass, jlong p) {
+  std::string o = "{";
+  try {
+    bool first = true;
+    for (const auto& s : h(p)->query.get_styles()) {
+      if (s.styles.empty()) continue;
+      if (!first) o += ',';
+      first = false;
+      esc(o, s.dict_name);
+      o += ':';
+      esc(o, s.styles);
+    }
+  } catch (...) {
+  }
+  o += '}';
+  return jstr(env, o);
+}
+
+// A file a dictionary's structured content shows (an image), or null.
+JNIEXPORT jbyteArray JNICALL FN(nativeMedia)(JNIEnv* env, jclass, jlong p, jstring dict, jstring path) {
+  try {
+    std::vector<uint8_t> out;
+    size_t n = h(p)->query.read_media_file(str(env, dict), str(env, path), out, 8 * 1024 * 1024);
+    if (n == 0 || out.empty()) return nullptr;
+    jbyteArray a = env->NewByteArray(static_cast<jsize>(out.size()));
+    env->SetByteArrayRegion(a, 0, static_cast<jsize>(out.size()), reinterpret_cast<const jbyte*>(out.data()));
+    return a;
+  } catch (...) {
+    return nullptr;
+  }
+}
+
 // Yomitan's scan from the start of `text` (Japanese deinflection), longest match first.
 JNIEXPORT jstring JNICALL FN(nativeLookup)(JNIEnv* env, jclass, jlong p, jstring text, jint max) {
   std::string o = "[";

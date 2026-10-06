@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Swipe
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -65,6 +66,7 @@ fun HomeScreen(
     onGrammar: () -> Unit,
     onImprove: () -> Unit,
     onSettings: () -> Unit,
+    onSearch: () -> Unit = {},
     /** A link shared to kumapie (YouTube): opens "Add an episode" with it. */
     sharedLink: String? = null,
 ) {
@@ -96,6 +98,7 @@ fun HomeScreen(
         Triple(Icons.Default.School, "Grammar", onGrammar),
         Triple(Icons.Default.Healing, "Cards that don't stick", onImprove),
         Triple(Icons.Default.BarChart, "Stats", onStats),
+        Triple(Icons.Default.Translate, "Japanese dictionary", onSearch),
         Triple(Icons.Default.Settings, "Settings", onSettings),
     )
     Scaffold(topBar = {

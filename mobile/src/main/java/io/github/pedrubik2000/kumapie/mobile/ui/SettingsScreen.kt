@@ -301,6 +301,18 @@ private fun YomitanSection(library: Library) {
     OutlinedButton(enabled = !busy, onClick = { pick.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) }) {
         Text(if (busy) "Working…" else "Import ${lang.name} dictionaries (.zip)")
     }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree == null) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            val zips = withContext(Dispatchers.IO) { dicts.zipsIn(tree) }
+            var n = 0
+            val lines = dicts.import(zips, lang) { said = "${++n}/${zips.size}: $it" }
+            said = "${lines.count { "imported" in it }} of ${zips.size} imported." + lines.filterNot { "imported" in it }.joinToString("") { "\n$it" }
+            busy = false
+        }
+    }
+    OutlinedButton(enabled = !busy, onClick = { pickFolder.launch(null) }) { Text("Import a folder of ${lang.name} dictionaries") }
     if (io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.RECOMMENDED[lang.code] != null) OutlinedButton(enabled = !busy, onClick = {
         busy = true
         scope.launch { said = dicts.installRecommended(lang) { said = it }.joinToString("\n"); busy = false }

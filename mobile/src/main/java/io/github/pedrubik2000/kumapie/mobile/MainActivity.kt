@@ -47,6 +47,7 @@ sealed interface Screen {
     data object Improve : Screen
     data object Settings : Screen
     data object Stats : Screen
+    data object Search : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -67,7 +68,11 @@ class MainActivity : ComponentActivity() {
         // A link shared to kumapie, or a magnet link opened in the browser, opens "Add an episode" with it.
         val shared = intent?.takeIf { it.action == android.content.Intent.ACTION_SEND }?.getStringExtra(android.content.Intent.EXTRA_TEXT)
             ?: intent?.takeIf { it.action == android.content.Intent.ACTION_VIEW }?.dataString
-        setContent { MobileTheme { App(library, shared) } }
+        // Japanese text to look up (other apps' "share" or `am start ... --es search 本当に`): opens the dictionary search.
+        val search = intent?.getStringExtra("search")
+            ?: intent?.takeIf { it.action == android.content.Intent.ACTION_PROCESS_TEXT }?.getCharSequenceExtra(android.content.Intent.EXTRA_PROCESS_TEXT)?.toString()
+        search?.let { settings.prefs.edit().putString("search_text", it).apply() }
+        setContent { MobileTheme { App(library, shared, openSearch = search != null) } }
     }
 
     /** A server address sent while the app is already open: save it and start over with it. */
@@ -81,10 +86,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun App(library: Library, sharedLink: String? = null) {
+fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = false) {
     val settings = library.settings
     var server by remember { mutableStateOf(settings.server) }
-    val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
+    val stack = remember { mutableStateListOf<Screen>(Screen.Home).apply { if (openSearch) add(Screen.Search) } }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
     // The show list, kept here so the episode list and the player see the same (refreshed) shows.
     var shows by remember { mutableStateOf<List<Show>>(emptyList()) }
@@ -117,6 +122,7 @@ fun App(library: Library, sharedLink: String? = null) {
                 onFeed = { stack += Screen.Feed },
                 onGrammar = { stack += Screen.Grammar },
                 onImprove = { stack += Screen.Improve },
+                onSearch = { stack += Screen.Search },
                 sharedLink = sharedLink,
                 onSettings = { stack += Screen.Settings },
             )
@@ -133,6 +139,7 @@ fun App(library: Library, sharedLink: String? = null) {
                 onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Grammar -> GrammarScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Stats -> StatsScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.Search -> io.github.pedrubik2000.kumapie.mobile.ui.SearchScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
     }

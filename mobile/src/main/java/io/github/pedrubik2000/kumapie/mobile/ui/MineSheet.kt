@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.mobile.german.Miner
+import io.github.pedrubik2000.kumapie.mobile.german.SensePick
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
@@ -38,7 +39,8 @@ private data class Choice(val label: String, val gloss: String, val example: Pai
 
 /**
  * "Add to Anki": the line as a sentence card, or the picked word as a word card with the meaning chosen from
- * kumapie's own meaning and every dictionary sense. Adds to kuma3 Anki's Deutsch::Mined ([Miner]).
+ * kumapie's own meaning and every dictionary sense. Without kumapie's own meaning, the sense that fits the line's
+ * English ([SensePick]) starts chosen. Adds to kuma3 Anki's Deutsch::Mined ([Miner]).
  */
 @Composable
 fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit) {
@@ -65,9 +67,17 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             ?.takeIf { it.isNotBlank() }
         val list = mutableListOf<Choice>()
         own?.let { list += Choice("kumapie: $it", it, null) }
-        library.dictionary.lookup(segment.text, key, lemma).forEach { e ->
-            e.senses.forEach { s -> list += Choice("${e.word} (${e.pos}): ${s.gloss}", s.gloss, s.examples.firstOrNull()) }
+        val entries = library.dictionary.lookup(segment.text, key, lemma)
+        val fits = SensePick.best(entries, SensePick.english(scene, line))
+        var fitting = -1
+        entries.forEachIndexed { i, e ->
+            e.senses.forEachIndexed { j, s ->
+                if (fits == i to j) fitting = list.size
+                list += Choice("${e.word} (${e.pos}): ${s.gloss}" + if (fits == i to j) "  · fits this line" else "", s.gloss,
+                    s.examples.firstOrNull())
+            }
         }
+        if (own == null && fitting >= 0) chosen = fitting
         choices = list
     }
 

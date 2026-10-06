@@ -19,7 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.pedrubik2000.kumapie.mobile.local.Gemma
 import io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker
+import io.github.pedrubik2000.kumapie.mobile.local.englishSource
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
 import io.github.pedrubik2000.kumapie.mobile.local.transcriber
 import io.github.pedrubik2000.kumapie.mobile.local.videoHeight
@@ -38,7 +40,9 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     var height by remember { mutableStateOf(library.settings.videoHeight) }
     val jobs by remember { ProcessWorker.states(context) }.collectAsState(initial = emptyList())
     val parakeet = library.settings.transcriber == "parakeet"
-    val ready = library.known.model.isReady && if (parakeet) io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context).isReady
+    val gemma = library.settings.englishSource == "gemma"
+    val gemmaReady = !gemma || Gemma(context).isReady
+    val ready = gemmaReady && library.known.model.isReady && if (parakeet) io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context).isReady
         else library.settings.sonioxKey.isNotBlank()
 
     // Scrolls: in landscape the sheet is taller than the screen (the button ended up under the navigation bar).
@@ -58,14 +62,20 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         }
         Text("Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p.",
             fontSize = 12.sp, color = Colors.dim)
-        if (!ready) Text(if (parakeet) "First: Settings > the German model and the speech model (Parakeet)."
+        if (!gemmaReady) Text("First: Settings > download the translation model (Gemma), or pick another English source.",
+            color = Colors.unknown, fontSize = 14.sp)
+        else if (!ready) Text(if (parakeet) "First: Settings > the German model and the speech model (Parakeet)."
             else "First: Settings > the German model, and your Soniox key.", color = Colors.unknown, fontSize = 14.sp)
         Button(enabled = ready && link.startsWith("http"), onClick = {
             ProcessWorker.start(context, link, show.takeIf { it.isNotBlank() }, height)
             link = ""
         }) { Text("Make it an episode") }
         Text("Download → " + (if (parakeet) "Parakeet on the tablet (free)" else "Soniox (paid, about \$0.10 an hour)") +
-            " → German and English subtitles → scenes. It runs in the " +
+            " → German subtitles → English " + when {
+                gemma -> "(Gemma on the tablet, about 3 s a line)"
+                library.settings.englishSource == "soniox" && !parakeet -> "(Soniox)"
+                else -> "(the device's translator)"
+            } + " → scenes. It runs in the " +
             "background; the episode appears on the home screen when done.", color = Colors.dim, fontSize = 13.sp)
         jobs.forEach { Text(it, fontSize = 14.sp) }
     }

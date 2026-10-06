@@ -54,7 +54,10 @@ var Settings.videoHeight: Int
     get() = prefs.getInt("video_height", 720)
     set(value) = prefs.edit().putInt("video_height", value).apply()
 
-/** "device" (Google's on-device translator, free, offline) or "soniox" (Soniox translates while transcribing). */
+/**
+ * "device" (Google's on-device translator: free, offline, instant, rough), "gemma" (Gemma on the device: free, offline,
+ * about 3 s a line, good) or "soniox" (Soniox translates while transcribing: best).
+ */
 var Settings.englishSource: String
     get() = prefs.getString("english_source", "device") ?: "device"
     set(value) = prefs.edit().putString("english_source", value).apply()
@@ -89,6 +92,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val parakeetHere = settings.transcriber == "parakeet"
         val key = if (parakeetHere) "" else settings.sonioxKey.ifBlank { error("Add your Soniox key in Settings first.") }
         if (parakeetHere && !Parakeet(applicationContext).isReady) error("Download the speech model (Parakeet) in Settings first.")
+        val gemma = Gemma(applicationContext)
+        if (settings.englishSource == "gemma" && !gemma.isReady) error("Download the translation model (Gemma) in Settings first.")
         val model = GermanModel(applicationContext)
         if (!model.isReady) error("Download the German model in Settings first.")
         val dir = local.dir(id).apply { mkdirs() }
@@ -120,7 +125,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         thumbnail(video, local.thumb(id))
         val duration = got.optDouble("duration").takeIf { it > 0 } ?: durationOf(video)
 
-        // 3. Soniox, or Parakeet on the tablet (then the English always comes from the device's translator).
+        // 3. Soniox, or Parakeet on the tablet (then the English comes from Gemma or the device's translator).
         val soniox = settings.englishSource == "soniox" && !parakeetHere
         val transcript = if (parakeetHere) {
             Parakeet(applicationContext).transcribe(audio) { report(it, 0.55f) }
@@ -134,9 +139,17 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
         // 4. English.
         val sonioxEnglish = JSONObject(transcript).getJSONArray("english")
-        val english = if (soniox && sonioxEnglish.length() > 0) sonioxEnglish.toString() else {
-            report("Translating to English on the device…", 0.75f)
-            translate(JSONArray(cues))
+        val english = when {
+            soniox && sonioxEnglish.length() > 0 -> sonioxEnglish.toString()
+            settings.englishSource == "gemma" -> withTranslator { translator ->
+                gemma.englishCues(JSONArray(cues), { report("Translating to English with Gemma: $it%", 0.75f + 0.15f * it / 100) }) {
+                    translator.translate(it).await() // a line Gemma skipped
+                }
+            }
+            else -> {
+                report("Translating to English on the device…", 0.75f)
+                translate(JSONArray(cues))
+            }
         }
 
         // 5. Scenes and words.
@@ -149,18 +162,23 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     }
 
     /** German cues → English cues with the same times, by Google's on-device translator (model ~30 MB, once). */
-    private suspend fun translate(cues: JSONArray): String {
+    private suspend fun translate(cues: JSONArray): String = withTranslator { translator ->
+        val out = JSONArray()
+        for (i in 0 until cues.length()) {
+            val c = cues.getJSONArray(i)
+            out.put(JSONArray().put(c.getDouble(0)).put(c.getDouble(1)).put(translator.translate(c.getString(2)).await()))
+            if (i % 20 == 0) report("Translating to English: ${i * 100 / cues.length()}%", 0.75f + 0.15f * i / cues.length())
+        }
+        out.toString()
+    }
+
+    /** Google's on-device German → English translator (model ~30 MB, downloaded once), closed afterwards. */
+    private suspend fun <T> withTranslator(use: suspend (com.google.mlkit.nl.translate.Translator) -> T): T {
         val translator = Translation.getClient(TranslatorOptions.Builder()
             .setSourceLanguage(TranslateLanguage.GERMAN).setTargetLanguage(TranslateLanguage.ENGLISH).build())
         try {
             translator.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
-            val out = JSONArray()
-            for (i in 0 until cues.length()) {
-                val c = cues.getJSONArray(i)
-                out.put(JSONArray().put(c.getDouble(0)).put(c.getDouble(1)).put(translator.translate(c.getString(2)).await()))
-                if (i % 20 == 0) report("Translating to English: ${i * 100 / cues.length()}%", 0.75f + 0.15f * i / cues.length())
-            }
-            return out.toString()
+            return use(translator)
         } finally {
             translator.close()
         }
@@ -269,8 +287,12 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         private const val CHANNEL = "downloads"
         private const val TAG = "process"
 
-        fun idFor(url: String) = "local-" + MessageDigest.getInstance("SHA-1").digest(url.trim().toByteArray())
-            .joinToString("") { "%02x".format(it) }.take(12)
+        /** One id per video: a YouTube link counts by its video id, so links shared with tracking (`?si=`) don't repeat it. */
+        fun idFor(url: String): String {
+            val video = Regex("""(?:youtu\.be/|[?&]v=|/shorts/|/live/|/embed/)([\w-]{11})""").find(url)?.groupValues?.get(1)
+            return "local-" + MessageDigest.getInstance("SHA-1").digest((video?.let { "youtube:$it" } ?: url.trim()).toByteArray())
+                .joinToString("") { "%02x".format(it) }.take(12)
+        }
 
         fun start(context: Context, url: String, show: String?, height: Int) {
             val req = OneTimeWorkRequestBuilder<ProcessWorker>()
@@ -296,7 +318,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 }
 
 /** A Play-services Task as a suspending call. */
-private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T = suspendCancellableCoroutine { cont ->
+internal suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T = suspendCancellableCoroutine { cont ->
     addOnSuccessListener { cont.resume(it) }
     addOnFailureListener { cont.resumeWithException(it) }
 }

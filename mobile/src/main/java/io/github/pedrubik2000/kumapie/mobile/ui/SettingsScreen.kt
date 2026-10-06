@@ -271,6 +271,10 @@ private fun NewEpisodesSection(library: Library) {
     val parakeetState by remember { parakeet.state() }.collectAsState(initial = null)
     var parakeetReady by remember { mutableStateOf(parakeet.isReady) }
     LaunchedEffect(parakeetState) { parakeetReady = parakeet.isReady }
+    val gemma = remember { io.github.pedrubik2000.kumapie.mobile.local.Gemma(context) }
+    val gemmaState by remember { gemma.state() }.collectAsState(initial = null)
+    var gemmaReady by remember { mutableStateOf(gemma.isReady) }
+    LaunchedEffect(gemmaState) { gemmaReady = gemma.isReady }
     Text("New episodes (YouTube)", color = Colors.accent)
     Text("Transcription", fontSize = 15.sp)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -280,7 +284,7 @@ private fun NewEpisodesSection(library: Library) {
             onClick = { transcriber = "parakeet"; library.settings.transcriber = "parakeet" })
     }
     if (transcriber == "parakeet") when {
-        parakeetReady -> Text("Parakeet: ready. More mistakes than Soniox (about 1 word in 9 differed in a test); English from the device.",
+        parakeetReady -> Text("Parakeet: ready. More mistakes than Soniox (about 1 word in 9 differed in a test).",
             fontSize = 13.sp, color = Colors.dim)
         parakeetState != null -> Text("Parakeet: $parakeetState", fontSize = 13.sp, color = Colors.dim)
         else -> OutlinedButton(onClick = { parakeet.download() }) { Text("Download Parakeet (about 640 MB, once)") }
@@ -288,11 +292,23 @@ private fun NewEpisodesSection(library: Library) {
     OutlinedTextField(key, { key = it; library.settings.sonioxKey = it }, label = { Text("Soniox API key") }, singleLine = true,
         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
     Text("English subtitles", fontSize = 15.sp)
-    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        androidx.compose.material3.FilterChip(selected = english == "device", label = { Text("On the device (free)") },
-            onClick = { english = "device"; library.settings.englishSource = "device" })
-        androidx.compose.material3.FilterChip(selected = english == "soniox", label = { Text("Soniox (better, no extra cost)") },
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        androidx.compose.material3.FilterChip(selected = english == "soniox", label = { Text("Soniox (best, no extra cost)") },
             onClick = { english = "soniox"; library.settings.englishSource = "soniox" })
+        androidx.compose.material3.FilterChip(selected = english == "gemma", label = { Text("Gemma on the tablet (free, offline, good)") },
+            onClick = { english = "gemma"; library.settings.englishSource = "gemma" })
+        androidx.compose.material3.FilterChip(selected = english == "device", label = { Text("Google's translator (instant, rough)") },
+            onClick = { english = "device"; library.settings.englishSource = "device" })
+    }
+    if (english == "soniox" && transcriber == "parakeet") {
+        Text("With Parakeet there is no Soniox: the English then comes from Google's translator.", fontSize = 13.sp, color = Colors.dim)
+    }
+    if (english == "gemma") when {
+        gemmaReady -> Text("Gemma: ready. It takes about 3 seconds a line (some 15 minutes for a 10-minute video) in the background.",
+            fontSize = 13.sp, color = Colors.dim)
+        gemmaState != null -> Text("Gemma: $gemmaState", fontSize = 13.sp, color = Colors.dim)
+        else -> OutlinedButton(onClick = { gemma.download() }) { Text("Download Gemma (about 2.8 GB, once)") }
     }
     Text("Add episodes with + on the home screen, or share a YouTube link to kumapie.", fontSize = 13.sp, color = Colors.dim)
 }

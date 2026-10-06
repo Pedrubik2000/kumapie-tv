@@ -7,6 +7,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- A scene on every unlock (unlock/Unlock.kt): a listener service, opening over other apps, back after reboot. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- Reading the German cards from kuma3 Anki (or AnkiDroid) for the word colours: see german/AnkiCards.kt. -->
     <uses-permission android:name="io.github.pedrubik2000.kuma3.permission.READ_WRITE_DATABASE" />
     <uses-permission android:name="com.ichi2.anki.debug.permission.READ_WRITE_DATABASE" />
@@ -37,6 +42,33 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The unlock screen: its own task, out of Recents. -->
+        <activity
+            android:name=".unlock.UnlockActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="" />
+
+        <service
+            android:name=".unlock.UnlockService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Listens for screen unlock to show a language-learning scene the user asked for" />
+        </service>
+
+        <receiver
+            android:name=".unlock.UnlockBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Mined cards' clip and audio, lent to kuma3 Anki while it copies them into its media folder. -->
         <provider

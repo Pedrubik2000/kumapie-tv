@@ -11,6 +11,7 @@ import io.github.pedrubik2000.kumapie.mobile.german.Dictionary
 import io.github.pedrubik2000.kumapie.mobile.german.GermanVoice
 import io.github.pedrubik2000.kumapie.mobile.german.KnownWords
 import io.github.pedrubik2000.kumapie.mobile.german.Miner
+import io.github.pedrubik2000.kumapie.mobile.unlock.UnlockPool
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -24,6 +25,7 @@ import java.io.IOException
  * show list, downloaded episodes). Reports go through [Pending], so they reach the PC later when offline.
  */
 class Library(context: Context, val settings: Settings) {
+    private val appContext = context.applicationContext
     val downloads = Downloads(context)
     val pending = Pending(context)
     /** Word colours from the device's own Anki (kuma3-anki), once read; until then the PC's. */
@@ -80,7 +82,7 @@ class Library(context: Context, val settings: Settings) {
             progress("Reading episodes ${i + 1} of ${list.size}…")
             val detail = episodeCache[ep.id] ?: runCatching { episode(ep.id) }.getOrNull()?.also { episodeCache[ep.id] = it }
             detail?.let { show to it }
-        }
+        }.also { found -> if (found.isNotEmpty()) UnlockPool.save(appContext, found.map { it.second }) }
     }
 
     private val episodeCache = java.util.concurrent.ConcurrentHashMap<String, EpisodeDetail>()

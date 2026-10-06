@@ -164,6 +164,8 @@ internal fun ScenePlayer(
     /** Switches between landscape and upright (null: no switch, e.g. in the feed). */
     onUpright: (() -> Unit)? = null,
     uprightNow: Boolean = false,
+    /** Subtitles for this player only, not saved (unlock screen: German + English). */
+    subtitles: io.github.pedrubik2000.kumapie.data.Subtitles? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -173,7 +175,7 @@ internal fun ScenePlayer(
             prepare()
         }
     }
-    val ctl = remember { SceneController(episode, player, settings, backend) }
+    val ctl = remember { SceneController(episode, player, settings, backend, subtitles) }
     val picker = remember { WordPicker(ctl, backend, scope) }
     var anchor by remember { mutableStateOf<Rect?>(null) }
     var options by remember { mutableStateOf(false) }

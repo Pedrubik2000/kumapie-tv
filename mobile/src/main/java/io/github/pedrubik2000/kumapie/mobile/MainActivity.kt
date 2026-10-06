@@ -22,6 +22,7 @@ import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
+import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
 import io.github.pedrubik2000.kumapie.mobile.ui.FeedScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.HomeScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.IPlusOneScreen
@@ -58,6 +59,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         enableEdgeToEdge()
         val library = Library(applicationContext, settings)
+        io.github.pedrubik2000.kumapie.mobile.unlock.UnlockService.sync(this) // the unlock listener, if it's on
         setContent { MobileTheme { App(library) } }
     }
 
@@ -87,6 +89,9 @@ fun App(library: Library) {
         // Only once Anki has been read here by hand: reading wakes AnkiDroid, and an AnkiDroid that was never opened
         // then sets itself up with a new empty collection in /sdcard/AnkiDroid.
         if (library.known.ready && library.known.model.isReady) library.known.refresh()
+    }
+    LaunchedEffect(shows) { // fresh i+1 scenes for the unlock screen (only when it's on)
+        if (shows.isNotEmpty() && settings.unlockScenes) library.allEpisodes(shows)
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
 

@@ -63,6 +63,9 @@ class SceneController(
     /** Primed Listening: a new scene waits on its start (all its lines shown while paused) until play. */
     var pauseAtSceneStart by mutableStateOf(settings.pauseAtSceneStart)
         private set
+    /** Scenes not seen before this episode opened play straight through: no pauses, the gaps between scenes too. */
+    var newStraight by mutableStateOf(settings.newStraight)
+        private set
     var slow by mutableStateOf(settings.slow)
         private set
     /** What the subtitles show. Stays as set from scene to scene and is remembered for next time. */
@@ -104,7 +107,7 @@ class SceneController(
     /** Start the episode: the resume scene, paused or playing as the mode says; [paused]: on its start, not playing. */
     fun begin(paused: Boolean = false) {
         if (scenes.isEmpty()) return
-        if (!paused && !pauseAtSceneStart) return playScene(index)
+        if (!paused && !pausesAtStart(scene)) return playScene(index)
         atSceneEnd = false
         seek(scene.start)
         showBanner()
@@ -117,7 +120,7 @@ class SceneController(
         index = i.coerceIn(0, scenes.lastIndex)
         atSceneEnd = false
         seek(scene.start)
-        if (other && pauseAtSceneStart) {
+        if (other && pausesAtStart(scene)) {
             player.pause()
             playing = false
         } else {
@@ -194,6 +197,13 @@ class SceneController(
         showBanner()
     }
 
+    fun toggleNewStraight() {
+        newStraight = !newStraight
+        settings.newStraight = newStraight
+        if (player.isPlaying) stopAtSceneEnd()
+        showBanner()
+    }
+
     fun togglePauseAtSceneStart() {
         pauseAtSceneStart = !pauseAtSceneStart
         settings.pauseAtSceneStart = pauseAtSceneStart
@@ -218,14 +228,16 @@ class SceneController(
         if (scenes.isEmpty()) return
 
         if (playing && position >= scene.end) seenNew += scene.id
-        if (!pauseAtSceneEnd) { // playing on: follow the video into the next scene
+        if (!pausesAtEnd(scene)) { // playing on: follow the video into the next scene
             val i = scenes.indexOfLast { it.start <= position }
             if (i > index) {
                 index = i
-                if (pauseAtSceneStart && playing) { // wait on the new scene's start to read it
+                if (pausesAtStart(scene) && playing) { // wait on the new scene's start to read it
                     player.pause()
                     playing = false
                     seek(scene.start)
+                } else if (playing) {
+                    stopAtSceneEnd() // from a new scene played straight into a seen one: its own end may pause
                 }
                 showBanner()
             }
@@ -269,8 +281,12 @@ class SceneController(
         position = seconds
     }
 
+    private fun straight(s: Scene) = newStraight && !s.seen
+    private fun pausesAtStart(s: Scene) = pauseAtSceneStart && !straight(s)
+    private fun pausesAtEnd(s: Scene) = pauseAtSceneEnd && !straight(s)
+
     private fun stopAtSceneEnd() {
-        if (pauseAtSceneEnd) {
+        if (pausesAtEnd(scene)) {
             stopAt = scene.end
             stopIsSceneEnd = true
         } else {

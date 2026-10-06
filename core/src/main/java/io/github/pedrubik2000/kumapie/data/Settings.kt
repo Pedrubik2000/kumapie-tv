@@ -22,6 +22,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("pause_at_scene_end", true)
         set(value) = prefs.edit().putBoolean("pause_at_scene_end", value).apply()
 
+    /** Scenes not seen yet play straight through (gaps too, no pauses); seen ones follow the two settings above. */
+    var newStraight: Boolean
+        get() = prefs.getBoolean("new_straight", false)
+        set(value) = prefs.edit().putBoolean("new_straight", value).apply()
+
     /** Play at 0.75x. */
     var slow: Boolean
         get() = prefs.getBoolean("slow", false)

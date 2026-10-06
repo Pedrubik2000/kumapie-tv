@@ -34,16 +34,28 @@ class SubSync(private val context: Context) {
         val ref = File(context.cacheDir, "sync-reference.srt")
         ref.writeText(spans.mapIndexed { i, (start, pcm) -> "${i + 1}\n${ts(start / 16000.0)} --> ${ts((start + pcm.size) / 16000.0)}\n.\n" }
             .joinToString("\n"))
+        try {
+            // Singing counts as speech for the VAD, so alass may move whole parts into the opening or ending song
+            // (Bofuri 01: +40 s and +74 s). A firmer split penalty than alass's 7, and a part over 20 s away from the
+            // rest means one offset for everything. ponytail: 20 s guard; TV captures with whole ad breaks
+            // differ by more and then need the manual fix.
+            val log = alass(ref, subs, out, "--split-penalty", "11")
+            if (!strayPart(log)) summary(log) else summary(alass(ref, subs, out, "--no-split")) + " (one offset: parts looked like songs)"
+        } finally {
+            ref.delete()
+        }
+    }
+
+    private suspend fun alass(ref: File, subs: File, out: File, vararg options: String): String {
         val bin = File(context.applicationInfo.nativeLibraryDir, "libalass.so")
-        val proc = ProcessBuilder(bin.path, ref.path, subs.path, out.path).redirectErrorStream(true).start()
+        val proc = ProcessBuilder(listOf(bin.path, *options, ref.path, subs.path, out.path)).redirectErrorStream(true).start()
         try {
             val log = runInterruptible { proc.inputStream.bufferedReader().readText() }
             val code = runInterruptible { proc.waitFor() }
             if (code != 0 || !out.exists()) error("alass exited with $code: " + log.lines().lastOrNull { it.isNotBlank() })
-            summary(log)
+            return log
         } finally {
             proc.destroy()
-            ref.delete()
         }
     }
 
@@ -53,12 +65,21 @@ class SubSync(private val context: Context) {
             return "%02d:%02d:%02d,%03d".format(Locale.ROOT, ms / 3_600_000, ms / 60_000 % 60, ms / 1000 % 60, ms % 1000)
         }
 
+        private fun shifts(log: String) = Regex("""shifted block of (\d+) subtitles .*? by (-?)(\d+):(\d+):(\d+\.\d+)""").findAll(log).map { m ->
+            val (count, sign, h, min, s) = m.destructured
+            count.toInt() to (if (sign == "-") -1 else 1) * (h.toInt() * 3600 + min.toInt() * 60 + s.toDouble())
+        }.toList()
+
+        /** A part of 5+ lines shifted over 20 s away from the biggest part's shift. */
+        fun strayPart(log: String): Boolean {
+            val parts = shifts(log)
+            val main = parts.maxByOrNull { it.first }?.second ?: return false
+            return parts.any { it.first >= 5 && kotlin.math.abs(it.second - main) > 20 }
+        }
+
         /** alass's "shifted block of N subtitles … by -0:00:03.758" lines (and a frame-rate ratio) → "−3.76 s" / "2 parts: …". */
         fun summary(log: String): String {
-            val shifts = Regex("""shifted block of (\d+) subtitles .*? by (-?)(\d+):(\d+):(\d+\.\d+)""").findAll(log).map { m ->
-                val (count, sign, h, min, s) = m.destructured
-                count.toInt() to (if (sign == "-") -1 else 1) * (h.toInt() * 3600 + min.toInt() * 60 + s.toDouble())
-            }.toList()
+            val shifts = shifts(log)
             val ratio = Regex("""ratio is ([\d.]+/[\d.]+)""").find(log)?.groupValues?.get(1)?.takeIf { it != "1" }
             fun s(x: Double) = "%+.2f s".format(Locale.ROOT, x)
             val main = shifts.maxByOrNull { it.first }?.second ?: 0.0

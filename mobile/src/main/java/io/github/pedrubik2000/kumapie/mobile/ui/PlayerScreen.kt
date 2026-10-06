@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -179,6 +180,7 @@ internal fun ScenePlayer(
     val picker = remember { WordPicker(ctl, backend, scope) }
     var anchor by remember { mutableStateOf<Rect?>(null) }
     var options by remember { mutableStateOf(false) }
+    var sceneList by remember { mutableStateOf(false) }
     var mining by remember { mutableStateOf(false) }
     var flash by remember { mutableStateOf<String?>(null) } // "Replay line" etc., shown briefly in the middle
     var flashAt by remember { mutableLongStateOf(0L) }
@@ -263,7 +265,7 @@ internal fun ScenePlayer(
         )
 
         val barVisible = !ctl.playing || now < ctl.bannerUntil || picker.isOpen
-        if (barVisible) TopBar(ctl, onBack = onBack, onOptions = { options = true })
+        if (barVisible) TopBar(ctl, onBack = onBack, onOptions = { options = true }, onScenes = { sceneList = true })
         if (!ctl.playing && !picker.isOpen) {
             Box(Modifier.align(Alignment.Center).size(64.dp).background(Color(0x66000000), CircleShape),
                 contentAlignment = Alignment.Center) {
@@ -297,6 +299,11 @@ internal fun ScenePlayer(
             Options(ctl, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow)
         }
     }
+    if (sceneList) {
+        ModalBottomSheet(onDismissRequest = { sceneList = false }) {
+            SceneList(ctl, onPick = { i -> sceneList = false; picker.close(); ctl.playScene(i) })
+        }
+    }
     if (mining) {
         ModalBottomSheet(onDismissRequest = { mining = false }) { MineSheet(library, episode, ctl, picker, onDone = { mining = false }) }
     }
@@ -304,7 +311,7 @@ internal fun ScenePlayer(
 
 /** Back, show and episode, scene n/N with its level, the modes, and ⋮. */
 @Composable
-private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Unit) {
+private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Unit, onScenes: () -> Unit) {
     val scene = ctl.scene
     Row(
         Modifier.fillMaxWidth()
@@ -315,13 +322,16 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Colors.text) }
         Text("${ctl.episode.show} · ${ctl.episode.title}", color = Colors.text, fontSize = 15.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        val modes = listOfNotNull(if (ctl.pauseAtSceneStart) "primed" else null, if (ctl.pauseAtSceneEnd) null else "plays on",
+        val modes = listOfNotNull(if (ctl.newStraight) "new: straight" else null,
+            if (ctl.pauseAtSceneStart) "primed" else null, if (ctl.pauseAtSceneEnd) null else "plays on",
             if (ctl.slow) "0.75x" else null)
         if (modes.isNotEmpty()) Text(modes.joinToString(" · "), color = Colors.dim, fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 8.dp))
         // One scene alone (feed, unlock): its place in the episode.
+        // Tap: the list of scenes, to jump to one.
         Text(if (ctl.scenes.size == 1) "scene ${scene.index + 1}" else "${scene.index + 1} / ${ctl.scenes.size}",
-            color = Colors.text, fontSize = 15.sp)
+            color = Colors.text, fontSize = 15.sp, modifier = if (ctl.scenes.size > 1)
+                Modifier.clickable(onClick = onScenes).padding(horizontal = 6.dp, vertical = 8.dp) else Modifier)
         LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 10.dp))
         IconButton(onClick = onOptions) { Icon(Icons.Default.MoreVert, "Options", tint = Colors.text) }
     }
@@ -337,6 +347,28 @@ private fun LevelBadge(level: Int?, modifier: Modifier = Modifier) {
     }
     Text(text, color = Color.Black, fontSize = 14.sp,
         modifier = modifier.background(color, RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 1.dp))
+}
+
+/** Every scene: number, start time, first line, level, ✓ when seen; the one playing highlighted. Tap = play it. */
+@Composable
+private fun SceneList(ctl: SceneController, onPick: (Int) -> Unit) {
+    val list = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (ctl.index - 3).coerceAtLeast(0))
+    androidx.compose.foundation.lazy.LazyColumn(state = list, modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
+        items(ctl.scenes.size) { i ->
+            val sc = ctl.scenes[i]
+            val start = sc.start.toInt()
+            Row(Modifier.fillMaxWidth().clickable { onPick(i) }
+                .background(if (i == ctl.index) Color(0x33FFFFFF) else Color.Transparent)
+                .padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${i + 1}", color = Colors.dim, fontSize = 14.sp, modifier = Modifier.width(36.dp))
+                Text("%d:%02d".format(start / 60, start % 60), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.width(52.dp))
+                Text(sc.cues.firstOrNull()?.text ?: "", fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f))
+                if (sc.seen) Icon(Icons.Default.Check, "Seen", tint = Colors.dim, modifier = Modifier.padding(horizontal = 6.dp).size(16.dp))
+                LevelBadge(ctl.levelOf(sc))
+            }
+        }
+    }
 }
 
 /** Under the meaning: hear the word, hear the definition, replay the line, mark known. */
@@ -365,6 +397,7 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OptionRow("Primed Listening: pause at the start of each scene (read, then play)", ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
         OptionRow("Pause at the end of each scene", ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
+        OptionRow("Scenes I haven't seen: play straight through (no pauses, nothing skipped)", ctl.newStraight, ctl::toggleNewStraight)
         OptionRow("Slow (0.75x)", ctl.slow, ctl::toggleSlow)
         if (onUpright != null) OptionRow("Upright: scene by scene, swipe up", uprightNow, onUpright)
         Text("Subtitles", color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
@@ -374,7 +407,7 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
             }
         }
         Text(
-            "Tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
+            "Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
                 "right: the scene · tap the subtitles: next mode (hidden: tap the bottom of the screen) · " +
                 "tap a word: its meaning, then tap the words of the German definition too.",
             color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),

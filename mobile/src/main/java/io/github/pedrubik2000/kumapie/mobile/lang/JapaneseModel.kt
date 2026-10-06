@@ -37,7 +37,7 @@ class JapaneseModel(private val context: Context) {
     fun state(): Flow<String?> = AssetWorker.state(work, WORK)
 
     /** A word as Sudachi splits it: [base] is its dictionary form (the known-word key), [reading] in katakana. */
-    data class Token(val surface: String, val base: String, val reading: String, val pos: String, val begin: Int) {
+    data class Token(val surface: String, val base: String, val reading: String, val pos: String, val begin: Int, val sub: String = "") {
         /** Punctuation, symbols and blanks: not words. */
         val isWord: Boolean get() = pos != "補助記号" && pos != "空白"
     }
@@ -47,10 +47,13 @@ class JapaneseModel(private val context: Context) {
         val tok = tokenizer()
         return texts.map { text ->
             tok.tokenize(Tokenizer.SplitMode.B, text).map {
-                Token(it.surface(), it.dictionaryForm(), it.readingForm(), it.partOfSpeech()[0], it.begin())
+                Token(it.surface(), it.dictionaryForm(), it.readingForm(), it.partOfSpeech()[0], it.begin(), it.partOfSpeech()[1])
             }
         }
     }
+
+    /** Each text's words as a learner sees them ([join]): 届いた (届く), できない (できる), でも, 防御力. */
+    fun words(texts: List<String>): List<List<Token>> = parse(texts).map(::join)
 
     private fun tokenizer(): Tokenizer = synchronized(Companion) {
         loaded?.takeIf { it.first == dic.path }?.second ?: run {
@@ -61,6 +64,51 @@ class JapaneseModel(private val context: Context) {
     }
 
     companion object {
+        private val HEADS = setOf("動詞", "形容詞")
+        private val HONORIFIC = setOf("さん", "ちゃん", "くん", "君", "様", "さま", "たち", "達", "殿", "氏")
+        private val CONNECTIVE = setOf("て", "で", "ちゃ", "じゃ")
+
+        /**
+         * Sudachi's mode-B pieces joined into learner words (prototype and checks: C:\dojo\work\ja-parser\chunks.py):
+         * a verb or adjective takes its auxiliaries, て/で and the helper verbs after them (届い+た, 教え+て+い+ませ+ん,
+         * し+なさい), keyed by its dictionary form; a noun takes its suffix (防御+力, 素早+さ; not さん/ちゃん), keyed by the
+         * whole; だ/で + particle opening a phrase is a conjunction (でも, だって, だけど). Particles stay words of their own.
+         */
+        fun join(tokens: List<Token>): List<Token> {
+            val out = ArrayList<Token>()
+            var last = ""          // part of speech of the piece just joined
+            var opens = true       // the current word opens a phrase (start, after a space or punctuation)
+            var boundary = true
+            for (t in tokens) {
+                val cur = out.lastOrNull()
+                var joins: String? = null
+                if (cur != null && !boundary) {
+                    val head = cur.pos
+                    joins = when {
+                        t.pos == "接尾辞" && t.surface !in HONORIFIC && head != "助詞" && head != "助動詞" -> "noun"
+                        head in HEADS && (t.pos == "助動詞" ||
+                            (t.pos == "助詞" && t.sub == "接続助詞" && t.surface in CONNECTIVE && last != "助詞") ||
+                            (t.sub == "非自立可能" && t.pos in HEADS && last in setOf("助詞", "助動詞", "動詞"))) -> "inflect"
+                        head == "助動詞" && (t.pos == "助動詞" || (t.pos == "形容詞" && t.sub == "非自立可能")) -> "inflect"
+                        opens && cur.surface in setOf("で", "だ") && t.pos == "助詞" && t.surface in setOf("も", "って", "けど", "から", "けれど") -> "conj"
+                        else -> null
+                    }
+                }
+                when (joins) {
+                    "noun" -> out[out.lastIndex] = cur!!.copy(surface = cur.surface + t.surface, base = cur.surface + t.surface,
+                        reading = cur.reading + t.reading, pos = "名詞", sub = "")
+                    "conj" -> out[out.lastIndex] = cur!!.copy(surface = cur.surface + t.surface, base = cur.surface + t.surface,
+                        reading = cur.reading + t.reading, pos = "接続詞", sub = "")
+                    "inflect" -> out[out.lastIndex] = cur!!.copy(surface = cur.surface + t.surface, reading = cur.reading + t.reading)
+                    else -> { out += t; opens = boundary }
+                }
+                if (joins == "conj") opens = false
+                last = t.pos
+                boundary = t.pos == "補助記号" || t.pos == "空白"
+            }
+            return out
+        }
+
         const val VERSION = "20260723.1"
         const val URL = "https://files.pythonhosted.org/packages/85/af/ba8419f684865b8cca587e01cedb41ba83fbdc985d75ab9e6ff38fdedf1a/" +
             "sudachidict_core-$VERSION-py3-none-any.whl"

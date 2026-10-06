@@ -281,7 +281,7 @@ internal fun ScenePlayer(
         })
         if (picker.isOpen && picker.cardOpen) anchor?.let {
             // With imported dictionaries the popup below has the meanings: no second, episode-made meaning above it.
-            val dictionaries = remember { library.yomitan.of(io.github.pedrubik2000.kumapie.data.Lang.GERMAN).any { d -> d.enabled && d.terms > 0 } }
+            val dictionaries = remember { library.yomitan.of(ctl.lang).any { d -> d.enabled && d.terms > 0 } }
             MeaningCard(ctl, picker, it, maxWidth = 460.dp, onTapDef = picker::tapInDef, ownMeaning = !dictionaries, footer = {
                 DictionaryPanel(library, ctl, picker)
                 CardButtons(ctl, picker, onMine = { mining = true })

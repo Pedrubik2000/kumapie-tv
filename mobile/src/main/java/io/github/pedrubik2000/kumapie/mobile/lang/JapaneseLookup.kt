@@ -19,10 +19,17 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
     fun token(text: String, offset: Int): JapaneseModel.Token? =
         model.parse(listOf(text)).first().lastOrNull { it.begin <= offset }?.takeIf { it.isWord }
 
-    fun lookup(text: String, offset: Int): List<Headword> {
+    /**
+     * The headwords for a tap at [offset] in [text]. [length]: the tapped word's length in the player (a joined word like
+     * 届いた or すいません): what the scan finds for exactly that word comes first, as in Yomitan.
+     */
+    fun lookup(text: String, offset: Int, length: Int = 0): List<Headword> {
         val ja = Lang.JAPANESE
         val tok = token(text, offset)
         val found = ArrayList<YomitanDictionaries.Term>()
+        val from = tok?.begin ?: offset
+        val scanned = dicts.scan(ja, text.substring(from.coerceIn(0, text.length)))
+        if (length > 0) found += scanned.filter { (matched, _) -> matched.length == length }.map { it.second }
         if (tok != null) {
             // The dictionary form first (教えて -> 教える, not the noun 教え); then the word as written.
             // Sudachi's reading of the written word picks among same spellings (行く いく / ゆく).
@@ -31,10 +38,10 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             val asWritten = if (tok.surface != tok.base) dicts.query(ja, tok.surface) else emptyList()
             found += base + asWritten.sortedBy { if (readingOf(it).let { r -> r.isEmpty() || r == surfaceReading }) 0 else 1 }
         }
-        val from = tok?.begin ?: offset
         // The scan's longer phrases (本当に, 本当にありがとう) and other spellings; not pieces shorter than the word (本).
-        found += dicts.scan(ja, text.substring(from.coerceIn(0, text.length)))
-            .filter { (matched, _) -> tok == null || matched.length >= tok.surface.length }.map { it.second }
+        found += scanned.filter { (matched, _) -> tok == null || matched.length >= tok.surface.length }.map { it.second }
+        val unique = found.distinct()
+        found.clear(); found += unique
         // One headword per word and reading (hiragana); entries without a reading join the first with that spelling.
         val out = LinkedHashMap<Pair<String, String>, MutableList<YomitanDictionaries.Term>>()
         for (t in found) if (readingOf(t).isNotEmpty()) out.getOrPut(t.expression to readingOf(t)) { ArrayList() } += t

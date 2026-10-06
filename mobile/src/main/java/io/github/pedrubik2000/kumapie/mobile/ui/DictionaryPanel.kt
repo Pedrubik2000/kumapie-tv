@@ -35,6 +35,7 @@ import io.github.pedrubik2000.kumapie.ui.Colors
  */
 @Composable
 fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) {
+    if (ctl.lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) return JapanesePanel(library, ctl, picker)
     val segment = picker.selectedInDef ?: picker.selected ?: return
     val key = segment.word
     val lemma = key?.let { ctl.words[it]?.lemma }?.takeIf { it.isNotBlank() }
@@ -77,6 +78,30 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
                 if (more) TextButton(onClick = { all = true }) { Text("All meanings (${found.sumOf { it.senses.size }})", fontSize = 14.sp) }
                 if (found.any { it.online }) Text("From Wiktionary online, saved on this device.", color = Colors.dim, fontSize = 12.sp)
             }
+        }
+    }
+}
+
+/** Japanese episodes: the Yomitan popup for the tapped word, looked up from its place in the line (as Yomitan scans). */
+@Composable
+private fun JapanesePanel(library: Library, ctl: SceneController, picker: WordPicker) {
+    val cue = ctl.scene.cues.getOrNull(picker.line) ?: return
+    val segment = cue.segments.getOrNull(picker.seg) ?: return
+    val offset = cue.segments.take(picker.seg).sumOf { it.text.length }
+    val lookup = remember { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup(library.knownJa.japanese, library.yomitan) }
+    var headwords by remember(cue, picker.seg) { mutableStateOf<List<io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.Headword>?>(null) }
+    LaunchedEffect(cue, picker.seg) {
+        headwords = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            runCatching { lookup.lookup(cue.text, offset, segment.text.length) }.getOrDefault(emptyList())
+        }
+    }
+    HorizontalDivider(Modifier.padding(top = 8.dp, bottom = 4.dp), color = Colors.dim.copy(alpha = 0.3f))
+    Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+        when {
+            !library.knownJa.modelReady -> Text("Download the Japanese words dictionary (Sudachi) in Settings first.", color = Colors.dim, fontSize = 14.sp)
+            headwords == null -> Text("Looking it up…", color = Colors.dim, fontSize = 14.sp)
+            else -> YomitanPopup(library, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE, headwords!!,
+                onSpeak = { library.voiceJa.speak(it) }, compact = true)
         }
     }
 }

@@ -261,7 +261,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         report("Finding scenes and words…", 0.9f)
         val parsed = if (!japanese) "" else {
             val texts = JSONArray(cues).let { a -> (0 until a.length()).map { a.getJSONArray(it).getString(2) } }
-            JSONArray(JapaneseModel(applicationContext).parse(texts).map { tokens ->
+            JSONArray(JapaneseModel(applicationContext).words(texts).map { tokens ->
                 JSONArray(tokens.map { t -> JSONArray().put(t.surface).put(t.begin).put(if (t.isWord) t.base else JSONObject.NULL).put(JSONObject.NULL) })
             }).toString()
         }

@@ -24,6 +24,7 @@ import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
 import io.github.pedrubik2000.kumapie.mobile.ui.FeedScreen
+import io.github.pedrubik2000.kumapie.mobile.ui.GrammarScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.HomeScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.IPlusOneScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.MobileTheme
@@ -41,6 +42,7 @@ sealed interface Screen {
     data class Player(val show: Show, val episode: Episode, val startAt: Double? = null) : Screen
     data object IPlusOne : Screen
     data object Feed : Screen
+    data object Grammar : Screen
     data object Settings : Screen
     data object Stats : Screen
 }
@@ -109,6 +111,7 @@ fun App(library: Library, sharedLink: String? = null) {
                 onStats = { stack += Screen.Stats },
                 onIPlusOne = { stack += Screen.IPlusOne },
                 onFeed = { stack += Screen.Feed },
+                onGrammar = { stack += Screen.Grammar },
                 sharedLink = sharedLink,
                 onSettings = { stack += Screen.Settings },
             )
@@ -121,6 +124,7 @@ fun App(library: Library, sharedLink: String? = null) {
                 onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server },
                 onUpdate = { update = it }, onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.Grammar -> GrammarScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Stats -> StatsScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }

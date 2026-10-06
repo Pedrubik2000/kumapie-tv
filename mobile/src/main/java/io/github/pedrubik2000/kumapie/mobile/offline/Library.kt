@@ -34,6 +34,7 @@ class Library(context: Context, val settings: Settings) {
     val known = KnownWords(context, settings)
     /** The same for Japanese (🐻 Japanese, Sudachi); used by Japanese episodes once they exist (plan step 4). */
     val knownJa = KnownWords(context, settings, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE)
+    fun knownFor(lang: String) = if (lang == knownJa.lang.code) knownJa else known
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
     val yomitan = YomitanDictionaries.get(context).also { io.github.pedrubik2000.kumapie.mobile.lang.YomitanUpdateWorker.schedule(context) }
     /** Meanings without the PC: Yomitan dictionaries, else the offline Wiktionary file, Wiktionary online (cached), recordings. */
@@ -100,7 +101,7 @@ class Library(context: Context, val settings: Settings) {
         val api = api
         if (LocalEpisodes.isLocal(id)) {
             val json = withContext(Dispatchers.IO) { local.json(id).readText() }
-            val detail = withSeen(known.apply(api.parseEpisode(json)))
+            val detail = withSeen(api.parseEpisode(json).let { knownFor(it.lang).apply(it) })
             return detail.copy(video = Uri.fromFile(local.video(id)).toString(), resume = progress.merged.pos[id])
         }
         val downloaded = downloads.isComplete(id)
@@ -113,7 +114,7 @@ class Library(context: Context, val settings: Settings) {
             if (fresh != null && downloaded) downloads.episodeJson(id).writeText(fresh) // fresher word colours offline
             fresh ?: if (downloaded) downloads.episodeJson(id).readText() else null
         } ?: throw IOException("The PC doesn't answer and this episode isn't downloaded.")
-        val detail = withSeen(known.apply(api.parseEpisode(json)))
+        val detail = withSeen(api.parseEpisode(json).let { knownFor(it.lang).apply(it) })
         return detail.copy(
             video = if (downloaded) Uri.fromFile(downloads.video(id)).toString() else detail.video,
             resume = progress.merged.pos[id] ?: pending.lastPosition(id) ?: detail.resume,

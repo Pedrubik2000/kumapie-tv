@@ -21,7 +21,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.mobile.local.Gemma
 import io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker
+import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseModel
 import io.github.pedrubik2000.kumapie.mobile.local.englishSource
+import io.github.pedrubik2000.kumapie.mobile.local.jimakuKey
 import io.github.pedrubik2000.kumapie.mobile.local.rdToken
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
 import io.github.pedrubik2000.kumapie.mobile.local.transcriber
@@ -40,8 +43,10 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     var link by remember { mutableStateOf(sharedLink?.let { Regex("""(https?://|magnet:)\S+""").find(it)?.value } ?: "") }
     var show by remember { mutableStateOf("") }
     var height by remember { mutableStateOf(library.settings.videoHeight) }
+    var lang by remember { mutableStateOf(Lang.GERMAN) }
+    val japanese = lang == Lang.JAPANESE
     val jobs by remember { ProcessWorker.states(context) }.collectAsState(initial = emptyList())
-    val parakeet = library.settings.transcriber == "parakeet"
+    val parakeet = !japanese && library.settings.transcriber == "parakeet"
     val gemma = library.settings.englishSource == "gemma"
     val gemmaReady = !gemma || Gemma(context).isReady
     val needsRd = link.isNotBlank() && !ProcessWorker.isYouTube(link)
@@ -50,17 +55,25 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         uris.forEach { uri ->
             runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            ProcessWorker.start(context, uri.toString(), show.takeIf { it.isNotBlank() }, height)
+            ProcessWorker.start(context, uri.toString(), show.takeIf { it.isNotBlank() }, height, lang)
         }
     }
-    val ready = gemmaReady && library.known.model.isReady && if (parakeet) io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context).isReady
-        else library.settings.sonioxKey.isNotBlank()
+    val ready = gemmaReady && when {
+        japanese -> JapaneseModel(context).isReady && library.settings.jimakuKey.isNotBlank()
+        parakeet -> library.known.model.isReady && io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context).isReady
+        else -> library.known.model.isReady && library.settings.sonioxKey.isNotBlank()
+    }
 
     // Scrolls: in landscape the sheet is taller than the screen (the button ended up under the navigation bar).
     Column(Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 24.dp)
         .navigationBarsPadding().padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Add an episode", color = Colors.accent, fontSize = 18.sp)
+        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(Lang.GERMAN, Lang.JAPANESE).forEach { l ->
+                androidx.compose.material3.FilterChip(selected = lang == l, label = { Text(l.name) }, onClick = { lang = l })
+            }
+        }
         OutlinedTextField(link, { link = it }, label = { Text("YouTube, magnet or Real-Debrid link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(show, { show = it }, label = { Text("Show (blank: the channel's / file's name)") }, singleLine = true,
             modifier = Modifier.fillMaxWidth())
@@ -75,6 +88,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
             fontSize = 12.sp, color = Colors.dim)
         if (!gemmaReady) Text("First: Settings > download the translation model (Gemma), or pick another English source.",
             color = Colors.unknown, fontSize = 14.sp)
+        else if (!ready && japanese) Text("First: Settings > the Japanese words dictionary, and your Jimaku API key.",
+            color = Colors.unknown, fontSize = 14.sp)
         else if (!ready) Text(if (parakeet) "First: Settings > the German model and the speech model (Parakeet)."
             else "First: Settings > the German model, and your Soniox key.", color = Colors.unknown, fontSize = 14.sp)
         if (needsRd && library.settings.rdToken.isBlank()) Text("For magnets and Real-Debrid links: Settings > your Real-Debrid token.",
@@ -82,12 +97,16 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(enabled = ready && (link.startsWith("http") || link.startsWith("magnet:")) && !(needsRd && library.settings.rdToken.isBlank()),
                 onClick = {
-                    ProcessWorker.start(context, link, show.takeIf { it.isNotBlank() }, height)
+                    ProcessWorker.start(context, link, show.takeIf { it.isNotBlank() }, height, lang)
                     link = ""
                 }) { Text("Make it an episode") }
             androidx.compose.material3.OutlinedButton(enabled = ready, onClick = { pick.launch(arrayOf("video/*")) }) { Text("Video files…") }
         }
-        Text("Download → " + (if (parakeet) "Parakeet on the tablet (free)" else "Soniox (paid, about \$0.10 an hour)") +
+        if (japanese) Text("Download → Japanese subtitles from Jimaku, fitted to the audio → English " +
+            (if (gemma) "(Gemma on the tablet, about 3 s a line)" else "(the device's translator)") + " → scenes. Show blank: its " +
+            "AniList name. MKV files keep their Japanese audio. Jobs run one after another in the background.",
+            color = Colors.dim, fontSize = 13.sp)
+        else Text("Download → " + (if (parakeet) "Parakeet on the tablet (free)" else "Soniox (paid, about \$0.10 an hour)") +
             " → German subtitles → English " + when {
                 gemma -> "(Gemma on the tablet, about 3 s a line)"
                 library.settings.englishSource == "soniox" && !parakeet -> "(Soniox)"

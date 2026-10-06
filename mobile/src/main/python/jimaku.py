@@ -104,6 +104,61 @@ def download(key: str, url: str, name: str, episode, folder: str) -> str:
     return path
 
 
+def _secs(h, m, s, frac):
+    return int(h) * 3600 + int(m) * 60 + int(s) + int(frac) / 10 ** len(frac)
+
+
+def _text(raw: bytes) -> str:
+    for enc in ("utf-8-sig", "utf-16", "cp932"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            pass
+    return raw.decode("utf-8", "replace")
+
+
+def cues(path: str) -> str:
+    r"""A subtitle file (.srt / .vtt / .ass / .ssa) -> cues [[start, end, text]] in time order, as JSON: styling
+    dropped, ASS signs (lines placed with \pos / \move, drawings) left out, line breaks joined with a space."""
+    text = _text(open(path, "rb").read()).replace("\r", "")
+    out = []
+    if path.lower().endswith((".ass", ".ssa")):
+        fields = None
+        for line in text.splitlines():
+            if line.startswith("Format:") and fields is None:
+                fields = [f.strip().lower() for f in line[7:].split(",")]
+            elif line.startswith("Dialogue:") and fields:
+                row = dict(zip(fields, line[9:].split(",", len(fields) - 1)))
+                body = row.get("text", "")
+                if re.search(r"\\(pos|move|p[1-9])", body):
+                    continue
+                body = re.sub(r"\{[^}]*\}", "", body)
+                body = re.sub(r"\\[Nnh]", " ", body).strip()
+                t = [re.match(r"\s*(\d+):(\d+):(\d+)\.(\d+)", row.get(k, "")) for k in ("start", "end")]
+                if body and all(t):
+                    out.append([_secs(*t[0].groups()), _secs(*t[1].groups()), body])
+    else:
+        stamp = r"(\d+):(\d+):(\d+)[,.](\d+)"
+        for block in re.split(r"\n\s*\n", text):
+            m = re.search(stamp + r"\s*-->\s*" + stamp, block)
+            if m:
+                body = " ".join(l.strip() for l in block[m.end():].strip().splitlines())
+                body = re.sub(r"<[^>]+>|\{[^}]*\}", "", body).strip()
+                if body:
+                    out.append([_secs(*m.groups()[:4]), _secs(*m.groups()[4:]), body])
+    out.sort(key=lambda c: c[0])
+    return json.dumps([[round(a, 3), round(b, 3), t] for a, b, t in ((a, b, spoken(t)) for a, b, t in out) if t],
+                      ensure_ascii=False)
+
+
+def spoken(text: str) -> str:
+    """Only what is said: SDH's readings 後藤(ごとう), speaker names and sounds （園児）（拍手）, music ♪ dropped;
+    "" when nothing Japanese is left."""
+    text = re.sub(r"\([^)]*\)", "", text)
+    text = re.sub(r"（[^）]*）|［[^］]*］|\[[^\]]*\]|[♪♬～〜]", "", text).strip()
+    return re.sub(r"\s+", " ", text) if re.search(r"[぀-ヿ一-鿿]", text) else ""
+
+
 if __name__ == "__main__":  # python jimaku.py: the picking rules (and AniList, online)
     files = [{"name": n, "url": "", "size": 0} for n in (
         "[Erai-raws] Sousou no Frieren - 07 [1080p][Multiple Subtitle].ja.ass",
@@ -122,6 +177,19 @@ if __name__ == "__main__":  # python jimaku.py: the picking rules (and AniList, 
     import tempfile, unittest.mock as mock
     with mock.patch(__name__ + "._get", return_value=buf.getvalue()), tempfile.TemporaryDirectory() as d:
         assert open(download("", "", "pack.zip", 7, d)).read() == "seven"
+    with tempfile.TemporaryDirectory() as d:
+        ass = os.path.join(d, "a.ass")
+        with open(ass, "w", encoding="utf-8") as f:
+            f.write("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+                    r"Dialogue: 0,0:00:05.00,0:00:07.50,Default,,0,0,0,,{\an8}本当に、\Nありがとう" "\n"
+                    r"Dialogue: 0,0:00:01.00,0:00:03.00,Sign,,0,0,0,,{\pos(10,10)}看板" "\n")
+        assert json.loads(cues(ass)) == [[5.0, 7.5, "本当に、 ありがとう"]], cues(ass)
+        srt = os.path.join(d, "a.srt")
+        with open(srt, "w", encoding="utf-8-sig") as f:
+            f.write("1\n00:00:01,000 --> 00:00:02,500\n<i>え？</i>\nうん\n\n2\n00:01:00,100 --> 00:01:01,000\n（拍手）\n")
+        assert json.loads(cues(srt)) == [[1.0, 2.5, "え？ うん"]], cues(srt)
+    assert spoken("（後藤(ごとう)ひとり）私なんかが…") == "私なんかが…"
+    assert spoken("♪～") == "" and spoken("（馬車の進行音）") == ""
     if key := os.environ.get("JIMAKU_API_KEY"):
         print(json.dumps(json.loads(candidates(key, "Sousou no Frieren", None, 7))["files"][:3], ensure_ascii=False, indent=1))
     print("ok")

@@ -36,15 +36,15 @@ class Gemma(private val context: Context) {
     fun state(): Flow<String?> = AssetWorker.state(work, WORK)
 
     /**
-     * German lines → English, the same count; null where Gemma gave no line (the caller fills those in another way).
+     * [language] (German, Japanese…) lines → English, the same count; null where Gemma gave no line (the caller fills those in another way).
      * Batches of [BATCH] consecutive lines, so each line has its neighbours as context.
      */
-    suspend fun translate(lines: List<String>, progress: suspend (Int) -> Unit): List<String?> {
+    suspend fun translate(lines: List<String>, progress: suspend (Int) -> Unit, language: String = "German"): List<String?> {
         val out = ArrayList<String?>(lines.size)
         for (start in lines.indices step BATCH) {
             progress(start * 100 / lines.size.coerceAtLeast(1))
             val batch = lines.subList(start, minOf(start + BATCH, lines.size))
-            val prompt = "Translate each numbered German subtitle into natural English. Keep the meaning faithful. " +
+            val prompt = "Translate each numbered $language subtitle into natural English. Keep the meaning faithful. " +
                 "Answer with exactly one line per number, in this format and nothing else:\nN. English translation\n\n" +
                 batch.mapIndexed { i, l -> "${i + 1}. ${l.replace('\n', ' ')}" }.joinToString("\n")
             val answer = runCatching { complete(prompt, "1.", maxTokens = 60 * batch.size) }
@@ -101,10 +101,10 @@ class GemmaWorker(context: Context, params: WorkerParameters) : AssetWorker(cont
     }
 }
 
-/** For JSON callers: the English cues [[start, end, text]] for German cues, with [fill] for lines Gemma missed. */
-internal suspend fun Gemma.englishCues(cues: JSONArray, progress: suspend (Int) -> Unit, fill: suspend (String) -> String): String {
+/** For JSON callers: the English cues [[start, end, text]] for [language] cues, with [fill] for lines Gemma missed. */
+internal suspend fun Gemma.englishCues(cues: JSONArray, progress: suspend (Int) -> Unit, language: String = "German", fill: suspend (String) -> String): String {
     val german = (0 until cues.length()).map { cues.getJSONArray(it).getString(2) }
-    val english = translate(german, progress)
+    val english = translate(german, progress, language)
     val out = JSONArray()
     german.forEachIndexed { i, de ->
         val c = cues.getJSONArray(i)

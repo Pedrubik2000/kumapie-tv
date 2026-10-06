@@ -143,7 +143,7 @@ def split_run(run, max_secs):
     if len(run) == 1 or run[-1][1] - run[0][0] <= max_secs:
         return [run]
     best = max(range(1, len(run)),
-               key=lambda i: run[i][0] - run[i - 1][1] + (1.0 if run[i - 1][2].rstrip()[-1:] in ".!?" else 0)
+               key=lambda i: run[i][0] - run[i - 1][1] + (1.0 if run[i - 1][2].rstrip()[-1:] in ".!?。！？" else 0)
                - 0.001 * abs(i - len(run) / 2))
     return split_run(run[:best], max_secs) + split_run(run[best:], max_secs)
 
@@ -207,20 +207,23 @@ def segments(text, tokens):
 
 
 def build(model_dir: str, episode_id: str, show: str, title: str, duration: float, video: str,
-          cues_json: str, english_json: str, lang: str = "de") -> str:
-    """German and English cues -> the episode JSON (scenes, their cues as word segments, English, every word)."""
+          cues_json: str, english_json: str, lang: str = "de", parsed_json: str = "") -> str:
+    """Target-language and English cues -> the episode JSON (scenes, their cues as word segments, English, every
+    word). German is parsed here (spaCy); other languages come parsed from Kotlin ([parsed_json]: per cue, in order,
+    [[surface, offset, dictionary form or None, None]]: Sudachi for Japanese)."""
     cues = [tuple(c) for c in json.loads(cues_json)]
     english = json.loads(english_json)
-    mz = _morphemizer(model_dir)
+    given = iter(json.loads(parsed_json)) if parsed_json else None
+    mz = _morphemizer(model_dir) if given is None else None
     scenes, words, lemmas = [], {}, {}
     plan = []
     for i, (p, start, end) in enumerate(exchanges(cues)):
         en = [[e[0], e[1], re.sub(r"\s*\([^)]*\)", "", e[2]).strip()] for e in english
               if p[0][0] <= (e[0] + e[1]) / 2 <= p[-1][1]]
-        german = is_german(" ".join(c[2] for c in p), " ".join(e[2] for e in en))
+        german = is_german(" ".join(c[2] for c in p), " ".join(e[2] for e in en)) if given is None else True
         plan.append((i, p, start, end, en, german))
     texts = [c[2] for (_, p, _, _, _, g) in plan if g for c in p]
-    parsed = iter(parse(mz, texts))
+    parsed = iter(parse(mz, texts)) if given is None else given
     for i, p, start, end, en, german in plan:
         sid = hashlib.sha1(f"{episode_id}|{start:.3f}|{end:.3f}".encode()).hexdigest()[:12]
         sc_cues = []

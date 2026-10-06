@@ -126,7 +126,11 @@ class Parakeet(private val context: Context) {
         codec.start()
         var rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
         var channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+        // Resampled to 16 kHz while decoding (linear): a whole episode at 48 kHz didn't fit in memory.
         val mono = FloatArrayBuilder()
+        var n = 0L          // input samples so far
+        var next = 0.0      // the next 16 kHz sample's position, in input samples
+        var prev = 0f
         val info = MediaCodec.BufferInfo()
         var inputDone = false
         while (true) {
@@ -154,22 +158,21 @@ class Parakeet(private val context: Context) {
                 for (fr in 0 until frames) {
                     var sum = 0f
                     for (c in 0 until channels) sum += shorts.get(fr * channels + c)
-                    mono.add(sum / channels / 32768f)
+                    val v = sum / channels / 32768f
+                    if (n == 0L) prev = v
+                    while (next <= n) {
+                        mono.add(prev + (v - prev) * (1 - (n - next)).toFloat())
+                        next += rate / 16000.0
+                    }
+                    prev = v
+                    n++
                 }
                 codec.releaseOutputBuffer(outIndex, false)
                 if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
             }
         }
         codec.stop(); codec.release(); ex.release()
-        val src = mono.toArray()
-        if (rate == 16000) return src
-        val n = (src.size.toLong() * 16000 / rate).toInt()
-        return FloatArray(n) { i ->
-            val pos = i.toDouble() * rate / 16000
-            val a = pos.toInt().coerceAtMost(src.size - 1)
-            val b = (a + 1).coerceAtMost(src.size - 1)
-            (src[a] + (src[b] - src[a]) * (pos - a)).toFloat()
-        }
+        return mono.toArray()
     }
 
     private class FloatArrayBuilder {

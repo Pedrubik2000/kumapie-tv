@@ -49,6 +49,7 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.mobile.lang.GermanModel
+import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -105,11 +106,13 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     private val local = LocalEpisodes(context)
     private val settings = Settings(context)
     private var height = 720
+    private var lang = Lang.GERMAN
 
     override suspend fun doWork(): Result {
         val url = inputData.getString(URL) ?: return Result.failure()
         val show = inputData.getString(SHOW)?.takeIf { it.isNotBlank() }
         height = inputData.getInt(HEIGHT, 720)
+        lang = Lang.of(inputData.getString(LANG))
         val id = idFor(url)
         runCatching { setForeground(foreground("Starting…", 0f)) }
         return try {
@@ -138,26 +141,33 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             for (i in 0 until files.length()) {
                 val f = files.getJSONObject(i)
                 val about = JSONObject(rd.callAttr("describe", f.getString("name"), f.getBoolean("single")).toString())
-                enqueue(applicationContext, f.getString("link"), showName ?: about.getString("show"), height, part = true)
+                // Japanese: blank stays blank, so the episode takes its AniList name.
+                enqueue(applicationContext, f.getString("link"), showName ?: about.getString("show").takeIf { lang != Lang.JAPANESE }, height, lang, part = true)
             }
             return "Real-Debrid: ${files.length()} episode(s) queued"
         }
 
-        val parakeetHere = settings.transcriber == "parakeet"
-        val key = if (parakeetHere) "" else settings.sonioxKey.ifBlank { error("Add your Soniox key in Settings first.") }
+        // Japanese: subtitles from Jimaku instead of a transcription (kumapie_languages_plan.md, step 4).
+        val japanese = lang == Lang.JAPANESE
+        if (japanese && youtube) error("Japanese episodes come from Real-Debrid or a video file (subtitles from Jimaku).")
+        val jimakuKey = if (japanese) settings.jimakuKey.ifBlank { error("Add your Jimaku API key in Settings first.") } else ""
+        if (japanese && !JapaneseModel(applicationContext).isReady) error("Download the Japanese words dictionary in Settings first.")
+        val parakeetHere = !japanese && settings.transcriber == "parakeet"
+        val key = if (parakeetHere || japanese) "" else settings.sonioxKey.ifBlank { error("Add your Soniox key in Settings first.") }
         if (parakeetHere && !Parakeet(applicationContext).isReady) error("Download the speech model (Parakeet) in Settings first.")
         val gemma = Gemma(applicationContext)
         if (settings.englishSource == "gemma" && !gemma.isReady) error("Download the translation model (Gemma) in Settings first.")
         val model = GermanModel(applicationContext)
-        if (!model.isReady) error("Download the German model in Settings first.")
+        if (!japanese && !model.isReady) error("Download the German model in Settings first.")
         val dir = local.dir(id).apply { mkdirs() }
         val dl = File(dir, "download").apply { mkdirs() }
 
-        // 1. Download, and 2. one MP4 for the player (German audio) + the audio for Soniox / Parakeet.
+        // 1. Download, and 2. one MP4 for the player (the episode's language) + the audio for Soniox / Parakeet / the sync.
         val video = local.video(id)
         val audio = File(dir, "audio.m4a")
         val title: String
-        val show: String
+        var show: String
+        var sourceName = ""
         var season: Int? = null
         var number: Int? = null
         if (youtube) {
@@ -176,42 +186,68 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 extractAudio(video, audio)
             }
         } else {
-            val source = if (file) Uri.parse(url) else {
+            // A retry after a later step failed: the thumbnail is written only once the video is whole, so the download
+            // and the conversion are skipped (the file's name is kept in source.txt).
+            val kept = File(dir, "source.txt")
+            val converted = local.thumb(id).exists() && kept.exists()
+            val source = if (file) Uri.parse(url) else if (converted) null else {
                 report("Downloading…", 0.02f)
                 Uri.fromFile(File(ticking(0.02f) { rd.callAttr("download", rdToken, url, dl.path, logger).toString() }))
             }
-            val name = if (file) displayName(source) else source.lastPathSegment ?: "video"
+            val name = if (converted) kept.readText() else if (file) displayName(source!!) else source!!.lastPathSegment ?: "video"
+            if (!converted) kept.writeText(name)
+            sourceName = name
             val about = JSONObject(rd.callAttr("describe", name, file).toString())
             title = about.getString("title")
             show = showName ?: about.getString("show")
             season = about.optInt("season").takeIf { !about.isNull("season") }
             number = about.optInt("number").takeIf { !about.isNull("number") }
-            report("Converting the video (German audio)…", 0.35f)
-            remux(source, video)
-            extractAudio(video, audio)
+            if (!converted) {
+                report("Converting the video (${lang.name} audio)…", 0.35f)
+                remux(source!!, video)
+            }
+            if (!converted || !audio.exists()) extractAudio(video, audio)
         }
-        dl.deleteRecursively()
         thumbnail(video, local.thumb(id))
         val duration = durationOf(video)
 
-        // 3. Soniox, or Parakeet on the tablet (then the English comes from Gemma or the device's translator).
-        val soniox = settings.englishSource == "soniox" && !parakeetHere
-        val transcript = if (parakeetHere) {
-            Parakeet(applicationContext).transcribe(audio) { report(it, 0.55f) }
+        // 3. Japanese: Jimaku's subtitles fitted to the audio. Else Soniox, or Parakeet on the tablet (then the English
+        // comes from Gemma or the device's translator).
+        val soniox = settings.englishSource == "soniox" && !parakeetHere && !japanese
+        var sonioxEnglish = JSONArray()
+        var synced = ""
+        val cues = if (japanese) {
+            report("Finding Japanese subtitles on Jimaku…", 0.45f)
+            val jm = py.getModule("jimaku")
+            val found = JSONObject(jm.callAttr("candidates", jimakuKey, show, season, number, sourceName).toString())
+            if (showName == null) found.optJSONObject("anilist")?.optString("romaji")?.takeIf { it.isNotBlank() }?.let { show = it }
+            val files = found.getJSONArray("files")
+            if (files.length() == 0) error("No Japanese subtitles on Jimaku for $show" + (number?.let { " episode $it" } ?: ""))
+            val pick = files.getJSONObject(0)
+            val raw = File(jm.callAttr("download", jimakuKey, pick.getString("url"), pick.getString("name"), number, dl.path).toString())
+            report("Fitting the subtitles to the audio…", 0.55f)
+            val fitted = File(dir, "subtitles." + raw.extension.lowercase())
+            synced = SubSync(applicationContext).sync(audio, raw, fitted)
+            File(dir, "subtitles.txt").writeText("${pick.getString("name")}\nsynced: $synced\n") // for a manual fix later
+            jm.callAttr("cues", fitted.path).toString()
         } else {
-            report("Transcribing with Soniox…", 0.45f)
-            py.getModule("newepisode").callAttr("transcribe", audio.path, key, "de", if (soniox) "en" else "", logger).toString()
+            val kept = File(dir, "transcript.json")
+            val transcript = if (kept.exists()) kept.readText() else if (parakeetHere) { // a retry: never pay Soniox twice
+                Parakeet(applicationContext).transcribe(audio) { report(it, 0.55f) }
+            } else {
+                report("Transcribing with Soniox…", 0.45f)
+                py.getModule("newepisode").callAttr("transcribe", audio.path, key, "de", if (soniox) "en" else "", logger).toString()
+            }
+            kept.writeText(transcript) // Soniox's answer, kept (redoing it would cost again)
+            sonioxEnglish = JSONObject(transcript).getJSONArray("english")
+            py.getModule("newepisode").callAttr("cues", transcript).toString()
         }
-        audio.delete()
-        File(dir, "transcript.json").writeText(transcript) // Soniox's answer, kept (redoing it would cost again)
-        val cues = py.getModule("newepisode").callAttr("cues", transcript).toString()
 
         // 4. English.
-        val sonioxEnglish = JSONObject(transcript).getJSONArray("english")
         val english = when {
             soniox && sonioxEnglish.length() > 0 -> sonioxEnglish.toString()
             settings.englishSource == "gemma" -> withTranslator { translator ->
-                gemma.englishCues(JSONArray(cues), { report("Translating to English with Gemma: $it%", 0.75f + 0.15f * it / 100) }) {
+                gemma.englishCues(JSONArray(cues), { report("Translating to English with Gemma: $it%", 0.75f + 0.15f * it / 100) }, lang.name) {
                     translator.translate(it).await() // a line Gemma skipped
                 }
             }
@@ -221,14 +257,23 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             }
         }
 
-        // 5. Scenes and words.
+        // 5. Scenes and words (Japanese words from Sudachi here, German ones from spaCy in Python).
         report("Finding scenes and words…", 0.9f)
+        val parsed = if (!japanese) "" else {
+            val texts = JSONArray(cues).let { a -> (0 until a.length()).map { a.getJSONArray(it).getString(2) } }
+            JSONArray(JapaneseModel(applicationContext).parse(texts).map { tokens ->
+                JSONArray(tokens.map { t -> JSONArray().put(t.surface).put(t.begin).put(if (t.isWord) t.base else JSONObject.NULL).put(JSONObject.NULL) })
+            }).toString()
+        }
         val episode = py.getModule("newepisode").callAttr("build", model.dir.path, id, show, title, duration,
-            video.path, cues, english).toString()
+            video.path, cues, english, lang.code, parsed).toString()
         local.json(id).writeText(episode)
+        audio.delete() // kept until here, so a retry after a failure needs no new download or conversion
+        dl.deleteRecursively()
         local.add(LocalEpisodes.Entry(id, show, title, duration, url, season, number))
-        report("Done: $title", 1f)
-        return "Done: $title"
+        val done = "Done: $title" + (if (synced.isNotEmpty()) " (subtitles $synced)" else "")
+        report(done, 1f)
+        return done
     }
 
     /** A Python call that blocks for long (download, Real-Debrid), its last progress line shown every second. */
@@ -251,7 +296,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     private suspend fun remux(source: Uri, out: File) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
             val ctx = applicationContext
-            val german = DefaultTrackSelector.Parameters.Builder(ctx).setPreferredAudioLanguage(Lang.GERMAN.code)
+            val german = DefaultTrackSelector.Parameters.Builder(ctx).setPreferredAudioLanguage(lang.code)
                 .setForceHighestSupportedBitrate(true).setConstrainAudioChannelCountToDeviceCapabilities(false).build()
             val loader = ExoPlayerAssetLoader.Factory(ctx, DefaultDecoderFactory(ctx), Clock.DEFAULT, DefaultMediaSourceFactory(ctx),
                 { c -> DefaultTrackSelector(c).apply { setParameters(german) } }, null, DefaultLoadControl())
@@ -288,7 +333,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     /** Google's on-device German → English translator (model ~30 MB, downloaded once), closed afterwards. */
     private suspend fun <T> withTranslator(use: suspend (com.google.mlkit.nl.translate.Translator) -> T): T {
         val translator = Translation.getClient(TranslatorOptions.Builder()
-            .setSourceLanguage(TranslateLanguage.GERMAN).setTargetLanguage(TranslateLanguage.ENGLISH).build())
+            .setSourceLanguage(TranslateLanguage.fromLanguageTag(lang.code)!!).setTargetLanguage(TranslateLanguage.ENGLISH).build())
         try {
             translator.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
             return use(translator)
@@ -395,6 +440,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         const val URL = "url"
         const val SHOW = "show"
         const val HEIGHT = "height"
+        /** The episode's language code (Lang): "de" (default) or "ja". */
+        const val LANG = "lang"
         /** A file of a magnet / link already split into episodes. */
         const val PART = "part"
         const val STAGE = "stage"
@@ -413,13 +460,14 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         }
 
         /** Queues [url] (YouTube / magnet / Real-Debrid link / content:// file) after the jobs already waiting. */
-        fun start(context: Context, url: String, show: String?, height: Int) = enqueue(context, url.trim(), show, height, part = false)
+        fun start(context: Context, url: String, show: String?, height: Int, lang: Lang = Lang.GERMAN) =
+            enqueue(context, url.trim(), show, height, lang, part = false)
 
-        private fun enqueue(context: Context, url: String, show: String?, height: Int, part: Boolean) {
+        private fun enqueue(context: Context, url: String, show: String?, height: Int, lang: Lang, part: Boolean) {
             // A file on the device with Parakeet needs no connection.
-            val offline = url.startsWith("content:") && Settings(context).transcriber == "parakeet"
+            val offline = url.startsWith("content:") && Settings(context).transcriber == "parakeet" && lang == Lang.GERMAN
             val req = OneTimeWorkRequestBuilder<ProcessWorker>()
-                .setInputData(workDataOf(URL to url, SHOW to show, HEIGHT to height, PART to part))
+                .setInputData(workDataOf(URL to url, SHOW to show, HEIGHT to height, LANG to lang.code, PART to part))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(if (offline) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED).build())
                 .addTag(TAG).build()
             WorkManager.getInstance(context).enqueueUniqueWork(QUEUE, ExistingWorkPolicy.APPEND_OR_REPLACE, req)

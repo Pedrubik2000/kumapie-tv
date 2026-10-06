@@ -194,17 +194,42 @@ class YomitanDictionaries(private val context: Context) {
                 })
         }
 
-        /** A Yomitan glossary (a JSON array of strings and structured content) as one plain-text line per sense. */
+        /**
+         * A Yomitan glossary (a JSON array of strings and structured content) as plain-text senses: each list item of
+         * structured content is one sense (kty and Jitendex put an entry's senses in one list), else each glossary
+         * item is one. Etymology/notes (`details`), backlinks, furigana readings and images are left out.
+         */
         fun senses(glossary: String): List<String> = runCatching {
             val a = JSONArray(glossary)
-            (0 until a.length()).mapNotNull { i ->
-                val sb = StringBuilder()
-                flatten(a.get(i), sb)
-                sb.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n").ifBlank { null }
+            (0 until a.length()).flatMap { i ->
+                val item = a.get(i)
+                val items = ArrayList<Any?>().also { listItems(item, it) }
+                (items.ifEmpty { listOf(item) }).mapNotNull { node ->
+                    val sb = StringBuilder()
+                    flatten(node, sb)
+                    sb.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString("; ").ifBlank { null }
+                }
             }
         }.getOrDefault(listOf(glossary))
 
-        private val blocks = setOf("div", "p", "li", "ol", "ul", "tr", "table", "br", "details", "summary", "rt")
+        private val blocks = setOf("div", "p", "li", "ol", "ul", "tr", "table", "br", "summary")
+        private val skipped = setOf("rt", "rp", "img", "details")
+        private val skippedData = setOf("backlink", "preamble", "attribution")
+
+        private fun isSkipped(node: JSONObject) = node.optString("tag") in skipped ||
+            node.optJSONObject("data")?.optString("content") in skippedData
+
+        /** The outermost `li` nodes under [node] (not inside skipped parts). */
+        private fun listItems(node: Any?, out: MutableList<Any?>) {
+            when (node) {
+                is JSONArray -> for (i in 0 until node.length()) listItems(node.get(i), out)
+                is JSONObject -> when {
+                    isSkipped(node) -> {}
+                    node.optString("tag") == "li" -> out += node
+                    else -> listItems(node.opt("content"), out)
+                }
+            }
+        }
 
         private fun flatten(node: Any?, sb: StringBuilder) {
             when (node) {
@@ -215,11 +240,9 @@ class YomitanDictionaries(private val context: Context) {
                     "image" -> {}
                     "structured-content" -> flatten(node.opt("content"), sb)
                     else -> {
-                        val tag = node.optString("tag")
-                        if (tag == "rt" || tag == "rp" || tag == "img") return // furigana readings and images: not in plain text
-                        val block = tag in blocks
+                        if (isSkipped(node)) return
+                        val block = node.optString("tag") in blocks
                         if (block && sb.isNotEmpty() && sb.last() != '\n') sb.append('\n')
-                        if (tag == "li") sb.append("• ")
                         flatten(node.opt("content"), sb)
                         if (block && sb.isNotEmpty() && sb.last() != '\n') sb.append('\n')
                     }

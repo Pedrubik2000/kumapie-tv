@@ -163,7 +163,7 @@ class YomitanDictionaries(private val context: Context) {
                     val frequencies: List<Pair<String, String>>, val pitches: List<Pair<String, List<Int>>>)
 
     /** One dictionary's entry: its senses as plain text (structured content flattened), and its tags. */
-    data class Glossary(val dict: String, val senses: List<String>, val tags: String)
+    data class Glossary(val dict: String, val senses: List<String>, val tags: String, val formOf: List<String> = emptyList())
 
     companion object {
         fun parseTerms(a: JSONArray): List<Term> = (0 until a.length()).map { i ->
@@ -175,7 +175,8 @@ class YomitanDictionaries(private val context: Context) {
                 (0 until g.length()).map { j ->
                     g.getJSONObject(j).let { e ->
                         Glossary(e.getString("dict"), senses(e.getString("glossary")),
-                            listOf(e.optString("termTags"), e.optString("defTags")).filter { it.isNotBlank() }.joinToString(" "))
+                            listOf(e.optString("termTags"), e.optString("defTags")).filter { it.isNotBlank() }.joinToString(" "),
+                            formOf(e.getString("glossary")))
                     }
                 },
                 (0 until f.length()).map { j ->
@@ -203,6 +204,8 @@ class YomitanDictionaries(private val context: Context) {
             val a = JSONArray(glossary)
             (0 until a.length()).flatMap { i ->
                 val item = a.get(i)
+                // A Yomitan form-of item: [dictionary form, [inflection rules]] -> "second-person singular present of glauben".
+                deinflection(item)?.let { (base, rules) -> return@flatMap listOf("${rules.joinToString(", ")} of $base") }
                 val items = ArrayList<Any?>().also { listItems(item, it) }
                 (items.ifEmpty { listOf(item) }).mapNotNull { node ->
                     val sb = StringBuilder()
@@ -211,6 +214,18 @@ class YomitanDictionaries(private val context: Context) {
                 }
             }
         }.getOrDefault(listOf(glossary))
+
+        /** The dictionary forms a glossary's form-of items point to ("glaubst" -> "glauben"). */
+        fun formOf(glossary: String): List<String> = runCatching {
+            val a = JSONArray(glossary)
+            (0 until a.length()).mapNotNull { deinflection(a.get(it))?.first }.distinct()
+        }.getOrDefault(emptyList())
+
+        private fun deinflection(item: Any?): Pair<String, List<String>>? {
+            if (item !is JSONArray || item.length() != 2 || item.opt(0) !is String || item.opt(1) !is JSONArray) return null
+            val rules = item.getJSONArray(1)
+            return item.getString(0) to (0 until rules.length()).map { rules.optString(it) }
+        }
 
         private val blocks = setOf("div", "p", "li", "ol", "ul", "tr", "table", "br", "summary")
         private val skipped = setOf("rt", "rp", "img", "details")

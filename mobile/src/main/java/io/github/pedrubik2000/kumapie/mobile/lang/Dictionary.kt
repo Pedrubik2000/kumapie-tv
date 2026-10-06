@@ -111,9 +111,16 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
     /** The imported German Yomitan dictionaries' entries: the dictionary form first, then the written forms. */
     private fun yomitan(surface: String, key: String?, lemma: String?): List<DictEntry> {
         val y = yomitan ?: return emptyList()
+        val de = io.github.pedrubik2000.kumapie.data.Lang.GERMAN
         val words = listOfNotNull(lemma, key, surface).flatMap { listOf(it, it.lowercase()) }.filter { it.isNotBlank() }.distinct()
+        val found = words.flatMap { y.query(de, it) }
+        // Form-of entries ("glaubst": second-person singular present of glauben) lead to the dictionary form: its
+        // meanings come first, the form-of notes after.
+        val bases = found.flatMap { t -> t.glossaries.flatMap { it.formOf } }.distinct().filter { it !in words }
+        val all = bases.flatMap { y.query(de, it) } + found
+        val terms = all.filter { t -> t.glossaries.any { it.formOf.isEmpty() } } + all.filter { t -> t.glossaries.all { it.formOf.isNotEmpty() } }
         val seen = HashSet<String>()
-        return words.flatMap { y.query(io.github.pedrubik2000.kumapie.data.Lang.GERMAN, it) }.flatMap { t ->
+        return terms.flatMap { t ->
             t.glossaries.filter { seen.add("${t.expression}|${t.reading}|${it.dict}|${it.senses.firstOrNull()}") }.map { g ->
                 DictEntry(t.expression, g.tags, listOf(t.reading.takeIf { it.isNotBlank() && it != t.expression }, g.dict)
                     .filterNotNull().joinToString(" · "), "", g.senses.map { Sense(it, "", emptyList()) })

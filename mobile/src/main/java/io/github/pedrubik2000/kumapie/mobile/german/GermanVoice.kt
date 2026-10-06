@@ -2,7 +2,13 @@ package io.github.pedrubik2000.kumapie.mobile.german
 
 import android.content.Context
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
 import java.util.Locale
+import kotlin.coroutines.resume
 
 /**
  * The device's own German text-to-speech (Google's or Samsung's engine), for words without a recording: works
@@ -26,6 +32,25 @@ class GermanVoice(context: Context) {
             return
         }
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "word")
+    }
+
+    /** Says [text] into a WAV file (a mined card's word audio); false if the voice can't. */
+    suspend fun toFile(text: String, out: File): Boolean {
+        repeat(20) { if (!ready) delay(150) } // the engine may still be starting
+        if (!ready) return false
+        val id = "file-" + System.nanoTime()
+        val done = withTimeoutOrNull(15_000) {
+            suspendCancellableCoroutine { cont ->
+                tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) { if (utteranceId == id && cont.isActive) cont.resume(true) }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) { if (utteranceId == id && cont.isActive) cont.resume(false) }
+                })
+                if (tts.synthesizeToFile(text, null, out, id) != TextToSpeech.SUCCESS && cont.isActive) cont.resume(false)
+            }
+        }
+        return done == true && out.length() > 0
     }
 
     fun stop() {

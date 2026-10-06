@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material3.Button
@@ -89,14 +90,14 @@ import kotlinx.coroutines.delay
 
 /** Loads the episode (from the PC, or its download), then plays it scene by scene, full screen in landscape. */
 @Composable
-fun PlayerScreen(library: Library, show: Show, episode: Episode, onBack: () -> Unit) {
+fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double? = null, onBack: () -> Unit) {
     FullScreenLandscape()
     var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(attempt) {
         error = null
-        runCatching { library.episode(episode.id) }.onSuccess { detail = it }.onFailure { error = it.message ?: it.toString() }
+        runCatching { library.episode(episode.id) }.onSuccess { detail = if (startAt != null) it.copy(resume = startAt + 0.05) else it }.onFailure { error = it.message ?: it.toString() }
     }
     BackHandler(onBack = onBack)
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -112,7 +113,7 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, onBack: () -> U
             }
             d == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 18.sp,
                 modifier = Modifier.align(Alignment.Center))
-            else -> ScenePlayer(library, library.settings, library.backend(), d, onBack)
+            else -> ScenePlayer(library, library.settings, library.backend(), d, startPaused = startAt != null, onBack)
         }
     }
 }
@@ -144,7 +145,14 @@ private fun FullScreenLandscape() {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ScenePlayer(library: Library, settings: Settings, backend: Backend, episode: EpisodeDetail, onBack: () -> Unit) {
+private fun ScenePlayer(
+    library: Library,
+    settings: Settings,
+    backend: Backend,
+    episode: EpisodeDetail,
+    startPaused: Boolean,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val player = remember {
@@ -157,6 +165,7 @@ private fun ScenePlayer(library: Library, settings: Settings, backend: Backend, 
     val picker = remember { WordPicker(ctl, backend, scope) }
     var anchor by remember { mutableStateOf<Rect?>(null) }
     var options by remember { mutableStateOf(false) }
+    var mining by remember { mutableStateOf(false) }
     var flash by remember { mutableStateOf<String?>(null) } // "Replay line" etc., shown briefly in the middle
     var flashAt by remember { mutableLongStateOf(0L) }
     fun flash(text: String) { flash = text; flashAt = SystemClock.uptimeMillis() }
@@ -182,7 +191,7 @@ private fun ScenePlayer(library: Library, settings: Settings, backend: Backend, 
         onDispose { lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(Unit) {
-        ctl.begin()
+        ctl.begin(paused = startPaused) // opened from the i+1 list: wait on the scene, to mine from it
         while (true) {
             ctl.tick()
             delay(40)
@@ -254,7 +263,7 @@ private fun ScenePlayer(library: Library, settings: Settings, backend: Backend, 
         if (picker.isOpen && picker.cardOpen) anchor?.let {
             MeaningCard(ctl, picker, it, maxWidth = 460.dp, onTapDef = picker::tapInDef, footer = {
                 DictionaryPanel(library, ctl, picker)
-                CardButtons(ctl, picker)
+                CardButtons(ctl, picker, onMine = { mining = true })
             })
         }
 
@@ -266,6 +275,9 @@ private fun ScenePlayer(library: Library, settings: Settings, backend: Backend, 
 
     if (options) {
         ModalBottomSheet(onDismissRequest = { options = false }) { Options(ctl) }
+    }
+    if (mining) {
+        ModalBottomSheet(onDismissRequest = { mining = false }) { MineSheet(library, episode, ctl, picker, onDone = { mining = false }) }
     }
 }
 
@@ -305,7 +317,7 @@ private fun LevelBadge(level: Int?, modifier: Modifier = Modifier) {
 
 /** Under the meaning: hear the word, hear the definition, replay the line, mark known. */
 @Composable
-private fun CardButtons(ctl: SceneController, picker: WordPicker) {
+private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> Unit) {
     val word = (picker.selectedInDef ?: picker.selected)?.word
     val marked = word?.let { ctl.words[it]?.marked } == true
     Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -315,6 +327,7 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker) {
             IconButton(onClick = picker::hearDefinition) { Icon(Icons.Default.RecordVoiceOver, "Hear the definition", tint = Colors.text) }
         }
         IconButton(onClick = picker::replayLine) { Icon(Icons.Default.Replay, "Replay the line", tint = Colors.text) }
+        IconButton(onClick = onMine) { Icon(Icons.Default.BookmarkAdd, "Add to Anki", tint = Colors.text) }
         Spacer(Modifier.weight(1f, fill = false).width(8.dp))
         FilterChip(selected = marked, onClick = picker::toggleKnown, label = { Text(if (marked) "Known" else "Mark known") },
             leadingIcon = if (marked) ({ Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }) else null)

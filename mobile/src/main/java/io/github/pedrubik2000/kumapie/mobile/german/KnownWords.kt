@@ -124,7 +124,7 @@ class KnownWords(private val context: Context, private val settings: Settings) {
                 // The field each note is judged by (as morphs' filters on the PC).
                 val fields = notes.mapNotNull { n ->
                     val name = when {
-                        n.hasTag(CORE1000) -> "Word"
+                        n.hasTag(CORE1000) || n.hasTag(MINED_WORD) -> "Word"
                         n.hasTag(NICOS_WEG) -> null
                         else -> "Sentence"
                     }
@@ -254,6 +254,8 @@ class KnownWords(private val context: Context, private val settings: Settings) {
 
     companion object {
         const val CORE1000 = "_de::core1000"
+        /** Word cards mined in kumapie ([Miner]): judged by their Word field, like Core 1000. */
+        const val MINED_WORD = "_de::word"
         const val NICOS_WEG = "Nicos_Weg_A1"
         const val KNOWN_MANUALLY = "_card-status::i+0-manually"
     }

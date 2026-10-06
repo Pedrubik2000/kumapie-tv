@@ -10,6 +10,7 @@ import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.german.Dictionary
 import io.github.pedrubik2000.kumapie.mobile.german.GermanVoice
 import io.github.pedrubik2000.kumapie.mobile.german.KnownWords
+import io.github.pedrubik2000.kumapie.mobile.german.Miner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -31,6 +32,8 @@ class Library(context: Context, val settings: Settings) {
     val dictionary = Dictionary(context)
     /** The device's German voice, for words without a recording. */
     val voice by lazy { GermanVoice(context) }
+    /** Cards mined into kuma3 Anki. */
+    val miner by lazy { Miner(context, known, dictionary) { voice } }
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
 

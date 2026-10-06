@@ -94,10 +94,13 @@ class SceneController(
 
     // ------------------------------------------------------------ actions
 
-    /** Start the episode: the resume scene, paused or playing as the mode says. */
-    fun begin() {
+    /** Start the episode: the resume scene, paused or playing as the mode says; [paused]: on its start, not playing. */
+    fun begin(paused: Boolean = false) {
         if (scenes.isEmpty()) return
-        playScene(index)
+        if (!paused) return playScene(index)
+        atSceneEnd = false
+        seek(scene.start)
+        showBanner()
     }
 
     fun playScene(i: Int) {

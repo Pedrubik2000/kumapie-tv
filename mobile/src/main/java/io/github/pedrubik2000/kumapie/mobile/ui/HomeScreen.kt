@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -54,6 +55,7 @@ fun HomeScreen(
     onShows: (List<Show>) -> Unit,
     onShow: (Show) -> Unit,
     onStats: () -> Unit,
+    onIPlusOne: () -> Unit,
     onSettings: () -> Unit,
 ) {
     var shows by remember { mutableStateOf<List<Show>?>(null) }
@@ -74,6 +76,7 @@ fun HomeScreen(
             title = { Text(if (offline) "kumapie · offline" else "kumapie") },
             actions = {
                 IconButton(onClick = { attempt++ }) { Icon(Icons.Default.Refresh, "Refresh") }
+                IconButton(onClick = onIPlusOne) { Icon(Icons.Default.AutoAwesome, "i+1 scenes") }
                 IconButton(onClick = onStats) { Icon(Icons.Default.BarChart, "Stats") }
                 IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings") }
             },

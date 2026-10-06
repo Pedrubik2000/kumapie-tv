@@ -38,6 +38,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Mined cards' clip and audio, lent to kuma3 Anki while it copies them into its media folder. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/shared_files" />
+        </provider>
+
         <!-- WorkManager's foreground service, declared with its type for Android 14+. -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

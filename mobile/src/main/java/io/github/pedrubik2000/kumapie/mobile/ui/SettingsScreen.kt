@@ -41,6 +41,7 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.mobile.BuildConfig
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
+import io.github.pedrubik2000.kumapie.mobile.local.rdToken
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
 import io.github.pedrubik2000.kumapie.mobile.local.englishSource
 import io.github.pedrubik2000.kumapie.mobile.local.transcriber
@@ -264,6 +265,7 @@ private fun UnlockSection(library: Library) {
 @Composable
 private fun NewEpisodesSection(library: Library) {
     var key by remember { mutableStateOf(library.settings.sonioxKey) }
+    var rd by remember { mutableStateOf(library.settings.rdToken) }
     var english by remember { mutableStateOf(library.settings.englishSource) }
     var transcriber by remember { mutableStateOf(library.settings.transcriber) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -275,7 +277,7 @@ private fun NewEpisodesSection(library: Library) {
     val gemmaState by remember { gemma.state() }.collectAsState(initial = null)
     var gemmaReady by remember { mutableStateOf(gemma.isReady) }
     LaunchedEffect(gemmaState) { gemmaReady = gemma.isReady }
-    Text("New episodes (YouTube)", color = Colors.accent)
+    Text("New episodes", color = Colors.accent)
     Text("Transcription", fontSize = 15.sp)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         androidx.compose.material3.FilterChip(selected = transcriber == "soniox", label = { Text("Soniox (best, paid)") },
@@ -291,6 +293,8 @@ private fun NewEpisodesSection(library: Library) {
     }
     OutlinedTextField(key, { key = it; library.settings.sonioxKey = it }, label = { Text("Soniox API key") }, singleLine = true,
         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(rd, { rd = it; library.settings.rdToken = it }, label = { Text("Real-Debrid token (real-debrid.com/apitoken)") },
+        singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
     Text("English subtitles", fontSize = 15.sp)
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -310,5 +314,5 @@ private fun NewEpisodesSection(library: Library) {
         gemmaState != null -> Text("Gemma: $gemmaState", fontSize = 13.sp, color = Colors.dim)
         else -> OutlinedButton(onClick = { gemma.download() }) { Text("Download Gemma (about 2.8 GB, once)") }
     }
-    Text("Add episodes with + on the home screen, or share a YouTube link to kumapie.", fontSize = 13.sp, color = Colors.dim)
+    Text("Add episodes with + on the home screen (YouTube, magnets, Real-Debrid links, video files), or share a link to kumapie.", fontSize = 13.sp, color = Colors.dim)
 }

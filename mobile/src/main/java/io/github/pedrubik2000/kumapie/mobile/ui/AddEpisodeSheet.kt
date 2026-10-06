@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.mobile.local.Gemma
 import io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker
 import io.github.pedrubik2000.kumapie.mobile.local.englishSource
+import io.github.pedrubik2000.kumapie.mobile.local.rdToken
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
 import io.github.pedrubik2000.kumapie.mobile.local.transcriber
 import io.github.pedrubik2000.kumapie.mobile.local.videoHeight
@@ -29,19 +30,29 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 
 /**
- * "Add an episode": a YouTube link (or one shared to kumapie) becomes an episode on this tablet (download, Soniox,
- * subtitles, English, scenes; ProcessWorker), under a show name (blank: the channel). Below: every job's progress.
+ * "Add an episode": a YouTube link, a magnet or Real-Debrid link (or one shared to kumapie), or video files on the
+ * tablet become episodes here (download, Soniox, subtitles, English, scenes; ProcessWorker), under a show name (blank:
+ * the channel / the file name's). Below: every job's progress.
  */
 @Composable
 fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     val context = LocalContext.current
-    var link by remember { mutableStateOf(sharedLink?.let { Regex("""https?://\S+""").find(it)?.value } ?: "") }
+    var link by remember { mutableStateOf(sharedLink?.let { Regex("""(https?://|magnet:)\S+""").find(it)?.value } ?: "") }
     var show by remember { mutableStateOf("") }
     var height by remember { mutableStateOf(library.settings.videoHeight) }
     val jobs by remember { ProcessWorker.states(context) }.collectAsState(initial = emptyList())
     val parakeet = library.settings.transcriber == "parakeet"
     val gemma = library.settings.englishSource == "gemma"
     val gemmaReady = !gemma || Gemma(context).isReady
+    val needsRd = link.isNotBlank() && !ProcessWorker.isYouTube(link)
+    // Picked files: kumapie keeps the right to read them, as the job may run after the app is closed.
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        uris.forEach { uri ->
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            ProcessWorker.start(context, uri.toString(), show.takeIf { it.isNotBlank() }, height)
+        }
+    }
     val ready = gemmaReady && library.known.model.isReady && if (parakeet) io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context).isReady
         else library.settings.sonioxKey.isNotBlank()
 
@@ -50,8 +61,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         .navigationBarsPadding().padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Add an episode", color = Colors.accent, fontSize = 18.sp)
-        OutlinedTextField(link, { link = it }, label = { Text("YouTube link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(show, { show = it }, label = { Text("Show (blank: the channel's name)") }, singleLine = true,
+        OutlinedTextField(link, { link = it }, label = { Text("YouTube, magnet or Real-Debrid link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(show, { show = it }, label = { Text("Show (blank: the channel's / file's name)") }, singleLine = true,
             modifier = Modifier.fillMaxWidth())
         Text("Video quality", fontSize = 14.sp, color = Colors.dim)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -60,23 +71,29 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
                     onClick = { height = h; library.settings.videoHeight = h })
             }
         }
-        Text("Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p.",
+        Text("For YouTube. Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p.",
             fontSize = 12.sp, color = Colors.dim)
         if (!gemmaReady) Text("First: Settings > download the translation model (Gemma), or pick another English source.",
             color = Colors.unknown, fontSize = 14.sp)
         else if (!ready) Text(if (parakeet) "First: Settings > the German model and the speech model (Parakeet)."
             else "First: Settings > the German model, and your Soniox key.", color = Colors.unknown, fontSize = 14.sp)
-        Button(enabled = ready && link.startsWith("http"), onClick = {
-            ProcessWorker.start(context, link, show.takeIf { it.isNotBlank() }, height)
-            link = ""
-        }) { Text("Make it an episode") }
+        if (needsRd && library.settings.rdToken.isBlank()) Text("For magnets and Real-Debrid links: Settings > your Real-Debrid token.",
+            color = Colors.unknown, fontSize = 14.sp)
+        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(enabled = ready && (link.startsWith("http") || link.startsWith("magnet:")) && !(needsRd && library.settings.rdToken.isBlank()),
+                onClick = {
+                    ProcessWorker.start(context, link, show.takeIf { it.isNotBlank() }, height)
+                    link = ""
+                }) { Text("Make it an episode") }
+            androidx.compose.material3.OutlinedButton(enabled = ready, onClick = { pick.launch(arrayOf("video/*")) }) { Text("Video files…") }
+        }
         Text("Download → " + (if (parakeet) "Parakeet on the tablet (free)" else "Soniox (paid, about \$0.10 an hour)") +
             " → German subtitles → English " + when {
                 gemma -> "(Gemma on the tablet, about 3 s a line)"
                 library.settings.englishSource == "soniox" && !parakeet -> "(Soniox)"
                 else -> "(the device's translator)"
-            } + " → scenes. It runs in the " +
-            "background; the episode appears on the home screen when done.", color = Colors.dim, fontSize = 13.sp)
+            } + " → scenes. A season (magnet) becomes one episode per file; MKV files keep their German audio. Jobs run " +
+            "one after another in the background; each episode appears on the home screen when done.", color = Colors.dim, fontSize = 13.sp)
         jobs.forEach { Text(it, fontSize = 14.sp) }
     }
 }

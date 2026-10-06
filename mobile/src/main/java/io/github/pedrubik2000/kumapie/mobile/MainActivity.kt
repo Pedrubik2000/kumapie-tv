@@ -60,8 +60,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val library = Library(applicationContext, settings)
         io.github.pedrubik2000.kumapie.mobile.unlock.UnlockService.sync(this) // the unlock listener, if it's on
-        // A YouTube link shared to kumapie opens "Add an episode" with it.
+        // A link shared to kumapie, or a magnet link opened in the browser, opens "Add an episode" with it.
         val shared = intent?.takeIf { it.action == android.content.Intent.ACTION_SEND }?.getStringExtra(android.content.Intent.EXTRA_TEXT)
+            ?: intent?.takeIf { it.action == android.content.Intent.ACTION_VIEW }?.dataString
         setContent { MobileTheme { App(library, shared) } }
     }
 

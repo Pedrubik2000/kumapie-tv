@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,6 +60,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     var offline by remember { mutableStateOf(false) }
     val states by library.downloads.states().collectAsState(initial = emptyMap())
     var deleting by remember { mutableStateOf<Episode?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(Unit) { // fresh progress after watching
         runCatching { library.shows() }.onSuccess { (shows, off) ->
@@ -92,6 +94,11 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
                         val resume = ep.resume
                         if (resume != null && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(), Modifier.fillMaxWidth())
                     }
+                    // Condensed: only the speech, in the background (screen off), like the PC's condensed audio.
+                    IconButton(enabled = playable, onClick = {
+                        val art = library.thumb(ep.id, ep.thumb).let { if (it is java.io.File) android.net.Uri.fromFile(it).toString() else it.toString() }
+                        io.github.pedrubik2000.kumapie.mobile.listen.CondensedService.play(context, ep.id, art)
+                    }) { Icon(Icons.Default.Headphones, "Listen condensed") }
                     if (!onDevice) DownloadButton(state, enabled = !offline || state == DownloadState.Done,
                         onStart = { library.downloads.start(show, ep) },
                         onCancel = { library.downloads.cancel(ep.id) },

@@ -109,6 +109,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
+    implementation("androidx.media3:media3-session:1.11.1") // condensed listening in the background (listen/Condensed.kt)
     implementation("androidx.media3:media3-transformer:1.11.1") // scene clips for mined cards
     implementation("androidx.media3:media3-effect:1.11.1")
     implementation("androidx.media3:media3-muxer:1.11.1") // WebM clips (german/WebmMuxer.kt)

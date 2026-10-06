@@ -5,6 +5,7 @@
     <!-- Downloads run as a foreground job with a progress notification. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- A scene on every unlock (unlock/Unlock.kt): a listener service, opening over other apps, back after reboot. -->
@@ -47,6 +48,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- Magnet links in the browser: "Add an episode" (Real-Debrid). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="magnet" />
+            </intent-filter>
         </activity>
 
         <!-- The unlock screen: its own task, out of Recents. -->
@@ -65,6 +73,16 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Listens for screen unlock to show a language-learning scene the user asked for" />
+        </service>
+
+        <!-- Condensed listening: the episode's speech without the gaps, screen off. -->
+        <service
+            android:name=".listen.CondensedService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
         </service>
 
         <receiver

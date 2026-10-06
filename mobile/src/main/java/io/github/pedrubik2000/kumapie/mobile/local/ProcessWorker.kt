@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.media.MediaCodec
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
@@ -23,6 +25,21 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import androidx.annotation.OptIn
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.Clock
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultDecoderFactory
+import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.ExoPlayerAssetLoader
+import androidx.media3.transformer.ExportException
+import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.Transformer
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.google.mlkit.common.model.DownloadConditions
@@ -32,6 +49,9 @@ import com.google.mlkit.nl.translate.TranslatorOptions
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.mobile.german.GermanModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -49,6 +69,11 @@ var Settings.sonioxKey: String
     get() = prefs.getString("soniox_key", "") ?: ""
     set(value) = prefs.edit().putString("soniox_key", value.trim()).apply()
 
+/** The Real-Debrid API token (real-debrid.com/apitoken), typed into Settings by the user, kept only here. */
+var Settings.rdToken: String
+    get() = prefs.getString("rd_token", "") ?: ""
+    set(value) = prefs.edit().putString("rd_token", value.trim()).apply()
+
 /** The highest video quality for new episodes (360 / 480 / 720 / 1080, H.264), remembered. */
 var Settings.videoHeight: Int
     get() = prefs.getInt("video_height", 720)
@@ -63,10 +88,12 @@ var Settings.englishSource: String
     set(value) = prefs.edit().putString("english_source", value).apply()
 
 /**
- * Makes a kumapie episode from a YouTube link on the device, like the PC's pipeline: download (yt-dlp + QuickJS) →
- * one MP4 (MediaMuxer) → Soniox (German, and English if chosen) → German cues → English (device translator, unless
- * Soniox gave it) → scenes and words (spaCy) → `local/<id>/episode.json`. A foreground job with a notification; it is
- * not retried after a failure, so Soniox is never paid twice for one link.
+ * Makes a kumapie episode on the device, like the PC's pipeline, from a YouTube link (yt-dlp + QuickJS, MediaMuxer),
+ * a Real-Debrid magnet / link (python/realdebrid.py: a season becomes one job per episode) or a video file on the
+ * device (content://) → one MP4 with the German audio (Transformer) → Soniox (German, and English if chosen) → German cues → English (device translator, unless
+ * Soniox gave it) → scenes and words (spaCy) → `local/<id>/episode.json`. A foreground job with a notification; all jobs
+ * run one after another in one queue (one transcription at a time). A failure is not retried, so Soniox is never paid
+ * twice for one link, and doesn't stop the jobs queued after it.
  */
 class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     private val local = LocalEpisodes(context)
@@ -80,15 +107,36 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val id = idFor(url)
         runCatching { setForeground(foreground("Starting…", 0f)) }
         return try {
-            withContext(Dispatchers.IO) { process(id, url, show) }
-            Result.success(workDataOf(STAGE to "Done"))
+            Result.success(workDataOf(STAGE to withContext(Dispatchers.IO) { process(id, url, show) }))
         } catch (e: Throwable) {
             Log.w("kumapie", "process $url: $e")
-            Result.failure(workDataOf(ERROR to (e.message?.lineSequence()?.lastOrNull { it.isNotBlank() } ?: e.toString())))
+            // Succeeds anyway, so the episodes queued after this one still run.
+            Result.success(workDataOf(STAGE to "Failed: " + (e.message?.lineSequence()?.lastOrNull { it.isNotBlank() } ?: e.toString())))
         }
     }
 
-    private suspend fun process(id: String, url: String, showName: String?) {
+    private suspend fun process(id: String, url: String, showName: String?): String {
+        if (local.json(id).exists()) return "Already here: " + (local.entries().firstOrNull { it.id == id }?.title ?: url)
+        val youtube = isYouTube(url)
+        val file = url.startsWith("content:")
+        val rdToken = if (youtube || file) "" else settings.rdToken.ifBlank { error("Add your Real-Debrid token in Settings first.") }
+        if (!Python.isStarted()) Python.start(AndroidPlatform(applicationContext))
+        val py = Python.getInstance()
+        val logger = Logger()
+        val rd = py.getModule("realdebrid")
+
+        // A magnet or link not yet split: one job per video file in it, queued after this one.
+        if (!youtube && !file && !inputData.getBoolean(PART, false)) {
+            report("Asking Real-Debrid…", 0.02f)
+            val files = JSONArray(ticking(0.02f) { rd.callAttr("episodes", rdToken, url, logger).toString() })
+            for (i in 0 until files.length()) {
+                val f = files.getJSONObject(i)
+                val about = JSONObject(rd.callAttr("describe", f.getString("name"), f.getBoolean("single")).toString())
+                enqueue(applicationContext, f.getString("link"), showName ?: about.getString("show"), height, part = true)
+            }
+            return "Real-Debrid: ${files.length()} episode(s) queued"
+        }
+
         val parakeetHere = settings.transcriber == "parakeet"
         val key = if (parakeetHere) "" else settings.sonioxKey.ifBlank { error("Add your Soniox key in Settings first.") }
         if (parakeetHere && !Parakeet(applicationContext).isReady) error("Download the speech model (Parakeet) in Settings first.")
@@ -98,32 +146,47 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         if (!model.isReady) error("Download the German model in Settings first.")
         val dir = local.dir(id).apply { mkdirs() }
         val dl = File(dir, "download").apply { mkdirs() }
-        if (!Python.isStarted()) Python.start(AndroidPlatform(applicationContext))
-        val py = Python.getInstance()
-        val logger = Logger()
 
-        // 1. Download.
-        report("Downloading…", 0.02f)
-        val qjs = File(applicationContext.applicationInfo.nativeLibraryDir, "libqjs.so").path
-        val got = JSONObject(py.getModule("youtube").callAttr("download", url, dl.path, qjs, logger, height).toString())
-        val title = got.getString("title")
-        val show = showName ?: got.optString("channel").ifBlank { "YouTube" }
-
-        // 2. One MP4 for the player, and the audio for Soniox.
-        report("Putting the video together…", 0.35f)
+        // 1. Download, and 2. one MP4 for the player (German audio) + the audio for Soniox / Parakeet.
         val video = local.video(id)
         val audio = File(dir, "audio.m4a")
-        val audioPart = got.optString("audio").takeIf { it.isNotBlank() && it != "null" }
-        if (audioPart != null) {
-            mux(got.getString("video"), audioPart, video)
-            File(audioPart).copyTo(audio, overwrite = true)
+        val title: String
+        val show: String
+        var season: Int? = null
+        var number: Int? = null
+        if (youtube) {
+            report("Downloading…", 0.02f)
+            val qjs = File(applicationContext.applicationInfo.nativeLibraryDir, "libqjs.so").path
+            val got = JSONObject(ticking(0.02f) { py.getModule("youtube").callAttr("download", url, dl.path, qjs, logger, height).toString() })
+            title = got.getString("title")
+            show = showName ?: got.optString("channel").ifBlank { "YouTube" }
+            report("Putting the video together…", 0.35f)
+            val audioPart = got.optString("audio").takeIf { it.isNotBlank() && it != "null" }
+            if (audioPart != null) {
+                mux(got.getString("video"), audioPart, video)
+                File(audioPart).copyTo(audio, overwrite = true)
+            } else {
+                File(got.getString("video")).copyTo(video, overwrite = true)
+                extractAudio(video, audio)
+            }
         } else {
-            File(got.getString("video")).copyTo(video, overwrite = true)
+            val source = if (file) Uri.parse(url) else {
+                report("Downloading…", 0.02f)
+                Uri.fromFile(File(ticking(0.02f) { rd.callAttr("download", rdToken, url, dl.path, logger).toString() }))
+            }
+            val name = if (file) displayName(source) else source.lastPathSegment ?: "video"
+            val about = JSONObject(rd.callAttr("describe", name, file).toString())
+            title = about.getString("title")
+            show = showName ?: about.getString("show")
+            season = about.optInt("season").takeIf { !about.isNull("season") }
+            number = about.optInt("number").takeIf { !about.isNull("number") }
+            report("Converting the video (German audio)…", 0.35f)
+            remux(source, video)
             extractAudio(video, audio)
         }
         dl.deleteRecursively()
         thumbnail(video, local.thumb(id))
-        val duration = got.optDouble("duration").takeIf { it > 0 } ?: durationOf(video)
+        val duration = durationOf(video)
 
         // 3. Soniox, or Parakeet on the tablet (then the English comes from Gemma or the device's translator).
         val soniox = settings.englishSource == "soniox" && !parakeetHere
@@ -157,8 +220,52 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val episode = py.getModule("newepisode").callAttr("build", model.dir.path, id, show, title, duration,
             video.path, cues, english).toString()
         local.json(id).writeText(episode)
-        local.add(LocalEpisodes.Entry(id, show, title, duration, url))
+        local.add(LocalEpisodes.Entry(id, show, title, duration, url, season, number))
         report("Done: $title", 1f)
+        return "Done: $title"
+    }
+
+    /** A Python call that blocks for long (download, Real-Debrid), its last progress line shown every second. */
+    private suspend fun <T> ticking(progress: Float, block: () -> T): T = coroutineScope {
+        val ticker = launch { while (true) { delay(1000); if (lastLine.isNotEmpty()) report(lastLine, progress) } }
+        try { block() } finally { ticker.cancel(); lastLine = "" }
+    }
+
+    /** A picked file's name ("Dark S01E03.mkv"). */
+    private fun displayName(uri: Uri): String = applicationContext.contentResolver
+        .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        } ?: uri.lastPathSegment ?: "video"
+
+    /**
+     * Any video the device can read (MKV, MP4…) → an MP4 with its German audio track (the first one if none is tagged
+     * German), the video copied as it is and the audio as AAC (re-encoded only when it isn't AAC already).
+     */
+    @OptIn(UnstableApi::class)
+    private suspend fun remux(source: Uri, out: File) = withContext(Dispatchers.Main) {
+        suspendCancellableCoroutine { cont ->
+            val ctx = applicationContext
+            val german = DefaultTrackSelector.Parameters.Builder(ctx).setPreferredAudioLanguage("de")
+                .setForceHighestSupportedBitrate(true).setConstrainAudioChannelCountToDeviceCapabilities(false).build()
+            val loader = ExoPlayerAssetLoader.Factory(ctx, DefaultDecoderFactory(ctx), Clock.DEFAULT, DefaultMediaSourceFactory(ctx),
+                { c -> DefaultTrackSelector(c).apply { setParameters(german) } }, null, DefaultLoadControl())
+            val transformer = Transformer.Builder(ctx)
+                .setAssetLoaderFactory(loader)
+                .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                .addListener(object : Transformer.Listener {
+                    override fun onCompleted(composition: Composition, result: ExportResult) {
+                        if (cont.isActive) cont.resume(Unit)
+                    }
+
+                    override fun onError(composition: Composition, result: ExportResult, e: ExportException) {
+                        Log.w("kumapie", "remux: $e")
+                        if (cont.isActive) cont.resumeWithException(IllegalStateException("Couldn't convert the video: ${e.errorCodeName}", e))
+                    }
+                })
+                .build()
+            transformer.start(EditedMediaItem.Builder(MediaItem.fromUri(source)).build(), out.path)
+            cont.invokeOnCancellation { transformer.cancel() }
+        }
     }
 
     /** German cues → English cues with the same times, by Google's on-device translator (model ~30 MB, once). */
@@ -282,10 +389,15 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         const val URL = "url"
         const val SHOW = "show"
         const val HEIGHT = "height"
+        /** A file of a magnet / link already split into episodes. */
+        const val PART = "part"
         const val STAGE = "stage"
         const val ERROR = "error"
         private const val CHANNEL = "downloads"
         private const val TAG = "process"
+        private const val QUEUE = "process-queue"
+
+        fun isYouTube(url: String) = Regex("""^https?://([\w-]+\.)?(youtube\.com|youtu\.be)/""").containsMatchIn(url)
 
         /** One id per video: a YouTube link counts by its video id, so links shared with tracking (`?si=`) don't repeat it. */
         fun idFor(url: String): String {
@@ -294,12 +406,17 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 .joinToString("") { "%02x".format(it) }.take(12)
         }
 
-        fun start(context: Context, url: String, show: String?, height: Int) {
+        /** Queues [url] (YouTube / magnet / Real-Debrid link / content:// file) after the jobs already waiting. */
+        fun start(context: Context, url: String, show: String?, height: Int) = enqueue(context, url.trim(), show, height, part = false)
+
+        private fun enqueue(context: Context, url: String, show: String?, height: Int, part: Boolean) {
+            // A file on the device with Parakeet needs no connection.
+            val offline = url.startsWith("content:") && Settings(context).transcriber == "parakeet"
             val req = OneTimeWorkRequestBuilder<ProcessWorker>()
-                .setInputData(workDataOf(URL to url.trim(), SHOW to show, HEIGHT to height))
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setInputData(workDataOf(URL to url, SHOW to show, HEIGHT to height, PART to part))
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(if (offline) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED).build())
                 .addTag(TAG).build()
-            WorkManager.getInstance(context).enqueueUniqueWork(TAG + idFor(url), ExistingWorkPolicy.KEEP, req)
+            WorkManager.getInstance(context).enqueueUniqueWork(QUEUE, ExistingWorkPolicy.APPEND_OR_REPLACE, req)
         }
 
         /** Every job's line for the home screen: "<url>: stage" / failed / done. */
@@ -307,7 +424,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             infos.filter { it.state != WorkInfo.State.CANCELLED }.sortedBy { it.state.isFinished }.map { info ->
                 when (info.state) {
                     WorkInfo.State.RUNNING -> info.progress.getString(STAGE) ?: "Working…"
-                    WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> "Waiting for a connection…"
+                    WorkInfo.State.ENQUEUED -> "Waiting for a connection…"
+                    WorkInfo.State.BLOCKED -> "Queued"
                     WorkInfo.State.FAILED -> "Failed: " + (info.outputData.getString(ERROR) ?: "unknown error")
                     WorkInfo.State.SUCCEEDED -> info.outputData.getString(STAGE) ?: "Done"
                     else -> ""

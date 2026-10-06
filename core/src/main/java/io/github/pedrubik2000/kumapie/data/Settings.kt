@@ -27,6 +27,16 @@ class Settings(context: Context) {
         get() = runCatching { Subtitles.valueOf(prefs.getString("subtitles", null)!!) }.getOrDefault(Subtitles.HIDDEN)
         set(value) = prefs.edit().putString("subtitles", value.name).apply()
 
+    /** Phone/tablet: play episodes upright, one scene per page (swipe up), instead of landscape. */
+    var upright: Boolean
+        get() = prefs.getBoolean("upright_player", false)
+        set(value) = prefs.edit().putBoolean("upright_player", value).apply()
+
+    /** The feed's scene levels: 0 = i+0, 1 = i+1, 2 = i+2 and up. */
+    var feedLevels: Set<Int>
+        get() = prefs.getString("feed_levels", "1")!!.split(',').mapNotNull { it.toIntOrNull() }.toSet()
+        set(value) = prefs.edit().putString("feed_levels", value.sorted().joinToString(",")).apply()
+
     /** The help screen when an episode opens, and the key hints at the top. Options > Help works either way. */
     var showHelp: Boolean
         get() = prefs.getBoolean("show_help", true)

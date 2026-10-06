@@ -22,6 +22,7 @@ import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
+import io.github.pedrubik2000.kumapie.mobile.ui.FeedScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.HomeScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.IPlusOneScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.MobileTheme
@@ -38,6 +39,7 @@ sealed interface Screen {
     data class ShowEpisodes(val showId: String) : Screen
     data class Player(val show: Show, val episode: Episode, val startAt: Double? = null) : Screen
     data object IPlusOne : Screen
+    data object Feed : Screen
     data object Settings : Screen
     data object Stats : Screen
 }
@@ -98,12 +100,14 @@ fun App(library: Library) {
                 onShow = { stack += Screen.ShowEpisodes(it.id) },
                 onStats = { stack += Screen.Stats },
                 onIPlusOne = { stack += Screen.IPlusOne },
+                onFeed = { stack += Screen.Feed },
                 onSettings = { stack += Screen.Settings },
             )
             is Screen.ShowEpisodes -> shows.firstOrNull { it.id == screen.showId }?.let { show ->
                 ShowScreen(library, show, onPlay = { stack += Screen.Player(show, it) }, onBack = { stack.removeAt(stack.lastIndex) })
             }
             is Screen.Player -> PlayerScreen(library, screen.show, screen.episode, screen.startAt, onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.Feed -> FeedScreen(library, shows, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.IPlusOne -> IPlusOneScreen(library, shows, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server },

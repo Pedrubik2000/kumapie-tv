@@ -73,6 +73,18 @@ class Library(context: Context, val settings: Settings) {
         )
     }
 
+    /** Every episode of [shows] with its scenes and word colours (fetched once per app run; unreachable ones skipped). */
+    suspend fun allEpisodes(shows: List<Show>, progress: (String) -> Unit = {}): List<Pair<Show, EpisodeDetail>> {
+        val list = shows.flatMap { s -> s.episodes.map { s to it } }
+        return list.mapIndexedNotNull { i, (show, ep) ->
+            progress("Reading episodes ${i + 1} of ${list.size}…")
+            val detail = episodeCache[ep.id] ?: runCatching { episode(ep.id) }.getOrNull()?.also { episodeCache[ep.id] = it }
+            detail?.let { show to it }
+        }
+    }
+
+    private val episodeCache = java.util.concurrent.ConcurrentHashMap<String, EpisodeDetail>()
+
     /** Pictures of downloaded episodes and their shows, so lists offline have them too. */
     fun thumb(id: String, url: String): Any = downloads.thumb(id).takeIf { it.exists() } ?: url
     fun poster(showId: String, url: String): Any = downloads.poster(showId).takeIf { it.exists() } ?: url

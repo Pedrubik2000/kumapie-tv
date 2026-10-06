@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Swipe
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -56,6 +57,7 @@ fun HomeScreen(
     onShow: (Show) -> Unit,
     onStats: () -> Unit,
     onIPlusOne: () -> Unit,
+    onFeed: () -> Unit,
     onSettings: () -> Unit,
 ) {
     var shows by remember { mutableStateOf<List<Show>?>(null) }
@@ -76,6 +78,7 @@ fun HomeScreen(
             title = { Text(if (offline) "kumapie · offline" else "kumapie") },
             actions = {
                 IconButton(onClick = { attempt++ }) { Icon(Icons.Default.Refresh, "Refresh") }
+                IconButton(onClick = onFeed) { Icon(Icons.Default.Swipe, "Feed") }
                 IconButton(onClick = onIPlusOne) { Icon(Icons.Default.AutoAwesome, "i+1 scenes") }
                 IconButton(onClick = onStats) { Icon(Icons.Default.BarChart, "Stats") }
                 IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings") }

@@ -91,6 +91,15 @@ import kotlinx.coroutines.delay
 /** Loads the episode (from the PC, or its download), then plays it scene by scene, full screen in landscape. */
 @Composable
 fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double? = null, onBack: () -> Unit) {
+    var upright by remember { mutableStateOf(library.settings.upright) }
+    if (upright) {
+        // Upright: the episode's scenes one per page (FeedScreen.kt); its options switch back here.
+        var d by remember { mutableStateOf<EpisodeDetail?>(null) }
+        LaunchedEffect(Unit) { d = runCatching { library.episode(episode.id) }.getOrNull()?.let { if (startAt != null) it.copy(resume = startAt + 0.05) else it } }
+        d?.let { UprightEpisode(library, it, onBack, onLandscape = { library.settings.upright = false; upright = false }) }
+            ?: Box(Modifier.fillMaxSize().background(Color.Black))
+        return
+    }
     FullScreenLandscape()
     var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -113,18 +122,23 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
             }
             d == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 18.sp,
                 modifier = Modifier.align(Alignment.Center))
-            else -> ScenePlayer(library, library.settings, library.backend(), d, startPaused = startAt != null, onBack)
+            else -> ScenePlayer(library, library.settings, library.backend(), d, startPaused = startAt != null, onBack,
+                onUpright = { library.settings.upright = true; upright = true })
         }
     }
 }
 
 /** Landscape, no system bars, screen kept on, while the player is open. */
 @Composable
-private fun FullScreenLandscape() {
+private fun FullScreenLandscape() = FullScreen(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+
+/** No system bars and the screen kept on, in [orientation] (landscape player, upright feed). */
+@Composable
+internal fun FullScreen(orientation: Int) {
     val activity = LocalContext.current as Activity
     val view = LocalView.current
     DisposableEffect(Unit) {
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        activity.requestedOrientation = orientation
         val bars = WindowCompat.getInsetsController(activity.window, view)
         bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         bars.hide(WindowInsetsCompat.Type.systemBars())
@@ -145,13 +159,16 @@ private fun FullScreenLandscape() {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ScenePlayer(
+internal fun ScenePlayer(
     library: Library,
     settings: Settings,
     backend: Backend,
     episode: EpisodeDetail,
     startPaused: Boolean,
     onBack: () -> Unit,
+    /** Switches between landscape and upright (null: no switch, e.g. in the feed). */
+    onUpright: (() -> Unit)? = null,
+    uprightNow: Boolean = false,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -274,7 +291,9 @@ private fun ScenePlayer(
     }
 
     if (options) {
-        ModalBottomSheet(onDismissRequest = { options = false }) { Options(ctl) }
+        ModalBottomSheet(onDismissRequest = { options = false }) {
+            Options(ctl, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow)
+        }
     }
     if (mining) {
         ModalBottomSheet(onDismissRequest = { mining = false }) { MineSheet(library, episode, ctl, picker, onDone = { mining = false }) }
@@ -297,7 +316,9 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
         val modes = listOfNotNull(if (ctl.pauseAtSceneEnd) null else "plays on", if (ctl.slow) "0.75x" else null)
         if (modes.isNotEmpty()) Text(modes.joinToString(" · "), color = Colors.dim, fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 8.dp))
-        Text("${scene.index + 1} / ${ctl.scenes.size}", color = Colors.text, fontSize = 15.sp)
+        // One scene alone (feed, unlock): its place in the episode.
+        Text(if (ctl.scenes.size == 1) "scene ${scene.index + 1}" else "${scene.index + 1} / ${ctl.scenes.size}",
+            color = Colors.text, fontSize = 15.sp)
         LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 10.dp))
         IconButton(onClick = onOptions) { Icon(Icons.Default.MoreVert, "Options", tint = Colors.text) }
     }
@@ -336,11 +357,12 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> 
 
 /** The player's modes, saved on the device; and a reminder of the gestures. */
 @Composable
-private fun Options(ctl: SceneController) {
+private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprightNow: Boolean = false) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OptionRow("Pause at the end of each scene", ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
         OptionRow("Slow (0.75x)", ctl.slow, ctl::toggleSlow)
+        if (onUpright != null) OptionRow("Upright: scene by scene, swipe up", uprightNow, onUpright)
         Text("Subtitles", color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(SubtitleMode.HIDDEN, SubtitleMode.BLURRED, SubtitleMode.GERMAN, SubtitleMode.BOTH).forEach { m ->

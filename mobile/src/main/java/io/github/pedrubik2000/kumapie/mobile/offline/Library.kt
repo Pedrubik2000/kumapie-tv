@@ -11,6 +11,7 @@ import io.github.pedrubik2000.kumapie.mobile.lang.Dictionary
 import io.github.pedrubik2000.kumapie.mobile.lang.GermanVoice
 import io.github.pedrubik2000.kumapie.mobile.lang.KnownWords
 import io.github.pedrubik2000.kumapie.mobile.lang.Miner
+import io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries
 import io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes
 import io.github.pedrubik2000.kumapie.mobile.unlock.UnlockPool
 import kotlinx.coroutines.CoroutineScope
@@ -33,8 +34,10 @@ class Library(context: Context, val settings: Settings) {
     val known = KnownWords(context, settings)
     /** The same for Japanese (🐻 Japanese, Sudachi); used by Japanese episodes once they exist (plan step 4). */
     val knownJa = KnownWords(context, settings, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE)
-    /** Meanings without the PC: the offline Wiktionary file, Wiktionary online (cached), recordings. */
-    val dictionary = Dictionary(context)
+    /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
+    val yomitan = YomitanDictionaries(context)
+    /** Meanings without the PC: Yomitan dictionaries, else the offline Wiktionary file, Wiktionary online (cached), recordings. */
+    val dictionary = Dictionary(context, yomitan)
     /** The device's German voice, for words without a recording. */
     val voice by lazy { GermanVoice(context) }
     /** Cards mined into kuma3 Anki. */

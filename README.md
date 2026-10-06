@@ -158,4 +158,6 @@ A word in an episode's `words` also has `lemma` (dictionary form), `d` (best sta
 
 ## License
 
-MIT
+GPL-3.0 (since v0.23.0; earlier releases were MIT). The phone/tablet app includes
+[hoshidicts](https://github.com/bee-san/hoshidicts) (GPL-3.0) for Yomitan dictionaries, built from source by
+`tools/hoshidicts/build.sh`.

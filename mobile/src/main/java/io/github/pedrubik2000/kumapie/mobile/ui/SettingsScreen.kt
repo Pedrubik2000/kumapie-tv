@@ -12,6 +12,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -98,6 +101,8 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 KnownWordsSection(library)
                 JapaneseWordsSection(library)
+                HorizontalDivider()
+                YomitanSection(library)
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 DictionarySection(library)
@@ -247,6 +252,61 @@ private fun JapaneseWordsSection(library: Library) {
         busy = true
         scope.launch { known.refresh(); busy = false }
     }) { Text(if (busy) "Reading Anki…" else "Read Japanese cards now") }
+}
+
+/**
+ * Yomitan dictionaries (kumapie_languages_plan.md step 2b): import .zip files per language, turn them on or off,
+ * order them (the popup shows meanings in this order), delete. German words are looked up in them first.
+ */
+@Composable
+private fun YomitanSection(library: Library) {
+    val dicts = library.yomitan
+    val scope = rememberCoroutineScope()
+    val all by dicts.all.collectAsState()
+    var lang by remember { mutableStateOf(io.github.pedrubik2000.kumapie.data.Lang.GERMAN) }
+    var said by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Dict?>(null) }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            said = dicts.import(uris, lang) { said = it }.joinToString("\n")
+            busy = false
+        }
+    }
+
+    Text("Dictionaries (Yomitan)", color = Colors.accent)
+    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        io.github.pedrubik2000.kumapie.data.Lang.ALL.forEach { l ->
+            androidx.compose.material3.FilterChip(selected = lang == l, onClick = { lang = l }, label = { Text(l.name) })
+        }
+    }
+    val mine = all.filter { it.lang == lang.code }
+    if (mine.isEmpty()) Text("No ${lang.name} dictionaries yet. Import Yomitan .zip files (e.g. kty-de-en for German, Jitendex for Japanese).",
+        fontSize = 14.sp, color = Colors.dim)
+    mine.forEachIndexed { i, d ->
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(d.title, fontSize = 15.sp)
+                Text(d.kinds + (if (d.revision.isNotBlank()) " · ${d.revision}" else ""), fontSize = 12.sp, color = Colors.dim)
+            }
+            IconButton(enabled = i > 0, onClick = { dicts.move(d.folder, -1) }) { Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowUp, "Up") }
+            IconButton(enabled = i < mine.lastIndex, onClick = { dicts.move(d.folder, 1) }) { Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowDown, "Down") }
+            androidx.compose.material3.Switch(d.enabled, { dicts.setEnabled(d.folder, it) })
+            IconButton(onClick = { deleting = d }) { Icon(androidx.compose.material.icons.Icons.Default.Delete, "Delete") }
+        }
+    }
+    OutlinedButton(enabled = !busy, onClick = { pick.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) }) {
+        Text(if (busy) "Importing…" else "Import ${lang.name} dictionaries (.zip)")
+    }
+    if (said.isNotEmpty()) Text(said, fontSize = 13.sp, color = Colors.dim)
+    deleting?.let { d ->
+        androidx.compose.material3.AlertDialog(onDismissRequest = { deleting = null },
+            title = { Text("Delete ${d.title}?") }, text = { Text("You can import it again later.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { scope.launch(Dispatchers.IO) { dicts.delete(d.folder) }; deleting = null }) { Text("Delete") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = null }) { Text("Cancel") } })
+    }
 }
 
 /** The offline dictionary (download / update), the device's German voice, and the data's attribution. */

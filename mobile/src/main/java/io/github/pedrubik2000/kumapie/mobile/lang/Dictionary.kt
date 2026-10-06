@@ -45,7 +45,7 @@ data class Sense(val gloss: String, val tags: String, val examples: List<Pair<St
  *   (also "not found"), so a word is asked for once.
  * Wiktionary content is CC BY-SA 4.0 ([ATTRIBUTION]).
  */
-class Dictionary(private val context: Context) {
+class Dictionary(private val context: Context, private val yomitan: YomitanDictionaries? = null) {
     private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "dictionary")
     val file = File(base, "de-en.sqlite")
     val isReady: Boolean get() = file.exists()
@@ -98,12 +98,28 @@ class Dictionary(private val context: Context) {
      */
     suspend fun lookup(surface: String, key: String?, lemma: String?, online: Boolean = true): List<DictEntry> =
         withContext(Dispatchers.IO) {
+            // Imported Yomitan dictionaries first (kumapie_languages_plan.md step 2b); the Wiktionary file stays the fallback.
+            val yomi = runCatching { yomitan(surface, key, lemma) }.onFailure { Log.w("kumapie", "yomitan: $it") }.getOrDefault(emptyList())
+            if (yomi.isNotEmpty()) return@withContext yomi
             val found = runCatching { offline(surface, key, lemma) }.onFailure { Log.w("kumapie", "dictionary: $it") }
                 .getOrDefault(emptyList())
             if (found.isNotEmpty() || !online) return@withContext found
             val term = lemma?.takeIf { it.isNotBlank() } ?: surface
             onlineEntries(term).ifEmpty { if (!term.equals(surface, true)) onlineEntries(surface) else emptyList() }
         }
+
+    /** The imported German Yomitan dictionaries' entries: the dictionary form first, then the written forms. */
+    private fun yomitan(surface: String, key: String?, lemma: String?): List<DictEntry> {
+        val y = yomitan ?: return emptyList()
+        val words = listOfNotNull(lemma, key, surface).flatMap { listOf(it, it.lowercase()) }.filter { it.isNotBlank() }.distinct()
+        val seen = HashSet<String>()
+        return words.flatMap { y.query(io.github.pedrubik2000.kumapie.data.Lang.GERMAN, it) }.flatMap { t ->
+            t.glossaries.filter { seen.add("${t.expression}|${t.reading}|${it.dict}|${it.senses.firstOrNull()}") }.map { g ->
+                DictEntry(t.expression, g.tags, listOf(t.reading.takeIf { it.isNotBlank() && it != t.expression }, g.dict)
+                    .filterNotNull().joinToString(" · "), "", g.senses.map { Sense(it, "", emptyList()) })
+            }
+        }
+    }
 
     private fun offline(surface: String, key: String?, lemma: String?): List<DictEntry> {
         val db = open() ?: return emptyList()

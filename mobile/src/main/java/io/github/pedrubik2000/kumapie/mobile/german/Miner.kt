@@ -68,7 +68,7 @@ class Miner(
     suspend fun mine(r: Request, progress: (String) -> Unit): String = withContext(Dispatchers.IO) {
         val pkg = known.ankiApp() ?: error("No kuma3 Anki on this device.")
         if (!known.hasPermission(pkg)) error("kumapie may not use Anki yet: allow it in Settings.")
-        val (mid, fieldNames) = anki.noteType(pkg, listOf(known.noteType, "kuma3 German", "🇩🇪 MvJ").distinct())
+        val (mid, fieldNames) = anki.noteType(pkg, known.noteTypes)
             ?: error("The German note type isn't in Anki.")
         val (sentence, cues) = sentence(r.scene, r.line)
         val slug = slug(r.episode.show)

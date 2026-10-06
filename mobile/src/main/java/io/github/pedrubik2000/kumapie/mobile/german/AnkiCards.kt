@@ -30,7 +30,7 @@ class AnkiCards(private val context: Context) {
     data class Card(val id: Long, val noteId: Long, val reviewed: Boolean, val stability: Double?, val due: Long,
                     val reps: Int = 0, val lapses: Int = 0, val ord: Int = 0)
 
-    /** Notes found by an Anki search (`note:"🇩🇪 MvJ"`), with their fields by name. */
+    /** Notes found by an Anki search (`"note:🐻 German"`), with their fields by name. */
     fun notes(pkg: String, search: String): List<Note> {
         val names = HashMap<Long, List<String>>()
         val out = ArrayList<Note>()
@@ -61,7 +61,7 @@ class AnkiCards(private val context: Context) {
 
     // ------------------------------------------------------------------ writing (mining)
 
-    /** The id of the first note type found by name (e.g. "kuma3 German", then "🇩🇪 MvJ"), and its field names. */
+    /** The id of the first note type found by name (e.g. "🐻 German", then "🇩🇪 MvJ"), and its field names. */
     fun noteType(pkg: String, names: List<String>): Pair<Long, List<String>>? {
         val found = HashMap<String, Long>()
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/models"), arrayOf("_id", "name"), null, null, null)?.use { c ->

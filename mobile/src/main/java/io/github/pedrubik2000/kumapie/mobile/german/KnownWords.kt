@@ -59,10 +59,8 @@ class KnownWords(val context: Context, private val settings: Settings) {
             _status.value = describe()
         }
 
-    /** The Anki note type with the German sentences and Core 1000 words (renamed "kuma3 German" later). */
-    var noteType: String
-        get() = settings.prefs.getString("german_note_type", "🇩🇪 MvJ") ?: "🇩🇪 MvJ"
-        set(value) = settings.prefs.edit().putString("german_note_type", value.trim()).apply()
+    /** The Anki note type with the German sentences and Core 1000 words: its new name first, then the old one. */
+    val noteTypes = listOf("🐻 German", "🇩🇪 MvJ")
 
     /** The AnkiDroid to read: the first installed one (kuma3 Anki first), or null. */
     fun ankiApp(): String? = anki.installed().firstOrNull()
@@ -128,9 +126,9 @@ class KnownWords(val context: Context, private val settings: Settings) {
                 if (!model.isReady) error("The German model isn't downloaded yet.")
                 val started = System.currentTimeMillis()
                 _status.value = "Reading Anki…"
-                val search = "note:\"${noteType.replace("\"", "\\\"")}\""
+                val search = noteTypes.joinToString(" OR ", "(", ")") { "\"note:$it\"" }
                 val notes = whileAnkiStarts { anki.notes(pkg, search) }
-                if (notes.isEmpty()) error("No notes of type \"$noteType\" in Anki.")
+                if (notes.isEmpty()) error("No notes of type \"${noteTypes[0]}\" in Anki.")
                 val cards = anki.cards(pkg, search)
                 val read = System.currentTimeMillis()
 

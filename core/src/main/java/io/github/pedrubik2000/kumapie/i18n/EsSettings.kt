@@ -149,4 +149,5 @@ internal val esSettings: Map<String, String> = mapOf(
     "Check now" to "Revisar ahora",
     "I speak" to "Hablo",
     "Meanings and the second subtitle line come in this language." to "Los significados y la segunda línea de subtítulos salen en este idioma.",
+    "Order mined English cards and unlock definitions" to "Ordenar las tarjetas de inglés y desbloquear definiciones",
 )

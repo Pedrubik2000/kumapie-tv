@@ -534,6 +534,23 @@ private fun EnglishWordsSection(library: Library) {
         busy = true
         scope.launch { known.refresh(); busy = false }
     }) { Text(if (busy) tr("Reading Anki…") else tr("Read English cards now")) }
+    // Mined English cards: order by unknown words and unlock their English definitions (as for German).
+    if (ready && app != null && app != "com.ichi2.anki" && known.hasPermission(app)) {
+        var said by remember { mutableStateOf("") }
+        val recalc = remember { io.github.pedrubik2000.kumapie.mobile.lang.Recalc(known) }
+        OutlinedButton(enabled = !busy, onClick = {
+            busy = true
+            said = tr("Working out the order…")
+            scope.launch {
+                said = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val plan = recalc.plan()
+                    plan.describe() + if (plan.empty) "" else "\n" + recalc.apply(plan)
+                } }.getOrElse { it.message ?: it.toString() }
+                busy = false
+            }
+        }) { Text(tr("Order mined English cards and unlock definitions")) }
+        if (said.isNotEmpty()) Text(said, fontSize = 14.sp, color = Colors.dim)
+    }
 }
 
 /** The menus' language: the phone's, English or Spanish. The screen restarts so every text redraws. */

@@ -18,7 +18,7 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
                val defsReady: Int = 0, val defs: Int = 0) {
         val empty: Boolean get() = dues.isEmpty() && notes.isEmpty()
         fun describe(): String = tr("%1\$d new cards at i+1, %2\$d at i+2 or more, %3\$d at i+0 (of %4\$d new). " +
-            "%5\$d of %6\$d German definitions unlocked. ", levels[READY] ?: 0, levels[NOT_READY] ?: 0, levels[KNOWN] ?: 0, newCards,
+            "%5\$d of %6\$d monolingual definitions unlocked. ", levels[READY] ?: 0, levels[NOT_READY] ?: 0, levels[KNOWN] ?: 0, newCards,
             defsReady, defs) +
             if (empty) tr("Nothing to change.") else tr("%1\$d change place, %2\$d notes get new tags or study words.", dues.size, notes.size)
     }
@@ -29,7 +29,10 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
         val r = known.lastReading ?: error(tr("Anki wasn't read."))
         val notes = r.notes.associateBy { it.id }
         val keys = r.morphs // judged notes only (Nicos Weg is not), inflections in text order
-        val modify = keys.keys.filter { with(known) { !notes[it]!!.hasTag(KnownWords.CORE1000) } }.toSet()
+        // German: everything but Core 1000. Other languages: only cards mined in kumapie (Pedro's English Core 1000,
+        // the parents' decks stay as they are).
+        val german = known.lang == io.github.pedrubik2000.kumapie.data.Lang.GERMAN
+        val modify = keys.keys.filter { with(known) { if (german) !notes[it]!!.hasTag(KnownWords.CORE1000) else notes[it]!!.hasTag("kumapie") } }.toSet()
         val manual = keys.keys.filter { with(known) { notes[it]!!.hasTag(KnownWords.KNOWN_MANUALLY) } }.toSet()
         val rank = ranks(keys.values)
 

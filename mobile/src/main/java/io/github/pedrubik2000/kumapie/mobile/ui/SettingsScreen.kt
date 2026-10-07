@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -46,6 +47,8 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
 import io.github.pedrubik2000.kumapie.mobile.local.rdToken
 import io.github.pedrubik2000.kumapie.mobile.local.jimakuKey
+import io.github.pedrubik2000.kumapie.mobile.local.subFrom
+import io.github.pedrubik2000.kumapie.mobile.local.subTo
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
 import io.github.pedrubik2000.kumapie.mobile.local.englishSource
 import io.github.pedrubik2000.kumapie.mobile.local.transcriber
@@ -463,4 +466,44 @@ private fun NewEpisodesSection(library: Library) {
         else -> OutlinedButton(onClick = { gemma.download() }) { Text("Download Gemma (about 2.8 GB, once)") }
     }
     Text("Add episodes with + on the home screen (YouTube, magnets, Real-Debrid links, video files), or share a link to kumapie.", fontSize = 13.sp, color = Colors.dim)
+    FollowedChannels(library)
+}
+
+/** Followed YouTube channels (Add an episode > Follow): the hours they may download in, how many a check, remove, check now. */
+@Composable
+private fun FollowedChannels(library: Library) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val subs = remember { io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context) }
+    var list by remember { mutableStateOf(subs.all()) }
+    var from by remember { mutableStateOf(library.settings.subFrom) }
+    var to by remember { mutableStateOf(library.settings.subTo) }
+    Text("Followed channels", color = Colors.accent, modifier = Modifier.padding(top = 12.dp))
+    if (list.isEmpty()) {
+        Text("None yet. In Add an episode, paste a channel's video, pick its shorts or videos and turn on Follow.", fontSize = 13.sp, color = Colors.dim)
+        return
+    }
+    list.forEach { s ->
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text((s.name.ifBlank { s.url.substringAfter("youtube.com/").substringBefore('?') }) + " · " + (if (s.kind == "shorts") "shorts" else "videos"), fontSize = 15.sp)
+                Text("${s.perRun} a night · " + (if (s.lastCheck > 0) "checked " + android.text.format.DateUtils.getRelativeTimeSpanString(s.lastCheck) else "not checked yet"),
+                    fontSize = 13.sp, color = Colors.dim)
+            }
+            listOf(1, 5, 10).forEach { n ->
+                androidx.compose.material3.FilterChip(selected = s.perRun == n, label = { Text("$n") }, modifier = Modifier.padding(start = 4.dp),
+                    onClick = { subs.save(subs.all().map { if (it == s) it.copy(perRun = n) else it }); list = subs.all() })
+            }
+            androidx.compose.material3.TextButton(onClick = { subs.remove(s); list = subs.all() }) { Text("Remove") }
+        }
+    }
+    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Download between", fontSize = 14.sp)
+        OutlinedTextField(from.toString(), { v -> v.filter(Char::isDigit).take(2).toIntOrNull()?.takeIf { it in 0..23 }?.let { from = it; library.settings.subFrom = it } },
+            singleLine = true, modifier = Modifier.width(70.dp))
+        Text("and", fontSize = 14.sp)
+        OutlinedTextField(to.toString(), { v -> v.filter(Char::isDigit).take(2).toIntOrNull()?.takeIf { it in 0..24 }?.let { to = it; library.settings.subTo = it } },
+            singleLine = true, modifier = Modifier.width(70.dp))
+        Text("o'clock, on Wi-Fi", fontSize = 14.sp)
+    }
+    OutlinedButton(onClick = { io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.checkNow(context) }) { Text("Check now") }
 }

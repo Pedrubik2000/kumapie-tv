@@ -534,7 +534,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 .setInputData(workDataOf(URL to url, SHOW to show, HEIGHT to height, LANG to lang.code, TRANSCRIBER to transcriber,
                     ENGLISH to english, PART to part, KIND to kind, COUNT to count, LABEL to (label ?: url)))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(if (offline) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED).build())
-                .addTag(TAG).addTag("label:" + (label ?: url).take(120)).build()
+                .addTag(TAG).addTag("label:" + (label ?: url).take(120)).addTag("id:" + idFor(url)).build()
             WorkManager.getInstance(context).enqueueUniqueWork(QUEUE, ExistingWorkPolicy.APPEND_OR_REPLACE, req)
         }
 

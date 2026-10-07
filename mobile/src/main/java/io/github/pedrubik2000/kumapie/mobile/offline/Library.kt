@@ -38,7 +38,10 @@ class Library(context: Context, val settings: Settings) {
     /** The known-words list a word belongs to: kana or kanji in it means Japanese. */
     private fun knownOfWord(word: String) = if (JAPANESE_TEXT.containsMatchIn(word)) knownJa else known
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
-    val yomitan = YomitanDictionaries.get(context).also { io.github.pedrubik2000.kumapie.mobile.lang.YomitanUpdateWorker.schedule(context) }
+    val yomitan = YomitanDictionaries.get(context).also {
+        io.github.pedrubik2000.kumapie.mobile.lang.YomitanUpdateWorker.schedule(context)
+        if (io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).all().isNotEmpty()) io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.schedule(context)
+    }
     /** Meanings without the PC: Yomitan dictionaries, else the offline Wiktionary file, Wiktionary online (cached), recordings. */
     val dictionary = Dictionary(context, yomitan)
     /** The device's German voice, for words without a recording. */

@@ -66,6 +66,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     // YouTube: this video, or the newest shorts / videos of its channel, or the playlist.
     var ytKind by remember(channelLink, playlistLink) { mutableStateOf(if (playlistLink) "playlist" else if (channelLink) "videos" else "video") }
     var ytCount by remember { mutableStateOf("10") }
+    var follow by remember { mutableStateOf(false) }
     // Picked files: kumapie keeps the right to read them, as the job may run after the app is closed.
     val pick = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -103,6 +104,11 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
             }
             if (ytKind != "video") OutlinedTextField(ytCount, { ytCount = it.filter(Char::isDigit).take(3) },
                 label = { Text("How many (newest first)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            if (ytKind == "shorts" || ytKind == "videos") androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Follow: new ones (and older ones not here) download by themselves, at night (Settings)", fontSize = 14.sp,
+                    modifier = Modifier.weight(1f))
+                androidx.compose.material3.Switch(checked = follow, onCheckedChange = { follow = it })
+            }
         }
         OutlinedTextField(show, { show = it }, label = { Text("Show (blank: the channel's / file's name)") }, singleLine = true,
             modifier = Modifier.fillMaxWidth())
@@ -150,6 +156,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
                 onClick = {
                     links.forEach { l ->
                         val kind = if (ProcessWorker.isYouTube(l) && ytKind != "video") ytKind else null
+                        if (follow && (kind == "shorts" || kind == "videos")) io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).add(
+                            io.github.pedrubik2000.kumapie.mobile.local.Subscriptions.Sub(l, show, kind, lang.code, 5))
                         ProcessWorker.start(context, l, show.takeIf { it.isNotBlank() }, height, lang, transcriber, englishNow,
                             kind, ytCount.toIntOrNull()?.coerceIn(1, 200) ?: 10)
                     }

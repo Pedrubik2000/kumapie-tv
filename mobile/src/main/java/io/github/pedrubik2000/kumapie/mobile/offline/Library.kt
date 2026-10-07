@@ -35,6 +35,8 @@ class Library(context: Context, val settings: Settings) {
     /** The same for Japanese (🐻 Japanese, Sudachi); used by Japanese episodes once they exist (plan step 4). */
     val knownJa = KnownWords(context, settings, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE)
     fun knownFor(lang: String) = if (lang == knownJa.lang.code) knownJa else known
+    /** The known-words list a word belongs to: kana or kanji in it means Japanese. */
+    private fun knownOfWord(word: String) = if (JAPANESE_TEXT.containsMatchIn(word)) knownJa else known
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
     val yomitan = YomitanDictionaries.get(context).also { io.github.pedrubik2000.kumapie.mobile.lang.YomitanUpdateWorker.schedule(context) }
     /** Meanings without the PC: Yomitan dictionaries, else the offline Wiktionary file, Wiktionary online (cached), recordings. */
@@ -54,7 +56,7 @@ class Library(context: Context, val settings: Settings) {
         // Once: positions of episodes made here, from before progress was kept in Anki.
         if (!settings.prefs.getBoolean("progress_migrated", false)) {
             settings.prefs.all.filterKeys { it.startsWith("resume_") }.forEach { (k, v) -> p.record(k.removePrefix("resume_"), (v as Float).toDouble(), emptyList(), 0.0) }
-            known.markedWords.forEach { p.mark(it, true) }
+            (known.markedWords + knownJa.markedWords).forEach { p.mark(it, true) }
             settings.prefs.edit().putBoolean("progress_migrated", true).apply()
         }
     }
@@ -63,7 +65,9 @@ class Library(context: Context, val settings: Settings) {
     suspend fun syncProgress() {
         if (!known.ready) return
         progress.sync(runCatching { api }.getOrNull())
-        known.useMarked(progress.merged.marked)
+        val (ja, other) = progress.merged.marked.partition { JAPANESE_TEXT.containsMatchIn(it) }
+        known.useMarked(other.toSet())
+        knownJa.useMarked(ja.toSet())
     }
 
     private var syncSoon: kotlinx.coroutines.Job? = null
@@ -167,7 +171,7 @@ class Library(context: Context, val settings: Settings) {
     fun thumb(id: String, url: String): Any = downloads.thumb(id).takeIf { it.exists() } ?: url
     fun poster(showId: String, url: String): Any = downloads.poster(showId).takeIf { it.exists() } ?: url
 
-    fun backend(): Backend = OfflineBackend(api, downloads, pending, known, dictionary, { voice.speak(it) }, { surface, url ->
+    fun backend(): Backend = OfflineBackend(api, downloads, pending, ::knownOfWord, dictionary, { voice.speak(it) }, { surface, url ->
         background.launch { dictionary.keepRecording(surface, url) }
     }, progress, ::syncLater)
 }
@@ -177,7 +181,8 @@ private class OfflineBackend(
     private val api: Api,
     private val downloads: Downloads,
     private val pending: Pending,
-    private val known: KnownWords,
+    /** The known-words list of a word (German or Japanese). */
+    private val knownOf: (String) -> KnownWords,
     private val dictionary: Dictionary,
     private val say: (String) -> Unit,
     private val keepRecording: (String, String) -> Unit,
@@ -203,7 +208,8 @@ private class OfflineBackend(
         // Kept on the device too, so the colour is right offline and once the PC is no longer asked.
         progress.mark(word, known)
         syncLater()
-        val here = if (this.known.ready) this.known.mark(word, known) else null
+        val list = knownOf(word)
+        val here = if (list.ready) list.mark(word, known) else null
         if (pending.flush(api)) runCatching { val pc = api.markKnown(word, known); return here ?: pc }
         pending.add(Pending.known(word, known))
         return here ?: if (known) "k" else "u" // the PC's real answer comes with the next fresh episode
@@ -230,3 +236,6 @@ private class OfflineBackend(
         downloads.definitionFile(scene, line, word).takeIf { it.exists() }?.path
             ?: api.definitionAudio(scene, line, word)
 }
+
+/** Hiragana, katakana or kanji: a Japanese word. */
+private val JAPANESE_TEXT = Regex("[぀-ヿ㐀-鿿]")

@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,6 +101,7 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
     var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
+    val scopeShift = rememberCoroutineScope()
     LaunchedEffect(attempt) {
         error = null
         runCatching { library.episode(episode.id) }.onSuccess { detail = if (startAt != null) it.copy(resume = startAt + 0.05) else it }.onFailure { error = it.message ?: it.toString() }
@@ -118,8 +120,18 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
             }
             d == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 18.sp,
                 modifier = Modifier.align(Alignment.Center))
-            else -> ScenePlayer(library, library.settings, library.backend(), d, startPaused = startAt != null, onBack,
-                onUpright = { upright = !upright; library.settings.upright = upright }, uprightNow = upright)
+            else -> key(d) {
+                ScenePlayer(library, library.settings, library.backend(), d, startPaused = startAt != null, onBack,
+                    onUpright = { upright = !upright; library.settings.upright = upright }, uprightNow = upright,
+                    // Subtitle timing (episodes made here): moves every line, then reloads the episode where it was.
+                    onShift = if (!io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(d.id)) null else ({ secs, at ->
+                        library.local.shift(d.id, secs)
+                        detail = null
+                        scopeShift.launch {
+                            runCatching { library.episode(episode.id) }.onSuccess { detail = it.copy(resume = at) }
+                        }
+                    }))
+            }
         }
     }
 }
@@ -165,6 +177,8 @@ internal fun ScenePlayer(
     /** Switches between landscape and upright (null: no switch, e.g. in the feed). */
     onUpright: (() -> Unit)? = null,
     uprightNow: Boolean = false,
+    /** Shifts the subtitles by (seconds), then reloads at (position); null when the episode isn't made here. */
+    onShift: ((Double, Double) -> Unit)? = null,
     /** Subtitles for this player only, not saved (unlock screen: German + English). */
     subtitles: io.github.pedrubik2000.kumapie.data.Subtitles? = null,
 ) {
@@ -305,7 +319,9 @@ internal fun ScenePlayer(
 
     if (options) {
         ModalBottomSheet(onDismissRequest = { options = false }) {
-            Options(ctl, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow)
+            Options(ctl, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow,
+                onShift?.let { f -> { secs: Double -> options = false; ctl.report(); f(secs, ctl.position) } },
+                onShift?.let { library.local.shifted(episode.id) })
         }
     }
     if (sceneList) {
@@ -401,7 +417,8 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> 
 
 /** The player's modes, saved on the device; and a reminder of the gestures. */
 @Composable
-private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprightNow: Boolean = false) {
+private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprightNow: Boolean = false,
+                    onShift: ((Double) -> Unit)? = null, shifted: Double? = null) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OptionRow("Primed Listening: pause at the start of each scene (read, then play)", ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
@@ -409,6 +426,16 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         OptionRow("Scenes I haven't seen: play straight through (no pauses, nothing skipped)", ctl.newStraight, ctl::toggleNewStraight)
         OptionRow("Slow (0.75x)", ctl.slow, ctl::toggleSlow)
         if (onUpright != null) OptionRow("Upright: scene by scene, swipe up", uprightNow, onUpright)
+        if (onShift != null) {
+            Text("Subtitle timing" + (shifted?.takeIf { it != 0.0 }?.let { " (moved %+.1f s so far)".format(java.util.Locale.ROOT, it) } ?: ""),
+                color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                listOf(-1.0, -0.5, -0.1, 0.1, 0.5, 1.0).forEach { s ->
+                    FilterChip(selected = false, onClick = { onShift(s) }, label = { Text("%+.1f s".format(java.util.Locale.ROOT, s), fontSize = 12.sp) })
+                }
+            }
+            Text("− shows the subtitles earlier, + later. Every line of the episode moves.", color = Colors.dim, fontSize = 12.sp)
+        }
         Text("Subtitles", color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(SubtitleMode.HIDDEN, SubtitleMode.BLURRED, SubtitleMode.TARGET, SubtitleMode.BOTH).forEach { m ->

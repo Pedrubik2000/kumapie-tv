@@ -60,6 +60,32 @@ class LocalEpisodes(context: Context) {
         save(entries().filter { it.id != e.id } + e)
     }
 
+    /**
+     * Moves every subtitle of episode [id] by [seconds] (scenes, lines, English): the manual fix when the automatic sync
+     * is off. Answers the total shift so far ("subtitles.txt" keeps it).
+     */
+    @Synchronized
+    fun shift(id: String, seconds: Double): Double {
+        val o = JSONObject(json(id).readText())
+        fun moved(t: Double) = Math.round((t + seconds).coerceAtLeast(0.0) * 1000) / 1000.0
+        val scenes = o.getJSONArray("scenes")
+        for (i in 0 until scenes.length()) {
+            val sc = scenes.getJSONObject(i)
+            sc.put("start", moved(sc.getDouble("start"))).put("end", moved(sc.getDouble("end")))
+            val cues = sc.getJSONArray("cues")
+            for (k in 0 until cues.length()) cues.getJSONObject(k).let { c -> c.put("start", moved(c.getDouble("start"))).put("end", moved(c.getDouble("end"))) }
+            val en = sc.optJSONArray("english") ?: continue
+            for (k in 0 until en.length()) en.getJSONArray(k).let { e -> e.put(0, moved(e.getDouble(0))).put(1, moved(e.getDouble(1))) }
+        }
+        json(id).writeText(o.toString())
+        val note = File(dir(id), "shift.txt")
+        val total = (note.takeIf { it.exists() }?.readText()?.toDoubleOrNull() ?: 0.0) + seconds
+        note.writeText("%.2f".format(java.util.Locale.ROOT, total))
+        return total
+    }
+
+    fun shifted(id: String): Double = File(dir(id), "shift.txt").takeIf { it.exists() }?.readText()?.toDoubleOrNull() ?: 0.0
+
     @Synchronized
     fun remove(id: String) {
         dir(id).deleteRecursively()

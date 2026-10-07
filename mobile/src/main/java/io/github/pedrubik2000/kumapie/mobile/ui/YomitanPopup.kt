@@ -95,7 +95,8 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.He
                     label = { Text("$g ${dicts.count { library.yomitan.groupOf(lang, it) == g }}", fontSize = 13.sp) })
             }
         }
-        Glossaries(library, lang, hw, group, if (compact) 320 else 520,
+        // In the word card: small enough that the card (word above, buttons below) fits a phone in landscape.
+        Glossaries(library, lang, hw, group, if (compact) (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp - 300).coerceIn(140, 320) else 520,
             onOpen = { w -> shown.indexOfFirst { it.expression == w }.takeIf { it >= 0 }?.let { selected = it } },
             onTapText = { text, offset ->
                 lookup?.let { l ->

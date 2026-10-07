@@ -62,7 +62,9 @@ fun MeaningCard(
     AboveAnchor(anchor) {
         Column(
             Modifier.widthIn(max = maxWidth).background(Colors.surface, RoundedCornerShape(12.dp))
-                .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                // With the dictionaries the footer's popup scrolls itself (sized to fit): a second scroller here took the
+                // swipes and they reached the popup as taps.
+                .then(if (ownMeaning) Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()) else Modifier)
                 .pointerInput(Unit) { detectTapGestures { } } // taps on the card stay on the card
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),

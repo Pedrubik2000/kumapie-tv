@@ -48,6 +48,7 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
+import kotlinx.coroutines.launch
 
 /**
  * The word popup for many Yomitan dictionaries, laid out like Hachidori's (bee-san/hachidori, docs/assets): headword
@@ -66,13 +67,19 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.He
         Text("Not in your ${lang.name} dictionaries.", color = Colors.dim, fontSize = 14.sp)
         return
     }
-    var selected by remember(headwords) { mutableStateOf(0) }
-    val hw = headwords[selected.coerceIn(0, headwords.lastIndex)]
+    // Words looked up from inside a definition (Japanese): a stack, ← goes back.
+    var nested by remember(headwords) { mutableStateOf<List<List<JapaneseLookup.Headword>>>(emptyList()) }
+    val shown = nested.lastOrNull() ?: headwords
+    var selected by remember(shown) { mutableStateOf(0) }
+    val hw = shown[selected.coerceIn(0, shown.lastIndex)]
     var group by remember(hw) { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val lookup = remember { if (lang == Lang.JAPANESE) JapaneseLookup(library.knownJa.japanese, library.yomitan) else null }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (headwords.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            headwords.forEachIndexed { i, h ->
+        if (shown.size > 1 || nested.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (nested.isNotEmpty()) FilterChip(selected = false, onClick = { nested = nested.dropLast(1) }, label = { Text("←", fontSize = 14.sp) })
+            shown.forEachIndexed { i, h ->
                 FilterChip(selected = i == selected, onClick = { selected = i },
                     label = { Text(h.expression + if (h.reading.isNotBlank() && h.reading != h.expression) "  ${h.reading}" else "", fontSize = 14.sp) })
             }
@@ -88,7 +95,17 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.He
             }
         }
         Glossaries(library, lang, hw, group, if (compact) 320 else 520,
-            onOpen = { w -> headwords.indexOfFirst { it.expression == w }.takeIf { it >= 0 }?.let { selected = it } })
+            onOpen = { w -> shown.indexOfFirst { it.expression == w }.takeIf { it >= 0 }?.let { selected = it } },
+            onTapText = { text, offset ->
+                lookup?.let { l ->
+                    scope.launch {
+                        val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            runCatching { l.lookup(text, offset) }.getOrDefault(emptyList())
+                        }
+                        if (found.isNotEmpty() && found.first().expression != hw.expression) nested = nested + listOf(found)
+                    }
+                }
+            })
     }
 }
 
@@ -154,8 +171,10 @@ private fun morae(kana: String): List<String> {
 
 /** The headword's cards in the shared WebView; chips hide the other groups; open/closed is remembered. */
 @Composable
-private fun Glossaries(library: Library, lang: Lang, hw: JapaneseLookup.Headword, group: String?, height: Int, onOpen: (String) -> Unit) {
+private fun Glossaries(library: Library, lang: Lang, hw: JapaneseLookup.Headword, group: String?, height: Int, onOpen: (String) -> Unit,
+                       onTapText: (String, Int) -> Unit = { _, _ -> }) {
     val opener by rememberUpdatedState(onOpen)
+    val tapper by rememberUpdatedState(onTapText)
     val prefs = library.settings.prefs
     val (cards, css) = remember(hw) {
         val byDict = LinkedHashMap<String, MutableList<String>>()
@@ -172,6 +191,7 @@ private fun Glossaries(library: Library, lang: Lang, hw: JapaneseLookup.Headword
     }
     PopupWeb.onToggle = { dict, open -> prefs.edit().putBoolean("popup_open_$dict", open).apply() }
     PopupWeb.onOpen = { opener(it) }
+    PopupWeb.onTapText = { t, o -> tapper(t, o) }
     PopupWeb.media = { dict, path -> library.yomitan.media(lang, dict, path) }
     Box(Modifier.fillMaxWidth().height(height.dp)) {
         AndroidView(modifier = Modifier.fillMaxWidth().height(height.dp),
@@ -193,6 +213,7 @@ private object PopupWeb {
     private var shown: Triple<String, String, String?>? = null
     var onToggle: (String, Boolean) -> Unit = { _, _ -> }
     var onOpen: (String) -> Unit = {}
+    var onTapText: (String, Int) -> Unit = { _, _ -> }
     var media: (String, String) -> ByteArray? = { _, _ -> null }
 
     fun get(context: Context): WebView = web ?: WebView(context.applicationContext).apply {
@@ -202,7 +223,15 @@ private object PopupWeb {
             @JavascriptInterface fun toggled(dict: String, open: Boolean) = onToggle(dict, open)
             /** A word in a card (form-of "... of denken"): show its tab. */
             @JavascriptInterface fun open(word: String) { post { onOpen(word.trim()) } }
+            /** A tap inside a definition: the text around it and where (a word inside a monolingual definition). */
+            @JavascriptInterface fun tapText(text: String, offset: Int) { post { onTapText(text, offset) } }
         }, "kumapie")
+        webChromeClient = object : android.webkit.WebChromeClient() {
+            override fun onConsoleMessage(m: android.webkit.ConsoleMessage): Boolean {
+                android.util.Log.i("kumapie", "popup web: ${m.message()} @${m.lineNumber()}")
+                return true
+            }
+        }
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String?) {
                 loaded = true
@@ -255,6 +284,22 @@ table { border-collapse: collapse; } td, th { border: 1px solid rgba(255,255,255
 .form-of { color: #d9a25b; text-decoration: underline dotted; cursor: pointer; }
 </style><style id="dict"></style></head><body><div id="cards"></div>
 <script>
+// A tap on text inside a card (not its header, not a form-of link): look up the word there.
+document.addEventListener('click', e => {
+  if (e.target.closest('summary') || e.target.closest('.form-of') || !e.target.closest('.body')) return;
+  // The text node and offset under the finger (caretPositionFromPoint in newer WebViews, caretRangeFromPoint before).
+  let node = null, at = 0;
+  const p = document.caretPositionFromPoint && document.caretPositionFromPoint(e.clientX, e.clientY);
+  if (p) { node = p.offsetNode; at = p.offset; }
+  else { const r = document.caretRangeFromPoint(e.clientX, e.clientY); if (r) { node = r.startContainer; at = r.startOffset; } }
+  if (node && node.nodeType !== 3) { const c = node.childNodes[Math.max(0, at - 1)]; if (c && c.nodeType === 3) { node = c; at = Math.max(0, c.length - 1); } }
+  if (!node || node.nodeType !== 3) return;
+  const text = node.textContent;
+  const ja = i => /[\u3040-\u30ff\u3400-\u9fff]/.test(text.charAt(i));
+  if (!ja(at) && at > 0 && ja(at - 1)) at -= 1; // the caret sits just after the tapped character
+  if (!ja(at)) return;
+  kumapie.tapText(text, at);
+});
 function showGroup(g) { document.querySelectorAll('details').forEach(d => d.style.display = (!g || d.dataset.group === g) ? '' : 'none'); }
 function render(css, html, g) {
   document.getElementById('dict').textContent = css;

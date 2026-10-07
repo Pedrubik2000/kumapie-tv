@@ -121,7 +121,7 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
             d == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 18.sp,
                 modifier = Modifier.align(Alignment.Center))
             else -> key(d) {
-                ScenePlayer(library, library.settings, library.backend(), d, startPaused = startAt != null, onBack,
+                ScenePlayer(library, library.settings, library.backend(d.lang), d, startPaused = startAt != null, onBack,
                     onUpright = { upright = !upright; library.settings.upright = upright }, uprightNow = upright,
                     // Subtitle timing (episodes made here): moves every line, then reloads the episode where it was.
                     onShift = if (!io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(d.id)) null else ({ secs, at ->

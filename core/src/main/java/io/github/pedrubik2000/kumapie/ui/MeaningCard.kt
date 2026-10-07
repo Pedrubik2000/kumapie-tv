@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -60,6 +61,7 @@ fun MeaningCard(
     AboveAnchor(anchor) {
         Column(
             Modifier.widthIn(max = maxWidth).background(Colors.surface, RoundedCornerShape(12.dp))
+                .verticalScroll(androidx.compose.foundation.rememberScrollState())
                 .pointerInput(Unit) { detectTapGestures { } } // taps on the card stay on the card
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -169,7 +171,9 @@ private fun AboveAnchor(anchor: Rect, content: @Composable () -> Unit) {
     val gap = with(LocalDensity.current) { 10.dp.roundToPx() }
     val margin = with(LocalDensity.current) { 24.dp.roundToPx() }
     Layout(content = content, modifier = Modifier.fillMaxSize()) { measurables, constraints ->
-        val card = measurables.first().measure(Constraints(maxWidth = constraints.maxWidth - 2 * margin))
+        // At most the screen's height (a phone in landscape): the card scrolls, so its buttons stay reachable.
+        val card = measurables.first().measure(Constraints(maxWidth = constraints.maxWidth - 2 * margin,
+            maxHeight = (constraints.maxHeight - 2 * margin).coerceAtLeast(0)))
         layout(constraints.maxWidth, constraints.maxHeight) {
             val x = (anchor.center.x - card.width / 2f).roundToInt()
                 .coerceIn(margin, (constraints.maxWidth - margin - card.width).coerceAtLeast(margin))

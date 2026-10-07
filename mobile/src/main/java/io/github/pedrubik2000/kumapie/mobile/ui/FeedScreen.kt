@@ -79,7 +79,7 @@ fun FeedScreen(library: Library, shows: List<Show>, onBack: () -> Unit) {
 
     // Feed watching sends lookups and "mark known" as usual, but no progress: an episode resumes where it was left.
     val backend = remember {
-        val real = library.backend()
+        val real = library.backend(library.settings.prefs.getString("home_lang", "de") ?: "de") // the feed follows Home's language
         object : Backend by real {
             override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {}
         }

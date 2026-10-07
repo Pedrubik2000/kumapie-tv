@@ -37,10 +37,8 @@ class Library(context: Context, val settings: Settings) {
     /** English (Pedro's 🐻 English, spaCy English). */
     val knownEn = KnownWords(context, settings, io.github.pedrubik2000.kumapie.data.Lang.ENGLISH)
     fun knownFor(lang: String) = when (lang) { knownJa.lang.code -> knownJa; knownEn.lang.code -> knownEn; else -> known }
-    /** The known-words list a word belongs to: kana or kanji in it means Japanese. */
-    private fun knownOfWord(word: String) = if (JAPANESE_TEXT.containsMatchIn(word)) knownJa else known
-    // ponytail: German and English marks share the German list (Latin script can't tell them apart); a word marked in
-    // one counts in both. Split by episode language if that ever matters.
+    /** The known-words list a word marked in a [lang] episode belongs to: kana or kanji in it means Japanese. */
+    private fun knownOfWord(word: String, lang: String) = if (JAPANESE_TEXT.containsMatchIn(word)) knownJa else knownFor(lang)
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
     val yomitan = YomitanDictionaries.get(context).also {
         io.github.pedrubik2000.kumapie.mobile.lang.YomitanUpdateWorker.schedule(context)
@@ -72,6 +70,7 @@ class Library(context: Context, val settings: Settings) {
         if (!settings.prefs.getBoolean("progress_migrated", false)) {
             settings.prefs.all.filterKeys { it.startsWith("resume_") }.forEach { (k, v) -> p.record(k.removePrefix("resume_"), (v as Float).toDouble(), emptyList(), 0.0) }
             (known.markedWords + knownJa.markedWords).forEach { p.mark(it, true) }
+            knownEn.markedWords.forEach { p.mark(EN_MARK + it, true) }
             settings.prefs.edit().putBoolean("progress_migrated", true).apply()
         }
     }
@@ -80,9 +79,11 @@ class Library(context: Context, val settings: Settings) {
     suspend fun syncProgress() {
         if (!known.ready) return
         progress.sync(runCatching { api }.getOrNull())
-        val (ja, other) = progress.merged.marked.partition { JAPANESE_TEXT.containsMatchIn(it) }
+        val (en, rest) = progress.merged.marked.partition { it.startsWith(EN_MARK) }
+        val (ja, other) = rest.partition { JAPANESE_TEXT.containsMatchIn(it) }
         known.useMarked(other.toSet())
         knownJa.useMarked(ja.toSet())
+        knownEn.useMarked(en.map { it.removePrefix(EN_MARK) }.toSet())
     }
 
     private var syncSoon: kotlinx.coroutines.Job? = null
@@ -186,7 +187,8 @@ class Library(context: Context, val settings: Settings) {
     fun thumb(id: String, url: String): Any = downloads.thumb(id).takeIf { it.exists() } ?: url
     fun poster(showId: String, url: String): Any = downloads.poster(showId).takeIf { it.exists() } ?: url
 
-    fun backend(): Backend = OfflineBackend(api, downloads, pending, ::knownOfWord, dictionary, { voice.speak(it) }, { surface, url ->
+    /** The player's backend; [lang] is the episode's language, so its marks go to that language's list. */
+    fun backend(lang: String = "de"): Backend = OfflineBackend(api, downloads, pending, { knownOfWord(it, lang) }, dictionary, { voice.speak(it) }, { surface, url ->
         background.launch { dictionary.keepRecording(surface, url) }
     }, progress, ::syncLater)
 }
@@ -196,7 +198,7 @@ private class OfflineBackend(
     private val api: Api,
     private val downloads: Downloads,
     private val pending: Pending,
-    /** The known-words list of a word (German or Japanese). */
+    /** The known-words list of a word marked in this episode's language. */
     private val knownOf: (String) -> KnownWords,
     private val dictionary: Dictionary,
     private val say: (String) -> Unit,
@@ -221,10 +223,12 @@ private class OfflineBackend(
 
     override suspend fun markKnown(word: String, known: Boolean): String {
         // Kept on the device too, so the colour is right offline and once the PC is no longer asked.
-        progress.mark(word, known)
-        syncLater()
         val list = knownOf(word)
+        // English marks are kept apart in Progress (German ones keep their old bare keys, Japanese is told by script).
+        progress.mark(if (list.lang.code == "en") EN_MARK + word else word, known)
+        syncLater()
         val here = if (list.ready) list.mark(word, known) else null
+        if (list.lang.code != "de") return here ?: if (known) "k" else "u" // the PC only knows German
         if (pending.flush(api)) runCatching { val pc = api.markKnown(word, known); return here ?: pc }
         pending.add(Pending.known(word, known))
         return here ?: if (known) "k" else "u" // the PC's real answer comes with the next fresh episode
@@ -251,6 +255,9 @@ private class OfflineBackend(
         downloads.definitionFile(scene, line, word).takeIf { it.exists() }?.path
             ?: api.definitionAudio(scene, line, word)
 }
+
+/** Progress key prefix of an English mark. */
+private const val EN_MARK = "en:"
 
 /** Hiragana, katakana or kanji: a Japanese word. */
 private val JAPANESE_TEXT = Regex("[぀-ヿ㐀-鿿]")

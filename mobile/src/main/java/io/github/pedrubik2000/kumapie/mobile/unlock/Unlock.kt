@@ -169,7 +169,7 @@ class UnlockActivity : ComponentActivity() {
                     finish()
                 }
                 val backend = remember {
-                    val real = library.backend()
+                    val real = library.backend(library.settings.prefs.getString("home_lang", "de") ?: "de") // unlock scenes are in Home's language
                     object : Backend by real {
                         override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {}
                     }

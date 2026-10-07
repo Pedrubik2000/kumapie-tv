@@ -74,6 +74,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -192,11 +193,19 @@ internal fun ScenePlayer(
         }
     }
     val ctl = remember { SceneController(episode, player, settings, backend, subtitles) }
+    // A novel's music: its own player, so it goes on while a line waits for the tap.
+    val bgm = remember { if (!episode.novel) null else ExoPlayer.Builder(context).build().apply { repeatMode = Player.REPEAT_MODE_ONE; volume = 0.4f } }
+    val track = if (bgm == null) null else ctl.scene.bgm
+    LaunchedEffect(track) {
+        if (bgm == null) return@LaunchedEffect
+        if (track == null) bgm.stop() else { bgm.setMediaItem(MediaItem.fromUri(track)); bgm.prepare(); bgm.play() }
+    }
     val picker = remember { WordPicker(ctl, backend, scope) }
     var anchor by remember { mutableStateOf<Rect?>(null) }
     var options by remember { mutableStateOf(false) }
     var sceneList by remember { mutableStateOf(false) }
     var mining by remember { mutableStateOf(false) }
+    var menuUntil by remember { mutableLongStateOf(SystemClock.uptimeMillis() + 3_000) } // a novel's bar
     var flash by remember { mutableStateOf<String?>(null) } // "Replay line" etc., shown briefly in the middle
     var flashAt by remember { mutableLongStateOf(0L) }
     fun flash(text: String) { flash = text; flashAt = SystemClock.uptimeMillis() }
@@ -207,12 +216,15 @@ internal fun ScenePlayer(
             ctl.report()
             picker.release()
             player.release()
+            bgm?.release()
         }
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START && bgm != null && bgm.mediaItemCount > 0) bgm.play()
             if (event == Lifecycle.Event.ON_STOP) {
+                bgm?.pause()
                 player.pause()
                 ctl.tick()
                 ctl.report()
@@ -263,13 +275,17 @@ internal fun ScenePlayer(
                             when {
                                 picker.isOpen -> picker.close()
                                 ctl.subtitles == SubtitleMode.HIDDEN && p.y > size.height * 0.65f -> ctl.cycleSubtitles()
+                                // A novel: a tap is always the next line, cutting the voice, like the game.
+                                episode.novel -> if (ctl.index < ctl.scenes.lastIndex) ctl.nextScene()
                                 else -> ctl.togglePlay()
                             }
                         },
-                        onDoubleTap = { p ->
+                        // Not in a novel: fast taps through narration would replay instead (and wait for a second tap).
+                        onDoubleTap = if (episode.novel) null else ({ p ->
                             picker.close()
                             if (p.x < size.width / 2) { ctl.replayLine(); flash(tr("↺ line")) } else { ctl.replayScene(); flash(tr("↺ scene")) }
-                        },
+                        }),
+                        onLongPress = if (!episode.novel) null else ({ menuUntil = SystemClock.uptimeMillis() + 4_000 }),
                     )
                 }
                 .pointerInput(uprightNow) {
@@ -288,9 +304,10 @@ internal fun ScenePlayer(
                 },
         )
 
-        val barVisible = !ctl.playing || now < ctl.bannerUntil || picker.isOpen
+        // A novel never shows the play button; its bar only when opened or on a long press.
+        val barVisible = picker.isOpen || if (episode.novel) now < menuUntil else !ctl.playing || now < ctl.bannerUntil
         if (barVisible) TopBar(ctl, onBack = onBack, onOptions = { options = true }, onScenes = { sceneList = true })
-        if (!ctl.playing && !picker.isOpen) {
+        if (!ctl.playing && !picker.isOpen && !episode.novel) {
             Box(Modifier.align(Alignment.Center).size(64.dp).background(Color(0x66000000), CircleShape),
                 contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.PlayArrow, null, tint = Colors.text, modifier = Modifier.size(40.dp))

@@ -172,6 +172,9 @@ class Library(context: Context, val settings: Settings) {
         val detail = withSeen(api.parseEpisode(json).let { knownFor(it.lang).apply(it) })
         return detail.copy(
             video = if (downloaded) Uri.fromFile(downloads.video(id)).toString() else detail.video,
+            scenes = if (!downloaded || !detail.novel) detail.scenes else detail.scenes.map { s ->
+                s.bgm?.let { downloads.bgm(id, it) }?.takeIf { it.exists() }?.let { s.copy(bgm = Uri.fromFile(it).toString()) } ?: s
+            },
             resume = progress.merged.pos[id] ?: pending.lastPosition(id) ?: detail.resume,
         )
     }

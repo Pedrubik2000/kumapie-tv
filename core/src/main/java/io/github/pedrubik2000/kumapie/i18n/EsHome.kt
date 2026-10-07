@@ -19,6 +19,7 @@ internal val esHome: Map<String, String> = mapOf(
     "Shows" to "Series",
     "Movies" to "Películas",
     "Reels" to "Reels",
+    "Novels" to "Novelas",
     "Can't reach the PC" to "No se puede conectar con la PC",
     "Try again" to "Reintentar",
     "1 episode" to "1 episodio",

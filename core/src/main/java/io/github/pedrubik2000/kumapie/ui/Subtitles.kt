@@ -68,7 +68,8 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     val scene = ctl.scene
     val current = if (picking) scene.cues.getOrNull(picker.line) else ctl.currentCue()
     val pos = ctl.position
-    val paused = !ctl.playing || picking
+    // A novel's scene is one line: shown whole from the scene's start (no flicker while the voice catches up).
+    val paused = !ctl.playing || picking || ctl.episode.novel
     val german: List<Cue> = when {
         picking -> scene.cues
         !ctl.showTarget -> emptyList()

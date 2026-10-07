@@ -47,6 +47,8 @@ class Downloads(private val context: Context) {
     fun video(id: String) = File(dir(id), "video.mp4")
     fun episodeJson(id: String) = File(dir(id), "episode.json")
     fun thumb(id: String) = File(dir(id), "thumb.jpg")
+    /** A novel's music track ([url] = the scene's bgm), kept as bgm/<name>.ogg beside the video. */
+    fun bgm(id: String, url: String) = File(dir(id), "bgm/" + url.substringAfterLast('/'))
     fun poster(showId: String) = File(base, "posters/$showId.jpg")
     fun isComplete(id: String) = File(dir(id), "done").exists()
     fun markComplete(id: String) = File(dir(id), "done").writeText("ok")

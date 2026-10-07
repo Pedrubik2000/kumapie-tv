@@ -93,12 +93,14 @@ class Api(private val base: String, private val person: String = "") : Backend {
                         }
                     }
                 } ?: emptyMap(),
+                bgm = s.optString("bgm").takeIf { it.isNotEmpty() }?.let(::url),
             )
         }
         return EpisodeDetail(
             id = e.getString("id"), show = e.getString("show"), title = e.getString("title"), lang = e.optString("lang", "de"),
             duration = e.optDouble("duration", 0.0), video = url(e.getString("video")),
             resume = if (e.isNull("resume")) null else e.getDouble("resume"), scenes = scenes, words = words,
+            novel = e.optBoolean("novel"),
         )
     }
 
@@ -235,6 +237,8 @@ data class EpisodeDetail(
     val scenes: List<Scene>,
     /** Every word of the episode: known/learning/unknown today and its meaning. */
     val words: Map<String, Word>,
+    /** A visual novel (tools/vn on the PC): one line per scene, it waits after every line, music under it ([Scene.bgm]). */
+    val novel: Boolean = false,
 )
 
 data class Scene(
@@ -253,6 +257,8 @@ data class Scene(
     val meanings: Map<String, String>,
     /** Per-line definitions, by "<line>|<word>" (definitions v2). */
     val defs: Map<String, LineDef> = emptyMap(),
+    /** A novel's music under this line (URL), played on its own so it goes on while the line waits. */
+    val bgm: String? = null,
 ) {
     fun def(line: Int, word: String): LineDef? = defs["$line|$word"]
 }

@@ -282,8 +282,9 @@ class SceneController(
     }
 
     private fun straight(s: Scene) = newStraight && !s.seen
-    private fun pausesAtStart(s: Scene) = pauseAtSceneStart && !straight(s)
-    private fun pausesAtEnd(s: Scene) = pauseAtSceneEnd && !straight(s)
+    // A novel waits after every line until a tap, like the game: the modes don't apply.
+    private fun pausesAtStart(s: Scene) = !episode.novel && pauseAtSceneStart && !straight(s)
+    private fun pausesAtEnd(s: Scene) = episode.novel || (pauseAtSceneEnd && !straight(s))
 
     private fun stopAtSceneEnd() {
         if (pausesAtEnd(scene)) {

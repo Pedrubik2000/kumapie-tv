@@ -113,8 +113,10 @@ class Library(context: Context, val settings: Settings) {
             if (saved == null && mine.isEmpty()) throw e
             (saved?.let { api.parseShows(it) } ?: emptyList()) to true
         }
+        // The PC lists episodes made on devices too (for the TV); here they come through Sync, so only once.
+        val pcOwn = pc.map { s -> s.copy(episodes = s.episodes.filterNot { LocalEpisodes.isLocal(it.id) }) }.filter { it.episodes.isNotEmpty() }
         val m = progress.merged
-        return (mine + pc).map { s ->
+        return (mine + pcOwn).map { s ->
             s.copy(episodes = s.episodes.map { e -> e.copy(resume = m.pos[e.id] ?: e.resume, seen = maxOf(e.seen, m.seenIn(e.id))) })
         } to offline
     }
@@ -211,13 +213,12 @@ private class OfflineBackend(
 ) : Backend {
 
     /**
-     * Kept in [Progress] (Anki). The PC gets only the position of its own episodes, so the TV resumes there; its
-     * scenes and time would count twice (the PC's history is part of Progress as the "pc" note).
+     * Kept in [Progress] (Anki). The PC gets only the position (its own episodes and synced ones made on a device), so
+     * the TV resumes there; scenes and time would count twice (the PC's history is part of Progress as the "pc" note).
      */
     override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {
         progress.record(episode, pos, seen, watched)
         syncLater()
-        if (LocalEpisodes.isLocal(episode)) return // made on this device: the PC doesn't know it
         pending.add(Pending.progress(episode, pos, emptyList(), 0.0))
         pending.flush(api)
     }

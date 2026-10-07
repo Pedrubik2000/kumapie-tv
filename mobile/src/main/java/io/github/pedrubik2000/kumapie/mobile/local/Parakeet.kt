@@ -55,16 +55,16 @@ class Parakeet(private val context: Context) {
      */
     suspend fun transcribe(audio: File, progress: suspend (String) -> Unit): String {
         progress(tr("Reading the audio…"))
-        val samples = decode16k(audio)
-        progress(tr("Finding speech…"))
-        val segments = speech(samples)
         val rec = OfflineRecognizer(null, OfflineRecognizerConfig(modelConfig = OfflineModelConfig(
             transducer = OfflineTransducerModelConfig(encoder = f("encoder"), decoder = f("decoder"), joiner = f("joiner")),
             tokens = f("tokens.txt"), numThreads = 4, modelType = "nemo_transducer")))
         val words = JSONArray()
+        var shown = -1
         try {
-            segments.forEachIndexed { i, (start, pcm) ->
-                if (i % 5 == 0) progress(tr("Transcribing on the tablet: %d%%", i * 100 / segments.size))
+            // Decoded, cut at pauses and transcribed a piece at a time: a 104-min film decoded whole ran out of memory.
+            speech(audio) { start, pcm, done ->
+                val percent = (done * 100).toInt()
+                if (percent != shown) { shown = percent; progress(tr("Transcribing on the tablet: %d%%", percent)) }
                 val st = rec.createStream()
                 st.acceptWaveform(pcm, 16000)
                 rec.decode(st)
@@ -95,29 +95,36 @@ class Parakeet(private val context: Context) {
 
     private fun f(part: String) = dir.listFiles()!!.first { it.name.contains(part) }.path
 
-    /** Speech stretches (start sample, 16 kHz samples) of at most 20 s, cut at pauses (Silero VAD). */
-    internal fun speech(audio: FloatArray, vadModel: File = File(dir, "silero_vad.onnx")): List<Pair<Int, FloatArray>> {
+    /**
+     * [audio]'s speech stretches (start sample, 16 kHz samples) of at most 20 s, cut at pauses (Silero VAD), handed to
+     * [onSpeech] with the share of the audio read so far, while decoding.
+     */
+    internal suspend fun speech(audio: File, vadModel: File = File(dir, "silero_vad.onnx"),
+                                onSpeech: suspend (start: Int, pcm: FloatArray, done: Float) -> Unit) {
         val vad = Vad(null, VadModelConfig(sileroVadModelConfig = SileroVadModelConfig(model = vadModel.path,
             threshold = 0.5f, minSilenceDuration = 0.3f, minSpeechDuration = 0.25f, windowSize = 512, maxSpeechDuration = 20f),
             sampleRate = 16000, numThreads = 1))
-        val out = ArrayList<Pair<Int, FloatArray>>()
         try {
-            var i = 0
-            while (i + 512 <= audio.size) {
-                vad.acceptWaveform(audio.copyOfRange(i, i + 512))
-                while (!vad.empty()) { val s = vad.front(); out += s.start to s.samples; vad.pop() }
-                i += 512
+            var done = 0f
+            suspend fun drain() { while (!vad.empty()) { val s = vad.front(); vad.pop(); onSpeech(s.start, s.samples, done) } }
+            decode16k(audio) { block, read ->
+                done = read
+                var i = 0
+                while (i + 512 <= block.size) { vad.acceptWaveform(block.copyOfRange(i, i + 512)); i += 512 }
+                drain()
             }
             vad.flush()
-            while (!vad.empty()) { val s = vad.front(); out += s.start to s.samples; vad.pop() }
+            drain()
         } finally {
             vad.release()
         }
-        return out
     }
 
-    /** Decodes the audio track to mono 16 kHz floats (MediaCodec, then averaging channels and linear resampling). */
-    internal fun decode16k(file: File): FloatArray {
+    /**
+     * Decodes the audio track to mono 16 kHz floats (MediaCodec, then averaging channels and linear resampling), handed
+     * to [block] in pieces of [BLOCK] samples (a multiple of the VAD's 512) with the share of the audio read so far.
+     */
+    private suspend fun decode16k(file: File, block: suspend (FloatArray, Float) -> Unit) {
         val ex = MediaExtractor().apply { setDataSource(file.path) }
         val track = (0 until ex.trackCount).first { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true }
         ex.selectTrack(track)
@@ -127,8 +134,9 @@ class Parakeet(private val context: Context) {
         codec.start()
         var rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
         var channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-        // Resampled to 16 kHz while decoding (linear): a whole episode at 48 kHz didn't fit in memory.
-        val mono = FloatArrayBuilder()
+        val duration = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else 0L
+        val mono = FloatArray(BLOCK)
+        var size = 0
         var n = 0L          // input samples so far
         var next = 0.0      // the next 16 kHz sample's position, in input samples
         var prev = 0f
@@ -162,8 +170,12 @@ class Parakeet(private val context: Context) {
                     val v = sum / channels / 32768f
                     if (n == 0L) prev = v
                     while (next <= n) {
-                        mono.add(prev + (v - prev) * (1 - (n - next)).toFloat())
+                        mono[size++] = prev + (v - prev) * (1 - (n - next)).toFloat()
                         next += rate / 16000.0
+                        if (size == BLOCK) {
+                            block(mono.copyOf(), if (duration > 0) (n * 1_000_000.0 / rate / duration).toFloat().coerceIn(0f, 1f) else 0f)
+                            size = 0
+                        }
                     }
                     prev = v
                     n++
@@ -173,21 +185,12 @@ class Parakeet(private val context: Context) {
             }
         }
         codec.stop(); codec.release(); ex.release()
-        return mono.toArray()
-    }
-
-    private class FloatArrayBuilder {
-        private var data = FloatArray(1 shl 20)
-        private var size = 0
-        fun add(v: Float) {
-            if (size == data.size) data = data.copyOf(size * 2)
-            data[size++] = v
-        }
-        fun toArray() = data.copyOf(size)
+        block(mono.copyOf(size), 1f)
     }
 
     companion object {
         private const val WORK = "parakeet-model"
+        private const val BLOCK = 512 * 1024 // ~33 s
         private const val HF = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/"
         /** (file, URL): the model from Hugging Face, Silero VAD from sherpa-onnx's releases. */
         val FILES = listOf(

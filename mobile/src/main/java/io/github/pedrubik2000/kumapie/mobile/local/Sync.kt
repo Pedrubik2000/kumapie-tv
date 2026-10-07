@@ -113,6 +113,8 @@ class Sync(private val context: Context) {
         val id = e.getString("id")
         val url = "$base/$id"
         local.dir(id).mkdirs()
+        // Same source = same id: a job that failed here left its files (Nicos Weg: 880 MB). Kept: a dropped download's .part.
+        local.dir(id).listFiles()?.filter { !it.name.endsWith(".part") }?.forEach { it.deleteRecursively() }
         // The video first (resumable), episode.json last: the episode shows up only once it is whole.
         fetch("$url/video.mp4", local.video(id), e.getString("title"))
         runCatching { fetch("$url/thumb.jpg", local.thumb(id)) }

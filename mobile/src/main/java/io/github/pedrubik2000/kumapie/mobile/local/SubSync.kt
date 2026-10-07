@@ -50,10 +50,10 @@ class SubSync(private val context: Context) {
             URL(Parakeet.FILES.first { it.first == "silero_vad.onnx" }.second).openStream().use { i -> part.outputStream().use { i.copyTo(it) } }
             part.renameTo(model)
         }
-        val spans = parakeet.speech(parakeet.decode16k(audio), model)
+        val spans = ArrayList<String>()
+        parakeet.speech(audio, model) { start, pcm, _ -> spans += "${spans.size + 1}\n${ts(start / 16000.0)} --> ${ts((start + pcm.size) / 16000.0)}\n.\n" }
         val ref = File(context.cacheDir, "sync-reference.srt")
-        ref.writeText(spans.mapIndexed { i, (start, pcm) -> "${i + 1}\n${ts(start / 16000.0)} --> ${ts((start + pcm.size) / 16000.0)}\n.\n" }
-            .joinToString("\n"))
+        ref.writeText(spans.joinToString("\n"))
         try {
             // Singing counts as speech for the VAD, so alass may move whole parts into the opening or ending song
             // (Bofuri 01: +40 s and +74 s). A firmer split penalty than alass's 7, and a part over 20 s away from the

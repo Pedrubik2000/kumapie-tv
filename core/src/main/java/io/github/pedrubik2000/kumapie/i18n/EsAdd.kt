@@ -106,4 +106,7 @@ internal val esAdd: Map<String, String> = mapOf(
     "Translating to %1\$s with Gemma: %2\$d%%" to "Traduciendo (%1\$s) con Gemma: %2\$d%%",
     "Translating to %s on the device…" to "Traduciendo (%s) en el dispositivo…",
     "Translating to %1\$s: %2\$d%%" to "Traduciendo (%1\$s): %2\$d%%",
+    "Syncing with the PC…" to "Sincronizando con la PC…",
+    "Syncing with the PC" to "Sincronizando con la PC",
+    "Sync with the PC" to "Sincronizar con la PC",
 )

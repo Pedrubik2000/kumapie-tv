@@ -12,6 +12,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.data.Settings
 import org.json.JSONArray
 import org.json.JSONObject
@@ -43,7 +44,11 @@ class Sync(private val context: Context) {
     }
 
     /** Uploads what is new here, then downloads what is new on the PC. Answers one line per episode moved. */
-    fun run(server: String, owner: String): List<String> = synchronized(RUNNING) { runOnce(server, owner) }
+    fun run(server: String, owner: String, progress: (String, Float) -> Unit = { _, _ -> }): List<String> =
+        synchronized(RUNNING) { this.progress = progress; runOnce(server, owner) }
+
+    /** "↑ title" / "↓ title" and how far (0..1), for the worker's notification. */
+    private var progress: (String, Float) -> Unit = { _, _ -> }
 
     private fun runOnce(server: String, owner: String): List<String> {
         val base = "$server/api/sync/$owner"
@@ -78,6 +83,7 @@ class Sync(private val context: Context) {
                 input.skip(offset)
                 val buf = ByteArray(CHUNK)
                 while (offset < file.length()) {
+                    if (name == "video.mp4") progress("↑ ${e.title}", offset.toFloat() / file.length())
                     var n = 0
                     while (n < buf.size) { val r = input.read(buf, n, buf.size - n); if (r < 0) break; n += r }
                     if (n == 0) break
@@ -105,7 +111,7 @@ class Sync(private val context: Context) {
         val url = "$base/$id"
         local.dir(id).mkdirs()
         // The video first (resumable), episode.json last: the episode shows up only once it is whole.
-        fetch("$url/video.mp4", local.video(id))
+        fetch("$url/video.mp4", local.video(id), e.getString("title"))
         runCatching { fetch("$url/thumb.jpg", local.thumb(id)) }
         val episode = JSONObject(String(open("$url/episode.json").inputStream.use { it.readBytes() }))
         episode.put("video", local.video(id).path)
@@ -116,13 +122,27 @@ class Sync(private val context: Context) {
     }
 
     /** [url] into [out], continuing a .part left by a dropped download. */
-    private fun fetch(url: String, out: File) {
+    private fun fetch(url: String, out: File, label: String = out.name) {
         val part = File(out.path + ".part")
         val c = open(url)
         if (part.length() > 0) c.setRequestProperty("Range", "bytes=${part.length()}-")
         val append = c.responseCode == 206
         if (c.responseCode != 200 && !append) throw IOException("download: HTTP ${c.responseCode}")
-        c.inputStream.use { input -> java.io.FileOutputStream(part, append).use { input.copyTo(it, 1 shl 16) } }
+        val total = (if (append) part.length() else 0L) + c.contentLengthLong.coerceAtLeast(0L)
+        c.inputStream.use { input ->
+            java.io.FileOutputStream(part, append).use { out ->
+                val buf = ByteArray(1 shl 16)
+                var got = if (append) part.length() else 0L
+                var shown = 0L
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    got += n
+                    if (got - shown > (8 shl 20) && total > 0) { shown = got; progress("↓ $label", got.toFloat() / total) }
+                }
+            }
+        }
         out.delete()
         if (!part.renameTo(out)) throw IOException("couldn't move ${out.name} into place")
     }
@@ -146,12 +166,34 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     override suspend fun doWork(): Result {
         val settings = Settings(applicationContext)
         if (settings.owner.isBlank() || settings.server.isBlank()) return Result.success()
-        return runCatching { Sync(applicationContext).run(settings.server, settings.owner) }
+        // In the foreground (a notification): a big episode takes longer than a background job may run, and goes on
+        // with the screen off.
+        runCatching { setForeground(foreground(tr("Syncing with the PC…"), 0f)) }
+        return runCatching { Sync(applicationContext).run(settings.server, settings.owner) { what, f ->
+            runCatching { setForegroundAsync(foreground(what, f)) }
+        } }
             .fold({ lines -> if (lines.isNotEmpty()) Log.i("kumapie", "sync: ${lines.joinToString()}"); Result.success() },
                 { Log.w("kumapie", "sync: $it"); Result.retry() })
     }
 
+    private fun foreground(what: String, progress: Float): androidx.work.ForegroundInfo {
+        val manager = applicationContext.getSystemService(android.app.NotificationManager::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL) == null) {
+            manager.createNotificationChannel(android.app.NotificationChannel(CHANNEL, tr("Sync with the PC"), android.app.NotificationManager.IMPORTANCE_LOW))
+        }
+        val n = androidx.core.app.NotificationCompat.Builder(applicationContext, CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setContentTitle(tr("Syncing with the PC"))
+            .setContentText(what)
+            .setProgress(100, (progress * 100).toInt(), progress <= 0f)
+            .setOngoing(true).setSilent(true).build()
+        return if (android.os.Build.VERSION.SDK_INT >= 29) androidx.work.ForegroundInfo(NOTIFICATION, n, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        else androidx.work.ForegroundInfo(NOTIFICATION, n)
+    }
+
     companion object {
+        private const val CHANNEL = "sync"
+        private const val NOTIFICATION = 7301
         private const val WORK = "sync"
         private val wifi = Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build()
 

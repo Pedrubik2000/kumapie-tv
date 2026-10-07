@@ -176,6 +176,7 @@ internal val esSettings: Map<String, String> = mapOf(
     "Only what this device doesn't have yet is copied; keys only where this device has none." to "Solo se copia lo que este dispositivo aún no tiene; las claves solo donde no haya ninguna.",
     "Copy" to "Copiar",
     "Wrong code." to "Código incorrecto.",
+    "Not enough space here: %1\$.1f GB needed, %2\$.1f GB free." to "No hay espacio suficiente: se necesitan %1\$.1f GB, hay %2\$.1f GB libres.",
     "%d dictionaries" to "%d diccionarios",
     "%d models" to "%d modelos",
     "%d keys" to "%d claves",

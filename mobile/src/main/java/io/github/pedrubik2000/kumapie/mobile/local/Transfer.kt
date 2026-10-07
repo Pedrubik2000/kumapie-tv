@@ -53,7 +53,10 @@ class Transfer(private val context: Context) {
             if (files.isNotEmpty()) out += Item(path, category, title, files, extra)
         }
         LocalEpisodes(context).entries().forEach { add("local/${it.id}", "episodes", "${it.show} · ${it.title}", LocalEpisodes.toJson(it)) }
-        File(base, "episodes").listFiles()?.filter { File(it, "done").exists() }?.forEach { add("episodes/${it.name}", "episodes", it.name) }
+        File(base, "episodes").listFiles()?.filter { File(it, "done").exists() }?.forEach { dir ->
+            val e = runCatching { JSONObject(File(dir, "episode.json").readText()) }.getOrNull()
+            add("episodes/${dir.name}", "episodes", e?.let { "${it.optString("show")} · ${it.optString("title")}" } ?: dir.name)
+        }
         YomitanDictionaries.get(context).all.value.forEach { add("yomitan/${it.folder}", "dictionaries", it.title, YomitanDictionaries.toJson(it)) }
         File(base, "dictionary").listFiles()?.forEach { add("dictionary/${it.name}", "dictionaries", it.name) }
         File(base, "models").listFiles()?.filter { !it.name.endsWith(".part") }?.forEach {
@@ -141,6 +144,9 @@ class Transfer(private val context: Context) {
             .filter { it.getString("category") in categories && !File(base, it.getString("path")).exists() }
         val total = wanted.sumOf { i -> i.getJSONArray("files").let { f -> (0 until f.length()).sumOf { f.getJSONArray(it).getLong(1) } } }
             .coerceAtLeast(1)
+        // Phones fill up: never start what doesn't fit (with 0.5 GB to spare).
+        val free = base.usableSpace - (1L shl 29)
+        if (total > free) throw IOException(tr("Not enough space here: %1\$.1f GB needed, %2\$.1f GB free.", total / 1e9, free.coerceAtLeast(0) / 1e9))
         var done = 0L
         val counts = HashMap<String, Int>()
         val stage = File(base, ".transfer")

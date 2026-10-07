@@ -14,6 +14,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.FilterChip
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
@@ -54,6 +58,9 @@ import io.github.pedrubik2000.kumapie.mobile.offline.DownloadState
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 
+/** Home's categories, in this order (the PC's library folders, and reels for YouTube shorts made here). */
+private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "reels" to "Reels")
+
 /** The shows as a grid of posters. Offline: the last list the PC sent, with only downloaded episodes playable. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +76,9 @@ fun HomeScreen(
     onSettings: () -> Unit,
     onSearch: () -> Unit = {},
     onDownloads: () -> Unit = {},
+    /** The language Home, the feed, i+1 and unlock show ([io.github.pedrubik2000.kumapie.data.Lang.code]). */
+    homeLang: String = "de",
+    onHomeLang: (String) -> Unit = {},
     /** A link shared to kumapie (YouTube): opens "Add an episode" with it. */
     sharedLink: String? = null,
 ) {
@@ -111,7 +121,8 @@ fun HomeScreen(
                 IconButton(onClick = onFeed) { Icon(Icons.Default.Swipe, "Feed") }
                 IconButton(onClick = onIPlusOne) { Icon(Icons.Default.AutoAwesome, "i+1 scenes") }
                 // Downloads: how many jobs are running or waiting.
-                val active = jobs.count { !it.startsWith("Done") && !it.startsWith("Failed") }
+                val jobList by remember { io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker.jobs(context) }.collectAsState(initial = emptyList())
+                val active = jobList.count { it.state == "running" || it.state == "waiting" }
                 IconButton(onClick = onDownloads) {
                     androidx.compose.material3.BadgedBox(badge = { if (active > 0) androidx.compose.material3.Badge { Text("$active") } }) {
                         Icon(Icons.Default.Download, "Downloads")
@@ -130,8 +141,30 @@ fun HomeScreen(
             },
         )
     }) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            val list = shows
+        Column(Modifier.fillMaxSize().padding(padding)) {
+        // Language switch (only languages with shows), then categories (only those with shows in that language).
+        val all = shows.orEmpty()
+        val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { l -> all.any { it.lang == l.code } }
+        val inLang = all.filter { it.lang == homeLang }
+        var kind by remember { mutableStateOf(library.settings.prefs.getString("home_kind", "") ?: "") }
+        val kinds = KINDS.filter { (k, _) -> inLang.any { it.kind == k } }
+        if (langs.size > 1 || kinds.size > 1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (langs.size > 1) langs.forEach { l ->
+                FilterChip(selected = homeLang == l.code, onClick = { onHomeLang(l.code) }, label = { Text(l.name) })
+            }
+            if (langs.size > 1 && kinds.size > 1) Text("·", color = Colors.dim)
+            if (kinds.size > 1) {
+                FilterChip(selected = kind.isEmpty() || kinds.none { it.first == kind }, onClick = { kind = ""; library.settings.prefs.edit().putString("home_kind", "").apply() },
+                    label = { Text("All") })
+                kinds.forEach { (k, label) ->
+                    FilterChip(selected = kind == k, onClick = { kind = k; library.settings.prefs.edit().putString("home_kind", k).apply() },
+                        label = { Text(label) })
+                }
+            }
+        }
+        Box(Modifier.fillMaxSize()) {
+            val list = shows?.let { _ -> inLang.filter { kind.isEmpty() || kinds.none { k -> k.first == kind } || it.kind == kind } }
             when {
                 error != null && list == null -> Column(Modifier.align(Alignment.Center).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -160,6 +193,7 @@ fun HomeScreen(
                     }
                 }
             }
+        }
         }
     }
     if (adding) {

@@ -25,7 +25,9 @@ class LocalEpisodes(context: Context) {
     data class Entry(val id: String, val show: String, val title: String, val duration: Double, val source: String,
                      val season: Int? = null, val number: Int? = null, val scenes: Int = -1,
                      /** [io.github.pedrubik2000.kumapie.data.Lang.code]; "de" for episodes added before languages. */
-                     val lang: String = "de")
+                     val lang: String = "de",
+                     /** Home's category: "anime", "reels" (shorts), "shows", "movies", "youtube" ([category]). */
+                     val kind: String = "")
 
     @Synchronized
     fun entries(): List<Entry> = runCatching {
@@ -34,10 +36,19 @@ class LocalEpisodes(context: Context) {
             a.getJSONObject(i).let {
                 Entry(it.getString("id"), it.getString("show"), it.getString("title"), it.optDouble("duration"), it.optString("source"),
                     it.optInt("season").takeIf { _ -> it.has("season") }, it.optInt("number").takeIf { _ -> it.has("number") },
-                    it.optInt("scenes", -1), it.optString("lang", "de"))
+                    it.optInt("scenes", -1), it.optString("lang", "de"), it.optString("kind"))
             }
         }
     }.getOrDefault(emptyList()).filter { json(it.id).exists() }.let { list ->
+        // Episodes from before languages and categories: their language from episode.json, the category worked out, once.
+        if (list.none { it.kind.isEmpty() }) list
+        else list.map { e ->
+            if (e.kind.isNotEmpty()) e else {
+                val lang = runCatching { JSONObject(json(e.id).readText()).optString("lang", "de") }.getOrDefault(e.lang)
+                e.copy(lang = lang, kind = category(e.source, lang, e.number))
+            }
+        }.also { save(it) }
+    }.let { list ->
         // Scene counts (for Stats), counted once from episode.json and kept in the index.
         if (list.none { it.scenes < 0 }) list
         else list.map { e -> if (e.scenes >= 0) e else e.copy(scenes = runCatching { JSONObject(json(e.id).readText()).getJSONArray("scenes").length() }.getOrDefault(0)) }
@@ -58,7 +69,7 @@ class LocalEpisodes(context: Context) {
     private fun save(list: List<Entry>) = index.writeText(JSONArray(list.map {
         JSONObject().put("id", it.id).put("show", it.show).put("title", it.title).put("duration", it.duration).put("source", it.source)
             .put("season", it.season).put("number", it.number) // null leaves the key out
-            .put("scenes", it.scenes).put("lang", it.lang)
+            .put("scenes", it.scenes).put("lang", it.lang).put("kind", it.kind)
     }).toString())
 
     /** The local episodes as shows for the home screen ("local-show-<name>"). */
@@ -66,7 +77,7 @@ class LocalEpisodes(context: Context) {
         // Numbered episodes in order (a season arrives in any order); the rest as added.
         val eps = all.sortedWith(compareBy({ it.season ?: 0 }, { it.number ?: Int.MAX_VALUE }))
         val first = eps.first()
-        Show(id = "local-show-" + show.hashCode().toUInt().toString(16), title = show, kind = "youtube",
+        Show(id = "local-show-" + show.hashCode().toUInt().toString(16), title = show, kind = first.kind.ifEmpty { "youtube" }, lang = first.lang,
             poster = Uri.fromFile(thumb(first.id)).toString(),
             episodes = eps.map { e ->
                 Episode(id = e.id, title = e.title, season = e.season, number = e.number, duration = e.duration,
@@ -76,5 +87,15 @@ class LocalEpisodes(context: Context) {
 
     companion object {
         fun isLocal(id: String) = id.startsWith("local-")
+
+        /** Home's category of an episode made here: YouTube shorts are reels, other YouTube videos youtube; a Japanese series
+         * is anime, other numbered episodes shows, the rest movies. */
+        fun category(source: String, lang: String, number: Int?): String = when {
+            Regex("""youtube\.com/shorts/""").containsMatchIn(source) -> "reels"
+            ProcessWorker.isYouTube(source) -> "youtube"
+            lang == "ja" -> "anime"
+            number != null -> "shows"
+            else -> "movies"
+        }
     }
 }

@@ -94,6 +94,9 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     var update by remember { mutableStateOf<Updater.Release?>(null) }
     // The show list, kept here so the episode list and the player see the same (refreshed) shows.
     var shows by remember { mutableStateOf<List<Show>>(emptyList()) }
+    // Home's language: Home, the feed, the i+1 list and the unlock pool show only its shows.
+    var homeLang by remember { mutableStateOf(settings.prefs.getString("home_lang", "de") ?: "de") }
+    val langShows = shows.filter { it.lang == homeLang }
 
     LaunchedEffect(Unit) { // once per start; debug builds have their own app id, so they don't self-update
         if (!BuildConfig.DEBUG) update = runCatching { Updater.newer() }.getOrNull()
@@ -105,8 +108,8 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
         if (library.knownJa.ready && library.knownJa.modelReady) library.knownJa.refresh()
         library.syncProgress() // positions, scenes, time and marks from the other devices (through Anki)
     }
-    LaunchedEffect(shows) { // fresh i+1 scenes for the unlock screen (only when it's on)
-        if (shows.isNotEmpty() && settings.unlockScenes) library.allEpisodes(shows)
+    LaunchedEffect(shows, homeLang) { // fresh i+1 scenes for the unlock screen (only when it's on), in Home's language
+        if (langShows.isNotEmpty() && settings.unlockScenes) library.allEpisodes(langShows)
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
 
@@ -125,6 +128,8 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 onImprove = { stack += Screen.Improve },
                 onSearch = { stack += Screen.Search },
                 onDownloads = { stack += Screen.Downloads },
+                homeLang = homeLang,
+                onHomeLang = { homeLang = it; settings.prefs.edit().putString("home_lang", it).apply() },
                 sharedLink = sharedLink,
                 onSettings = { stack += Screen.Settings },
             )
@@ -132,8 +137,8 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 ShowScreen(library, show, onPlay = { stack += Screen.Player(show, it) }, onBack = { stack.removeAt(stack.lastIndex) })
             }
             is Screen.Player -> PlayerScreen(library, screen.show, screen.episode, screen.startAt, onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.Feed -> FeedScreen(library, shows, onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.IPlusOne -> IPlusOneScreen(library, shows, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
+            Screen.Feed -> FeedScreen(library, langShows, onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.IPlusOne -> IPlusOneScreen(library, langShows, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server },
                 onUpdate = { update = it }, onBack = { stack.removeAt(stack.lastIndex) })

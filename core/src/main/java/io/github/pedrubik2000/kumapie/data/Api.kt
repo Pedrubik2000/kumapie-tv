@@ -168,7 +168,9 @@ class Api(private val base: String) : Backend {
 
 data class ServerInfo(val api: Int, val language: String, val translation: String, val episodes: Int)
 
-data class Show(val id: String, val title: String, val kind: String, val poster: String, val episodes: List<Episode>)
+data class Show(val id: String, val title: String, val kind: String, val poster: String, val episodes: List<Episode>,
+                /** [Lang.code] its episodes are in; the PC's shows are German. */
+                val lang: String = "de")
 
 data class Episode(
     val id: String,

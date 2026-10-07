@@ -303,7 +303,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         local.json(id).writeText(episode)
         audio.delete() // kept until here, so a retry after a failure needs no new download or conversion
         dl.deleteRecursively()
-        local.add(LocalEpisodes.Entry(id, show, title, duration, url, season, number))
+        local.add(LocalEpisodes.Entry(id, show, title, duration, url, season, number, lang = lang.code,
+            kind = LocalEpisodes.category(url, lang.code, number)))
         val done = "Done: $title" + (if (synced.isNotEmpty()) " (subtitles $synced)" else "") +
             (if (englishFile != null) " (English from the video)" else "")
         report(done, 1f)

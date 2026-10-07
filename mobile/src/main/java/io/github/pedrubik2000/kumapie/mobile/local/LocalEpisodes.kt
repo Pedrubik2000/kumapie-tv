@@ -32,13 +32,7 @@ class LocalEpisodes(context: Context) {
     @Synchronized
     fun entries(): List<Entry> = runCatching {
         val a = JSONArray(index.readText())
-        (0 until a.length()).map { i ->
-            a.getJSONObject(i).let {
-                Entry(it.getString("id"), it.getString("show"), it.getString("title"), it.optDouble("duration"), it.optString("source"),
-                    it.optInt("season").takeIf { _ -> it.has("season") }, it.optInt("number").takeIf { _ -> it.has("number") },
-                    it.optInt("scenes", -1), it.optString("lang", "de"), it.optString("kind"))
-            }
-        }
+        (0 until a.length()).map { i -> fromJson(a.getJSONObject(i)) }
     }.getOrDefault(emptyList()).filter { json(it.id).exists() }.let { list ->
         // Episodes from before languages and categories: their language from episode.json, the category worked out, once.
         if (list.none { it.kind.isEmpty() }) list
@@ -92,11 +86,7 @@ class LocalEpisodes(context: Context) {
         save(entries().filter { it.id != id })
     }
 
-    private fun save(list: List<Entry>) = index.writeText(JSONArray(list.map {
-        JSONObject().put("id", it.id).put("show", it.show).put("title", it.title).put("duration", it.duration).put("source", it.source)
-            .put("season", it.season).put("number", it.number) // null leaves the key out
-            .put("scenes", it.scenes).put("lang", it.lang).put("kind", it.kind)
-    }).toString())
+    private fun save(list: List<Entry>) = index.writeText(JSONArray(list.map(::toJson)).toString())
 
     /** The local episodes as shows for the home screen ("local-show-<name>"). */
     fun shows(): List<Show> = entries().groupBy { it.show }.map { (show, all) ->
@@ -113,6 +103,16 @@ class LocalEpisodes(context: Context) {
 
     companion object {
         fun isLocal(id: String) = id.startsWith("local-")
+
+        /** An index entry as JSON (also what the Wi-Fi transfer sends with an episode). */
+        fun toJson(e: Entry): JSONObject = JSONObject().put("id", e.id).put("show", e.show).put("title", e.title)
+            .put("duration", e.duration).put("source", e.source)
+            .put("season", e.season).put("number", e.number) // null leaves the key out
+            .put("scenes", e.scenes).put("lang", e.lang).put("kind", e.kind)
+
+        fun fromJson(o: JSONObject) = Entry(o.getString("id"), o.getString("show"), o.getString("title"), o.optDouble("duration"),
+            o.optString("source"), o.optInt("season").takeIf { o.has("season") }, o.optInt("number").takeIf { o.has("number") },
+            o.optInt("scenes", -1), o.optString("lang", "de"), o.optString("kind"))
 
         /** Home's category of an episode made here: YouTube shorts are reels, other YouTube videos youtube; a Japanese series
          * is anime, other numbered episodes shows, the rest movies. */

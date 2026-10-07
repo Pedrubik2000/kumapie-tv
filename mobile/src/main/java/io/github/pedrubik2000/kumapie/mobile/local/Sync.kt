@@ -37,6 +37,9 @@ class Sync(private val context: Context) {
     private fun read(f: File) = runCatching { f.readLines().filter { it.isNotBlank() }.toSet() }.getOrDefault(emptySet())
     private fun add(f: File, id: String) = synchronized(Sync::class.java) { if (id !in read(f)) f.appendText("$id\n") }
 
+    /** An episode copied from another device (Wi-Fi transfer): never uploaded from here. */
+    fun markOnPc(id: String) = add(onPc, id)
+
     /** Deletes a device episode here only, and keeps it from coming back. */
     fun forget(id: String) {
         add(never, id)

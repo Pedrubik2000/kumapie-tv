@@ -53,6 +53,7 @@ import io.github.pedrubik2000.kumapie.mobile.local.subTo
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
 import io.github.pedrubik2000.kumapie.mobile.local.englishSource
 import io.github.pedrubik2000.kumapie.mobile.local.transcriber
+import io.github.pedrubik2000.kumapie.mobile.local.Transfer
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.update.Updater
 import kotlinx.coroutines.Dispatchers
@@ -102,6 +103,9 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                 }
             }) { Text(tr("Save")) }
             if (message.isNotEmpty()) Text(message, color = Colors.dim, fontSize = 14.sp)
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            TransferSection()
 
             if (!firstRun) {
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -593,4 +597,112 @@ private fun MenuLanguage(settings: Settings) {
             })
         }
     }
+}
+
+/**
+ * kumapie to / from another device on the same Wi-Fi, without the PC ([io.github.pedrubik2000.kumapie.mobile.local.Transfer]):
+ * episodes, dictionaries, models and keys. Also on the first-run screen, so a new phone gets everything from another.
+ */
+@Composable
+private fun TransferSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val work = remember { androidx.work.WorkManager.getInstance(context) }
+    val sends by remember { work.getWorkInfosForUniqueWorkFlow(Transfer.SEND) }.collectAsState(initial = emptyList())
+    val gets by remember { work.getWorkInfosForUniqueWorkFlow(Transfer.RECEIVE) }.collectAsState(initial = emptyList())
+    val sending = sends.firstOrNull { !it.state.isFinished }
+    val receiving = gets.lastOrNull()
+    var dialog by remember { mutableStateOf(false) }
+    Text(tr("Another device on this Wi-Fi"), color = Colors.accent)
+    Text(tr("Copy episodes, dictionaries, models and keys from one kumapie to another, without the PC."), color = Colors.dim, fontSize = 14.sp)
+    if (sending != null) {
+        val code = sending.progress.getString("code")
+        if (code != null) Text(tr("Sending. On the other device: Receive, then code %1\$s (address %2\$s).", code,
+            sending.progress.getString("address") ?: "?"), fontSize = 15.sp)
+        OutlinedButton(onClick = { work.cancelUniqueWork(Transfer.SEND) }) { Text(tr("Stop sending")) }
+    } else {
+        OutlinedButton(onClick = { Transfer.send(context, (1000..9999).random().toString()) }) { Text(tr("Send to another device")) }
+    }
+    when (receiving?.state) {
+        androidx.work.WorkInfo.State.RUNNING, androidx.work.WorkInfo.State.ENQUEUED -> {
+            val f = receiving.progress.getFloat("progress", 0f)
+            Text(tr("Copying: %1\$s (%2\$d%%)", receiving.progress.getString("what") ?: "…", (f * 100).toInt()), fontSize = 15.sp)
+            OutlinedButton(onClick = { work.cancelUniqueWork(Transfer.RECEIVE) }) { Text(tr("Stop copying")) }
+        }
+        else -> {
+            receiving?.outputData?.getString("done")?.let { Text(tr("Copied: %s.", it), fontSize = 15.sp, color = Colors.dim) }
+            receiving?.outputData?.getString("error")?.let { Text(tr("Copy failed: %s", it), fontSize = 15.sp, color = Colors.dim) }
+            OutlinedButton(onClick = { dialog = true }) { Text(tr("Receive from another device")) }
+        }
+    }
+    if (dialog) ReceiveDialog { dialog = false }
+}
+
+/** Finds sending devices (network service discovery), then the code and what to copy. */
+@Composable
+private fun ReceiveDialog(onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var address by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
+    val found = remember { androidx.compose.runtime.mutableStateListOf<Pair<String, String>>() }
+    val chosen = remember { androidx.compose.runtime.mutableStateListOf(*Transfer.CATEGORIES.toTypedArray()) }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val nsd = context.getSystemService(android.net.nsd.NsdManager::class.java)
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        val listener = object : android.net.nsd.NsdManager.DiscoveryListener {
+            override fun onServiceFound(info: android.net.nsd.NsdServiceInfo) {
+                @Suppress("DEPRECATION") // its replacement needs Android 14
+                nsd.resolveService(info, object : android.net.nsd.NsdManager.ResolveListener {
+                    override fun onServiceResolved(i: android.net.nsd.NsdServiceInfo) {
+                        val a = "${i.host.hostAddress}:${i.port}"
+                        main.post {
+                            if (found.none { it.second == a }) found += i.serviceName.removePrefix("kumapie ") to a
+                            if (address.isEmpty()) address = a
+                        }
+                    }
+                    override fun onResolveFailed(i: android.net.nsd.NsdServiceInfo, e: Int) {}
+                })
+            }
+            override fun onDiscoveryStarted(t: String) {}
+            override fun onDiscoveryStopped(t: String) {}
+            override fun onServiceLost(i: android.net.nsd.NsdServiceInfo) {}
+            override fun onStartDiscoveryFailed(t: String, e: Int) {}
+            override fun onStopDiscoveryFailed(t: String, e: Int) {}
+        }
+        nsd.discoverServices(Transfer.SERVICE, android.net.nsd.NsdManager.PROTOCOL_DNS_SD, listener)
+        onDispose { runCatching { nsd.stopServiceDiscovery(listener) } }
+    }
+    val labels = mapOf("episodes" to tr("Episodes"), "dictionaries" to tr("Dictionaries"),
+        "models" to tr("Models (speech, translation, words)"), "keys" to tr("Keys and the PC's address"))
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(tr("Receive from another device")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (found.isEmpty()) tr("Looking for a device that is sending… (or type its address)") else tr("Found:"),
+                    fontSize = 14.sp, color = Colors.dim)
+                found.forEach { (name, a) ->
+                    androidx.compose.material3.FilterChip(selected = address == a, onClick = { address = a }, label = { Text(name) })
+                }
+                OutlinedTextField(address, { address = it.trim() }, label = { Text(tr("Address")) }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+                OutlinedTextField(code, { code = it.filter(Char::isDigit).take(4) }, label = { Text(tr("Code")) }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                Transfer.CATEGORIES.forEach { c ->
+                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        androidx.compose.material3.Checkbox(c in chosen, { if (it) chosen += c else chosen -= c })
+                        Text(labels.getValue(c))
+                    }
+                }
+                Text(tr("Only what this device doesn't have yet is copied; keys only where this device has none."),
+                    fontSize = 13.sp, color = Colors.dim)
+            }
+        },
+        confirmButton = {
+            Button(enabled = address.isNotBlank() && code.length == 4 && chosen.isNotEmpty(), onClick = {
+                Transfer.receive(context, address, code, chosen.toSet())
+                onDismiss()
+            }) { Text(tr("Copy")) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(tr("Cancel")) } },
+    )
 }

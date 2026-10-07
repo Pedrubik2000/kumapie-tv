@@ -277,24 +277,15 @@ class YomitanDictionaries private constructor(private val context: Context) {
 
     private fun save(list: List<Dict>) {
         _all.value = list
-        listFile.writeText(JSONArray(list.map {
-            JSONObject().put("folder", it.folder).put("title", it.title).put("lang", it.lang).put("revision", it.revision)
-                .put("terms", it.terms).put("freq", it.freq).put("pitch", it.pitch).put("kanji", it.kanji)
-                .put("enabled", it.enabled).put("updatable", it.updatable).put("indexUrl", it.indexUrl).put("downloadUrl", it.downloadUrl)
-                .put("group", it.group)
-        }).toString())
+        listFile.writeText(JSONArray(list.map(::toJson)).toString())
     }
+
+    /** A dictionary copied from another device into its folder (the Wi-Fi transfer): listed last, unless it is already. */
+    fun addCopied(d: Dict) = synchronized(this) { if (_all.value.none { it.folder == d.folder }) edit { it + d } }
 
     private fun load(): List<Dict> = runCatching {
         val a = JSONArray(listFile.readText())
-        (0 until a.length()).map { i ->
-            a.getJSONObject(i).let {
-                Dict(it.getString("folder"), it.getString("title"), it.getString("lang"), it.optString("revision"),
-                    it.optLong("terms"), it.optLong("freq"), it.optLong("pitch"), it.optLong("kanji"), it.optBoolean("enabled", true),
-                    it.optBoolean("updatable"), it.optString("indexUrl").takeIf { s -> s.isNotBlank() },
-                    it.optString("downloadUrl").takeIf { s -> s.isNotBlank() }, it.optString("group"))
-            }
-        }.filter { File(base, it.folder).isDirectory }
+        (0 until a.length()).map { i -> fromJson(a.getJSONObject(i)) }.filter { File(base, it.folder).isDirectory }
     }.onFailure { if (listFile.exists()) Log.w("kumapie", "yomitan list: $it") }.getOrDefault(emptyList())
 
     /** A headword with what each dictionary says about it. */
@@ -315,6 +306,16 @@ class YomitanDictionaries private constructor(private val context: Context) {
                 ?.let { if (it.startsWith("JA-JA")) "Monolingual" else it }.orEmpty()
 
         @Volatile private var instance: YomitanDictionaries? = null
+
+        fun toJson(d: Dict): JSONObject = JSONObject().put("folder", d.folder).put("title", d.title).put("lang", d.lang)
+            .put("revision", d.revision).put("terms", d.terms).put("freq", d.freq).put("pitch", d.pitch).put("kanji", d.kanji)
+            .put("enabled", d.enabled).put("updatable", d.updatable).put("indexUrl", d.indexUrl).put("downloadUrl", d.downloadUrl)
+            .put("group", d.group)
+
+        fun fromJson(o: JSONObject) = Dict(o.getString("folder"), o.getString("title"), o.getString("lang"), o.optString("revision"),
+            o.optLong("terms"), o.optLong("freq"), o.optLong("pitch"), o.optLong("kanji"), o.optBoolean("enabled", true),
+            o.optBoolean("updatable"), o.optString("indexUrl").takeIf { it.isNotBlank() },
+            o.optString("downloadUrl").takeIf { it.isNotBlank() }, o.optString("group"))
 
         /** One per process: the app and the update job share the list and the open dictionaries. */
         fun get(context: Context): YomitanDictionaries =

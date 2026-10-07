@@ -10,8 +10,13 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** The dojo server's /api/tv (services/feed/tv.py in the dojo repo). Every call runs on the IO dispatcher. */
-class Api(private val base: String) : Backend {
+/**
+ * The dojo server's /api/tv (services/feed/tv.py in the dojo repo). Every call runs on the IO dispatcher. [person]: whose
+ * shows and history (the device's owner, "giovanna"); empty = the TV's person.
+ */
+class Api(private val base: String, private val person: String = "") : Backend {
+    private val whose get() = if (person.isEmpty()) "" else "?person=$person"
+
 
     /** A server path ("/api/tv/thumb/abc.jpg") as a full URL. */
     fun url(path: String): String = if (path.startsWith("http")) path else base + path
@@ -24,14 +29,14 @@ class Api(private val base: String) : Backend {
     suspend fun shows(): List<Show> = parseShows(showsJson())
 
     /** The shows as the server sends them (the phone keeps a copy for when it is offline). */
-    suspend fun showsJson(): String = get("/api/tv/shows")
+    suspend fun showsJson(): String = get("/api/tv/shows$whose")
 
     fun parseShows(json: String): List<Show> {
         val shows = JSONObject(json).getJSONArray("shows")
         return shows.objects().map { s ->
             Show(
                 id = s.getString("id"), title = s.getString("title"), kind = s.optString("kind"),
-                poster = url(s.getString("poster")),
+                poster = url(s.getString("poster")), lang = s.optString("lang", "de"),
                 episodes = s.getJSONArray("episodes").objects().map { e ->
                     Episode(
                         id = e.getString("id"), title = e.getString("title"),
@@ -104,7 +109,7 @@ class Api(private val base: String) : Backend {
     }
 
     /** Everything the PC recorded (TV), as kumapie's progress JSON (see the phone app's Progress). */
-    suspend fun history(): String = get("/api/tv/history")
+    suspend fun history(): String = get("/api/tv/history$whose")
 
     suspend fun stats(): Stats {
         val o = JSONObject(get("/api/tv/stats"))

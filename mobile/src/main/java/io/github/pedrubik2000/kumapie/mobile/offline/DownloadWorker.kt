@@ -34,7 +34,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
     override suspend fun doWork(): Result {
         val id = inputData.getString(ID) ?: return Result.failure()
         val title = inputData.getString(TITLE) ?: tr("episode")
-        val api = Api(Settings(applicationContext).server)
+        val api = Settings(applicationContext).let { Api(it.server, it.owner) }
         runCatching { setForeground(foreground(title, 0f)) }
 
         return try {

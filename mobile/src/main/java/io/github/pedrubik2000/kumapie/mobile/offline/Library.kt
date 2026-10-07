@@ -97,7 +97,7 @@ class Library(context: Context, val settings: Settings) {
         syncSoon = background.launch { kotlinx.coroutines.delay(180_000); syncProgress() }
     }
 
-    val api: Api get() = Api(settings.server)
+    val api: Api get() = Api(settings.server, settings.owner)
 
     /** The shows, and whether they came from the saved copy (offline). */
     suspend fun shows(): Pair<List<Show>, Boolean> {

@@ -174,8 +174,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         if (parakeetHere && !Parakeet(applicationContext).isReady) error("Download the speech model (Parakeet) in Settings first.")
         val gemma = Gemma(applicationContext)
         if (english == "gemma" && !gemma.isReady) error("Download the translation model (Gemma) in Settings first.")
-        val model = GermanModel(applicationContext)
-        if (!japanese && !model.isReady) error("Download the German model in Settings first.")
+        val model = GermanModel(applicationContext, if (japanese) Lang.GERMAN else lang)
+        if (!japanese && !model.isReady) error("Download the ${lang.name} model in Settings first.")
         val dir = local.dir(id).apply { mkdirs() }
         val dl = File(dir, "download").apply { mkdirs() }
         val embedded = File(dir, "embedded").apply { mkdirs() }
@@ -266,7 +266,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 Parakeet(applicationContext).transcribe(audio) { report(it, 0.55f) }
             } else {
                 report("Transcribing with Soniox…", 0.45f)
-                py.getModule("newepisode").callAttr("transcribe", audio.path, key, "de", if (soniox) "en" else "", logger).toString()
+                py.getModule("newepisode").callAttr("transcribe", audio.path, key, lang.code, if (soniox && lang != Lang.ENGLISH) "en" else "", logger).toString()
             }
             kept.writeText(transcript) // Soniox's answer, kept (redoing it would cost again)
             sonioxEnglish = JSONObject(transcript).getJSONArray("english")
@@ -278,7 +278,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val englishCues = when {
             englishFile != null -> py.getModule("jimaku").callAttr("cues", englishFile.path, "en").toString()
             soniox && sonioxEnglish.length() > 0 -> sonioxEnglish.toString()
-            english == "none" -> "[]"
+            english == "none" || lang == Lang.ENGLISH -> "[]" // English episodes: no translation track (Pedro's accent work)
             english == "gemma" -> withTranslator { translator ->
                 gemma.englishCues(JSONArray(cues), { report("Translating to English with Gemma: $it%", 0.75f + 0.15f * it / 100) }, lang.name) {
                     translator.translate(it).await() // a line Gemma skipped

@@ -77,8 +77,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     }
     val ready = gemmaReady && when {
         japanese -> JapaneseModel(context).isReady && library.settings.jimakuKey.isNotBlank()
-        parakeet -> library.known.model.isReady && parakeetReady
-        else -> library.known.model.isReady && sonioxKey
+        parakeet -> library.knownFor(lang.code).model.isReady && parakeetReady
+        else -> library.knownFor(lang.code).model.isReady && sonioxKey
     }
 
     // Scrolls: in landscape the sheet is taller than the screen (the button ended up under the navigation bar).
@@ -87,7 +87,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Add an episode", color = Colors.accent, fontSize = 18.sp)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(Lang.GERMAN, Lang.JAPANESE).forEach { l ->
+            listOf(Lang.GERMAN, Lang.JAPANESE, Lang.ENGLISH).forEach { l ->
                 androidx.compose.material3.FilterChip(selected = lang == l, label = { Text(l.name) }, onClick = { lang = l })
             }
         }

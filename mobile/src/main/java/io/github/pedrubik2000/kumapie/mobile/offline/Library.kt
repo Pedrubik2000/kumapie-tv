@@ -34,9 +34,13 @@ class Library(context: Context, val settings: Settings) {
     val known = KnownWords(context, settings)
     /** The same for Japanese (🐻 Japanese, Sudachi); used by Japanese episodes once they exist (plan step 4). */
     val knownJa = KnownWords(context, settings, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE)
-    fun knownFor(lang: String) = if (lang == knownJa.lang.code) knownJa else known
+    /** English (Pedro's 🐻 English, spaCy English). */
+    val knownEn = KnownWords(context, settings, io.github.pedrubik2000.kumapie.data.Lang.ENGLISH)
+    fun knownFor(lang: String) = when (lang) { knownJa.lang.code -> knownJa; knownEn.lang.code -> knownEn; else -> known }
     /** The known-words list a word belongs to: kana or kanji in it means Japanese. */
     private fun knownOfWord(word: String) = if (JAPANESE_TEXT.containsMatchIn(word)) knownJa else known
+    // ponytail: German and English marks share the German list (Latin script can't tell them apart); a word marked in
+    // one counts in both. Split by episode language if that ever matters.
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
     val yomitan = YomitanDictionaries.get(context).also {
         io.github.pedrubik2000.kumapie.mobile.lang.YomitanUpdateWorker.schedule(context)
@@ -57,7 +61,7 @@ class Library(context: Context, val settings: Settings) {
         audioScope.launch { if (!audioJa.play(expression, reading)) voiceJa.speak(reading.ifBlank { expression }) }
     }
     /** Cards mined into kuma3 Anki. */
-    val miner by lazy { Miner(context, known, knownJa, dictionary, { voice }, { voiceJa }, audioJa) }
+    val miner by lazy { Miner(context, known, knownJa, dictionary, { voice }, { voiceJa }, audioJa, knownEn) }
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
     /** Episodes made on this device (YouTube links processed here), listed first. */

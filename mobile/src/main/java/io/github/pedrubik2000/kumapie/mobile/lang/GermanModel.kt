@@ -17,21 +17,25 @@ import java.util.zip.ZipInputStream
  * downloaded once from spaCy's GitHub releases into the app's external folder, never part of the APK. A test
  * build can also get it pushed there over adb (`models/de_core_news_lg/` with config.cfg inside).
  */
-class GermanModel(private val context: Context) {
+class GermanModel(private val context: Context, val lang: io.github.pedrubik2000.kumapie.data.Lang = io.github.pedrubik2000.kumapie.data.Lang.GERMAN) {
     private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "models")
-    val dir = File(base, NAME)
+    /** spaCy model of this language: German de_core_news_lg, English en_core_web_md (spaCy's choice for its size). */
+    val name = if (lang.code == "en") "en_core_web_md" else NAME
+    val url = "https://github.com/explosion/spacy-models/releases/download/$name-$VERSION/$name-$VERSION-py3-none-any.whl"
+    val dir = File(base, name)
     val isReady: Boolean get() = File(dir, "config.cfg").exists()
     private val work get() = WorkManager.getInstance(context)
 
     fun download() {
         val request = OneTimeWorkRequestBuilder<ModelWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setInputData(androidx.work.workDataOf("lang" to lang.code))
             .build()
-        work.enqueueUniqueWork(WORK, ExistingWorkPolicy.KEEP, request)
+        work.enqueueUniqueWork(WORK + lang.code.takeIf { it != "de" }.orEmpty(), ExistingWorkPolicy.KEEP, request)
     }
 
     /** Download progress, a failure message, or null when no download is running. */
-    fun state(): Flow<String?> = AssetWorker.state(work, WORK)
+    fun state(): Flow<String?> = AssetWorker.state(work, WORK + lang.code.takeIf { it != "de" }.orEmpty())
 
     companion object {
         const val NAME = "de_core_news_lg"
@@ -43,20 +47,20 @@ class GermanModel(private val context: Context) {
 
 /** Downloads the model wheel, unpacks the model folder from it and deletes the wheel. */
 class ModelWorker(context: Context, params: WorkerParameters) : AssetWorker(context, params) {
-    private val model = GermanModel(context)
-    override val what = "the German model"
+    private val model = GermanModel(context, io.github.pedrubik2000.kumapie.data.Lang.of(params.inputData.getString("lang")))
+    override val what = "the ${model.lang.name} model"
     override val notificationId = 999
 
     override suspend fun run() {
         if (model.isReady) return
         val base = model.dir.parentFile!!.apply { mkdirs() }
-        val wheel = File(base, "${GermanModel.NAME}.whl.part")
-        fetch(GermanModel.URL, wheel)
+        val wheel = File(base, "${model.name}.whl.part")
+        fetch(model.url, wheel)
 
         // The wheel holds <name>/<name>-<version>/... : that inner folder is what spaCy loads.
         report("Unpacking…", 0.95f)
-        val prefix = "${GermanModel.NAME}/${GermanModel.NAME}-${GermanModel.VERSION}/"
-        val tmp = File(base, "${GermanModel.NAME}.tmp").apply { deleteRecursively(); mkdirs() }
+        val prefix = "${model.name}/${model.name}-${GermanModel.VERSION}/"
+        val tmp = File(base, "${model.name}.tmp").apply { deleteRecursively(); mkdirs() }
         ZipInputStream(wheel.inputStream().buffered()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break

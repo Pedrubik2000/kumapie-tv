@@ -68,7 +68,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             ?.takeIf { it.isNotBlank() }
         val list = mutableListOf<Choice>()
         own?.let { list += Choice("kumapie: $it", it, null) }
-        val entries = library.dictionary.lookup(segment.text, key, lemma)
+        val entries = library.dictionary.lookup(segment.text, key, lemma, lang = ctl.lang)
         val fits = SensePick.best(entries, SensePick.english(scene, line))
         var fitting = -1
         entries.forEachIndexed { i, e ->
@@ -84,7 +84,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
 
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Add to Anki · ${Miner.DECK}", color = Colors.accent, fontSize = 18.sp)
+        Text("Add to Anki · ${ctl.lang.deck}", color = Colors.accent, fontSize = 18.sp)
         Text(Miner.sentence(scene, line).first, color = Colors.text, fontSize = 18.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text("Sentence card") })

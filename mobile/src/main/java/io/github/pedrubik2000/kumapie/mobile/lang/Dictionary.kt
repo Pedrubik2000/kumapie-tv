@@ -99,10 +99,12 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
      * for a split verb) and spaCy's dictionary form ([lemma]). Online only when the Yomitan dictionaries have
      * nothing (and [online] is allowed).
      */
-    suspend fun lookup(surface: String, key: String?, lemma: String?, online: Boolean = true): List<DictEntry> =
+    suspend fun lookup(surface: String, key: String?, lemma: String?, online: Boolean = true,
+                       lang: io.github.pedrubik2000.kumapie.data.Lang = io.github.pedrubik2000.kumapie.data.Lang.GERMAN): List<DictEntry> =
         withContext(Dispatchers.IO) {
-            val found = runCatching { yomitan(surface, key, lemma) }.onFailure { Log.w("kumapie", "yomitan: $it") }.getOrDefault(emptyList())
-            if (found.isNotEmpty() || !online) return@withContext found
+            val found = runCatching { yomitan(surface, key, lemma, lang) }.onFailure { Log.w("kumapie", "yomitan: $it") }.getOrDefault(emptyList())
+            // Wiktionary online is the German section only.
+            if (found.isNotEmpty() || !online || lang != io.github.pedrubik2000.kumapie.data.Lang.GERMAN) return@withContext found
             val term = lemma?.takeIf { it.isNotBlank() } ?: surface
             onlineEntries(term).ifEmpty { if (!term.equals(surface, true)) onlineEntries(surface) else emptyList() }
         }
@@ -111,9 +113,9 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
      * The imported German Yomitan dictionaries' entries, in this order: a split verb's phrase ("Bescheid sagen"), the
      * word as written ("glaubst": second-person singular present of glauben), then its dictionary forms ("glauben").
      */
-    private fun yomitan(surface: String, key: String?, lemma: String?): List<DictEntry> {
+    private fun yomitan(surface: String, key: String?, lemma: String?, lang: io.github.pedrubik2000.kumapie.data.Lang): List<DictEntry> {
         val seen = HashSet<String>()
-        return yomitanTerms(surface, key, lemma).flatMap { t ->
+        return yomitanTerms(surface, key, lemma, lang).flatMap { t ->
             t.glossaries.filter { seen.add("${t.expression}|${t.reading}|${it.dict}|${it.senses.firstOrNull()}") }.map { g ->
                 DictEntry(t.expression, g.tags, listOf(t.reading.takeIf { it.isNotBlank() && it != t.expression }, g.dict)
                     .filterNotNull().joinToString(" · "), t.ipa.joinToString(", "), g.senses.map { Sense(it, "", emptyList()) })
@@ -122,9 +124,10 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
     }
 
     /** The same lookup as Yomitan terms (for the popup), in the same order. */
-    fun yomitanTerms(surface: String, key: String?, lemma: String?): List<YomitanDictionaries.Term> {
+    fun yomitanTerms(surface: String, key: String?, lemma: String?,
+                     lang: io.github.pedrubik2000.kumapie.data.Lang = io.github.pedrubik2000.kumapie.data.Lang.GERMAN): List<YomitanDictionaries.Term> {
         val y = yomitan ?: return emptyList()
-        val de = io.github.pedrubik2000.kumapie.data.Lang.GERMAN
+        val de = lang // the German rules (form-of, split verbs) also fit English phrasal verbs ("give up")
         val words = listOfNotNull(surface, key, lemma).flatMap { listOf(it, it.lowercase()) }.filter { it.isNotBlank() }.distinct()
         val found = words.flatMap { y.query(de, it) }
         // Form-of entries ("glaubst": second-person singular present of glauben) lead to the dictionary form.

@@ -28,7 +28,9 @@ data class Lang(
         val GERMAN = Lang("de", "German", "en", "English", Locale.GERMANY, listOf("🐻 German", "🇩🇪 MvJ"), "Deutsch::Mined", "_de")
         /** Kaishi 1.5k came in as 🇯🇵 MvJ+; mined cards go next to it under Japanese::. */
         val JAPANESE = Lang("ja", "Japanese", "en", "English", Locale.JAPAN, listOf("🐻 Japanese", "🇯🇵 MvJ+"), "Japanese::Mined", "_ja")
-        val ALL = listOf(GERMAN, JAPANESE)
+        /** Pedro's English (accent work): English Core 1000 came in as 🇺🇸 MvJ; no translation track. */
+        val ENGLISH = Lang("en", "English", "en", "English", Locale.US, listOf("🐻 English", "🇺🇸 MvJ"), "English::Mined", "_en")
+        val ALL = listOf(GERMAN, JAPANESE, ENGLISH)
 
         fun of(code: String?): Lang = ALL.firstOrNull { it.code == code } ?: GERMAN
     }

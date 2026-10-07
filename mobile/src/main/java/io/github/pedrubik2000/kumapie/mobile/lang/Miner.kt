@@ -46,6 +46,7 @@ class Miner(
     private val voice: () -> Voice,
     private val voiceJa: () -> Voice,
     private val audioJa: JapaneseAudio? = null,
+    private val knownEn: KnownWords? = null,
 ) {
     private val anki = AnkiCards(context)
     private val dir = File(context.cacheDir, "mining")
@@ -75,10 +76,13 @@ class Miner(
     /** Adds the card; answers a line for the user ("Added to Deutsch::Mined"). */
     suspend fun mine(r: Request, progress: (String) -> Unit): String = withContext(Dispatchers.IO) {
         if (Lang.of(r.episode.lang) == Lang.JAPANESE) return@withContext mineJapanese(r, progress)
+        // German and English cards share the layout (🐻 German / 🐻 English).
+        val lang = Lang.of(r.episode.lang)
+        val known = if (lang == Lang.ENGLISH) knownEn ?: known else known
         val pkg = known.ankiApp() ?: error("No kuma3 Anki on this device.")
         if (!known.hasPermission(pkg)) error("kumapie may not use Anki yet: allow it in Settings.")
         val (mid, fieldNames) = anki.noteType(pkg, known.noteTypes)
-            ?: error("The German note type isn't in Anki.")
+            ?: error("The ${lang.name} note type isn't in Anki.")
         val (sentence, cues) = sentence(r.scene, r.line)
         val slug = slug(r.episode.show)
         dir.mkdirs()
@@ -104,16 +108,16 @@ class Miner(
             if (audio != null) fields["Word Audio"] = "[audio:$audio]"
             fields[KnownWords.DEF_BI] = definition(written, w)
             w.definition?.targetText?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
-            tags += KnownWords.MINED_WORD
-        } ?: tags.add(Lang.GERMAN.tag("sentence"))
+            tags += lang.tag("word")
+        } ?: tags.add(lang.tag("sentence"))
 
         val missing = (listOf("Sentence", "Video") + if (r.word != null) listOf(KnownWords.DEF_BI, KnownWords.DEF_MONO) else emptyList())
             .filter { it !in fieldNames }
         if (missing.isNotEmpty()) error("The note type has no field ${missing.joinToString()}.")
-        val deck = anki.deck(pkg, DECK)
+        val deck = anki.deck(pkg, lang.deck)
         anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, deck)
         clipFile.delete()
-        "Added to $DECK" + (r.word?.let { ": ${it.surface}" } ?: "")
+        "Added to ${lang.deck}" + (r.word?.let { ": ${it.surface}" } ?: "")
     }
 
     /**

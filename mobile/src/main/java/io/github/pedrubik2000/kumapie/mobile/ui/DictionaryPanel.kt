@@ -44,9 +44,9 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
     // The Yomitan dictionaries' entries as headwords for the popup (one per spelling, in the lookup's order).
     var headwords by remember(segment.text, key) { mutableStateOf<List<io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.Headword>>(emptyList()) }
     LaunchedEffect(segment.text, key) {
-        entries = library.dictionary.lookup(segment.text, key, lemma)
+        entries = library.dictionary.lookup(segment.text, key, lemma, lang = ctl.lang)
         headwords = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { library.dictionary.yomitanTerms(segment.text, key, lemma) }.getOrDefault(emptyList())
+            runCatching { library.dictionary.yomitanTerms(segment.text, key, lemma, ctl.lang) }.getOrDefault(emptyList())
                 .groupBy { it.expression }.map { (e, ts) -> io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.Headword(e, "", ts) }
         }
     }
@@ -60,11 +60,11 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
             headwords.isNotEmpty() && found.isNotEmpty() -> {
                 val fits = remember(found) { if (picker.selectedInDef != null) null else SensePick.best(found, SensePick.english(ctl.scene, picker.line)) }
                 fits?.let { (i, j) -> Text("In this line: " + found[i].senses[j].gloss, color = Colors.accent, fontSize = 15.sp) }
-                YomitanPopup(library, io.github.pedrubik2000.kumapie.data.Lang.GERMAN, headwords, onSpeak = { library.voice.speak(it.expression) }, compact = true)
+                YomitanPopup(library, ctl.lang, headwords, onSpeak = { library.voice.speak(it.expression) }, compact = true)
             }
             found.isEmpty() -> Text(
-                if (library.yomitan.of(io.github.pedrubik2000.kumapie.data.Lang.GERMAN).any { it.enabled && it.terms > 0 }) "Not in the dictionary."
-                else "Download the recommended German dictionaries in Settings to see meanings here.",
+                if (library.yomitan.of(ctl.lang).any { it.enabled && it.terms > 0 }) "Not in the dictionary."
+                else "Download the recommended ${ctl.lang.name} dictionaries in Settings to see meanings here.",
                 color = Colors.dim, fontSize = 14.sp,
             )
             else -> {

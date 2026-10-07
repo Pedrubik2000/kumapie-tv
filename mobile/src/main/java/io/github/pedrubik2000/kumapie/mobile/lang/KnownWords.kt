@@ -29,7 +29,7 @@ import java.io.File
  */
 class KnownWords(val context: Context, private val settings: Settings, val lang: Lang = Lang.GERMAN) {
     private val anki = AnkiCards(context)
-    val model = GermanModel(context)
+    val model = GermanModel(context, if (lang == Lang.JAPANESE) Lang.GERMAN else lang)
     val japanese = JapaneseModel(context)
     /** This language's parser is downloaded. */
     val modelReady: Boolean get() = if (lang == Lang.JAPANESE) japanese.isReady else model.isReady
@@ -144,7 +144,7 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
                 // The field each note is judged by (as morphs' filters on the PC).
                 val fields = notes.mapNotNull { n ->
                     // Japanese (Kaishi, mined words): the card's word when it has one, else its sentence.
-                    if (lang == Lang.JAPANESE) return@mapNotNull (n.fields["Word"]?.takeIf { it.isNotBlank() } ?: n.fields["Sentence"])
+                    if (lang != Lang.GERMAN) return@mapNotNull (n.fields["Word"]?.takeIf { it.isNotBlank() } ?: n.fields["Sentence"])
                         ?.let { n.id to it }
                     val name = when {
                         n.hasTag(CORE1000) || n.hasTag(MINED_WORD) -> "Word"
@@ -192,7 +192,7 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
     private fun parse(fields: Map<Long, String>): Map<Long, Set<String>> {
         val cache = runCatching { JSONObject(parseCache.readText()) }.getOrDefault(JSONObject())
         val key = { nid: Long -> "$nid" }
-        val hash = { text: String -> (if (lang == Lang.JAPANESE) "sudachi-B-${JapaneseModel.VERSION}" else "${GermanModel.NAME}-${GermanModel.VERSION}") +
+        val hash = { text: String -> (if (lang == Lang.JAPANESE) "sudachi-B-${JapaneseModel.VERSION}" else "${model.name}-${GermanModel.VERSION}") +
             ":${text.hashCode()}" }
         val out = HashMap<Long, Set<String>>()
         val todo = ArrayList<Long>()

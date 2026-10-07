@@ -323,6 +323,8 @@ class YomitanDictionaries private constructor(private val context: Context) {
         private const val WTY = "https://huggingface.co/datasets/daxida/wty-release/resolve/main/latest/index"
         val RECOMMENDED = mapOf(
             "de" to listOf("$WTY/wty-de-en-index.json?download=true", "$WTY/wty-de-en-ipa-index.json?download=true"),
+            // English for Pedro: English meanings and IPA (the parents' Spanish meanings, wty-en-es, come with step 6).
+            "en" to listOf("$WTY/wty-en-en-index.json?download=true", "$WTY/wty-en-en-ipa-index.json?download=true"),
         )
 
         fun parseTerms(a: JSONArray): List<Term> = (0 until a.length()).map { i ->

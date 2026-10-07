@@ -178,7 +178,7 @@ def parse(mz, texts):
     for text, doc in zip(texts, mz.nlp.pipe([mz.prepare(t) for t in texts], batch_size=256)):
         toks = mz.tokens(doc)
         for t, tok in zip(doc, list(toks)):
-            if mz.join_separable_verbs and t.dep_ == "svp" and t.head.pos_ in VERB_POS and t.head.i != t.i:
+            if mz.join_separable_verbs and t.dep_ in ("svp", "prt") and t.head.pos_ in VERB_POS and t.head.i != t.i:
                 toks[t.i] = type(tok)(tok.text, tok.lemma, tok.pos, tok.dep, toks[t.head.i].morph, tok.skipped)
         low, pos, row = text.lower(), 0, []
         for tok in toks:

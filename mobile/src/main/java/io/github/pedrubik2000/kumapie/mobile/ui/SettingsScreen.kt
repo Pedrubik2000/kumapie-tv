@@ -105,6 +105,7 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 KnownWordsSection(library)
                 JapaneseWordsSection(library)
+                EnglishWordsSection(library)
                 HorizontalDivider()
                 YomitanSection(library)
 
@@ -506,4 +507,28 @@ private fun FollowedChannels(library: Library) {
         Text("o'clock, on Wi-Fi", fontSize = 14.sp)
     }
     OutlinedButton(onClick = { io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.checkNow(context) }) { Text("Check now") }
+}
+
+/** English words from 🐻 English (English Core 1000): spaCy's English model (downloaded once) and reading Anki for English. */
+@Composable
+private fun EnglishWordsSection(library: Library) {
+    val known = library.knownEn
+    val scope = rememberCoroutineScope()
+    val status by known.status.collectAsState()
+    val state by remember { known.model.state() }.collectAsState(initial = null)
+    var ready by remember { mutableStateOf(known.model.isReady) }
+    LaunchedEffect(state) { ready = known.model.isReady }
+    var busy by remember { mutableStateOf(false) }
+    val app = remember { known.ankiApp() }
+    Text("English words", color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
+    Text(status, fontSize = 15.sp)
+    when {
+        ready -> Text("English model: ready (${known.model.name}).", fontSize = 14.sp, color = Colors.dim)
+        state != null -> Text("English model: $state", fontSize = 14.sp, color = Colors.dim)
+        else -> OutlinedButton(onClick = { known.model.download() }) { Text("Download the English model (about 40 MB)") }
+    }
+    if (ready && app != null && known.hasPermission(app)) OutlinedButton(enabled = !busy, onClick = {
+        busy = true
+        scope.launch { known.refresh(); busy = false }
+    }) { Text(if (busy) "Reading Anki…" else "Read English cards now") }
 }

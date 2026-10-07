@@ -93,7 +93,8 @@ class Morphemizer:
         particles = {}  # verb token index -> its separable particle
         if self.join_separable_verbs:
             for t in doc:
-                if t.dep_ == "svp" and t.head.pos_ in VERB_POS and t.head.i != t.i:
+                # German separable verbs (svp: "rufe ... an"), English phrasal verbs (prt: "give ... up")
+                if t.dep_ in ("svp", "prt") and t.head.pos_ in VERB_POS and t.head.i != t.i:
                     particles[t.head.i] = t
         joined = {p.i: verb for verb, p in particles.items()}
 
@@ -116,7 +117,8 @@ class Morphemizer:
             if not skipped:
                 if t.i in particles:
                     p = particles[t.i]
-                    morph = Morph((p.lemma_ + t.lemma_).lower(), f"{t.text} {p.text}".lower())
+                    lemma = f"{t.lemma_} {p.lemma_}" if p.dep_ == "prt" else p.lemma_ + t.lemma_  # give up / anrufen
+                    morph = Morph(lemma.lower(), f"{t.text} {p.text}".lower())
                 else:
                     morph = Morph(t.lemma_.lower(), t.text.lower())
             out.append(Token(t.text, t.lemma_, t.pos_, t.dep_, morph, skipped))

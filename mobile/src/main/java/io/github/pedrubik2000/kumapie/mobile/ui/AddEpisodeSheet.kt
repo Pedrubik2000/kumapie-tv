@@ -102,15 +102,20 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
                 }) { Text("Make it an episode") }
             androidx.compose.material3.OutlinedButton(enabled = ready, onClick = { pick.launch(arrayOf("video/*")) }) { Text("Video files…") }
         }
-        if (japanese) Text("Download → Japanese subtitles from Jimaku, fitted to the audio → English " +
-            (if (gemma) "(Gemma on the tablet, about 3 s a line)" else "(the device's translator)") + " → scenes. Show blank: its " +
+        val noEnglish = library.settings.englishSource == "none"
+        if (japanese) Text("Download → Japanese subtitles from Jimaku, fitted to the audio → " + when {
+                noEnglish -> "no English (Settings)"
+                gemma -> "English (Gemma on the tablet, about 3 s a line)"
+                else -> "English (the device's translator)"
+            } + " → scenes. Show blank: its " +
             "AniList name. MKV files keep their Japanese audio. Jobs run one after another in the background.",
             color = Colors.dim, fontSize = 13.sp)
         else Text("Download → " + (if (parakeet) "Parakeet on the tablet (free)" else "Soniox (paid, about \$0.10 an hour)") +
-            " → German subtitles → English " + when {
-                gemma -> "(Gemma on the tablet, about 3 s a line)"
-                library.settings.englishSource == "soniox" && !parakeet -> "(Soniox)"
-                else -> "(the device's translator)"
+            " → German subtitles → " + when {
+                noEnglish -> "no English (Settings)"
+                gemma -> "English (Gemma on the tablet, about 3 s a line)"
+                library.settings.englishSource == "soniox" && !parakeet -> "English (Soniox)"
+                else -> "English (the device's translator)"
             } + " → scenes. A season (magnet) becomes one episode per file; MKV files keep their German audio. Jobs run " +
             "one after another in the background; each episode appears on the home screen when done.", color = Colors.dim, fontSize = 13.sp)
         jobs.forEach { Text(it, fontSize = 14.sp) }

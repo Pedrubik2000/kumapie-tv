@@ -88,7 +88,7 @@ var Settings.videoHeight: Int
 
 /**
  * "device" (Google's on-device translator: free, offline, instant, rough), "gemma" (Gemma on the device: free, offline,
- * about 3 s a line, good) or "soniox" (Soniox translates while transcribing: best).
+ * about 3 s a line, good), "soniox" (Soniox translates while transcribing: best) or "none" (no English line).
  */
 var Settings.englishSource: String
     get() = prefs.getString("english_source", "device") ?: "device"
@@ -246,6 +246,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         // 4. English.
         val english = when {
             soniox && sonioxEnglish.length() > 0 -> sonioxEnglish.toString()
+            settings.englishSource == "none" -> "[]"
             settings.englishSource == "gemma" -> withTranslator { translator ->
                 gemma.englishCues(JSONArray(cues), { report("Translating to English with Gemma: $it%", 0.75f + 0.15f * it / 100) }, lang.name) {
                     translator.translate(it).await() // a line Gemma skipped

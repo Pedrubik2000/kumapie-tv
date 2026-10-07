@@ -450,6 +450,8 @@ private fun NewEpisodesSection(library: Library) {
             onClick = { english = "gemma"; library.settings.englishSource = "gemma" })
         androidx.compose.material3.FilterChip(selected = english == "device", label = { Text("Google's translator (instant, rough)") },
             onClick = { english = "device"; library.settings.englishSource = "device" })
+        androidx.compose.material3.FilterChip(selected = english == "none", label = { Text("None (no translation, fastest)") },
+            onClick = { english = "none"; library.settings.englishSource = "none" })
     }
     if (english == "soniox" && transcriber == "parakeet") {
         Text("With Parakeet there is no Soniox: the English then comes from Google's translator.", fontSize = 13.sp, color = Colors.dim)

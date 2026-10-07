@@ -108,15 +108,19 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
             TransferSection()
 
             if (!firstRun) {
+                // Only the languages this device learns (a parent's phone: English).
+                val learning = remember { settings.learning() }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                KnownWordsSection(library)
-                JapaneseWordsSection(library)
-                EnglishWordsSection(library)
+                KnownWordsSection(library, german = "de" in learning)
+                if ("ja" in learning) JapaneseWordsSection(library)
+                if ("en" in learning) EnglishWordsSection(library)
                 HorizontalDivider()
-                YomitanSection(library)
+                YomitanSection(library, learning)
 
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                DictionarySection(library)
+                if ("de" in learning) {
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    DictionarySection(library)
+                }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 NewEpisodesSection(library)
@@ -154,7 +158,7 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
  * the stability that makes a word known, and reading Anki again (it is also read when the app starts).
  */
 @Composable
-private fun KnownWordsSection(library: Library) {
+private fun KnownWordsSection(library: Library, german: Boolean = true) {
     val known = library.known
     val scope = rememberCoroutineScope()
     val status by known.status.collectAsState()
@@ -173,7 +177,7 @@ private fun KnownWordsSection(library: Library) {
     Text(status, fontSize = 15.sp)
 
     // 1. The German model (spaCy, the same as morphs on the PC).
-    when {
+    if (german) when {
         modelReady -> Text(tr("German model: ready (de_core_news_lg)."), fontSize = 14.sp, color = Colors.dim)
         modelState != null -> Text(tr("German model: %s", modelState), fontSize = 14.sp, color = Colors.dim)
         else -> {
@@ -200,13 +204,13 @@ private fun KnownWordsSection(library: Library) {
     }, label = { Text(tr("Known from stability (days)")) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
 
-    if (modelReady && allowed) OutlinedButton(enabled = !busy, onClick = {
+    if (german && modelReady && allowed) OutlinedButton(enabled = !busy, onClick = {
         busy = true
         scope.launch { known.refresh(); busy = false }
     }) { Text(if (busy) tr("Reading Anki…") else tr("Read Anki now")) }
 
     // 4. morphs' Recalc (the PC's daily `morphs recalc`): first what would change, then Apply. kuma3 Anki only.
-    if (modelReady && allowed && app != "com.ichi2.anki") {
+    if (german && modelReady && allowed && app != "com.ichi2.anki") {
         var plan by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.Recalc.Plan?>(null) }
         var said by remember { mutableStateOf("") }
         val recalc = remember { io.github.pedrubik2000.kumapie.mobile.lang.Recalc(known) }
@@ -270,11 +274,12 @@ private fun JapaneseWordsSection(library: Library) {
  * order them (the popup shows meanings in this order), delete. German words are looked up in them first.
  */
 @Composable
-private fun YomitanSection(library: Library) {
+private fun YomitanSection(library: Library, learning: Set<String> = emptySet()) {
     val dicts = library.yomitan
     val scope = rememberCoroutineScope()
     val all by dicts.all.collectAsState()
-    var lang by remember { mutableStateOf(io.github.pedrubik2000.kumapie.data.Lang.GERMAN) }
+    val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { learning.isEmpty() || it.code in learning }
+    var lang by remember { mutableStateOf(langs.firstOrNull() ?: io.github.pedrubik2000.kumapie.data.Lang.GERMAN) }
     var said by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Dict?>(null) }
@@ -289,7 +294,7 @@ private fun YomitanSection(library: Library) {
 
     Text(tr("Dictionaries (Yomitan)"), color = Colors.accent)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        io.github.pedrubik2000.kumapie.data.Lang.ALL.forEach { l ->
+        if (langs.size > 1) langs.forEach { l ->
             androidx.compose.material3.FilterChip(selected = lang == l, onClick = { lang = l }, label = { Text(tr(l.name)) })
         }
     }

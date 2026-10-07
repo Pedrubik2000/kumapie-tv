@@ -139,7 +139,7 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
                 _status.value = tr("Reading Anki…")
                 val search = noteTypes.joinToString(" OR ", "(", ")") { "\"note:$it\"" }
                 val notes = whileAnkiStarts { anki.notes(pkg, search) }
-                if (notes.isEmpty()) error(tr("No notes of type \"%s\" in Anki.", noteTypes[0]))
+                // None yet (a new kuma3: the note type comes with the first mined card): no word known yet, every word new.
                 val cards = anki.cards(pkg, search)
                 val read = System.currentTimeMillis()
 

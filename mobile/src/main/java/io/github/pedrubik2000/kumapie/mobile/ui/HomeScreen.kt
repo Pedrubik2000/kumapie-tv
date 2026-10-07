@@ -77,6 +77,13 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 /** Home's categories, in this order (the PC's library folders, and reels for YouTube shorts made here). */
 private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "reels" to "Reels", "novels" to "Novels")
 
+/**
+ * The languages this device learns: the ones its shows are in (saved each time Home gets the list), so a parent's phone
+ * shows nothing German or Japanese. Before the first list: all.
+ */
+fun io.github.pedrubik2000.kumapie.data.Settings.learning(): Set<String> =
+    prefs.getStringSet("learning", null)?.takeIf { it.isNotEmpty() } ?: io.github.pedrubik2000.kumapie.data.Lang.ALL.map { it.code }.toSet()
+
 private class Dest(val icon: ImageVector, val label: String, val go: () -> Unit, val badge: Int = 0)
 
 /**
@@ -125,7 +132,10 @@ fun HomeScreen(
     LaunchedEffect(attempt) {
         error = null
         runCatching { library.shows() }
-            .onSuccess { (s, off) -> shows = s; offline = off; onShows(s) }
+            .onSuccess { (s, off) ->
+                shows = s; offline = off; onShows(s)
+                if (s.isNotEmpty()) library.settings.prefs.edit().putStringSet("learning", s.map { it.lang }.toSet()).apply()
+            }
             .onFailure { error = it.message ?: it.toString() }
     }
 
@@ -135,11 +145,13 @@ fun HomeScreen(
         Dest(Icons.Default.AutoAwesome, tr("i+1 scenes"), onIPlusOne),
         Dest(Icons.Default.Download, tr("Downloads"), onDownloads, badge = active),
     )
-    val extra = listOf(
+    // German grammar and cards that don't stick (German Core 1000) only with German; the Japanese dictionary with Japanese.
+    val learning = remember(shows) { library.settings.learning() }
+    val extra = listOfNotNull(
         Dest(Icons.Default.BarChart, tr("Stats"), onStats),
-        Dest(Icons.Default.School, tr("Grammar"), onGrammar),
-        Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove),
-        Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch),
+        Dest(Icons.Default.School, tr("Grammar"), onGrammar).takeIf { "de" in learning },
+        Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove).takeIf { "de" in learning },
+        Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch).takeIf { "ja" in learning },
         Dest(Icons.Default.Settings, tr("Settings"), onSettings),
     )
 

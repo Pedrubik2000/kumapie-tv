@@ -29,7 +29,7 @@ class Improve(private val library: Library) {
 
     /** [unknown]: words of the sentence never studied (the "i+" of the sentence alone). */
     class Candidate(val show: Show, val episode: Episode, val detail: EpisodeDetail, val scene: Scene, val sentence: String,
-                    val english: String, val unknown: Int)
+                    val english: String, val unknown: Int, val lineStartMs: Long, val lineEndMs: Long)
 
     /** Word cards (Core 1000, mined words) with 2+ lapses, or under 3 days of stability after 4+ reviews; worst first. */
     suspend fun struggling(): List<Struggling> {
@@ -62,7 +62,8 @@ class Improve(private val library: Library) {
                 val (sentence, cues) = Miner.sentence(scene, line)
                 if (sentence.trim() == s.sentence.trim()) continue // the card's own sentence
                 val unknown = cues.flatMap { c -> c.segments.mapNotNull { it.word } }.toSet().count { detail.words[it]?.status == "u" }
-                out += Candidate(show, episode, detail, scene, sentence, library.miner.english(scene, cues), unknown)
+                out += Candidate(show, episode, detail, scene, sentence, library.miner.english(scene, cues), unknown,
+                    ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong(), ((cues.last().end + 0.25) * 1000).toLong())
             }
         }
         return out.sortedWith(compareBy({ it.unknown }, { it.sentence.length }))
@@ -78,13 +79,19 @@ class Improve(private val library: Library) {
         if (c != null) {
             progress(tr("Cutting the scene…"))
             cut.mkdirs()
+            val slug = library.miner.slug(c.detail.show)
+            // Like a mined card: the line's audio, then the scene's clip (word audio -> sentence audio -> video).
+            val line = File(cut, "line.m4a").apply { delete() }
+            library.miner.audioClip(c.detail.video, c.lineStartMs, c.lineEndMs, line)
+            val lineAudio = anki.addMedia(pkg, line, "${slug}_${c.lineStartMs}-${c.lineEndMs}")
+            line.delete()
             val file = File(cut, "clip.webm").apply { delete() }
             val start = (c.scene.start * 1000).toLong()
             val end = (c.scene.end * 1000).toLong()
             library.miner.clip(c.detail.video, start, end, file)
-            val clip = anki.addMedia(pkg, file, "${library.miner.slug(c.detail.show)}_$start-$end")
+            val clip = anki.addMedia(pkg, file, "${slug}_$start-$end")
             file.delete()
-            fields["Video"] = "[audio:$clip]"
+            fields["Video"] = "[audio:$lineAudio][audio:$clip]"
             fields["Notes"] = esc(c.english)
             fields["Context"] = esc("Improved in kumapie: ${c.detail.show} · ${c.detail.title}, scene ${c.scene.index + 1}.")
         }

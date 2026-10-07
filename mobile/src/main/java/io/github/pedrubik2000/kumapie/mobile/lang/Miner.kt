@@ -204,7 +204,7 @@ class Miner(
 
     /** [startMs]..[endMs] of the episode's audio alone, as AAC in .m4a. */
     @OptIn(UnstableApi::class)
-    private suspend fun audioClip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
+    suspend fun audioClip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
             val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
             val item = MediaItem.Builder().setUri(uri).setClippingConfiguration(

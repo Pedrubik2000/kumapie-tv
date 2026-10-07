@@ -112,10 +112,13 @@ class YomitanDictionaries private constructor(private val context: Context) {
                 replacing?.let { if (it.folder != folder) File(base, it.folder).deleteRecursively() }
                 File(base, folder).deleteRecursively()
                 if (!File(tmp, folder).renameTo(File(base, folder))) throw IOException(tr("couldn't move %s into place", folder))
-                val d = Dict(folder, r.getString("title"), lang.code, r.optString("revision"), r.optLong("terms"),
+                val title = r.getString("title")
+                val wty = Regex("""^wty-(\w+)-(\w+)(-gloss)?$""").find(title)?.groupValues
+                val grp = group.ifBlank { if (wty == null) "" else if (wty[1] == wty[2]) "Monolingual" else "Bilingual" }
+                val d = Dict(folder, title, lang.code, r.optString("revision"), r.optLong("terms"),
                     r.optLong("freq"), r.optLong("pitch"), r.optLong("kanji"), true, r.optBoolean("isUpdatable"),
                     r.optString("indexUrl").takeIf { it.isNotBlank() && it != "null" },
-                    r.optString("downloadUrl").takeIf { it.isNotBlank() && it != "null" }, group)
+                    r.optString("downloadUrl").takeIf { it.isNotBlank() && it != "null" }, grp)
                 val old = _all.value.indexOfFirst { it.folder == folder || it.folder == replacing?.folder }
                 save(if (old >= 0) _all.value.toMutableList().also { it[old] = d.copy(enabled = it[old].enabled) }
                      else _all.value + d)
@@ -139,7 +142,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
 
     /** The starter set for [lang] ([RECOMMENDED]): installs those not there yet. Answers one line per dictionary. */
     suspend fun installRecommended(lang: Lang, progress: (String) -> Unit): List<String> = work.withLock { withContext(Dispatchers.IO) {
-        RECOMMENDED[lang.code].orEmpty().map { indexUrl ->
+        (RECOMMENDED["${lang.code}-${Lang.speaker}"] ?: RECOMMENDED[lang.code]).orEmpty().map { indexUrl ->
             runCatching {
                 val index = JSONObject(fetchText(indexUrl))
                 val title = index.getString("title")
@@ -323,8 +326,13 @@ class YomitanDictionaries private constructor(private val context: Context) {
          */
         private const val WTY = "https://huggingface.co/datasets/daxida/wty-release/resolve/main/latest/index"
         val RECOMMENDED = mapOf(
-            "de" to listOf("$WTY/wty-de-en-index.json?download=true", "$WTY/wty-de-en-ipa-index.json?download=true"),
-            // English for Pedro: English meanings and IPA (the parents' Spanish meanings, wty-en-es, come with step 6).
+            // German-German last: the monolingual definition for mining and the fallback when wty-de-en has nothing.
+            "de" to listOf("$WTY/wty-de-en-index.json?download=true", "$WTY/wty-de-en-ipa-index.json?download=true",
+                "$WTY/wty-de-de-index.json?download=true"),
+            // English for Pedro: English meanings and IPA. For a Spanish speaker (the parents): Spanish meanings per
+            // sense (gloss), the Spanish Wiktionary's English entries, IPA - 93% of their episodes' words, 99% heard.
+            "en-es" to listOf("$WTY/wty-en-es-gloss-index.json?download=true", "$WTY/wty-en-es-index.json?download=true",
+                "$WTY/wty-en-es-ipa-index.json?download=true", "$WTY/wty-en-en-index.json?download=true"),
             "en" to listOf("$WTY/wty-en-en-index.json?download=true", "$WTY/wty-en-en-ipa-index.json?download=true"),
         )
 

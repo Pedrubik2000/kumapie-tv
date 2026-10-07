@@ -549,4 +549,15 @@ private fun MenuLanguage(settings: Settings) {
             })
         }
     }
+    // The language the person speaks: translation lines and meanings (Spanish for Giovanna and Jackson).
+    Text(tr("I speak"), color = Colors.accent)
+    Text(tr("Meanings and the second subtitle line come in this language."), color = Colors.dim, fontSize = 14.sp)
+    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("en" to "English", "es" to "Español").forEach { (code, label) ->
+            androidx.compose.material3.FilterChip(selected = settings.speaks == code, label = { Text(label) }, onClick = {
+                settings.speaks = code
+                (context as? android.app.Activity)?.recreate()
+            })
+        }
+    }
 }

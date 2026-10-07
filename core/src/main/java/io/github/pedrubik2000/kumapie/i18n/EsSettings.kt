@@ -148,4 +148,6 @@ internal val esSettings: Map<String, String> = mapOf(
     "and" to "y las",
     "o'clock, on Wi-Fi" to "horas, con Wi-Fi",
     "Check now" to "Revisar ahora",
+    "I speak" to "Hablo",
+    "Meanings and the second subtitle line come in this language." to "Los significados y la segunda línea de subtítulos salen en este idioma.",
 )

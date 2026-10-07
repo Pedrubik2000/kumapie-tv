@@ -7,7 +7,16 @@ class Settings(context: Context) {
     /** Public so each app can keep its own settings in the same file (the TV keeps its button map here). */
     val prefs = context.getSharedPreferences("kumapie", Context.MODE_PRIVATE)
 
-    init { io.github.pedrubik2000.kumapie.i18n.Tr.use(menuLanguage) }
+    init {
+        io.github.pedrubik2000.kumapie.i18n.Tr.use(menuLanguage)
+        Lang.speaker = speaks
+    }
+
+    /** The language the person speaks ("en" / "es"): translation lines and meanings. Unset: the phone's language. */
+    var speaks: String
+        get() = prefs.getString("speaks", null)
+            ?: if (java.util.Locale.getDefault().language == "es") "es" else "en"
+        set(value) { prefs.edit().putString("speaks", value).apply(); Lang.speaker = value }
 
     /** The menus' language: "" = the phone's, "en" or "es" (Settings > Menu language; the app restarts its screen). */
     var menuLanguage: String

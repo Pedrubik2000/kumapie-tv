@@ -26,4 +26,5 @@ internal val esCore: Map<String, String> = mapOf(
     "Update failed: %s" to "No se pudo actualizar: %s",
     "Hidden" to "Ocultos",
     "%s, blurred" to "%s, borroso",
+    "Spanish" to "Español",
 )

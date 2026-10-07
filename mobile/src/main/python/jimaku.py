@@ -134,7 +134,7 @@ def cues(path: str, lang: str = "ja") -> str:
             elif line.startswith("Dialogue:") and fields:
                 row = dict(zip(fields, line[9:].split(",", len(fields) - 1)))
                 body = row.get("text", "")
-                if re.search(r"\\(pos|move|p[1-9])", body):
+                if not dialogue(row.get("style", ""), body):
                     continue
                 body = re.sub(r"\{[^}]*\}", "", body)
                 body = re.sub(r"\\[Nnh]", " ", body).strip()
@@ -152,8 +152,25 @@ def cues(path: str, lang: str = "ja") -> str:
                     out.append([_secs(*m.groups()[:4]), _secs(*m.groups()[4:]), body])
     out.sort(key=lambda c: c[0])
     clean = spoken if lang == "ja" else plain
-    return json.dumps([[round(a, 3), round(b, 3), t] for a, b, t in ((a, b, clean(t)) for a, b, t in out) if t],
-                      ensure_ascii=False)
+    seen, kept = set(), []
+    for a, b, t in out:
+        t = clean(t)
+        if t and (a, b, t) not in seen:  # layered karaoke / shadow lines repeat the same text
+            seen.add((a, b, t))
+            kept.append([round(a, 3), round(b, 3), t])
+    return json.dumps(kept, ensure_ascii=False)
+
+
+SONG_OR_SIGN = re.compile(r"sign|\bop\d*\b|\bed\d*\b|opening|ending|song|karaoke|kfx|lyric|\brom|romaji|kanji|title|insert|"
+                          r"typeset|\bts\b|stars|eyecatch|logo|card", re.I)
+
+
+def dialogue(style: str, body: str) -> bool:
+    r"""An ASS line that is said: not in a sign / song / karaoke style, no karaoke timing (\k), no drawing; a line placed
+    with \pos counts only in a dialogue-looking style (fansubs place Default lines too)."""
+    if SONG_OR_SIGN.search(style) or re.search(r"\\(k[fo]?\d|p[1-9])", body):
+        return False
+    return not re.search(r"\\(pos|move)", body) or re.search(r"default|main|dialog|alt|italic|top|flash|overlap", style, re.I)
 
 
 def plain(text: str) -> str:

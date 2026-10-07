@@ -81,6 +81,14 @@ class JapaneseModel(private val context: Context) {
             var boundary = true
             for (t in tokens) {
                 val cur = out.lastOrNull()
+                // お/ご (a prefix) + noun is one word (お風呂, ご丁寧); + verb joins the verb (お待ちください → 待つ).
+                if (cur != null && !boundary && cur.pos == "接頭辞" && t.pos in setOf("名詞", "形状詞", "動詞")) {
+                    val noun = t.pos != "動詞"
+                    out[out.lastIndex] = cur.copy(surface = cur.surface + t.surface, base = if (noun) cur.surface + t.surface else t.base,
+                        reading = cur.reading + t.reading, pos = t.pos, sub = t.sub)
+                    last = t.pos
+                    continue
+                }
                 var joins: String? = null
                 if (cur != null && !boundary) {
                     val head = cur.pos

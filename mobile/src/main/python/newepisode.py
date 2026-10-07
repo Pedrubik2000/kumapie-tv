@@ -206,6 +206,17 @@ def segments(text, tokens):
     return out
 
 
+def nearest(scenes, line):
+    """The scene a translation line belongs to: the one it overlaps most, else the closest (English subtitles split
+    and time lines differently, so some fall between two scenes)."""
+    def score(sc):
+        p = sc[0]
+        a, b = p[0][0], p[-1][1]
+        overlap = min(b, line[1]) - max(a, line[0])
+        return overlap if overlap > 0 else -min(abs(line[0] - b), abs(a - line[1]))
+    return max(range(len(scenes)), key=lambda i: score(scenes[i])) if scenes else -1
+
+
 def build(model_dir: str, episode_id: str, show: str, title: str, duration: float, video: str,
           cues_json: str, english_json: str, lang: str = "de", parsed_json: str = "") -> str:
     """Target-language and English cues -> the episode JSON (scenes, their cues as word segments, English, every
@@ -217,9 +228,10 @@ def build(model_dir: str, episode_id: str, show: str, title: str, duration: floa
     mz = _morphemizer(model_dir) if given is None else None
     scenes, words, lemmas = [], {}, {}
     plan = []
-    for i, (p, start, end) in enumerate(exchanges(cues)):
-        en = [[e[0], e[1], re.sub(r"\s*\([^)]*\)", "", e[2]).strip()] for e in english
-              if p[0][0] <= (e[0] + e[1]) / 2 <= p[-1][1]]
+    scenes_ex = exchanges(cues)
+    owner = [nearest(scenes_ex, e) for e in english]
+    for i, (p, start, end) in enumerate(scenes_ex):
+        en = [[e[0], e[1], re.sub(r"\s*\([^)]*\)", "", e[2]).strip()] for e, o in zip(english, owner) if o == i]
         german = is_german(" ".join(c[2] for c in p), " ".join(e[2] for e in en)) if given is None else True
         plan.append((i, p, start, end, en, german))
     texts = [c[2] for (_, p, _, _, _, g) in plan if g for c in p]

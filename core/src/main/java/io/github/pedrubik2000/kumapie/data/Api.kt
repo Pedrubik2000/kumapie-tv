@@ -108,11 +108,16 @@ class Api(private val base: String, private val person: String = "") : Backend {
         post("/api/tv/progress", body.toString())
     }
 
+    /** The people with kumapie, for the TV's "Who's watching?". */
+    suspend fun people(): List<Profile> = JSONArray(get("/api/tv/people")).objects().map {
+        Profile(it.getString("id"), it.getString("name"), it.optString("menu", "en"))
+    }
+
     /** Everything the PC recorded (TV), as kumapie's progress JSON (see the phone app's Progress). */
     suspend fun history(): String = get("/api/tv/history$whose")
 
     suspend fun stats(): Stats {
-        val o = JSONObject(get("/api/tv/stats"))
+        val o = JSONObject(get("/api/tv/stats$whose"))
         val days = o.getJSONObject("days").let { d -> d.keys().asSequence().associateWith { d.getDouble(it) } }
         return Stats(
             days = days, today = o.optDouble("today"), week = o.optDouble("week"), total = o.optDouble("total"),
@@ -171,6 +176,9 @@ class Api(private val base: String, private val person: String = "") : Backend {
         }
     }
 }
+
+/** A person on the TV's "Who's watching?": [id] as the PC knows them ("giovanna"), [menu] "en" / "es". */
+data class Profile(val id: String, val name: String, val menu: String)
 
 data class ServerInfo(val api: Int, val language: String, val translation: String, val episodes: Int)
 

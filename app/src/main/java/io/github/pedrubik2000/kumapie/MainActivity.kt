@@ -17,6 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Episode
+import io.github.pedrubik2000.kumapie.data.Profile
+import io.github.pedrubik2000.kumapie.i18n.Tr
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.ui.ButtonsScreen
@@ -24,6 +26,7 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.ui.HomeScreen
 import io.github.pedrubik2000.kumapie.ui.KumapieTheme
 import io.github.pedrubik2000.kumapie.ui.PlayerScreen
+import io.github.pedrubik2000.kumapie.ui.ProfilesScreen
 import io.github.pedrubik2000.kumapie.ui.SettingsScreen
 import io.github.pedrubik2000.kumapie.ui.ShowScreen
 import io.github.pedrubik2000.kumapie.ui.StatsScreen
@@ -40,6 +43,11 @@ sealed interface Screen {
     data object Buttons : Screen
     data object Stats : Screen
 }
+
+/** The last profile chosen on "Who's watching?" (it gets the focus there next time). */
+var Settings.profile: String
+    get() = prefs.getString("profile", "") ?: ""
+    set(value) = prefs.edit().putString("profile", value).apply()
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +66,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun App(settings: Settings) {
     var server by remember { mutableStateOf(settings.server) }
+    var profile by remember { mutableStateOf<Profile?>(null) } // asked at every start, like Netflix
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
 
@@ -71,10 +80,18 @@ fun App(settings: Settings) {
         if (server.isEmpty()) {
             SettingsScreen(settings, firstRun = true, onSaved = { server = settings.server }, onUpdate = { update = it })
         } else {
-            val api = remember(server) { Api(server) }
-            when (val screen = stack.last()) {
-                Screen.Home -> HomeScreen(api, onShow = { stack.add(Screen.ShowEpisodes(it)) },
-                    onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) })
+            val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }
+            val screen = stack.last()
+            if (profile == null && screen != Screen.Settings) {
+                ProfilesScreen(api, settings.profile, onPick = {
+                    settings.profile = it.id
+                    Tr.use(it.menu)
+                    profile = it
+                }, onSettings = { stack.add(Screen.Settings) })
+            } else when (screen) {
+                Screen.Home -> HomeScreen(api, profile?.name.orEmpty(), onShow = { stack.add(Screen.ShowEpisodes(it)) },
+                    onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
+                    onProfiles = { profile = null })
                 Screen.Stats -> StatsScreen(api, onSettings = { stack.add(Screen.Settings) })
                 is Screen.ShowEpisodes -> ShowScreen(api, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
                 is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,

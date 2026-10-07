@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.os.SystemClock
 import android.view.ViewGroup
 import android.widget.Toast
@@ -98,7 +99,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
     var anchor by remember { mutableStateOf<Rect?>(null) } // the selected word, in screen coordinates
     val focus = remember { FocusRequester() }
     fun openPicker() {
-        if (!picker.open()) Toast.makeText(context, "No words in this scene", Toast.LENGTH_SHORT).show()
+        if (!picker.open()) Toast.makeText(context, tr("No words in this scene"), Toast.LENGTH_SHORT).show()
     }
     var help by remember { mutableStateOf(settings.showHelp) } // the list of buttons, when an episode opens
     var helpKey by remember { mutableStateOf<Int?>(null) } // the button that closed it: its release is ours too
@@ -233,19 +234,21 @@ private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean) {
         Text("${ctl.episode.show} · ${ctl.episode.title}", color = Colors.text, fontSize = 20.sp)
         Spacer(Modifier.weight(1f))
         val modes = listOfNotNull(
-            if (ctl.pauseAtSceneEnd) "pauses at scene end" else "plays on",
+            if (ctl.pauseAtSceneEnd) tr("pauses at scene end") else tr("plays on"),
             if (ctl.slow) "0.75x" else null,
         ).joinToString(" · ")
         Text(modes, color = Colors.text.copy(alpha = 0.8f), fontSize = 16.sp, modifier = Modifier.padding(end = 24.dp))
-        Text("Scene ${scene.index + 1} / ${ctl.scenes.size}", color = Colors.text, fontSize = 20.sp)
-        LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 16.dp))
+        Text(tr("Scene %1\$d / %2\$d", scene.index + 1, ctl.scenes.size), color = Colors.text, fontSize = 20.sp)
+        // No badge where the PC doesn't know the person's words (everything comes as known: a parent's episode).
+        val coloured = remember(ctl.episode) { ctl.episode.words.values.any { it.status != "k" } }
+        if (coloured) LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 16.dp))
     }
     val hint = when {
         picker.isOpen && picker.inDef -> "←→ words of the definition   ↓ back to the line   OK: hear the word (twice: definition)   hold ↓ / Y: known   Back: close"
         picker.isOpen && picker.cardOpen ->
             "OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK / X: replay line   hold ↓ / Y: known"
-        picker.isOpen -> "←→ words   ↑↓ lines   OK: show the meaning   hold OK / X: replay line   hold ↓ / Y: known   Back: close"
-        ctl.atSceneEnd -> "OK: next scene   ↑: replay line   ↓: pick a word   ←: previous"
+        picker.isOpen -> tr("←→ words   ↑↓ lines   OK: show the meaning   hold OK / X: replay line   hold ↓ / Y: known   Back: close")
+        ctl.atSceneEnd -> tr("OK: next scene   ↑: replay line   ↓: pick a word   ←: previous")
         else -> null
     }
     if (hint != null && hints) {
@@ -278,18 +281,18 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
             Modifier.padding(48.dp).width(520.dp).background(Colors.surface, RoundedCornerShape(16.dp)).padding(28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("Options", fontSize = 26.sp, color = Colors.text)
+            Text(tr("Options"), fontSize = 26.sp, color = Colors.text)
             Button(onClick = ctl::togglePauseAtSceneEnd, modifier = Modifier.fillMaxWidth().focusRequester(first)) {
-                Text("At the end of a scene: " + if (ctl.pauseAtSceneEnd) "pause" else "play on")
+                Text(tr("At the end of a scene: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")))
             }
             Button(onClick = ctl::toggleSlow, modifier = Modifier.fillMaxWidth()) {
-                Text("Speed: " + if (ctl.slow) "0.75x" else "normal")
+                Text(tr("Speed: %s", if (ctl.slow) "0.75x" else tr("normal")))
             }
             Button(onClick = { ctl.changeSubtitles(ctl.subtitles.next()) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Subtitles: " + ctl.subtitles.label(ctl.lang))
+                Text(tr("Subtitles: %s", ctl.subtitles.label(ctl.lang)))
             }
-            Button(onClick = onHelp, modifier = Modifier.fillMaxWidth()) { Text("Help: the buttons") }
-            Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Close") }
+            Button(onClick = onHelp, modifier = Modifier.fillMaxWidth()) { Text(tr("Help: the buttons")) }
+            Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text(tr("Close")) }
         }
     }
     LaunchedEffect(Unit) { first.requestFocus() }

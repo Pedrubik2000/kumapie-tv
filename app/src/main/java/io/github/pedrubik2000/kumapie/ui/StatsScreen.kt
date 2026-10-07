@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -59,7 +60,7 @@ fun StatsScreen(api: Api, onSettings: () -> Unit) {
     }
     when {
         error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings)
-        stats == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Loading…", color = Colors.dim) }
+        stats == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(tr("Loading…"), color = Colors.dim) }
         else -> StatsContent(stats!!)
     }
 }
@@ -72,36 +73,36 @@ private fun StatsContent(s: Stats) {
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
             Section(Modifier.focusRequester(first)) {
-                Text("Stats", fontSize = 30.sp, color = Colors.text)
+                Text(tr("Stats"), fontSize = 30.sp, color = Colors.text)
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Tile("Today", minutes(s.today))
-                    Tile("Last 7 days", minutes(s.week))
-                    Tile("Total", minutes(s.total))
-                    Tile("Streak", if (s.streak == 1) "1 day" else "${s.streak} days")
+                    Tile(tr("Today"), minutes(s.today))
+                    Tile(tr("Last 7 days"), minutes(s.week))
+                    Tile(tr("Total"), minutes(s.total))
+                    Tile(tr("Streak"), if (s.streak == 1) tr("1 day") else tr("%d days", s.streak))
                 }
             }
         }
         item {
             Section {
-                Text("The last year", fontSize = 20.sp, color = Colors.accent)
+                Text(tr("The last year"), fontSize = 20.sp, color = Colors.accent)
                 Heatmap(s.days, today, Modifier.padding(top = 10.dp))
-                Text("A square is a day: the more minutes, the brighter. Weeks start on Monday.", fontSize = 13.sp,
+                Text(tr("A square is a day: the more minutes, the brighter. Weeks start on Monday."), fontSize = 13.sp,
                     color = Colors.dim, modifier = Modifier.padding(top = 6.dp))
             }
         }
         item {
             Section {
-                Text("The last 30 days", fontSize = 20.sp, color = Colors.accent)
+                Text(tr("The last 30 days"), fontSize = 20.sp, color = Colors.accent)
                 Bars(s.days, today, Modifier.padding(top = 10.dp))
             }
         }
         item {
             Section {
-                Text("Scenes and words", fontSize = 20.sp, color = Colors.accent)
+                Text(tr("Scenes and words"), fontSize = 20.sp, color = Colors.accent)
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Tile("Scenes watched to the end", "${s.scenesSeen} of ${s.scenesTotal}")
-                    Tile("Words looked up", "${s.wordsLookedUp} (${s.lookups}×)")
-                    Tile("Marked known", "${s.markedKnown}")
+                    Tile(tr("Scenes watched to the end"), tr("%1\$d of %2\$d", s.scenesSeen, s.scenesTotal))
+                    Tile(tr("Words looked up"), "${s.wordsLookedUp} (${s.lookups}×)")
+                    Tile(tr("Marked known"), "${s.markedKnown}")
                 }
                 if (s.shows.isNotEmpty()) {
                     Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -119,7 +120,7 @@ private fun StatsContent(s: Stats) {
         if (s.topLookups.isNotEmpty()) {
             item {
                 Section {
-                    Text("Looked up most", fontSize = 20.sp, color = Colors.accent)
+                    Text(tr("Looked up most"), fontSize = 20.sp, color = Colors.accent)
                     Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         s.topLookups.forEach { t ->
                             Row {

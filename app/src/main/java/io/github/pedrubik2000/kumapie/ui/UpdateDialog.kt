@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -44,15 +45,15 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
 
     fun update() {
         if (!Updater.canInstall(context)) {
-            message = "Allow kumapie to install apps on the page that opened, then press Update again."
+            message = tr("Allow kumapie to install apps on the page that opened, then press Update again.")
             return
         }
         progress = 0f
-        message = "Downloading…"
+        message = tr("Downloading…")
         scope.launch {
             runCatching { Updater.download(context, release) { progress = it } }
-                .onSuccess { message = "Installing…"; Updater.install(context, it) }
-                .onFailure { progress = -1f; message = "Download failed: ${it.message}" }
+                .onSuccess { message = tr("Installing…"); Updater.install(context, it) }
+                .onFailure { progress = -1f; message = tr("Download failed: %s", it.message) }
         }
     }
 
@@ -60,13 +61,13 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
         Column(Modifier.width(640.dp).background(Colors.surface, RoundedCornerShape(16.dp)).padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("kumapie ${release.version} is out", fontSize = 26.sp, color = Colors.text)
-            Text("You have ${BuildConfig.VERSION_NAME}.", color = Colors.dim)
+            Text(tr("You have %s.", BuildConfig.VERSION_NAME), color = Colors.dim)
             if (release.notes.isNotBlank()) Text(release.notes.take(600), color = Colors.text, fontSize = 15.sp)
             if (progress >= 0f) ProgressBar(progress, Modifier.fillMaxWidth())
             if (message.isNotEmpty()) Text(message, color = Colors.dim)
             Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(onClick = ::update, modifier = Modifier.focusRequester(focus)) { Text("Update") }
-                Button(onClick = onClose) { Text("Later") }
+                Button(onClick = ::update, modifier = Modifier.focusRequester(focus)) { Text(tr("Update")) }
+                Button(onClick = onClose) { Text(tr("Later")) }
             }
         }
     }

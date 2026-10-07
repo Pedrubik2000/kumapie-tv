@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +38,7 @@ import io.github.pedrubik2000.kumapie.data.Show
 
 /** The shows as a row of posters. OK opens a show's episodes. */
 @Composable
-fun HomeScreen(api: Api, onShow: (Show) -> Unit, onSettings: () -> Unit, onStats: () -> Unit) {
+fun HomeScreen(api: Api, who: String, onShow: (Show) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit) {
     var shows by remember { mutableStateOf<List<Show>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -50,15 +51,17 @@ fun HomeScreen(api: Api, onShow: (Show) -> Unit, onSettings: () -> Unit, onStats
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("kumapie", fontSize = 32.sp, color = Colors.text)
             Spacer(Modifier.weight(1f))
-            Button(onClick = onStats) { Text("Stats") }
+            Button(onClick = onProfiles) { Text(who) } // back to "Who's watching?"
             Spacer(Modifier.width(16.dp))
-            Button(onClick = onSettings) { Text("Settings") }
+            Button(onClick = onStats) { Text(tr("Stats")) }
+            Spacer(Modifier.width(16.dp))
+            Button(onClick = onSettings) { Text(tr("Settings")) }
         }
         Spacer(Modifier.padding(12.dp))
         when {
             error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings)
-            shows == null -> Text("Loading…", color = Colors.dim)
-            shows!!.isEmpty() -> Text("No shows on the server yet (run feed.py scenes).", color = Colors.dim)
+            shows == null -> Text(tr("Loading…"), color = Colors.dim)
+            shows!!.isEmpty() -> Text(tr("No shows on the server yet."), color = Colors.dim)
             else -> ShowRow(shows!!, onShow)
         }
     }
@@ -82,7 +85,7 @@ private fun ShowRow(shows: List<Show>, onShow: (Show) -> Unit) {
                 Text(show.title, color = Colors.text, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 24.dp))
                 val eps = show.episodes.size
-                Text(if (eps == 1) show.kind.replaceFirstChar { it.uppercase() } else "$eps episodes",
+                Text(if (eps == 1) show.kind.replaceFirstChar { it.uppercase() } else tr("%d episodes", eps),
                     color = Colors.dim, fontSize = 13.sp)
             }
         }
@@ -95,12 +98,12 @@ fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: () -> Unit) {
     val retry = remember { FocusRequester() }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Can't reach the dojo server", fontSize = 24.sp, color = Colors.text)
+            Text(tr("Can't reach the dojo server"), fontSize = 24.sp, color = Colors.text)
             Text(message, color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
-            Text("Is the PC on, and Tailscale connected on the TV?", color = Colors.dim)
+            Text(tr("Is the PC on, and Tailscale connected on the TV?"), color = Colors.dim)
             Row(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text("Try again") }
-                Button(onClick = onSettings) { Text("Settings") }
+                Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again")) }
+                Button(onClick = onSettings) { Text(tr("Settings")) }
             }
         }
     }

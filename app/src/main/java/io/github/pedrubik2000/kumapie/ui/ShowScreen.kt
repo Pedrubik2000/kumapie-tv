@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -68,8 +69,9 @@ private fun EpisodeCard(ep: Episode, onClick: () -> Unit, modifier: Modifier = M
                 modifier = Modifier.width(200.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)))
             Column(Modifier.padding(start = 20.dp).weight(1f)) {
                 Text(ep.title, fontSize = 20.sp, color = Colors.text)
-                Text("${minutes(ep.duration)} min · ${ep.scenes} scenes · ${ep.easy} easy today" +
-                    if (ep.seen > 0) " · ${ep.seen} seen" else "", fontSize = 14.sp, color = Colors.dim,
+                Text((if (ep.easy > 0) tr("%1\$d min · %2\$d scenes · %3\$d easy today", minutes(ep.duration), ep.scenes, ep.easy)
+                    else tr("%1\$d min · %2\$d scenes", minutes(ep.duration), ep.scenes)) +
+                    if (ep.seen > 0) tr(" · %d seen", ep.seen) else "", fontSize = 14.sp, color = Colors.dim,
                     modifier = Modifier.padding(vertical = 6.dp))
                 val resume = ep.resume
                 if (resume != null && ep.duration > 0) {

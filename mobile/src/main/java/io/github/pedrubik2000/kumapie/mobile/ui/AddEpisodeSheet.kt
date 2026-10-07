@@ -46,22 +46,30 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     var lang by remember { mutableStateOf(Lang.GERMAN) }
     val japanese = lang == Lang.JAPANESE
     val jobs by remember { ProcessWorker.states(context) }.collectAsState(initial = emptyList())
-    val parakeet = !japanese && library.settings.transcriber == "parakeet"
-    val gemma = library.settings.englishSource == "gemma"
-    val gemmaReady = !gemma || Gemma(context).isReady
+    // The job's choices, offered only when they can work (keys and downloads are in Settings); the last ones are remembered.
+    val sonioxKey = library.settings.sonioxKey.isNotBlank()
+    val parakeetReady = remember { io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context).isReady }
+    val gemmaDownloaded = remember { Gemma(context).isReady }
+    var transcriber by remember { mutableStateOf(library.settings.transcriber) }
+    var english by remember { mutableStateOf(library.settings.englishSource) }
+    val parakeet = !japanese && transcriber == "parakeet"
+    // Soniox's English comes with its transcription: not for Parakeet or Japanese (no transcription).
+    val englishNow = if (english == "soniox" && (parakeet || japanese)) "device" else english
+    val gemma = englishNow == "gemma"
+    val gemmaReady = !gemma || gemmaDownloaded
     val needsRd = link.isNotBlank() && !ProcessWorker.isYouTube(link)
     // Picked files: kumapie keeps the right to read them, as the job may run after the app is closed.
     val pick = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         uris.forEach { uri ->
             runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            ProcessWorker.start(context, uri.toString(), show.takeIf { it.isNotBlank() }, height, lang)
+            ProcessWorker.start(context, uri.toString(), show.takeIf { it.isNotBlank() }, height, lang, transcriber, englishNow)
         }
     }
     val ready = gemmaReady && when {
         japanese -> JapaneseModel(context).isReady && library.settings.jimakuKey.isNotBlank()
-        parakeet -> library.known.model.isReady && io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context).isReady
-        else -> library.known.model.isReady && library.settings.sonioxKey.isNotBlank()
+        parakeet -> library.known.model.isReady && parakeetReady
+        else -> library.known.model.isReady && sonioxKey
     }
 
     // Scrolls: in landscape the sheet is taller than the screen (the button ended up under the navigation bar).
@@ -77,6 +85,28 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         OutlinedTextField(link, { link = it }, label = { Text("YouTube, magnet or Real-Debrid link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(show, { show = it }, label = { Text("Show (blank: the channel's / file's name)") }, singleLine = true,
             modifier = Modifier.fillMaxWidth())
+        if (!japanese) {
+            Text("Transcription", fontSize = 14.sp, color = Colors.dim)
+            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (sonioxKey) androidx.compose.material3.FilterChip(selected = !parakeet, label = { Text("Soniox (best, paid)") },
+                    onClick = { transcriber = "soniox"; library.settings.transcriber = "soniox" })
+                if (parakeetReady) androidx.compose.material3.FilterChip(selected = parakeet, label = { Text("Parakeet (free, offline)") },
+                    onClick = { transcriber = "parakeet"; library.settings.transcriber = "parakeet" })
+            }
+        }
+        Text("English subtitles", fontSize = 14.sp, color = Colors.dim)
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOfNotNull(
+                ("soniox" to "Soniox (with the transcription)").takeIf { !japanese && !parakeet && sonioxKey },
+                ("gemma" to "Gemma (good, ~3 s a line)").takeIf { gemmaDownloaded },
+                "device" to "Google's translator (instant)",
+                "none" to "None (fastest)",
+            ).forEach { (value, label) ->
+                androidx.compose.material3.FilterChip(selected = englishNow == value, label = { Text(label) },
+                    onClick = { english = value; library.settings.englishSource = value })
+            }
+        }
         Text("Video quality", fontSize = 14.sp, color = Colors.dim)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(360, 480, 720, 1080).forEach { h ->
@@ -97,12 +127,12 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(enabled = ready && (link.startsWith("http") || link.startsWith("magnet:")) && !(needsRd && library.settings.rdToken.isBlank()),
                 onClick = {
-                    ProcessWorker.start(context, link, show.takeIf { it.isNotBlank() }, height, lang)
+                    ProcessWorker.start(context, link, show.takeIf { it.isNotBlank() }, height, lang, transcriber, englishNow)
                     link = ""
                 }) { Text("Make it an episode") }
             androidx.compose.material3.OutlinedButton(enabled = ready, onClick = { pick.launch(arrayOf("video/*")) }) { Text("Video files…") }
         }
-        val noEnglish = library.settings.englishSource == "none"
+        val noEnglish = englishNow == "none"
         if (japanese) Text("Download → Japanese subtitles from Jimaku, fitted to the audio → " + when {
                 noEnglish -> "no English (Settings)"
                 gemma -> "English (Gemma on the tablet, about 3 s a line)"
@@ -114,7 +144,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
             " → German subtitles → " + when {
                 noEnglish -> "no English (Settings)"
                 gemma -> "English (Gemma on the tablet, about 3 s a line)"
-                library.settings.englishSource == "soniox" && !parakeet -> "English (Soniox)"
+                englishNow == "soniox" -> "English (Soniox)"
                 else -> "English (the device's translator)"
             } + " → scenes. A season (magnet) becomes one episode per file; MKV files keep their German audio. Jobs run " +
             "one after another in the background; each episode appears on the home screen when done.", color = Colors.dim, fontSize = 13.sp)

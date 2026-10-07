@@ -107,12 +107,17 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     private val settings = Settings(context)
     private var height = 720
     private var lang = Lang.GERMAN
+    /** This job's choices, picked in Add an episode ("soniox" / "parakeet"; "soniox" / "gemma" / "device" / "none"). */
+    private var transcriber = "soniox"
+    private var english = "device"
 
     override suspend fun doWork(): Result {
         val url = inputData.getString(URL) ?: return Result.failure()
         val show = inputData.getString(SHOW)?.takeIf { it.isNotBlank() }
         height = inputData.getInt(HEIGHT, 720)
         lang = Lang.of(inputData.getString(LANG))
+        transcriber = inputData.getString(TRANSCRIBER) ?: settings.transcriber
+        english = inputData.getString(ENGLISH) ?: settings.englishSource
         val id = idFor(url)
         runCatching { setForeground(foreground("Starting…", 0f)) }
         return try {
@@ -142,7 +147,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 val f = files.getJSONObject(i)
                 val about = JSONObject(rd.callAttr("describe", f.getString("name"), f.getBoolean("single")).toString())
                 // Japanese: blank stays blank, so the episode takes its AniList name.
-                enqueue(applicationContext, f.getString("link"), showName ?: about.getString("show").takeIf { lang != Lang.JAPANESE }, height, lang, part = true)
+                enqueue(applicationContext, f.getString("link"), showName ?: about.getString("show").takeIf { lang != Lang.JAPANESE }, height, lang, transcriber, english, part = true)
             }
             return "Real-Debrid: ${files.length()} episode(s) queued"
         }
@@ -152,11 +157,11 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         if (japanese && youtube) error("Japanese episodes come from Real-Debrid or a video file (subtitles from Jimaku).")
         val jimakuKey = if (japanese) settings.jimakuKey.ifBlank { error("Add your Jimaku API key in Settings first.") } else ""
         if (japanese && !JapaneseModel(applicationContext).isReady) error("Download the Japanese words dictionary in Settings first.")
-        val parakeetHere = !japanese && settings.transcriber == "parakeet"
+        val parakeetHere = !japanese && transcriber == "parakeet"
         val key = if (parakeetHere || japanese) "" else settings.sonioxKey.ifBlank { error("Add your Soniox key in Settings first.") }
         if (parakeetHere && !Parakeet(applicationContext).isReady) error("Download the speech model (Parakeet) in Settings first.")
         val gemma = Gemma(applicationContext)
-        if (settings.englishSource == "gemma" && !gemma.isReady) error("Download the translation model (Gemma) in Settings first.")
+        if (english == "gemma" && !gemma.isReady) error("Download the translation model (Gemma) in Settings first.")
         val model = GermanModel(applicationContext)
         if (!japanese && !model.isReady) error("Download the German model in Settings first.")
         val dir = local.dir(id).apply { mkdirs() }
@@ -213,7 +218,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
         // 3. Japanese: Jimaku's subtitles fitted to the audio. Else Soniox, or Parakeet on the tablet (then the English
         // comes from Gemma or the device's translator).
-        val soniox = settings.englishSource == "soniox" && !parakeetHere && !japanese
+        val soniox = english == "soniox" && !parakeetHere && !japanese
         var sonioxEnglish = JSONArray()
         var synced = ""
         val cues = if (japanese) {
@@ -246,8 +251,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         // 4. English.
         val english = when {
             soniox && sonioxEnglish.length() > 0 -> sonioxEnglish.toString()
-            settings.englishSource == "none" -> "[]"
-            settings.englishSource == "gemma" -> withTranslator { translator ->
+            english == "none" -> "[]"
+            english == "gemma" -> withTranslator { translator ->
                 gemma.englishCues(JSONArray(cues), { report("Translating to English with Gemma: $it%", 0.75f + 0.15f * it / 100) }, lang.name) {
                     translator.translate(it).await() // a line Gemma skipped
                 }
@@ -443,6 +448,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         const val HEIGHT = "height"
         /** The episode's language code (Lang): "de" (default) or "ja". */
         const val LANG = "lang"
+        const val TRANSCRIBER = "transcriber"
+        const val ENGLISH = "english"
         /** A file of a magnet / link already split into episodes. */
         const val PART = "part"
         const val STAGE = "stage"
@@ -461,14 +468,16 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         }
 
         /** Queues [url] (YouTube / magnet / Real-Debrid link / content:// file) after the jobs already waiting. */
-        fun start(context: Context, url: String, show: String?, height: Int, lang: Lang = Lang.GERMAN) =
-            enqueue(context, url.trim(), show, height, lang, part = false)
+        fun start(context: Context, url: String, show: String?, height: Int, lang: Lang, transcriber: String, english: String) =
+            enqueue(context, url.trim(), show, height, lang, transcriber, english, part = false)
 
-        private fun enqueue(context: Context, url: String, show: String?, height: Int, lang: Lang, part: Boolean) {
+        private fun enqueue(context: Context, url: String, show: String?, height: Int, lang: Lang, transcriber: String,
+                            english: String, part: Boolean) {
             // A file on the device with Parakeet needs no connection.
-            val offline = url.startsWith("content:") && Settings(context).transcriber == "parakeet" && lang == Lang.GERMAN
+            val offline = url.startsWith("content:") && transcriber == "parakeet" && lang == Lang.GERMAN && english != "soniox"
             val req = OneTimeWorkRequestBuilder<ProcessWorker>()
-                .setInputData(workDataOf(URL to url, SHOW to show, HEIGHT to height, LANG to lang.code, PART to part))
+                .setInputData(workDataOf(URL to url, SHOW to show, HEIGHT to height, LANG to lang.code, TRANSCRIBER to transcriber,
+                    ENGLISH to english, PART to part))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(if (offline) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED).build())
                 .addTag(TAG).build()
             WorkManager.getInstance(context).enqueueUniqueWork(QUEUE, ExistingWorkPolicy.APPEND_OR_REPLACE, req)

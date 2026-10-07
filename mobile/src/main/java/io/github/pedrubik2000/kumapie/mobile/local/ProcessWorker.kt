@@ -243,7 +243,9 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             val raw = File(jm.callAttr("download", jimakuKey, pick.getString("url"), pick.getString("name"), number, dl.path).toString())
             report("Fitting the subtitles to the audio…", 0.55f)
             val fitted = File(dir, "subtitles." + raw.extension.lowercase())
-            synced = SubSync(applicationContext).sync(audio, raw, fitted)
+            // The video's own English subtitles (timed to it) are the best reference; else the speech in the audio.
+            val reference = inside("en")?.let { JSONArray(py.getModule("jimaku").callAttr("cues", it.path, "en").toString()) }
+            synced = SubSync(applicationContext).sync(audio, raw, fitted, reference)
             File(dir, "subtitles.txt").writeText("${pick.getString("name")}\nsynced: $synced\n") // for a manual fix later
             jm.callAttr("cues", fitted.path).toString()
         } else {

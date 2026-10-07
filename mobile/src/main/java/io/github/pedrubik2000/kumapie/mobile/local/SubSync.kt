@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import java.io.File
 import java.net.URL
 import java.util.Locale
@@ -21,8 +22,26 @@ class SubSync(private val context: Context) {
     private val vad: File get() = File(parakeet.dir, "silero_vad.onnx").takeIf { it.exists() }
         ?: File(context.getExternalFilesDir(null) ?: context.filesDir, "models/silero_vad.onnx")
 
-    /** [subs] (.srt / .ass / .ssa / .vtt) → [out] (same format) fitted to [audio]; answers "+1.84 s" / "2 parts: …". */
-    suspend fun sync(audio: File, subs: File, out: File): String = withContext(Dispatchers.IO) {
+    /**
+     * [subs] (.srt / .ass / .ssa / .vtt) → [out] (same format) fitted to [audio]; answers "+1.84 s" / "2 parts: …".
+     * [reference]: cues [[start, end, text]] already timed to this video (its own English subtitles): fitted to those
+     * instead of the speech, which songs can't fool.
+     */
+    suspend fun sync(audio: File, subs: File, out: File, reference: JSONArray? = null): String = withContext(Dispatchers.IO) {
+        if (reference != null && reference.length() > 0) {
+            val ref = File(context.cacheDir, "sync-reference.srt")
+            ref.writeText((0 until reference.length()).joinToString("\n") { i ->
+                val c = reference.getJSONArray(i)
+                "${i + 1}\n${ts(c.getDouble(0))} --> ${ts(c.getDouble(1))}\n.\n"
+            })
+            try {
+                val log = alass(ref, subs, out, "--split-penalty", "11")
+                return@withContext (if (!strayPart(log)) summary(log) else summary(alass(ref, subs, out, "--no-split"))) +
+                    " (to the video's English subtitles)"
+            } finally {
+                ref.delete()
+            }
+        }
         val model = vad
         if (!model.exists()) {
             model.parentFile!!.mkdirs()

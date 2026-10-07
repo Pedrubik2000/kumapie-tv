@@ -122,6 +122,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 library,
                 onShows = { shows = it },
                 onShow = { stack += Screen.ShowEpisodes(it.id) },
+                onPlay = { s, e -> stack += Screen.Player(s, e) },
                 onStats = { stack += Screen.Stats },
                 onIPlusOne = { stack += Screen.IPlusOne },
                 onFeed = { stack += Screen.Feed },

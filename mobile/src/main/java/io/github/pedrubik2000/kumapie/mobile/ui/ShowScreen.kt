@@ -1,6 +1,16 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,11 +65,13 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.i18n.tr
 
-/** A show's episodes: progress, how many scenes are easy today, and a download button for each. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * A show: a picture header (title, info, Play / Continue) and its episodes with progress, easy scenes and a download
+ * button each. Phone: the header above the list; tablet: the header on the left, the episodes on the right.
+ */
 @Composable
 fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBack: () -> Unit) {
-    val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 600
+    val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
     var show by remember { mutableStateOf(initial) }
     var offline by remember { mutableStateOf(false) }
     val states by library.downloads.states().collectAsState(initial = emptyMap())
@@ -73,43 +85,34 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
         }
     }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text(show.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
-        )
-    }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
-            items(show.episodes, key = { it.id }) { ep ->
-                val state = states[ep.id] ?: DownloadState.None
-                val onDevice = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) // made here
-                val playable = onDevice || !offline || state == DownloadState.Done
-                Row(
-                    Modifier.fillMaxWidth().clickable(enabled = playable) { onPlay(ep) }
-                        .alpha(if (playable) 1f else 0.4f).padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    AsyncImage(library.thumb(ep.id, ep.thumb), null, contentScale = ContentScale.Crop,
-                        modifier = Modifier.width(if (narrow) 96.dp else 128.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)))
-                    Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(ep.title, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(if (onDevice) tr("%s · on this device", minutes(ep.duration)) else tr("%1\$s · %2\$d of %3\$d scenes easy", minutes(ep.duration), ep.easy, ep.scenes) +
-                            if (ep.seen > 0) tr(" · %d seen", ep.seen) else "", fontSize = 12.sp, color = Colors.dim)
-                        val resume = ep.resume
-                        if (resume != null && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(), Modifier.fillMaxWidth())
-                    }
-                    // Condensed: only the speech, in the background (screen off), like the PC's condensed audio.
-                    IconButton(enabled = playable, onClick = {
-                        val art = library.thumb(ep.id, ep.thumb).let { if (it is java.io.File) android.net.Uri.fromFile(it).toString() else it.toString() }
-                        io.github.pedrubik2000.kumapie.mobile.listen.CondensedService.play(context, ep.id, art)
-                    }) { Icon(Icons.Default.Headphones, tr("Listen condensed")) }
-                    if (onDevice) IconButton(onClick = { deleting = ep }) { Icon(Icons.Default.Delete, tr("Delete")) }
-                    if (!onDevice) DownloadButton(state, enabled = !offline || state == DownloadState.Done,
-                        onStart = { library.downloads.start(show, ep) },
-                        onCancel = { library.downloads.cancel(ep.id) },
-                        onDelete = { deleting = ep })
-                }
+    fun playable(ep: Episode) = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) || !offline ||
+        states[ep.id] == DownloadState.Done
+    // Play: the episode left partway, else the first not watched to the end, else the first.
+    val next = show.episodes.filter(::playable).let { eps ->
+        eps.firstOrNull { e -> (e.resume ?: 0.0).let { it > 20 && it < e.duration * 0.95 } }
+            ?: eps.firstOrNull { it.seen < it.scenes } ?: eps.firstOrNull()
+    }
+    val header = @Composable { modifier: Modifier ->
+        ShowHeader(library, show, next, wide, onBack, onPlay, modifier)
+    }
+    val row = @Composable { ep: Episode ->
+        EpisodeRow(library, ep, states[ep.id] ?: DownloadState.None, playable(ep), offline, wide,
+            onPlay = { onPlay(ep) }, onDownload = { library.downloads.start(show, ep) },
+            onCancel = { library.downloads.cancel(ep.id) }, onDelete = { deleting = ep },
+            onListen = {
+                val art = library.thumb(ep.id, ep.thumb).let { if (it is java.io.File) android.net.Uri.fromFile(it).toString() else it.toString() }
+                io.github.pedrubik2000.kumapie.mobile.listen.CondensedService.play(context, ep.id, art)
+            })
+    }
+    androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = Colors.background, contentColor = Colors.text) {
+        if (wide) Row(Modifier.fillMaxSize()) {
+            header(Modifier.weight(0.42f).fillMaxHeight())
+            LazyColumn(Modifier.weight(0.58f).fillMaxHeight(), contentPadding = PaddingValues(vertical = 24.dp)) {
+                items(show.episodes, key = { it.id }) { row(it) }
             }
+        } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            item(key = "header") { header(Modifier.fillMaxWidth()) }
+            items(show.episodes, key = { it.id }) { row(it) }
         }
     }
 
@@ -155,5 +158,70 @@ private fun DownloadButton(state: DownloadState, enabled: Boolean, onStart: () -
                 Icon(Icons.Default.ErrorOutline, tr("Failed: %s. Tap to try again", state.message), tint = Colors.unknown)
             }
         }
+    }
+}
+
+/** The show's picture (a frame on a phone, the poster on a tablet) fading into the page, title, info and Play. */
+@Composable
+private fun ShowHeader(library: Library, show: Show, next: Episode?, wide: Boolean, onBack: () -> Unit,
+                       onPlay: (Episode) -> Unit, modifier: Modifier) {
+    val image: Any = if (wide) library.poster(show.id, show.poster)
+        else show.episodes.firstOrNull()?.let { library.thumb(it.id, it.thumb) } ?: library.poster(show.id, show.poster)
+    Box(modifier) {
+        AsyncImage(image, null, contentScale = ContentScale.Crop,
+            modifier = if (wide) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 10f))
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(
+            0f to Color.Transparent, 0.45f to Colors.background.copy(alpha = 0.35f), 1f to Colors.background)))
+        IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(8.dp)
+            .background(Color.Black.copy(alpha = 0.4f), CircleShape)) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Color.White)
+        }
+        Column(Modifier.align(Alignment.BottomStart).let { if (wide) it.navigationBarsPadding() else it }.padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(show.title, fontSize = if (wide) 30.sp else 24.sp, lineHeight = if (wide) 36.sp else 30.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            val n = show.episodes.size
+            val total = show.episodes.sumOf { it.duration }
+            val seen = show.episodes.sumOf { it.seen }
+            val scenes = show.episodes.sumOf { it.scenes }
+            Text(listOfNotNull(if (n == 1) tr("1 episode") else tr("%d episodes", n), minutes(total).takeIf { total > 0 },
+                tr("%1\$d of %2\$d scenes seen", seen, scenes).takeIf { seen > 0 }).joinToString(" · "),
+                fontSize = 14.sp, color = Colors.dim)
+            if (next != null) {
+                val partway = (next.resume ?: 0.0).let { it > 20 && it < next.duration * 0.95 }
+                Button(onClick = { onPlay(next) }) {
+                    Icon(Icons.Default.PlayArrow, null)
+                    Text(if (partway || next != show.episodes.first()) tr("Continue: %s", next.title) else tr("Play"),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EpisodeRow(library: Library, ep: Episode, state: DownloadState, playable: Boolean, offline: Boolean, wide: Boolean,
+                       onPlay: () -> Unit, onDownload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit, onListen: () -> Unit) {
+    val onDevice = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) // made here
+    Row(
+        Modifier.fillMaxWidth().clickable(enabled = playable, onClick = onPlay)
+            .alpha(if (playable) 1f else 0.4f).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(if (wide) 160.dp else 120.dp)) {
+            AsyncImage(library.thumb(ep.id, ep.thumb), null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)))
+            val resume = ep.resume
+            if (resume != null && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(),
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(6.dp))
+        }
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(ep.title, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(if (onDevice) tr("%s · on this device", minutes(ep.duration)) else tr("%1\$s · %2\$d of %3\$d scenes easy", minutes(ep.duration), ep.easy, ep.scenes) +
+                if (ep.seen > 0) tr(" · %d seen", ep.seen) else "", fontSize = 12.sp, color = Colors.dim)
+        }
+        // Condensed: only the speech, in the background (screen off), like the PC's condensed audio.
+        IconButton(enabled = playable, onClick = onListen) { Icon(Icons.Default.Headphones, tr("Listen condensed")) }
+        if (onDevice) IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, tr("Delete")) }
+        else DownloadButton(state, enabled = !offline || state == DownloadState.Done, onStart = onDownload, onCancel = onCancel, onDelete = onDelete)
     }
 }

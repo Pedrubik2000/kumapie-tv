@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.MoreVert
@@ -67,6 +68,7 @@ fun HomeScreen(
     onImprove: () -> Unit,
     onSettings: () -> Unit,
     onSearch: () -> Unit = {},
+    onDownloads: () -> Unit = {},
     /** A link shared to kumapie (YouTube): opens "Add an episode" with it. */
     sharedLink: String? = null,
 ) {
@@ -108,6 +110,13 @@ fun HomeScreen(
                 IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, "Add an episode") }
                 IconButton(onClick = onFeed) { Icon(Icons.Default.Swipe, "Feed") }
                 IconButton(onClick = onIPlusOne) { Icon(Icons.Default.AutoAwesome, "i+1 scenes") }
+                // Downloads: how many jobs are running or waiting.
+                val active = jobs.count { !it.startsWith("Done") && !it.startsWith("Failed") }
+                IconButton(onClick = onDownloads) {
+                    androidx.compose.material3.BadgedBox(badge = { if (active > 0) androidx.compose.material3.Badge { Text("$active") } }) {
+                        Icon(Icons.Default.Download, "Downloads")
+                    }
+                }
                 if (!narrow) more.forEach { (icon, label, go) -> IconButton(onClick = go) { Icon(icon, label) } }
                 else Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More") }

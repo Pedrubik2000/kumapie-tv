@@ -57,7 +57,15 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     val englishNow = if (english == "soniox" && (parakeet || japanese)) "device" else english
     val gemma = englishNow == "gemma"
     val gemmaReady = !gemma || gemmaDownloaded
-    val needsRd = link.isNotBlank() && !ProcessWorker.isYouTube(link)
+    // Several links at once (one per line, or pasted together).
+    val links = Regex("""(https?://|magnet:)\S+""").findAll(link).map { it.value }.toList()
+    val needsRd = links.any { !ProcessWorker.isYouTube(it) }
+    val youtube = links.any { ProcessWorker.isYouTube(it) }
+    val channelLink = links.any { Regex("""youtube\.com/(@|channel/|c/|user/)""").containsMatchIn(it) }
+    val playlistLink = links.any { "list=" in it }
+    // YouTube: this video, or the newest shorts / videos of its channel, or the playlist.
+    var ytKind by remember(channelLink, playlistLink) { mutableStateOf(if (playlistLink) "playlist" else if (channelLink) "videos" else "video") }
+    var ytCount by remember { mutableStateOf("10") }
     // Picked files: kumapie keeps the right to read them, as the job may run after the app is closed.
     val pick = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -82,7 +90,20 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
                 androidx.compose.material3.FilterChip(selected = lang == l, label = { Text(l.name) }, onClick = { lang = l })
             }
         }
-        OutlinedTextField(link, { link = it }, label = { Text("YouTube, magnet or Real-Debrid link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(link, { link = it }, label = { Text("YouTube, magnet or Real-Debrid links (one or several)") }, maxLines = 6,
+            modifier = Modifier.fillMaxWidth())
+        if (links.size > 1) Text("${links.size} links", fontSize = 13.sp, color = Colors.dim)
+        if (youtube) {
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOfNotNull(("video" to "This video").takeIf { !channelLink }, "shorts" to "Channel's shorts",
+                    "videos" to "Channel's videos", ("playlist" to "Playlist").takeIf { playlistLink }).forEach { (k, label) ->
+                    androidx.compose.material3.FilterChip(selected = ytKind == k, onClick = { ytKind = k }, label = { Text(label) })
+                }
+            }
+            if (ytKind != "video") OutlinedTextField(ytCount, { ytCount = it.filter(Char::isDigit).take(3) },
+                label = { Text("How many (newest first)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        }
         OutlinedTextField(show, { show = it }, label = { Text("Show (blank: the channel's / file's name)") }, singleLine = true,
             modifier = Modifier.fillMaxWidth())
         if (!japanese) {
@@ -125,11 +146,15 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         if (needsRd && library.settings.rdToken.isBlank()) Text("For magnets and Real-Debrid links: Settings > your Real-Debrid token.",
             color = Colors.unknown, fontSize = 14.sp)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(enabled = ready && (link.startsWith("http") || link.startsWith("magnet:")) && !(needsRd && library.settings.rdToken.isBlank()),
+            Button(enabled = ready && links.isNotEmpty() && !(needsRd && library.settings.rdToken.isBlank()),
                 onClick = {
-                    ProcessWorker.start(context, link, show.takeIf { it.isNotBlank() }, height, lang, transcriber, englishNow)
+                    links.forEach { l ->
+                        val kind = if (ProcessWorker.isYouTube(l) && ytKind != "video") ytKind else null
+                        ProcessWorker.start(context, l, show.takeIf { it.isNotBlank() }, height, lang, transcriber, englishNow,
+                            kind, ytCount.toIntOrNull()?.coerceIn(1, 200) ?: 10)
+                    }
                     link = ""
-                }) { Text("Make it an episode") }
+                }) { Text(if (links.size > 1) "Make them episodes" else "Make it an episode") }
             androidx.compose.material3.OutlinedButton(enabled = ready, onClick = { pick.launch(arrayOf("video/*")) }) { Text("Video files…") }
         }
         val noEnglish = englishNow == "none"

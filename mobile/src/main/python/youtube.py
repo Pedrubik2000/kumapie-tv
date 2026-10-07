@@ -4,9 +4,38 @@ YouTube's signature / n challenges need a JavaScript runtime: QuickJS-NG, built 
 libqjs.so (tools/quickjs/build.sh). There is no ffmpeg here, so yt-dlp downloads the H.264 video and the AAC audio as
 two files (no merge) and Kotlin muxes them with MediaMuxer; format 18 (360p, one file) is the fallback."""
 import json
+import re
 import os
 
 import yt_dlp
+
+
+CHANNEL = re.compile(r"(https?://(?:www\.|m\.)?youtube\.com/(?:@[^/?#]+|channel/[^/?#]+|c/[^/?#]+|user/[^/?#]+))")
+
+
+def listing(url: str, kind: str, count: int, qjs: str = "") -> str:
+    """The newest [count] videos of a channel as JSON ["https://…", …]: [kind] "shorts" or "videos" of the channel at
+    [url] (a channel link, or any video of it), or "playlist" for the playlist in [url]. Only lists (no download)."""
+    opts = {"quiet": True, "extract_flat": "in_playlist", "playlistend": int(count), "noplaylist": False}
+    if qjs:
+        opts["js_runtimes"] = {"quickjs": {"path": qjs}}
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        if kind == "playlist":
+            target = url
+        else:
+            m = CHANNEL.match(url)
+            channel = m.group(1) if m else None
+            if channel is None:  # a video: its channel
+                info = ydl.extract_info(url, download=False, process=False)
+                channel = info.get("channel_url") or info.get("uploader_url")
+                if not channel:
+                    raise RuntimeError("YouTube didn't say whose video this is")
+            target = channel.rstrip("/") + ("/shorts" if kind == "shorts" else "/videos")
+        info = ydl.extract_info(target, download=False)
+    ids = [e.get("id") for e in (info.get("entries") or []) if e and e.get("id")][:int(count)]
+    if not ids:
+        raise RuntimeError(f"No {kind} found at {target}")
+    return json.dumps([f"https://www.youtube.com/shorts/{i}" if kind == "shorts" else f"https://www.youtube.com/watch?v={i}" for i in ids])
 
 
 def download(url: str, folder: str, qjs: str, log, height: int = 720) -> str:

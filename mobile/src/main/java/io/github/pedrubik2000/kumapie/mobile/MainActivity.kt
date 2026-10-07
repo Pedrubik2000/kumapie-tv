@@ -48,6 +48,7 @@ sealed interface Screen {
     data object Settings : Screen
     data object Stats : Screen
     data object Search : Screen
+    data object Downloads : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -123,6 +124,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 onGrammar = { stack += Screen.Grammar },
                 onImprove = { stack += Screen.Improve },
                 onSearch = { stack += Screen.Search },
+                onDownloads = { stack += Screen.Downloads },
                 sharedLink = sharedLink,
                 onSettings = { stack += Screen.Settings },
             )
@@ -140,6 +142,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             Screen.Grammar -> GrammarScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Stats -> StatsScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Search -> io.github.pedrubik2000.kumapie.mobile.ui.SearchScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.Downloads -> io.github.pedrubik2000.kumapie.mobile.ui.DownloadsScreen(onBack = { stack.removeAt(stack.lastIndex) })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
     }

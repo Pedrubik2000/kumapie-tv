@@ -130,6 +130,17 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     }
 
     private suspend fun process(id: String, url: String, showName: String?): String {
+        // A YouTube channel or playlist: one job per video in it, queued after this one.
+        val listKind = inputData.getString(KIND)
+        if (listKind != null && !inputData.getBoolean(PART, false)) {
+            report("Asking YouTube…", 0.02f)
+            if (!Python.isStarted()) Python.start(AndroidPlatform(applicationContext))
+            val qjs = File(applicationContext.applicationInfo.nativeLibraryDir, "libqjs.so").path
+            val urls = JSONArray(Python.getInstance().getModule("youtube").callAttr("listing", url, listKind, inputData.getInt(COUNT, 10), qjs).toString())
+            for (i in 0 until urls.length()) enqueue(applicationContext, urls.getString(i), showName, height, lang, transcriber, english, part = true,
+                label = "YouTube ${i + 1}/${urls.length()}: ${urls.getString(i).substringAfterLast('/')}")
+            return "YouTube: ${urls.length()} video(s) queued"
+        }
         if (local.json(id).exists()) return "Already here: " + (local.entries().firstOrNull { it.id == id }?.title ?: url)
         val youtube = isYouTube(url)
         val file = url.startsWith("content:")
@@ -147,7 +158,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 val f = files.getJSONObject(i)
                 val about = JSONObject(rd.callAttr("describe", f.getString("name"), f.getBoolean("single")).toString())
                 // Japanese: blank stays blank, so the episode takes its AniList name.
-                enqueue(applicationContext, f.getString("link"), showName ?: about.getString("show").takeIf { lang != Lang.JAPANESE }, height, lang, transcriber, english, part = true)
+                enqueue(applicationContext, f.getString("link"), showName ?: about.getString("show").takeIf { lang != Lang.JAPANESE }, height, lang, transcriber, english, part = true,
+                    label = f.getString("name"))
             }
             return "Real-Debrid: ${files.length()} episode(s) queued"
         }
@@ -316,15 +328,24 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
      */
     @OptIn(UnstableApi::class)
     private suspend fun remux(source: Uri, out: File) = withContext(Dispatchers.Main) {
+        // A BluRay remux (~40 Mbps, 7 GB an episode) is re-encoded to HEVC at 5 Mbps, same size (~0.9 GB an episode; a
+        // different codec, so Transformer can't just copy it);
+        // web releases (a few Mbps) are copied as they are. ponytail: 15 Mbps cut-off, size by file length / duration.
+        val heavy = withContext(Dispatchers.IO) { bitsPerSecond(source) > 15_000_000 }
+        if (heavy) report("Converting the video (${lang.name} audio, re-encoding a large video)…", 0.35f)
         suspendCancellableCoroutine { cont ->
             val ctx = applicationContext
             val german = DefaultTrackSelector.Parameters.Builder(ctx).setPreferredAudioLanguage(lang.code)
                 .setForceHighestSupportedBitrate(true).setConstrainAudioChannelCountToDeviceCapabilities(false).build()
             val loader = ExoPlayerAssetLoader.Factory(ctx, DefaultDecoderFactory(ctx), Clock.DEFAULT, DefaultMediaSourceFactory(ctx),
                 { c -> DefaultTrackSelector(c).apply { setParameters(german) } }, null, DefaultLoadControl())
-            val transformer = Transformer.Builder(ctx)
+            val builder = Transformer.Builder(ctx)
                 .setAssetLoaderFactory(loader)
                 .setAudioMimeType(MimeTypes.AUDIO_AAC)
+            if (heavy) builder.setVideoMimeType(MimeTypes.VIDEO_H265).setEncoderFactory(
+                androidx.media3.transformer.DefaultEncoderFactory.Builder(ctx).setRequestedVideoEncoderSettings(
+                    androidx.media3.transformer.VideoEncoderSettings.Builder().setBitrate(5_000_000).build()).build())
+            val transformer = builder
                 .addListener(object : Transformer.Listener {
                     override fun onCompleted(composition: Composition, result: ExportResult) {
                         if (cont.isActive) cont.resume(Unit)
@@ -340,6 +361,16 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             cont.invokeOnCancellation { transformer.cancel() }
         }
     }
+
+    /** The file's average bit rate (size / duration); 0 when unknown. */
+    private fun bitsPerSecond(source: Uri): Long = runCatching {
+        val bytes = applicationContext.contentResolver.openFileDescriptor(source, "r")?.use { it.statSize } ?: return 0
+        val ms = MediaMetadataRetriever().use { r ->
+            r.setDataSource(applicationContext, source)
+            r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong()
+        } ?: return 0
+        if (ms <= 0) 0 else bytes * 8 * 1000 / ms
+    }.getOrDefault(0)
 
     /** German cues → English cues with the same times, by Google's on-device translator (model ~30 MB, once). */
     private suspend fun translate(cues: JSONArray): String = withTranslator { translator ->
@@ -440,7 +471,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val now = System.currentTimeMillis()
         if (now - lastReport < 500 && progress < 1f) return
         lastReport = now
-        setProgress(workDataOf(STAGE to stage))
+        setProgress(workDataOf(STAGE to stage, PROGRESS to progress))
         runCatching { setForeground(foreground(stage, progress)) }
     }
 
@@ -465,10 +496,16 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         /** The episode's language code (Lang): "de" (default) or "ja". */
         const val LANG = "lang"
         const val TRANSCRIBER = "transcriber"
+        /** A YouTube list instead of one video: "shorts" / "videos" (of the channel) or "playlist"; [COUNT] newest. */
+        const val KIND = "kind"
+        const val COUNT = "count"
         const val ENGLISH = "english"
         /** A file of a magnet / link already split into episodes. */
         const val PART = "part"
         const val STAGE = "stage"
+        const val PROGRESS = "progress"
+        /** What the Downloads page calls the job: the file's name, else the link. */
+        const val LABEL = "label"
         const val ERROR = "error"
         private const val CHANNEL = "downloads"
         private const val TAG = "process"
@@ -484,22 +521,49 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         }
 
         /** Queues [url] (YouTube / magnet / Real-Debrid link / content:// file) after the jobs already waiting. */
-        fun start(context: Context, url: String, show: String?, height: Int, lang: Lang, transcriber: String, english: String) =
-            enqueue(context, url.trim(), show, height, lang, transcriber, english, part = false)
+        fun start(context: Context, url: String, show: String?, height: Int, lang: Lang, transcriber: String, english: String,
+                  kind: String? = null, count: Int = 10) =
+            enqueue(context, url.trim(), show, height, lang, transcriber, english, part = false, kind = kind, count = count)
 
         private fun enqueue(context: Context, url: String, show: String?, height: Int, lang: Lang, transcriber: String,
-                            english: String, part: Boolean) {
+                            english: String, part: Boolean, kind: String? = null, count: Int = 10, label: String? = null) {
             // A file on the device with Parakeet needs no connection.
             val offline = url.startsWith("content:") && transcriber == "parakeet" && lang == Lang.GERMAN && english != "soniox"
             val req = OneTimeWorkRequestBuilder<ProcessWorker>()
                 .setInputData(workDataOf(URL to url, SHOW to show, HEIGHT to height, LANG to lang.code, TRANSCRIBER to transcriber,
-                    ENGLISH to english, PART to part))
+                    ENGLISH to english, PART to part, KIND to kind, COUNT to count, LABEL to (label ?: url)))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(if (offline) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED).build())
-                .addTag(TAG).build()
+                .addTag(TAG).addTag("label:" + (label ?: url).take(120)).build()
             WorkManager.getInstance(context).enqueueUniqueWork(QUEUE, ExistingWorkPolicy.APPEND_OR_REPLACE, req)
         }
 
         /** Every job's line for the home screen: "<url>: stage" / failed / done. */
+        /** One job for the Downloads page. [state]: "running", "waiting", "done", "failed". */
+        data class Job(val id: java.util.UUID, val label: String, val state: String, val stage: String, val progress: Float)
+
+        /** Every job, running first, then waiting (in queue order), then finished. */
+        fun jobs(context: Context): Flow<List<Job>> = WorkManager.getInstance(context).getWorkInfosByTagFlow(TAG).map { infos ->
+            infos.filter { it.state != WorkInfo.State.CANCELLED }.map { info ->
+                val label = info.tags.firstOrNull { it.startsWith("label:") }?.removePrefix("label:") ?: "Episode"
+                when (info.state) {
+                    WorkInfo.State.RUNNING -> Job(info.id, label, "running", info.progress.getString(STAGE) ?: "Starting…",
+                        info.progress.getFloat(PROGRESS, 0f))
+                    WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> Job(info.id, label, "waiting",
+                        if (info.state == WorkInfo.State.ENQUEUED) "Waiting for a connection" else "Queued", 0f)
+                    else -> {
+                        val out = info.outputData.getString(STAGE) ?: "Done"
+                        Job(info.id, label, if (out.startsWith("Failed")) "failed" else "done", out, 1f)
+                    }
+                }
+            }.sortedBy { listOf("running", "waiting", "done", "failed").indexOf(it.state) }
+        }
+
+        /** Stops every job (the queue is one chain: stopping one would stop those after it anyway). */
+        fun stopAll(context: Context) = WorkManager.getInstance(context).cancelUniqueWork(QUEUE)
+
+        /** Forgets finished jobs. */
+        fun clearFinished(context: Context) = WorkManager.getInstance(context).pruneWork()
+
         fun states(context: Context): Flow<List<String>> = WorkManager.getInstance(context).getWorkInfosByTagFlow(TAG).map { infos ->
             infos.filter { it.state != WorkInfo.State.CANCELLED }.sortedBy { it.state.isFinished }.map { info ->
                 when (info.state) {

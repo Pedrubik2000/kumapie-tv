@@ -171,6 +171,11 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         choices = meaningDicts.flatMap { g ->
             g.senses.flatMap { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(6).map { choice(g, it) }
         }.distinctBy { it.gloss }.take(40)
+        // The meaning that fits the line's English starts chosen, marked.
+        SensePick.bestMeaning(choices.map { it.gloss }, SensePick.english(scene, line))?.let { i ->
+            choices = choices.mapIndexed { k, c -> if (k == i) c.copy(label = c.label + "  · fits this line") else c }
+            chosen = i
+        }
         // Monolingual definitions: one per dictionary; encyclopedias (Pixiv, Wikipedia…) last, so a 国語 dictionary leads.
         val encyclopedia = Regex("pixiv|wiki|ニコ|百科", RegexOption.IGNORE_CASE)
         monos = glossaries.filter(isMono).sortedBy { if (encyclopedia.containsMatchIn(it.dict)) 1 else 0 }

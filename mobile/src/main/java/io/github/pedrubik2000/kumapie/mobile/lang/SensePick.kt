@@ -24,6 +24,19 @@ object SensePick {
         return best
     }
 
+    /** The index of the meaning (short English text, Japanese dictionaries) sharing the most words with [english], or null. */
+    fun bestMeaning(meanings: List<String>, english: String): Int? {
+        val en = words(english)
+        if (en.isEmpty()) return null
+        var best: Int? = null
+        var top = 0
+        meanings.forEachIndexed { i, m ->
+            val score = 2 * (words(m.substringBefore('(')) intersect en).size + (words(m) intersect en).size
+            if (score > top) { top = score; best = i }
+        }
+        return best
+    }
+
     /** The English subtitles shown with [line] of [scene] (those overlapping its time; else the scene's). */
     fun english(scene: Scene, line: Int): String {
         val cue = scene.cues.getOrNull(line) ?: return ""

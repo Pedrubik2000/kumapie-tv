@@ -100,8 +100,18 @@ private fun JapanesePanel(library: Library, ctl: SceneController, picker: WordPi
         when {
             !library.knownJa.modelReady -> Text("Download the Japanese words dictionary (Sudachi) in Settings first.", color = Colors.dim, fontSize = 14.sp)
             headwords == null -> Text("Looking it up…", color = Colors.dim, fontSize = 14.sp)
-            else -> YomitanPopup(library, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE, headwords!!,
-                onSpeak = { library.voiceJa.speak(it) }, compact = true)
+            else -> {
+                // "In this line": the bilingual meaning that shares the most words with the line's English.
+                val fit = remember(headwords) {
+                    val meanings = headwords!!.firstOrNull()?.terms?.flatMap { it.glossaries }
+                        ?.filter { library.yomitan.groupOf(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE, it.dict).contains("bilingual", ignoreCase = true) }
+                        ?.flatMap { g -> g.senses.flatMap { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.bilingualMeanings(it) } }?.distinct().orEmpty()
+                    SensePick.bestMeaning(meanings, SensePick.english(ctl.scene, picker.line))?.let { meanings[it] }
+                }
+                fit?.let { Text("In this line: $it", color = Colors.accent, fontSize = 15.sp, modifier = Modifier.padding(bottom = 4.dp)) }
+                YomitanPopup(library, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE, headwords!!,
+                    onSpeak = { library.voiceJa.speak(it) }, compact = true)
+            }
         }
     }
 }

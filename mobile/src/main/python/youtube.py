@@ -38,9 +38,10 @@ def listing(url: str, kind: str, count: int, qjs: str = "") -> str:
     return json.dumps([f"https://www.youtube.com/shorts/{i}" if kind == "shorts" else f"https://www.youtube.com/watch?v={i}" for i in ids])
 
 
-def download(url: str, folder: str, qjs: str, log, height: int = 720) -> str:
+def download(url: str, folder: str, qjs: str, log, height: int = 720, sub_langs: str = "") -> str:
     """Downloads [url] into [folder] at up to [height] p (H.264, never AV1); answers JSON {"title", "duration", "video", "audio"} ("audio" is null when the
-    video file already has the sound)."""
+    video file already has the sound). [sub_langs] ("de,en"): the video's own subtitles in those languages, only ones
+    people made (never YouTube's automatic ones), as "subs" {"de": path} (de-DE counts as de)."""
     os.makedirs(folder, exist_ok=True)
     last = [0]
 
@@ -71,7 +72,12 @@ def download(url: str, folder: str, qjs: str, log, height: int = 720) -> str:
     # One YoutubeDL session for finding and downloading: YouTube refuses (HTTP 403) files fetched outside the session
     # that found them. "<video>,<audio>" downloads both formats as separate files (no merging, so no ffmpeg). The
     # session builds its format choice when it starts, so the chosen one replaces ydl.format_selector.
-    opts = {**base, "format": "18", "outtmpl": os.path.join(folder, "%(format_id)s.%(ext)s")}
+    langs = [l for l in sub_langs.split(",") if l]
+    opts = {**base, "format": "18", "outtmpl": {"default": os.path.join(folder, "%(format_id)s.%(ext)s"),
+                                                 "subtitle": os.path.join(folder, "subs.%(ext)s")}}
+    if langs:
+        opts.update({"writesubtitles": True, "writeautomaticsub": False, "subtitlesformat": "vtt/srt/best",
+                     "subtitleslangs": [f"{l}(-.*)?$" for l in langs]})
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False, process=False)  # look only; the format is chosen below
         # The quality is the short side, as YouTube names it (a 720p Short is 720x1280): the best H.264 MP4 video
@@ -87,6 +93,24 @@ def download(url: str, folder: str, qjs: str, log, height: int = 720) -> str:
             log.log("No separate H.264 video: the 360p file")
             ydl.format_selector = ydl.build_format_selector("18/b[ext=mp4][acodec!=none]")
         ydl.process_ie_result(info, download=True)
+        # The video's own subtitles (made by people; YouTube's automatic ones are in "automatic_captions", never used).
+        # Fetched here in the same session, so they come even when yt-dlp's own subtitle step writes nothing.
+        human = info.get("subtitles") or {}
+        if langs:
+            log.log("Subtitles on YouTube: " + (", ".join(sorted(human)) or "none"))
+        for code, tracks in sorted(human.items()):
+            base = code.split("-")[0].lower()
+            if base not in langs or any(n.startswith(f"subs.{code}.") for n in os.listdir(folder)):
+                continue
+            track = next((t for t in tracks if t.get("ext") == "vtt"), None) or next((t for t in tracks if t.get("ext") == "srt"), None)
+            if not track or not track.get("url"):
+                continue
+            try:
+                data = ydl.urlopen(track["url"]).read()
+                with open(os.path.join(folder, f"subs.{code}.{track['ext']}"), "wb") as f:
+                    f.write(data)
+            except Exception as e:  # a missing subtitle just means a transcription instead
+                log.log(f"Subtitles {code}: {e}")
     files = [os.path.join(folder, n) for n in os.listdir(folder) if not n.endswith((".part", ".ytdl"))]
     videos = [f for f in files if f.endswith(".mp4")]
     audios = [f for f in files if f.endswith(".m4a")]
@@ -95,6 +119,14 @@ def download(url: str, folder: str, qjs: str, log, height: int = 720) -> str:
     video, audio = max(videos, key=os.path.getsize), (audios[0] if audios else None)
     if not os.path.exists(video):
         raise RuntimeError("yt-dlp gave no MP4 video")
-    return json.dumps({"title": info.get("title") or "YouTube video", "duration": info.get("duration") or 0,
+    # subs.de-DE.vtt -> {"de": path}; the first of a language wins.
+    subs = {}
+    for n in sorted(os.listdir(folder)):
+        m = re.match(r"subs\.([a-zA-Z]+)(?:-[\w-]+)?\.(vtt|srt)$", n)
+        if m and m.group(1).lower() in langs:
+            subs.setdefault(m.group(1).lower(), os.path.join(folder, n))
+    if subs:
+        log.log("Subtitles from the video: " + ", ".join(sorted(subs)))
+    return json.dumps({"title": info.get("title") or "YouTube video", "duration": info.get("duration") or 0, "subs": subs,
                        "video": video, "audio": audio if audio and os.path.exists(audio) else None,
                        "channel": info.get("channel") or info.get("uploader") or ""}, ensure_ascii=False)

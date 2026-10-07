@@ -172,8 +172,10 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         // In the foreground (a notification): a big episode takes longer than a background job may run, and goes on
         // with the screen off.
         runCatching { setForeground(foreground(tr("Syncing with the PC…"), -1f)) }
+        var shown = 0L // Android drops a notification updated more than ~5 times a second
         return runCatching { Sync(applicationContext).run(settings.server, settings.owner) { what, f ->
-            runCatching { setForegroundAsync(foreground(what, f)) }
+            val now = System.currentTimeMillis()
+            if (now - shown >= 1000) { shown = now; runCatching { setForegroundAsync(foreground(what, f)) } }
         } }
             .fold({ lines -> if (lines.isNotEmpty()) Log.i("kumapie", "sync: ${lines.joinToString()}"); Result.success() },
                 { Log.w("kumapie", "sync: $it"); Result.retry() })

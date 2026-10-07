@@ -174,10 +174,13 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val jimakuKey = if (japanese) settings.jimakuKey.ifBlank { error(tr("Add your Jimaku API key in Settings first.")) } else ""
         if (japanese && !JapaneseModel(applicationContext).isReady) error(tr("Download the Japanese words dictionary in Settings first."))
         val parakeetHere = !japanese && transcriber == "parakeet"
-        val key = if (parakeetHere || japanese) "" else settings.sonioxKey.ifBlank { error(tr("Add your Soniox key in Settings first.")) }
-        if (parakeetHere && !Parakeet(applicationContext).isReady) error(tr("Download the speech model (Parakeet) in Settings first."))
+        // Checked only when a transcription is needed (a video with its own subtitles needs none).
+        val key by lazy { if (parakeetHere || japanese) "" else settings.sonioxKey.ifBlank { error(tr("Add your Soniox key in Settings first.")) } }
+        fun needSpeechModel() { if (parakeetHere && !Parakeet(applicationContext).isReady) error(tr("Download the speech model (Parakeet) in Settings first.")) }
+        if (!youtube) { key; needSpeechModel() }
         val gemma = Gemma(applicationContext)
-        if (english == "gemma" && !gemma.isReady) error(tr("Download the translation model (Gemma) in Settings first."))
+        fun needGemma() { if (!gemma.isReady) error(tr("Download the translation model (Gemma) in Settings first.")) }
+        if (english == "gemma" && !youtube) needGemma()
         val model = GermanModel(applicationContext, if (japanese) Lang.GERMAN else lang)
         if (!japanese && !model.isReady) error(tr("Download the %s model in Settings first.", lang.displayName))
         val dir = local.dir(id).apply { mkdirs() }
@@ -196,7 +199,13 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         if (youtube) {
             report(tr("Downloading…"), 0.02f)
             val qjs = File(applicationContext.applicationInfo.nativeLibraryDir, "libqjs.so").path
-            val got = JSONObject(ticking(0.02f) { py.getModule("youtube").callAttr("download", url, dl.path, qjs, logger, height).toString() })
+            // The video's own subtitles (made by people) in its language and the translation's: used instead of a
+            // transcription / translation, like the subtitles inside an MKV.
+            val got = JSONObject(ticking(0.02f) { py.getModule("youtube").callAttr("download", url, dl.path, qjs, logger, height,
+                listOf(lang.code, lang.translation).distinct().joinToString(",")).toString() })
+            got.optJSONObject("subs")?.let { subs ->
+                for (code in subs.keys()) File(subs.getString(code)).let { f -> f.copyTo(File(embedded, "embedded.$code.${f.extension}"), overwrite = true) }
+            }
             title = got.getString("title")
             show = showName ?: got.optString("channel").ifBlank { "YouTube" }
             report(tr("Putting the video together…"), 0.35f)
@@ -245,7 +254,10 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val soniox = english == "soniox" && !parakeetHere && !japanese
         var sonioxEnglish = JSONArray()
         var synced = ""
-        val cues = if (japanese && inside("ja") != null) {
+        val cues = if (!japanese && inside(lang.code) != null) {
+            synced = tr("from the video")
+            py.getModule("jimaku").callAttr("cues", inside(lang.code)!!.path, lang.code).toString()
+        } else if (japanese && inside("ja") != null) {
             synced = tr("inside the video")
             py.getModule("jimaku").callAttr("cues", inside("ja")!!.path, "ja").toString()
         } else if (japanese) {
@@ -266,6 +278,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             jm.callAttr("cues", fitted.path).toString()
         } else {
             val kept = File(dir, "transcript.json")
+            if (!kept.exists()) { key; needSpeechModel() }
             val transcript = if (kept.exists()) kept.readText() else if (parakeetHere) { // a retry: never pay Soniox twice
                 Parakeet(applicationContext).transcribe(audio) { report(it, 0.55f) }
             } else {
@@ -284,11 +297,11 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             englishFile != null -> py.getModule("jimaku").callAttr("cues", englishFile.path, lang.translation).toString()
             soniox && sonioxEnglish.length() > 0 -> sonioxEnglish.toString()
             english == "none" || lang.code == lang.translation -> "[]" // e.g. Pedro's English episodes (accent work)
-            english == "gemma" -> withTranslator { translator ->
+            english == "gemma" -> { needGemma(); withTranslator { translator ->
                 gemma.englishCues(JSONArray(cues), { report(tr("Translating to %1\$s with Gemma: %2\$d%%", lang.translationDisplayName, it), 0.75f + 0.15f * it / 100) }, lang.name, lang.translationName) {
                     translator.translate(it).await() // a line Gemma skipped
                 }
-            }
+            } }
             else -> {
                 report(tr("Translating to %s on the device…", lang.translationDisplayName), 0.75f)
                 translate(JSONArray(cues))

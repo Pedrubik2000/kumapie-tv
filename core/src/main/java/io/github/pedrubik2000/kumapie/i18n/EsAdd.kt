@@ -109,4 +109,5 @@ internal val esAdd: Map<String, String> = mapOf(
     "Syncing with the PC…" to "Sincronizando con la PC…",
     "Syncing with the PC" to "Sincronizando con la PC",
     "Sync with the PC" to "Sincronizar con la PC",
+    "from the video" to "del video",
 )

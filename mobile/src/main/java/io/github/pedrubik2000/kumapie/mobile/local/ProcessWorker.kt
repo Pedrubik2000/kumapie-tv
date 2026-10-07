@@ -166,6 +166,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         if (!japanese && !model.isReady) error("Download the German model in Settings first.")
         val dir = local.dir(id).apply { mkdirs() }
         val dl = File(dir, "download").apply { mkdirs() }
+        val embedded = File(dir, "embedded").apply { mkdirs() }
+        fun inside(code: String) = embedded.listFiles()?.firstOrNull { it.name.startsWith("embedded.$code.") }
 
         // 1. Download, and 2. one MP4 for the player (the episode's language) + the audio for Soniox / Parakeet / the sync.
         val video = local.video(id)
@@ -207,6 +209,12 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             show = showName ?: about.getString("show")
             season = about.optInt("season").takeIf { !about.isNull("season") }
             number = about.optInt("number").takeIf { !about.isNull("number") }
+            // Subtitles inside an MKV are made for this very video (no sync): read them before it is converted.
+            val mkv = source?.takeIf { it.scheme == "file" }?.path?.takeIf { it.endsWith(".mkv", ignoreCase = true) }
+            if (mkv != null && embedded.list().isNullOrEmpty()) {
+                report("Reading the subtitles inside the video…", 0.3f)
+                for (code in setOf(lang.code, "en")) py.getModule("mkvsubs").callAttr("extract", mkv, code, embedded.path)
+            }
             if (!converted) {
                 report("Converting the video (${lang.name} audio)…", 0.35f)
                 remux(source!!, video)
@@ -221,7 +229,10 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val soniox = english == "soniox" && !parakeetHere && !japanese
         var sonioxEnglish = JSONArray()
         var synced = ""
-        val cues = if (japanese) {
+        val cues = if (japanese && inside("ja") != null) {
+            synced = "inside the video"
+            py.getModule("jimaku").callAttr("cues", inside("ja")!!.path, "ja").toString()
+        } else if (japanese) {
             report("Finding Japanese subtitles on Jimaku…", 0.45f)
             val jm = py.getModule("jimaku")
             val found = JSONObject(jm.callAttr("candidates", jimakuKey, show, season, number, sourceName).toString())
@@ -248,8 +259,10 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             py.getModule("newepisode").callAttr("cues", transcript).toString()
         }
 
-        // 4. English.
-        val english = when {
+        // 4. English: the video's own English subtitles first, else Soniox's, else a translation (or none).
+        val englishFile = inside("en")
+        val englishCues = when {
+            englishFile != null -> py.getModule("jimaku").callAttr("cues", englishFile.path, "en").toString()
             soniox && sonioxEnglish.length() > 0 -> sonioxEnglish.toString()
             english == "none" -> "[]"
             english == "gemma" -> withTranslator { translator ->
@@ -272,12 +285,14 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             }).toString()
         }
         val episode = py.getModule("newepisode").callAttr("build", model.dir.path, id, show, title, duration,
-            video.path, cues, english, lang.code, parsed).toString()
+            video.path, cues, englishCues, lang.code, parsed).toString()
         local.json(id).writeText(episode)
         audio.delete() // kept until here, so a retry after a failure needs no new download or conversion
         dl.deleteRecursively()
+        embedded.deleteRecursively()
         local.add(LocalEpisodes.Entry(id, show, title, duration, url, season, number))
-        val done = "Done: $title" + (if (synced.isNotEmpty()) " (subtitles $synced)" else "")
+        val done = "Done: $title" + (if (synced.isNotEmpty()) " (subtitles $synced)" else "") +
+            (if (englishFile != null) " (English from the video)" else "")
         report(done, 1f)
         return done
     }

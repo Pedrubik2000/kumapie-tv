@@ -117,15 +117,19 @@ def _text(raw: bytes) -> str:
     return raw.decode("utf-8", "replace")
 
 
-def cues(path: str) -> str:
+def cues(path: str, lang: str = "ja") -> str:
     r"""A subtitle file (.srt / .vtt / .ass / .ssa) -> cues [[start, end, text]] in time order, as JSON: styling
-    dropped, ASS signs (lines placed with \pos / \move, drawings) left out, line breaks joined with a space."""
+    dropped, ASS signs (lines placed with \pos / \move, drawings) left out, line breaks joined with a space; Japanese
+    only what is said ([spoken]), other languages without SDH brackets and music."""
     text = _text(open(path, "rb").read()).replace("\r", "")
     out = []
     if path.lower().endswith((".ass", ".ssa")):
         fields = None
+        events = False
         for line in text.splitlines():
-            if line.startswith("Format:") and fields is None:
+            if line.startswith("["):
+                events = line.strip().lower() == "[events]"
+            elif line.startswith("Format:") and events:
                 fields = [f.strip().lower() for f in line[7:].split(",")]
             elif line.startswith("Dialogue:") and fields:
                 row = dict(zip(fields, line[9:].split(",", len(fields) - 1)))
@@ -147,8 +151,15 @@ def cues(path: str) -> str:
                 if body:
                     out.append([_secs(*m.groups()[:4]), _secs(*m.groups()[4:]), body])
     out.sort(key=lambda c: c[0])
-    return json.dumps([[round(a, 3), round(b, 3), t] for a, b, t in ((a, b, spoken(t)) for a, b, t in out) if t],
+    clean = spoken if lang == "ja" else plain
+    return json.dumps([[round(a, 3), round(b, 3), t] for a, b, t in ((a, b, clean(t)) for a, b, t in out) if t],
                       ensure_ascii=False)
+
+
+def plain(text: str) -> str:
+    """A line in a spaced language without SDH's [door opens] / (laughs) and music; "" when nothing is left."""
+    text = re.sub(r"\[[^\]]*\]|\([^)]*\)|[♪♬]", "", text)
+    return re.sub(r"\s+", " ", text).strip(" -")
 
 
 def spoken(text: str) -> str:
@@ -180,7 +191,8 @@ if __name__ == "__main__":  # python jimaku.py: the picking rules (and AniList, 
     with tempfile.TemporaryDirectory() as d:
         ass = os.path.join(d, "a.ass")
         with open(ass, "w", encoding="utf-8") as f:
-            f.write("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+            f.write("[V4+ Styles]\nFormat: Name, Fontname, Fontsize\nStyle: Default,Arial,20\n\n"
+                    "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
                     r"Dialogue: 0,0:00:05.00,0:00:07.50,Default,,0,0,0,,{\an8}本当に、\Nありがとう" "\n"
                     r"Dialogue: 0,0:00:01.00,0:00:03.00,Sign,,0,0,0,,{\pos(10,10)}看板" "\n")
         assert json.loads(cues(ass)) == [[5.0, 7.5, "本当に、 ありがとう"]], cues(ass)

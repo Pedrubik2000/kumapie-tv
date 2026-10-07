@@ -73,7 +73,10 @@ class MainActivity : ComponentActivity() {
         val search = intent?.getStringExtra("search")
             ?: intent?.takeIf { it.action == android.content.Intent.ACTION_PROCESS_TEXT }?.getCharSequenceExtra(android.content.Intent.EXTRA_PROCESS_TEXT)?.toString()
         search?.let { settings.prefs.edit().putString("search_text", it).apply() }
-        setContent { MobileTheme { App(library, shared, openSearch = search != null) } }
+        // A card to improve (Anki XP's "Improve this card first": `--el improve_note <note id>`): opens "Cards that don't stick" on it.
+        val improve = intent?.getLongExtra("improve_note", 0L) ?: 0L
+        if (improve != 0L) settings.prefs.edit().putLong("improve_note", improve).apply()
+        setContent { MobileTheme { App(library, shared, openSearch = search != null, openImprove = improve != 0L) } }
     }
 
     /** A server address sent while the app is already open: save it and start over with it. */
@@ -87,10 +90,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = false) {
+fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = false, openImprove: Boolean = false) {
     val settings = library.settings
     var server by remember { mutableStateOf(settings.server) }
-    val stack = remember { mutableStateListOf<Screen>(Screen.Home).apply { if (openSearch) add(Screen.Search) } }
+    val stack = remember { mutableStateListOf<Screen>(Screen.Home).apply { if (openSearch) add(Screen.Search); if (openImprove) add(Screen.Improve) } }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
     // The show list, kept here so the episode list and the player see the same (refreshed) shows.
     var shows by remember { mutableStateOf<List<Show>>(emptyList()) }

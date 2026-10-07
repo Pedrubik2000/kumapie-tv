@@ -68,10 +68,15 @@ private object ImproveKept {
 fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, Double) -> Unit, onBack: () -> Unit) {
     val improve = remember { Improve(library) }
     val scope = rememberCoroutineScope()
-    var cards by remember { mutableStateOf(ImproveKept.cards) }
-    var card by remember { mutableStateOf(ImproveKept.card) }
-    var candidates by remember { mutableStateOf(ImproveKept.candidates) }
-    var chosen by remember { mutableStateOf(ImproveKept.chosen) }
+    // A note sent by Anki XP (MainActivity's improve_note): read it once and start fresh on that card.
+    val wanted = remember {
+        library.settings.prefs.getLong("improve_note", 0L).also { if (it != 0L) library.settings.prefs.edit().remove("improve_note").apply() }
+    }
+    val kept = wanted == 0L
+    var cards by remember { mutableStateOf(if (kept) ImproveKept.cards else null) }
+    var card by remember { mutableStateOf(if (kept) ImproveKept.card else null) }
+    var candidates by remember { mutableStateOf(if (kept) ImproveKept.candidates else null) }
+    var chosen by remember { mutableStateOf(if (kept) ImproveKept.chosen else null) }
     var sentence by remember { mutableStateOf(ImproveKept.sentence) }
     var bilingual by remember { mutableStateOf(ImproveKept.bilingual) }
     var monolingual by remember { mutableStateOf(ImproveKept.monolingual) }
@@ -88,7 +93,10 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
         if (cards != null) return@LaunchedEffect
         said = tr("Reading Anki…")
         runCatching { withContext(Dispatchers.IO) { improve.struggling() } }
-            .onSuccess { cards = it; said = if (it.isEmpty()) tr("No cards are struggling right now.") else "" }
+            .onSuccess {
+                cards = it; said = if (it.isEmpty()) tr("No cards are struggling right now.") else ""
+                if (wanted != 0L) it.firstOrNull { s -> s.note.id == wanted }?.let { s -> card = s }
+            }
             .onFailure { said = it.message ?: it.toString() }
     }
     LaunchedEffect(card) {

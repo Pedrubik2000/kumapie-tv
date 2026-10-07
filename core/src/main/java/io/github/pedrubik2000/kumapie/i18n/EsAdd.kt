@@ -16,7 +16,7 @@ internal val esAdd: Map<String, String> = mapOf(
     "Transcription" to "Transcripción",
     "Soniox (best, paid)" to "Soniox (el mejor, de pago)",
     "Parakeet (free, offline)" to "Parakeet (gratis, sin conexión)",
-    "English subtitles" to "Subtítulos en inglés",
+    "%s subtitles" to "Subtítulos: %s",
     "Soniox (with the transcription)" to "Soniox (con la transcripción)",
     "Gemma (good, ~3 s a line)" to "Gemma (bueno, ~3 s por línea)",
     "Google's translator (instant)" to "Traductor de Google (instantáneo)",
@@ -103,4 +103,7 @@ internal val esAdd: Map<String, String> = mapOf(
     " (one offset: parts looked like songs)" to " (un solo desfase: algunas partes parecían canciones)",
     "%1\$d parts, mostly %2\$s" to "%1\$d partes, casi todo %2\$s",
     ", frame rate %s" to ", velocidad de fotogramas %s",
+    "Translating to %1\$s with Gemma: %2\$d%%" to "Traduciendo (%1\$s) con Gemma: %2\$d%%",
+    "Translating to %s on the device…" to "Traduciendo (%s) en el dispositivo…",
+    "Translating to %1\$s: %2\$d%%" to "Traduciendo (%1\$s): %2\$d%%",
 )

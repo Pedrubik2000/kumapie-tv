@@ -229,7 +229,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             val mkv = source?.takeIf { it.scheme == "file" }?.path?.takeIf { it.endsWith(".mkv", ignoreCase = true) }
             if (mkv != null && embedded.list().isNullOrEmpty()) {
                 report(tr("Reading the subtitles inside the video…"), 0.3f)
-                for (code in setOf(lang.code, "en")) py.getModule("mkvsubs").callAttr("extract", mkv, code, embedded.path)
+                for (code in setOf(lang.code, "en", lang.translation)) py.getModule("mkvsubs").callAttr("extract", mkv, code, embedded.path)
             }
             if (!converted) {
                 report(tr("Converting the video (%s audio)…", lang.displayName), 0.35f)
@@ -270,26 +270,27 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 Parakeet(applicationContext).transcribe(audio) { report(it, 0.55f) }
             } else {
                 report(tr("Transcribing with Soniox…"), 0.45f)
-                py.getModule("newepisode").callAttr("transcribe", audio.path, key, lang.code, if (soniox && lang != Lang.ENGLISH) "en" else "", logger).toString()
+                py.getModule("newepisode").callAttr("transcribe", audio.path, key, lang.code, if (soniox && lang.code != lang.translation) lang.translation else "", logger).toString()
             }
             kept.writeText(transcript) // Soniox's answer, kept (redoing it would cost again)
             sonioxEnglish = JSONObject(transcript).getJSONArray("english")
             py.getModule("newepisode").callAttr("cues", transcript).toString()
         }
 
-        // 4. English: the video's own English subtitles first, else Soniox's, else a translation (or none).
-        val englishFile = inside("en")
+        // 4. The translation line, in the language the person speaks (English, Spanish for the parents): the video's own
+        // subtitles in it first, else Soniox's, else a translation; none when the episode is already in that language.
+        val englishFile = inside(lang.translation)?.takeIf { lang.code != lang.translation }
         val englishCues = when {
-            englishFile != null -> py.getModule("jimaku").callAttr("cues", englishFile.path, "en").toString()
+            englishFile != null -> py.getModule("jimaku").callAttr("cues", englishFile.path, lang.translation).toString()
             soniox && sonioxEnglish.length() > 0 -> sonioxEnglish.toString()
-            english == "none" || lang == Lang.ENGLISH -> "[]" // English episodes: no translation track (Pedro's accent work)
+            english == "none" || lang.code == lang.translation -> "[]" // e.g. Pedro's English episodes (accent work)
             english == "gemma" -> withTranslator { translator ->
-                gemma.englishCues(JSONArray(cues), { report(tr("Translating to English with Gemma: %d%%", it), 0.75f + 0.15f * it / 100) }, lang.name) {
+                gemma.englishCues(JSONArray(cues), { report(tr("Translating to %1\$s with Gemma: %2\$d%%", lang.translationDisplayName, it), 0.75f + 0.15f * it / 100) }, lang.name, lang.translationName) {
                     translator.translate(it).await() // a line Gemma skipped
                 }
             }
             else -> {
-                report(tr("Translating to English on the device…"), 0.75f)
+                report(tr("Translating to %s on the device…", lang.translationDisplayName), 0.75f)
                 translate(JSONArray(cues))
             }
         }
@@ -385,7 +386,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         for (i in 0 until cues.length()) {
             val c = cues.getJSONArray(i)
             out.put(JSONArray().put(c.getDouble(0)).put(c.getDouble(1)).put(translator.translate(c.getString(2)).await()))
-            if (i % 20 == 0) report(tr("Translating to English: %d%%", i * 100 / cues.length()), 0.75f + 0.15f * i / cues.length())
+            if (i % 20 == 0) report(tr("Translating to %1\$s: %2\$d%%", lang.translationDisplayName, i * 100 / cues.length()), 0.75f + 0.15f * i / cues.length())
         }
         out.toString()
     }
@@ -393,7 +394,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     /** Google's on-device German → English translator (model ~30 MB, downloaded once), closed afterwards. */
     private suspend fun <T> withTranslator(use: suspend (com.google.mlkit.nl.translate.Translator) -> T): T {
         val translator = Translation.getClient(TranslatorOptions.Builder()
-            .setSourceLanguage(TranslateLanguage.fromLanguageTag(lang.code)!!).setTargetLanguage(TranslateLanguage.ENGLISH).build())
+            .setSourceLanguage(TranslateLanguage.fromLanguageTag(lang.code)!!).setTargetLanguage(TranslateLanguage.fromLanguageTag(lang.translation)!!).build())
         try {
             translator.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
             return use(translator)

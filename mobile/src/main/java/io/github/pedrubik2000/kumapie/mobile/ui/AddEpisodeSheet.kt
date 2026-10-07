@@ -122,7 +122,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
                     onClick = { transcriber = "parakeet"; library.settings.transcriber = "parakeet" })
             }
         }
-        Text(tr("English subtitles"), fontSize = 14.sp, color = Colors.dim)
+        Text(tr("%s subtitles", tr(io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationName)), fontSize = 14.sp, color = Colors.dim)
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOfNotNull(

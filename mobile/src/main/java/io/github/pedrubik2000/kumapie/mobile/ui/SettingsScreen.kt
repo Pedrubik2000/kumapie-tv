@@ -448,7 +448,7 @@ private fun NewEpisodesSection(library: Library) {
         singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
     OutlinedTextField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, label = { Text(tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles")) },
         singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-    Text(tr("English subtitles"), fontSize = 15.sp)
+    Text(tr("%s subtitles", tr(io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationName)), fontSize = 15.sp)
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         androidx.compose.material3.FilterChip(selected = english == "soniox", label = { Text(tr("Soniox (best, no extra cost)")) },

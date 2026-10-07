@@ -120,7 +120,6 @@ internal val esSettings: Map<String, String> = mapOf(
     "Soniox API key" to "Clave API de Soniox",
     "Real-Debrid token (real-debrid.com/apitoken)" to "Token de Real-Debrid (real-debrid.com/apitoken)",
     "Jimaku API key (jimaku.cc > Account), Japanese subtitles" to "Clave API de Jimaku (jimaku.cc > Account), subtítulos en japonés",
-    "English subtitles" to "Subtítulos en inglés",
     "Soniox (best, no extra cost)" to "Soniox (el mejor, sin costo extra)",
     "Gemma on the tablet (free, offline, good)" to "Gemma en la tableta (gratis, sin conexión, buena)",
     "Google's translator (instant, rough)" to "Traductor de Google (al instante, aproximado)",

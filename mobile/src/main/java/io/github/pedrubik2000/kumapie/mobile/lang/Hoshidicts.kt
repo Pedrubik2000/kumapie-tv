@@ -379,6 +379,8 @@ class YomitanDictionaries private constructor(private val context: Context) {
                 val item = a.get(i)
                 // A Yomitan form-of item: [dictionary form, [inflection rules]] -> "second-person singular present of glauben".
                 deinflection(item)?.let { (base, rules) -> return@flatMap listOf("${rules.joinToString(", ")} of $base") }
+                // wty-xx-yy-gloss: one sense = an English label + its translations -> "libre, suelto (not imprisoned)".
+                glossSense(item)?.let { return@flatMap listOf(it) }
                 val items = ArrayList<Any?>().also { listItems(item, it) }
                 (items.ifEmpty { listOf(item) }).mapNotNull { node ->
                     val sb = StringBuilder()
@@ -388,6 +390,25 @@ class YomitanDictionaries private constructor(private val context: Context) {
                 }
             }
         }.getOrDefault(listOf(glossary))
+
+        private fun glossSense(item: Any?): String? {
+            if (item !is JSONObject || !item.toString().contains("\"sense-label\"")) return null
+            var label = ""
+            val words = ArrayList<Any?>()
+            fun walk(n: Any?) {
+                when (n) {
+                    is JSONArray -> for (i in 0 until n.length()) walk(n.get(i))
+                    is JSONObject -> when {
+                        n.optJSONObject("data")?.optString("content") == "sense-label" -> label = StringBuilder().also { flatten(n, it) }.toString().trim()
+                        n.optString("tag") == "li" -> words += n
+                        else -> walk(n.opt("content"))
+                    }
+                }
+            }
+            walk(item)
+            val text = words.joinToString(", ") { StringBuilder().also { sb -> flatten(it, sb) }.toString().trim() }
+            return if (text.isBlank()) null else text + if (label.isNotBlank()) " ($label)" else ""
+        }
 
         /** The dictionary forms a glossary's form-of items point to ("glaubst" -> "glauben"). */
         fun formOf(glossary: String): List<String> = runCatching {

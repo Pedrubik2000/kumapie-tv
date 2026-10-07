@@ -45,21 +45,22 @@ data class Sense(val gloss: String, val tags: String, val examples: List<Pair<St
  * - meanings: the imported Yomitan dictionaries ([YomitanDictionaries], wty-de-en: English Wiktionary);
  * - online, for words they don't have: Wiktionary's definition API, every answer kept in a local cache (also "not
  *   found"), so a word is asked for once;
- * - recordings: a small index (word -> Wikimedia Commons file) built monthly by the repo's Dictionary workflow
- *   (tools/dictionary/build.py), downloaded once (~3 MB).
+ * - recordings: a small index per language (word -> Wikimedia Commons file; German, English) built monthly by the
+ *   repo's Dictionary workflow (tools/dictionary/build.py), downloaded by itself when missing (a few MB each).
  * Wiktionary content is CC BY-SA 4.0 ([ATTRIBUTION]).
  */
 class Dictionary(private val context: Context, private val yomitan: YomitanDictionaries? = null) {
     private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "dictionary")
-    /** The recordings index (word -> Commons file). */
-    val file = File(base, "de-recordings.sqlite")
+    /** A language's recordings index (word -> Commons file). */
+    fun recordingsFile(lang: String) = File(base, "$lang-recordings.sqlite")
+    /** The German one (Settings shows its date). */
+    val file get() = recordingsFile("de")
     val isReady: Boolean get() = file.exists()
     init { File(base, "de-en.sqlite").delete() } // the old meanings file (84 MB), replaced by Yomitan dictionaries
     private val recordings = File(base, "recordings")
     private val work get() = WorkManager.getInstance(context)
 
-    @Volatile private var db: SQLiteDatabase? = null
-    private var openedVersion = 0L
+    private val dbs = HashMap<String, Pair<SQLiteDatabase, Long>>()
     private val cache: SQLiteDatabase by lazy {
         SQLiteDatabase.openOrCreateDatabase(File(context.filesDir, "dictionary-cache.sqlite"), null).apply {
             execSQL("create table if not exists online (term text primary key, json text, time integer)")
@@ -80,21 +81,21 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
         open()?.rawQuery("select value from meta where key = 'built'", null)?.use { if (it.moveToFirst()) it.getString(0) else null }
     }.getOrNull()
 
-    /** The offline file, opened again when a new download has replaced it. */
+    /** A language's index, opened again when a new download has replaced it. */
     @Synchronized
-    private fun open(): SQLiteDatabase? {
-        if (!isReady) return null
-        val version = file.lastModified()
-        db?.let { if (it.isOpen && version == openedVersion) return it else it.close() }
-        openedVersion = version
-        return SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).also { db = it }
+    private fun open(lang: String = "de"): SQLiteDatabase? {
+        val f = recordingsFile(lang)
+        if (!f.exists()) return null
+        val version = f.lastModified()
+        dbs[lang]?.let { (db, v) -> if (db.isOpen && v == version) return db else db.close() }
+        return SQLiteDatabase.openDatabase(f.path, null, SQLiteDatabase.OPEN_READONLY).also { dbs[lang] = it to version }
     }
 
-    /** Closes the file so a new download can replace it. */
+    /** Closes the files so a new download can replace them. */
     @Synchronized
     fun close() {
-        db?.close()
-        db = null
+        dbs.values.forEach { it.first.close() }
+        dbs.clear()
     }
 
     /**
@@ -218,10 +219,10 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
     // ------------------------------------------------------------------ recordings
 
     /** A human recording of exactly this written word: the saved file, else its Wikimedia Commons URL, else null. */
-    fun recording(surface: String): String? {
-        val saved = recordingFile(surface)
+    fun recording(surface: String, lang: String = "de"): String? {
+        val saved = recordingFile(surface, lang)
         if (saved.exists()) return saved.path
-        val db = open() ?: return null
+        val db = open(lang) ?: return null
         val path = runCatching {
             db.rawQuery("select file from sounds where word = ?", arrayOf(surface.lowercase())).use { if (it.moveToFirst()) it.getString(0) else null }
         }.getOrNull() ?: return null
@@ -229,9 +230,9 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
     }
 
     /** Keeps a recording that played from Commons, so it plays offline next time. */
-    suspend fun keepRecording(surface: String, url: String) = withContext(Dispatchers.IO) {
+    suspend fun keepRecording(surface: String, url: String, lang: String = "de") = withContext(Dispatchers.IO) {
         if (!url.startsWith("http")) return@withContext
-        val out = recordingFile(surface)
+        val out = recordingFile(surface, lang)
         if (out.exists()) return@withContext
         runCatching {
             out.parentFile?.mkdirs()
@@ -248,12 +249,16 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
         }.onFailure { Log.w("kumapie", "recording $surface: $it") }
     }
 
-    private fun recordingFile(surface: String) = File(recordings, hash(surface.lowercase()) + ".mp3")
+    /** German ones where they always were; other languages in their own folder. */
+    private fun recordingFile(surface: String, lang: String = "de") =
+        File(if (lang == "de") recordings else File(recordings, lang), hash(surface.lowercase()) + ".mp3")
 
     private fun hash(s: String) = MessageDigest.getInstance("SHA-1").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }.take(20)
 
     companion object {
-        const val URL_FILE = "https://github.com/Pedrubik2000/kumapie-tv/releases/download/dictionary/de-recordings.sqlite.gz"
+        /** The languages with a recordings index ("dictionary" pre-release: <lang>-recordings.sqlite.gz). */
+        val RECORDINGS = listOf("de", "en")
+        fun url(lang: String) = "https://github.com/Pedrubik2000/kumapie-tv/releases/download/dictionary/$lang-recordings.sqlite.gz"
         const val ATTRIBUTION = "Meanings: Yomitan dictionaries (wty-de-en: English Wiktionary, CC BY-SA 4.0, via kaikki.org " +
             "and wiktionary-to-yomitan). Recordings: Wikimedia Commons, each under its own free license."
         private const val COMMONS_MP3 = "https://upload.wikimedia.org/wikipedia/commons/transcoded/"
@@ -268,18 +273,25 @@ class DictionaryWorker(context: Context, params: WorkerParameters) : AssetWorker
     override val notificationId = 998
 
     override suspend fun run() {
-        val dir = dictionary.file.parentFile!!.apply { mkdirs() }
-        val gz = File(dir, "de-recordings.sqlite.gz.part")
-        fetch(Dictionary.URL_FILE, gz)
+        // Every language, each on its own; the job fails (and retries) only after trying them all.
+        val failed = Dictionary.RECORDINGS.mapNotNull { lang -> runCatching { one(lang) }.exceptionOrNull()?.also { Log.w("kumapie", "recordings $lang: $it") } }
+        failed.firstOrNull()?.let { throw it }
+    }
+
+    private suspend fun one(lang: String) {
+        val target = dictionary.recordingsFile(lang)
+        val dir = target.parentFile!!.apply { mkdirs() }
+        val gz = File(dir, "$lang-recordings.sqlite.gz.part")
+        fetch(Dictionary.url(lang), gz)
         report(tr("Unpacking…"), 0.95f)
-        val tmp = File(dir, "de-recordings.sqlite.tmp")
+        val tmp = File(dir, "$lang-recordings.sqlite.tmp")
         GZIPInputStream(gz.inputStream().buffered(1 shl 16)).use { input -> tmp.outputStream().use { input.copyTo(it, 1 shl 16) } }
         runCatching { SQLiteDatabase.openDatabase(tmp.path, null, SQLiteDatabase.OPEN_READONLY).close() }
             .onFailure { tmp.delete(); gz.delete(); throw IOException(tr("the download is not the recordings list")) }
         dictionary.close()
-        if (!tmp.renameTo(dictionary.file)) {
-            dictionary.file.delete()
-            if (!tmp.renameTo(dictionary.file)) throw IOException(tr("couldn't move the dictionary into place"))
+        if (!tmp.renameTo(target)) {
+            target.delete()
+            if (!tmp.renameTo(target)) throw IOException(tr("couldn't move the dictionary into place"))
         }
         gz.delete()
     }

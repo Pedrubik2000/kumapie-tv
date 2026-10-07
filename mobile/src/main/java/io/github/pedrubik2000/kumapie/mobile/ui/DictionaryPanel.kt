@@ -61,7 +61,7 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
             headwords.isNotEmpty() && found.isNotEmpty() -> {
                 val fits = remember(found) { if (picker.selectedInDef != null) null else SensePick.best(found, SensePick.english(ctl.scene, picker.line)) }
                 fits?.let { (i, j) -> Text(tr("In this line: %s", found[i].senses[j].gloss), color = Colors.accent, fontSize = 15.sp) }
-                YomitanPopup(library, ctl.lang, headwords, onSpeak = { library.voice.speak(it.expression) }, compact = true)
+                YomitanPopup(library, ctl.lang, headwords, onSpeak = { if (ctl.lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) library.speakJa(it.expression, it.reading) else library.sayWord(it.expression, ctl.lang.code) }, compact = true)
             }
             found.isEmpty() -> Text(
                 if (library.yomitan.of(ctl.lang).any { it.enabled && it.terms > 0 }) tr("Not in the dictionary.")

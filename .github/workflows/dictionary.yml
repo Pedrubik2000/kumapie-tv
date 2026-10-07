@@ -1,4 +1,4 @@
-# The phone app's German word-recordings index (tools/dictionary/build.py; meanings are Yomitan dictionaries now),
+# The phone app's word-recordings indexes (German, English) (tools/dictionary/build.py; meanings are Yomitan dictionaries now),
 # rebuilt monthly from kaikki.org's Wiktionary data and published as the asset de-recordings.sqlite.gz of the pre-release "dictionary" (a pre-release, so the
 # apps' update check, which reads releases/latest, never sees it). The app downloads it from
 #   https://github.com/Pedrubik2000/kumapie-tv/releases/download/dictionary/de-recordings.sqlite.gz
@@ -22,19 +22,20 @@ jobs:
 
       - name: Build
         run: |
-          python tools/dictionary/build.py kaikki-German.jsonl.gz de-recordings.sqlite
-          gzip -9 de-recordings.sqlite
-          ls -la de-recordings.sqlite.gz
+          python tools/dictionary/build.py kaikki-German.jsonl.gz de-recordings.sqlite de
+          python tools/dictionary/build.py kaikki-English.jsonl.gz en-recordings.sqlite en
+          gzip -9 de-recordings.sqlite en-recordings.sqlite
+          ls -la *-recordings.sqlite.gz
 
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes="German word-recordings index for the phone/tablet app, built $(date +%F) from English Wiktionary
+          notes="German and English word-recordings indexes for the phone/tablet app, built $(date +%F) from English Wiktionary
           (kaikki.org extraction). Recordings: Wikimedia Commons, each under its own free license."
           if gh release view dictionary > /dev/null 2>&1; then
-            gh release upload dictionary de-recordings.sqlite.gz --clobber
+            gh release upload dictionary de-recordings.sqlite.gz en-recordings.sqlite.gz --clobber
             gh release edit dictionary --notes "$notes"
           else
-            gh release create dictionary de-recordings.sqlite.gz --prerelease --latest=false --title "Dictionary" --notes "$notes"
+            gh release create dictionary de-recordings.sqlite.gz en-recordings.sqlite.gz --prerelease --latest=false --title "Dictionary" --notes "$notes"
           fi

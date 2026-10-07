@@ -117,7 +117,7 @@ class Miner(
         fields["Context"] = esc("Mined in kumapie: ${r.episode.show} · ${r.episode.title}, scene ${r.scene.index + 1}.")
         val tags = mutableListOf(slug, "kumapie")
         r.word?.let { w ->
-            val audio = wordAudio(w.surface)?.let { anki.addMedia(pkg, it, "kumapie-${slug(w.surface)}") }
+            val audio = wordAudio(w.surface, lang.code)?.let { anki.addMedia(pkg, it, "kumapie-${slug(w.surface)}") }
             val written = w.key?.takeIf { ' ' in it } ?: w.surface
             fields["Word"] = esc(written) + (w.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
             if (audio != null) fields["Word Audio"] = "[audio:$audio]"
@@ -273,8 +273,8 @@ class Miner(
     }
 
     /** A person's recording (saved or fetched), else the device's voice saying it; null if neither works. */
-    internal suspend fun wordAudio(surface: String): File? {
-        val recording = dictionary.recording(surface)
+    internal suspend fun wordAudio(surface: String, lang: String = "de"): File? {
+        val recording = dictionary.recording(surface, lang)
         if (recording != null && !recording.startsWith("http")) return File(recording)
         if (recording != null) {
             val out = File(dir, "word.mp3").apply { delete() }

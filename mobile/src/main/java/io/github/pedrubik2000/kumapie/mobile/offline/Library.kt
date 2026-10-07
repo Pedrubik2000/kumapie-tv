@@ -48,7 +48,10 @@ class Library(context: Context, val settings: Settings) {
         if (io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).all().isNotEmpty()) io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.schedule(context)
     }
     /** Meanings without the PC: Yomitan dictionaries, else the offline Wiktionary file, Wiktionary online (cached), recordings. */
-    val dictionary = Dictionary(context, yomitan)
+    val dictionary = Dictionary(context, yomitan).also { d ->
+        // The word recordings (a few MB a language) come by themselves: nobody has to find the button.
+        if (Dictionary.RECORDINGS.any { !d.recordingsFile(it).exists() }) d.download()
+    }
     /** The device's German voice, for words without a recording. */
     val voice by lazy { Voice(context) }
     /** The device's Japanese voice (the Japanese popup's 🔊). */
@@ -56,6 +59,33 @@ class Library(context: Context, val settings: Settings) {
     /** People's recordings of Japanese words (local collection, else JapanesePod101 online). */
     val audioJa by lazy { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseAudio(context) }
     private val audioScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    private val voices = java.util.concurrent.ConcurrentHashMap<String, Voice>()
+    /** The device's voice in a language ([io.github.pedrubik2000.kumapie.data.Lang.code]): words without a recording. */
+    fun voiceOf(lang: String): Voice = voices.getOrPut(lang) { Voice(appContext, io.github.pedrubik2000.kumapie.data.Lang.of(lang)) }
+    private var wordPlayer: android.media.MediaPlayer? = null
+
+    /**
+     * Says a German or English word: a person's recording (Wiktionary / Wikimedia Commons, kept for offline) first, the
+     * device voice only without one or when it doesn't play.
+     */
+    fun sayWord(word: String, lang: String) {
+        audioScope.launch {
+            val rec = withContext(Dispatchers.IO) { dictionary.recording(word, lang) }
+            val started = rec != null && runCatching {
+                wordPlayer?.release()
+                wordPlayer = android.media.MediaPlayer().apply {
+                    setOnPreparedListener { it.start() }
+                    setOnCompletionListener { it.release(); if (wordPlayer === it) wordPlayer = null }
+                    setOnErrorListener { _, _, _ -> voiceOf(lang).speak(word); true }
+                    setDataSource(rec)
+                    prepareAsync()
+                }
+            }.isSuccess
+            if (!started) voiceOf(lang).speak(word)
+            else if (rec!!.startsWith("http")) background.launch { dictionary.keepRecording(word, rec, lang) }
+        }
+    }
 
     /** Says a Japanese word: a person's recording when there is one, else the device voice. */
     fun speakJa(expression: String, reading: String) {
@@ -193,9 +223,9 @@ class Library(context: Context, val settings: Settings) {
     fun poster(showId: String, url: String): Any = downloads.poster(showId).takeIf { it.exists() } ?: url
 
     /** The player's backend; [lang] is the episode's language, so its marks go to that language's list. */
-    fun backend(lang: String = "de"): Backend = OfflineBackend(api, downloads, pending, { knownOfWord(it, lang) }, dictionary, { voice.speak(it) }, { surface, url ->
-        background.launch { dictionary.keepRecording(surface, url) }
-    }, progress, ::syncLater)
+    fun backend(lang: String = "de"): Backend = OfflineBackend(api, downloads, pending, { knownOfWord(it, lang) }, dictionary, { voiceOf(lang).speak(it) }, { surface, url ->
+        background.launch { dictionary.keepRecording(surface, url, lang) }
+    }, lang, progress, ::syncLater)
 }
 
 /** The server API with local audio files when downloaded, and reports queued when the PC can't be reached. */
@@ -208,6 +238,8 @@ private class OfflineBackend(
     private val dictionary: Dictionary,
     private val say: (String) -> Unit,
     private val keepRecording: (String, String) -> Unit,
+    /** The episode's language ([io.github.pedrubik2000.kumapie.data.Lang.code]): whose recordings. */
+    private val lang: String,
     private val progress: Progress,
     private val syncLater: () -> Unit,
 ) : Backend {
@@ -239,17 +271,16 @@ private class OfflineBackend(
     }
 
     /**
-     * A human recording of the word (saved, or from Wikimedia Commons, then saved), else the audio a download brought
-     * from the PC, else the device's German voice. No longer asks the PC for words.
+     * A person's recording of the word in the episode's language first (saved, or from Wikimedia Commons, then saved);
+     * a computer voice only without one: the PC's that a download brought, else the device's. Offline, a recording not
+     * saved yet fails to play and the player says the word with the device voice.
      */
     override fun wordAudio(surface: String): String {
-        val recording = dictionary.recording(surface)
-        if (recording != null && !recording.startsWith("http")) return recording
-        downloads.wordFile(surface).takeIf { it.exists() }?.let { return it.path }
-        if (recording != null) {
-            keepRecording(surface, recording)
+        dictionary.recording(surface, lang)?.let { recording ->
+            if (recording.startsWith("http")) keepRecording(surface, recording)
             return recording
         }
+        downloads.wordFile(surface).takeIf { it.exists() }?.let { return it.path }
         return "tts:$surface"
     }
 

@@ -48,8 +48,16 @@ class Library(context: Context, val settings: Settings) {
     val voice by lazy { Voice(context) }
     /** The device's Japanese voice (the Japanese popup's 🔊). */
     val voiceJa by lazy { Voice(context, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) }
+    /** People's recordings of Japanese words (local collection, else JapanesePod101 online). */
+    val audioJa by lazy { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseAudio(context) }
+    private val audioScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** Says a Japanese word: a person's recording when there is one, else the device voice. */
+    fun speakJa(expression: String, reading: String) {
+        audioScope.launch { if (!audioJa.play(expression, reading)) voiceJa.speak(reading.ifBlank { expression }) }
+    }
     /** Cards mined into kuma3 Anki. */
-    val miner by lazy { Miner(context, known, knownJa, dictionary, { voice }, { voiceJa }) }
+    val miner by lazy { Miner(context, known, knownJa, dictionary, { voice }, { voiceJa }, audioJa) }
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
     /** Episodes made on this device (YouTube links processed here), listed first. */

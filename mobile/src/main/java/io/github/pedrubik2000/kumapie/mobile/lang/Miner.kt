@@ -45,6 +45,7 @@ class Miner(
     private val dictionary: Dictionary,
     private val voice: () -> Voice,
     private val voiceJa: () -> Voice,
+    private val audioJa: JapaneseAudio? = null,
 ) {
     private val anki = AnkiCards(context)
     private val dir = File(context.cacheDir, "mining")
@@ -155,8 +156,11 @@ class Miner(
                 (if (w.surface == expression && reading != null) "[${esc(reading)}]" else "") + "</b>" + esc(text.substring(at + w.surface.length))
             fields[KnownWords.DEF_BI] = esc(w.gloss)
             w.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
+            // A person's recording (NHK, Shinmeikai, JapanesePod101, Forvo), else the device voice.
+            val recorded = audioJa?.recording(expression, w.reading.orEmpty())
             val wav = File(dir, "word.wav").apply { delete() }
-            if (voiceJa().toFile(w.reading ?: expression, wav)) fields["Word Audio"] = "[audio:${anki.addMedia(pkg, wav, "kumapie-ja-${expression}")}]"
+            val audio = recorded ?: wav.takeIf { voiceJa().toFile(w.reading ?: expression, it) }
+            audio?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-ja-${expression}")}]" }
             tags += ja.tag("word")
         } else {
             fields["Sentence"] = esc(text)

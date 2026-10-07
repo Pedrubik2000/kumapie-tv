@@ -60,7 +60,7 @@ import kotlinx.coroutines.launch
  * in, nothing is rebuilt.
  */
 @Composable
-fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.Headword>, onSpeak: (String) -> Unit,
+fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.Headword>, onSpeak: (JapaneseLookup.Headword) -> Unit,
                  /** In the player's word card: a lower card list. */
                  compact: Boolean = false) {
     if (headwords.isEmpty()) {
@@ -111,7 +111,7 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.He
 
 /** Reading with pitch over the word, the first meanings beside it, 🔊; then frequency and pitch badges. */
 @Composable
-private fun Header(hw: JapaneseLookup.Headword, onSpeak: (String) -> Unit) {
+private fun Header(hw: JapaneseLookup.Headword, onSpeak: (JapaneseLookup.Headword) -> Unit) {
     val downsteps = hw.pitches.flatMap { it.second }.distinct()
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column {
@@ -123,7 +123,7 @@ private fun Header(hw: JapaneseLookup.Headword, onSpeak: (String) -> Unit) {
         val summary = hw.terms.flatMap { it.glossaries }.firstOrNull { it.senses.isNotEmpty() }?.senses
             ?.flatMap(JapaneseLookup::meanings)?.distinct()?.take(3)?.joinToString("  ·  ") { it.take(40) }.orEmpty()
         Text(summary, fontSize = 14.sp, color = Colors.dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        IconButton(onClick = { onSpeak(hw.reading.ifBlank { hw.expression }) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Say it") }
+        IconButton(onClick = { onSpeak(hw) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Say it") }
     }
     val badges = buildList {
         if (hw.frequencies.isNotEmpty()) add("Freq " + hw.frequencies.take(3).joinToString(" · ") { Regex("""\d+""").find(it.second)?.value ?: it.second } +

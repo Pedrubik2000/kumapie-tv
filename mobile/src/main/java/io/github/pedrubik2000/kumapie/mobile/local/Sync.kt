@@ -44,8 +44,11 @@ class Sync(private val context: Context) {
     }
 
     /** Uploads what is new here, then downloads what is new on the PC. Answers one line per episode moved. */
-    fun run(server: String, owner: String, progress: (String, Float) -> Unit = { _, _ -> }): List<String> =
-        synchronized(RUNNING) { this.progress = progress; runOnce(server, owner) }
+    fun run(server: String, owner: String, progress: (String, Float) -> Unit = { _, _ -> }): List<String> {
+        // Another sync already running (the hourly one and a "now" one): it does the work, this one leaves.
+        if (!RUNNING.tryLock()) return emptyList()
+        try { this.progress = progress; return runOnce(server, owner) } finally { RUNNING.unlock() }
+    }
 
     /** "↑ title" / "↓ title" and how far (0..1), for the worker's notification. */
     private var progress: (String, Float) -> Unit = { _, _ -> }
@@ -157,7 +160,7 @@ class Sync(private val context: Context) {
     companion object {
         private const val CHUNK = 4 shl 20 // 4 MB a request
         /** One sync at a time in this process (the hourly one and a "now" one can start together). */
-        private val RUNNING = Any()
+        private val RUNNING = java.util.concurrent.locks.ReentrantLock()
     }
 }
 
@@ -168,7 +171,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         if (settings.owner.isBlank() || settings.server.isBlank()) return Result.success()
         // In the foreground (a notification): a big episode takes longer than a background job may run, and goes on
         // with the screen off.
-        runCatching { setForeground(foreground(tr("Syncing with the PC…"), 0f)) }
+        runCatching { setForeground(foreground(tr("Syncing with the PC…"), -1f)) }
         return runCatching { Sync(applicationContext).run(settings.server, settings.owner) { what, f ->
             runCatching { setForegroundAsync(foreground(what, f)) }
         } }
@@ -185,7 +188,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle(tr("Syncing with the PC"))
             .setContentText(what)
-            .setProgress(100, (progress * 100).toInt(), progress <= 0f)
+            .setProgress(100, (progress * 100).toInt().coerceAtLeast(0), progress < 0f)
             .setOngoing(true).setSilent(true).build()
         return if (android.os.Build.VERSION.SDK_INT >= 29) androidx.work.ForegroundInfo(NOTIFICATION, n, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         else androidx.work.ForegroundInfo(NOTIFICATION, n)

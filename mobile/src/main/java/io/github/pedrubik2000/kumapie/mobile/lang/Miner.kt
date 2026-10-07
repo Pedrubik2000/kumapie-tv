@@ -90,22 +90,29 @@ class Miner(
         dir.mkdirs()
 
         val fields = HashMap<String, String>()
-        // 🐻 German: a video clip of the scene. 🐻 English (Core 1000 layout): the line's audio and a screenshot.
+        // A note type with Video (🐻 German, the parents' 🐻 English): the line's audio, then a clip of the scene, so the
+        // front plays word audio -> sentence audio -> video. Older 🐻 English (Core 1000 layout): line audio + screenshot.
         val video = "Video" in fieldNames
         val clipFile = File(dir, if (video) "clip.webm" else "line.m4a").apply { delete() }
+        val lineFile = File(dir, "line.m4a")
+        val startMs = ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
+        val endMs = ((cues.last().end + 0.25) * 1000).toLong()
         val shot: File?
         if (video) {
+            progress(tr("Cutting the line's audio…"))
+            lineFile.delete()
+            audioClip(r.episode.video, startMs, endMs, lineFile)
             progress(tr("Cutting the scene…"))
             val start = (r.scene.start * 1000).toLong()
             val end = (r.scene.end * 1000).toLong()
             clip(r.episode.video, start, end, clipFile)
             progress(tr("Adding to Anki…"))
-            fields["Video"] = "[audio:${anki.addMedia(pkg, clipFile, "${slug}_$start-$end")}]"
+            fields["Video"] = "[audio:${anki.addMedia(pkg, lineFile, "${slug}_$startMs-$endMs")}]" +
+                "[audio:${anki.addMedia(pkg, clipFile, "${slug}_$start-$end")}]"
+            lineFile.delete()
             shot = null
         } else {
             progress(tr("Cutting the line's audio…"))
-            val startMs = ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
-            val endMs = ((cues.last().end + 0.25) * 1000).toLong()
             audioClip(r.episode.video, startMs, endMs, clipFile)
             shot = screenshot(r.episode.video, (startMs + endMs) / 2)
             progress(tr("Adding to Anki…"))

@@ -44,6 +44,7 @@ private data class Choice(val label: String, val gloss: String, val example: Pai
  */
 @Composable
 fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit) {
+    if (ctl.lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) return JapaneseMineSheet(library, episode, ctl, picker, onDone)
     val scope = rememberCoroutineScope()
     val scene = ctl.scene
     val line = picker.line
@@ -112,6 +113,113 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             } else null)
             scope.launch {
                 runCatching { library.miner.mine(request) { status = it } }
+                    .onSuccess { status = it; done = true }
+                    .onFailure { status = it.message ?: it.toString() }
+                busy = false
+            }
+        }) { Text(if (done) "Added" else "Add") }
+        if (status.isNotEmpty()) Text(status, color = if (done) Colors.levelZero else Colors.dim, fontSize = 14.sp)
+        if (done) LaunchedEffect(Unit) { kotlinx.coroutines.delay(1200); onDone() }
+    }
+}
+
+/**
+ * "Add to Anki" for Japanese episodes ([Miner] writes the 🐻 Japanese card): the line as a sentence card, or the tapped
+ * word with a meaning picked from the bilingual dictionaries (the first one chosen) and a monolingual definition picked
+ * from the monolingual ones (国語 dictionaries before encyclopedias; or none). Into Japanese::Mined.
+ */
+@Composable
+private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit) {
+    val ja = io.github.pedrubik2000.kumapie.data.Lang.JAPANESE
+    val scope = rememberCoroutineScope()
+    val scene = ctl.scene
+    val line = picker.line
+    val cue = scene.cues.getOrNull(line) ?: return
+    val segment = picker.selected
+    val offset = cue.segments.take(picker.seg).sumOf { it.text.length }
+    var wordCard by remember { mutableStateOf(segment?.word != null) }
+    var headword by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.Headword?>(null) }
+    var choices by remember { mutableStateOf<List<Choice>>(emptyList()) }
+    var monos by remember { mutableStateOf<List<Choice>>(emptyList()) }
+    var monoChosen by remember { mutableIntStateOf(0) }
+    var chosen by remember { mutableIntStateOf(0) }
+    var looked by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var done by remember { mutableStateOf(false) }
+
+    LaunchedEffect(segment?.text) {
+        if (segment?.word == null) return@LaunchedEffect
+        val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            runCatching {
+                io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup(library.knownJa.japanese, library.yomitan)
+                    .lookup(cue.text, offset, segment.text.length)
+            }.getOrDefault(emptyList())
+        }.firstOrNull()
+        headword = found
+        val glossaries = found?.terms?.flatMap { it.glossaries }.orEmpty()
+        fun group(dict: String) = library.yomitan.groupOf(ja, dict)
+        fun meanings(g: io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Glossary) =
+            g.senses.flatMap { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.meanings(it) }.distinct()
+        val isMono = { g: io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("mono", ignoreCase = true) }
+        val isBilingual = { g: io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("bilingual", ignoreCase = true) }
+        // Meanings from the bilingual group (else every dictionary but monolingual and forms ones).
+        val meaningDicts = glossaries.filter(isBilingual).ifEmpty {
+            glossaries.filterNot { isMono(it) || group(it.dict).contains("form", ignoreCase = true) || it.dict.contains("form", ignoreCase = true) }
+        }
+        fun choice(g: io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Glossary, m: String) = Choice("${g.dict.substringBefore(" (").take(24)}: $m", m, null)
+        choices = meaningDicts.flatMap { g ->
+            g.senses.flatMap { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(6).map { choice(g, it) }
+        }.distinctBy { it.gloss }.take(40)
+        // Monolingual definitions: one per dictionary; encyclopedias (Pixiv, Wikipedia…) last, so a 国語 dictionary leads.
+        val encyclopedia = Regex("pixiv|wiki|ニコ|百科", RegexOption.IGNORE_CASE)
+        monos = glossaries.filter(isMono).sortedBy { if (encyclopedia.containsMatchIn(it.dict)) 1 else 0 }
+            .mapNotNull { g -> g.senses.firstNotNullOfOrNull { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.monolingualDefinition(it) }?.let { choice(g, it) } }
+            .distinctBy { it.gloss }.take(8)
+        looked = true
+    }
+
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
+        .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Add to Anki · ${ja.deck}", color = Colors.accent, fontSize = 18.sp)
+        Text(cue.text, color = Colors.text, fontSize = 20.sp)
+        val hw = headword
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text("Sentence card") })
+            if (segment?.word != null) FilterChip(selected = wordCard, onClick = { wordCard = true },
+                label = { Text("Word card: " + (hw?.let { it.expression + if (it.reading.isNotBlank() && it.reading != it.expression) " [${it.reading}]" else "" } ?: segment.text)) })
+        }
+        if (wordCard) {
+            when {
+                !looked -> Text("Looking up meanings…", color = Colors.dim, fontSize = 14.sp)
+                choices.isEmpty() -> Text("Not in your Japanese dictionaries: a sentence card is still possible.", color = Colors.dim, fontSize = 14.sp)
+            }
+            choices.forEachIndexed { i, c ->
+                Row(Modifier.fillMaxWidth().clickable { chosen = i }, verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = chosen == i, onClick = { chosen = i })
+                    Text(c.label, color = Colors.text, fontSize = 15.sp)
+                }
+            }
+            if (monos.isNotEmpty()) {
+                Text("Monolingual definition", color = Colors.accent, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp))
+                (monos + Choice("None", "", null)).forEachIndexed { i, c ->
+                    Row(Modifier.fillMaxWidth().clickable { monoChosen = i }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = monoChosen == i, onClick = { monoChosen = i })
+                        Text(c.label, color = Colors.text, fontSize = 15.sp)
+                    }
+                }
+            }
+        } else {
+            Text("The line, its audio, a screenshot and the English.", color = Colors.dim, fontSize = 14.sp)
+        }
+        Button(enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
+            busy = true
+            val pick = choices.getOrNull(chosen)
+            val w = if (wordCard && segment != null && pick != null && hw != null) Miner.Word(segment.text, segment.word, hw.expression,
+                pick.gloss, reading = hw.reading.takeIf { it.isNotBlank() }, pitch = hw.pitches.flatMap { it.second }.firstOrNull(), mono = monos.getOrNull(monoChosen)?.gloss)
+            else null
+            scope.launch {
+                runCatching { library.miner.mine(Miner.Request(episode, scene, line, w)) { status = it } }
                     .onSuccess { status = it; done = true }
                     .onFailure { status = it.message ?: it.toString() }
                 busy = false

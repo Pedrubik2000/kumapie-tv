@@ -59,6 +59,37 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         if (t.reading.isEmpty() || (t.reading == t.expression && t.expression.any { it.code in 0x4E00..0x9FFF })) "" else hiragana(t.reading)
 
     companion object {
+        /**
+         * A dictionary entry's text as its senses, each short: split at the sense numbers ("…slightly.; 2 just a minute",
+         * "①…"), examples (after ► or ・) dropped, headword and tags out ([meaning]), at most 90 characters.
+         */
+        /** English meanings only: no Japanese example lines, no English example sentences ("What will be the end of all this?"). */
+        fun bilingualMeanings(entry: String): List<String> = meanings(entry).filter { m ->
+            m.any { it in 'a'..'z' } && !(m.first().isUpperCase() && m.count { it == ' ' } >= 4 && m.trimEnd().last() in ".?!")
+        }
+
+        /**
+         * The first real definition of a monolingual entry: grammar tags (（名）《副》〔文〕①) and symbols left out, at least
+         * 4 Japanese characters, cut before quoted examples (「…」).
+         */
+        fun monolingualDefinition(entry: String): String? = meanings(entry).asSequence()
+            .map { it.replace(Regex("""（[^）]*）|《[^》]*》|〔[^〕]*〕|\([^)]*\)|〈[^〉]*〉|［[^］]*］|[■□＊*◆◇⦅⦆①-⑳㊀-㊉]"""), "")
+                .substringBefore('「').substringBefore('；').trim(' ', ';', '：', ':', '・') }
+            .firstOrNull { d -> d.count { it.code in 0x3040..0x30FF || it.code in 0x3400..0x9FFF } >= 4 }
+
+        fun meanings(entry: String): List<String> =
+            entry.split(Regex("""(?:^|[;；。\s])\s*(?:\d{1,2}|[①-⑳])\s+(?=\S)"""))
+                // Before the first sense number: the headword ("ちょっと"), unless it is a meaning in English.
+                .let { parts -> if (parts.size > 1 && parts[0].none { it in 'a'..'z' } && parts[0].length <= 16) parts.drop(1) else parts }
+                .map { meaning(it.substringBefore('►').substringBefore(" ・").substringBefore("　・")).trimEnd(';', '；', ' ', '.') }
+                .filter { it.length > 1 }
+                .map { if (it.length > 90) it.take(88).trimEnd() + "…" else it }
+                .distinct()
+
+        /** A sense as a short meaning: "よばれる【呼ばれる】; 〘v1・vi〙; 1 to be called out." → "to be called out." */
+        fun meaning(s: String) = s.substringAfterLast('】').replace(Regex("""〘[^〙]*〙|［[^］]*］|\[[^\]]*]|→\S+"""), "")
+            .replace(Regex("""^[\s;；:・.\d①-⑳]+"""), "").trim()
+
         /** Katakana -> hiragana (Sudachi gives readings in katakana, dictionaries in hiragana). */
         fun hiragana(s: String): String = buildString { for (c in s) append(if (c in 'ァ'..'ヶ') c - 0x60 else c) }
     }

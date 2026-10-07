@@ -104,7 +104,7 @@ private fun Header(hw: JapaneseLookup.Headword, onSpeak: (String) -> Unit) {
             Text(hw.expression, fontSize = 28.sp, color = Colors.text)
         }
         val summary = hw.terms.flatMap { it.glossaries }.firstOrNull { it.senses.isNotEmpty() }?.senses
-            ?.map(::meaning)?.filter { it.isNotBlank() }?.distinct()?.take(3)?.joinToString("  ·  ") { it.take(40) }.orEmpty()
+            ?.flatMap(JapaneseLookup::meanings)?.distinct()?.take(3)?.joinToString("  ·  ") { it.take(40) }.orEmpty()
         Text(summary, fontSize = 14.sp, color = Colors.dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         IconButton(onClick = { onSpeak(hw.reading.ifBlank { hw.expression }) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Say it") }
     }
@@ -122,10 +122,6 @@ private fun Header(hw: JapaneseLookup.Headword, onSpeak: (String) -> Unit) {
         }
     }
 }
-
-/** A sense as a short meaning: "よばれる【呼ばれる】; 〘v1・vi〙; 1 to be called out." → "to be called out." */
-private fun meaning(s: String) = s.substringAfterLast('】').replace(Regex("""〘[^〙]*〙|［[^］]*］|\[[^\]]*]"""), "")
-    .replace(Regex("""^[\s;；:・.\d①-⑳]+"""), "").trim()
 
 /** "LHH" for [n] morae with the downstep after mora [down] (0 = heiban). */
 private fun pattern(n: Int, down: Int) = (0 until n).joinToString("") { if (high(it, down)) "H" else "L" }

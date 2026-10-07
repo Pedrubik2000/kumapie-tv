@@ -41,8 +41,10 @@ import kotlin.coroutines.resumeWithException
 class Miner(
     private val context: Context,
     private val known: KnownWords,
+    private val knownJa: KnownWords,
     private val dictionary: Dictionary,
     private val voice: () -> Voice,
+    private val voiceJa: () -> Voice,
 ) {
     private val anki = AnkiCards(context)
     private val dir = File(context.cacheDir, "mining")
@@ -63,10 +65,15 @@ class Miner(
         val gloss: String,
         val example: Pair<String, String>? = null,
         val definition: LineDef? = null,
+        /** Japanese: the dictionary form's reading (hiragana), its pitch downstep, a monolingual definition. */
+        val reading: String? = null,
+        val pitch: Int? = null,
+        val mono: String? = null,
     )
 
     /** Adds the card; answers a line for the user ("Added to Deutsch::Mined"). */
     suspend fun mine(r: Request, progress: (String) -> Unit): String = withContext(Dispatchers.IO) {
+        if (Lang.of(r.episode.lang) == Lang.JAPANESE) return@withContext mineJapanese(r, progress)
         val pkg = known.ankiApp() ?: error("No kuma3 Anki on this device.")
         if (!known.hasPermission(pkg)) error("kumapie may not use Anki yet: allow it in Settings.")
         val (mid, fieldNames) = anki.noteType(pkg, known.noteTypes)
@@ -107,6 +114,102 @@ class Miner(
         clipFile.delete()
         "Added to $DECK" + (r.word?.let { ": ${it.surface}" } ?: "")
     }
+
+    /**
+     * A 🐻 Japanese card (the Kaishi 1.5k layout): the tapped subtitle line with the word in bold, that line's audio cut
+     * from the episode, a screenshot, the English, and for a word card `届く[とどく]:0-` (reading, pitch), the meaning
+     * picked, a monolingual definition and the device voice saying the word. Into Japanese::Mined.
+     */
+    private suspend fun mineJapanese(r: Request, progress: (String) -> Unit): String {
+        val ja = Lang.JAPANESE
+        val pkg = knownJa.ankiApp() ?: error("No kuma3 Anki on this device.")
+        if (!knownJa.hasPermission(pkg)) error("kumapie may not use Anki yet: allow it in Settings.")
+        val (mid, fieldNames) = anki.noteType(pkg, knownJa.noteTypes) ?: error("The Japanese note type isn't in Anki.")
+        val cue = r.scene.cues[r.line]
+        val slug = slug(r.episode.show)
+        dir.mkdirs()
+        val startMs = ((cue.start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
+        val endMs = ((cue.end + 0.25) * 1000).toLong()
+
+        progress("Cutting the line's audio…")
+        val lineAudio = File(dir, "line.m4a").apply { delete() }
+        audioClip(r.episode.video, startMs, endMs, lineAudio)
+        val shot = screenshot(r.episode.video, (startMs + endMs) / 2)
+        progress("Adding to Anki…")
+        val fields = HashMap<String, String>()
+        fields["Sentence Audio"] = "[audio:${anki.addMedia(pkg, lineAudio, "${slug}_$startMs-$endMs")}]"
+        shot?.let { fields["Image"] = "<img src=\"${anki.addMedia(pkg, it, "${slug}_$startMs")}\">" }
+        fields["Notes"] = esc(english(r.scene, listOf(cue)))
+        fields["Context"] = esc("Mined in kumapie: ${r.episode.show} · ${r.episode.title}, scene ${r.scene.index + 1}.")
+        val text = cue.text.trim()
+        val tags = mutableListOf(slug, "kumapie")
+        val w = r.word
+        if (w != null) {
+            val expression = w.lemma ?: w.surface
+            val kanji = expression.any { it.code in 0x3400..0x9FFF }
+            val reading = w.reading?.takeIf { kanji && it.isNotBlank() }
+            fields["Word"] = esc(expression) + (reading?.let { "[${esc(it)}]" } ?: "") + (w.pitch?.let { ":$it-" } ?: "")
+            // The word in the line in bold; its reading too when it is written as in the dictionary (Kaishi: 私[わたし]).
+            val at = text.indexOf(w.surface)
+            fields["Sentence"] = if (at < 0) esc(text) else esc(text.substring(0, at)) + "<b>" + esc(w.surface) +
+                (if (w.surface == expression && reading != null) "[${esc(reading)}]" else "") + "</b>" + esc(text.substring(at + w.surface.length))
+            fields[KnownWords.DEF_BI] = esc(w.gloss)
+            w.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
+            val wav = File(dir, "word.wav").apply { delete() }
+            if (voiceJa().toFile(w.reading ?: expression, wav)) fields["Word Audio"] = "[audio:${anki.addMedia(pkg, wav, "kumapie-ja-${expression}")}]"
+            tags += ja.tag("word")
+        } else {
+            fields["Sentence"] = esc(text)
+            tags += ja.tag("sentence")
+        }
+        val missing = listOf("Sentence", "Sentence Audio", KnownWords.DEF_BI).filter { it !in fieldNames }
+        if (missing.isNotEmpty()) error("The Japanese note type has no field ${missing.joinToString()}.")
+        anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, anki.deck(pkg, ja.deck))
+        lineAudio.delete()
+        shot?.delete()
+        return "Added to ${ja.deck}" + (w?.let { ": ${it.lemma ?: it.surface}" } ?: "")
+    }
+
+    /** [startMs]..[endMs] of the episode's audio alone, as AAC in .m4a. */
+    @OptIn(UnstableApi::class)
+    private suspend fun audioClip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
+        suspendCancellableCoroutine { cont ->
+            val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
+            val item = MediaItem.Builder().setUri(uri).setClippingConfiguration(
+                MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build(),
+            ).build()
+            val transformer = Transformer.Builder(context)
+                .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                .addListener(object : Transformer.Listener {
+                    override fun onCompleted(composition: Composition, result: ExportResult) {
+                        if (cont.isActive) cont.resume(Unit)
+                    }
+
+                    override fun onError(composition: Composition, result: ExportResult, e: ExportException) {
+                        Log.w("kumapie", "audio clip: $e")
+                        if (cont.isActive) cont.resumeWithException(IllegalStateException("Couldn't cut the line's audio: ${e.errorCodeName}", e))
+                    }
+                })
+                .build()
+            transformer.start(EditedMediaItem.Builder(item).setRemoveVideo(true).build(), out.path)
+            cont.invokeOnCancellation { transformer.cancel() }
+        }
+    }
+
+    /** The frame at [ms], 480 p, as WebP; null when the video can't give one. */
+    private fun screenshot(source: String, ms: Long): File? = runCatching {
+        val out = File(dir, "shot.webp").apply { delete() }
+        android.media.MediaMetadataRetriever().use { r ->
+            if (source.startsWith("/")) r.setDataSource(source) else r.setDataSource(context, Uri.parse(source))
+            val sync = android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+            val frame = (if (android.os.Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(ms * 1000, sync, 854, 480)
+                else r.getFrameAtTime(ms * 1000, sync)) ?: return@use null
+            @Suppress("DEPRECATION")
+            val webp = if (android.os.Build.VERSION.SDK_INT >= 30) android.graphics.Bitmap.CompressFormat.WEBP_LOSSY else android.graphics.Bitmap.CompressFormat.WEBP
+            out.outputStream().use { frame.compress(webp, 80, it) }
+            out
+        }
+    }.getOrNull()
 
     /**
      * The scene from [startMs] to [endMs] as WebM like the PC's clips (VP9 480 p + Opus, ~450 kbps: the card template

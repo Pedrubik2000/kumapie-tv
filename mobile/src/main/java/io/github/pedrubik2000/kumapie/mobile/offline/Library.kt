@@ -46,7 +46,7 @@ class Library(context: Context, val settings: Settings) {
     /** The device's Japanese voice (the Japanese popup's 🔊). */
     val voiceJa by lazy { Voice(context, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) }
     /** Cards mined into kuma3 Anki. */
-    val miner by lazy { Miner(context, known, dictionary) { voice } }
+    val miner by lazy { Miner(context, known, knownJa, dictionary, { voice }, { voiceJa }) }
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
     /** Episodes made on this device (YouTube links processed here), listed first. */

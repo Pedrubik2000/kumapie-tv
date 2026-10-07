@@ -52,7 +52,41 @@ def icon(size=192):  # xxxhdpi launcher icon
     img.save(out)
 
 
+def adaptive(s=432):  # phone/tablet launcher icon: 108 dp layers at xxxhdpi, the launcher shows the middle 72 dp
+    from PIL import ImageFilter
+    res = RES.parents[3] / "mobile" / "src" / "main" / "res"
+    bg = Image.new("RGB", (s, s))
+    d = ImageDraw.Draw(bg)
+    top, bottom = (0x2b, 0xc4, 0xb4), (0x0b, 0x4f, 0x77)
+    for y in range(s):
+        d.line([(0, y), (s, y)], fill=tuple(round(a + (b - a) * y / s) for a, b in zip(top, bottom)))
+    shine = Image.new("L", (s, s))
+    ImageDraw.Draw(shine).ellipse((-60, -230, s + 60, 190), fill=60)  # glossy light across the top
+    bg.paste((255, 255, 255), mask=shine.filter(ImageFilter.GaussianBlur(30)))
+    face = Image.new("RGBA", (s * 4, s * 4))  # drawn 4x and scaled down: smooth edges
+    bear(ImageDraw.Draw(face), s * 2, s * 4 * 0.57, s * 4 * 0.165)
+    face = face.resize((s, s), Image.LANCZOS)
+    shadow = Image.new("RGBA", (s, s))
+    shadow.paste((0, 0, 0, 110), (7, 10), face.getchannel("A"))
+    fg = Image.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(7)), face)
+    mono = Image.new("RGBA", (s, s))
+    mono.paste((255, 255, 255, 255), (0, 0), face.getchannel("A"))
+    (res / "drawable-nodpi").mkdir(parents=True, exist_ok=True)
+    bg.save(res / "drawable-nodpi" / "ic_launcher_background.png")
+    fg.save(res / "drawable-nodpi" / "ic_launcher_foreground.png")
+    mono.save(res / "drawable-nodpi" / "ic_launcher_monochrome.png")
+    (res / "mipmap-anydpi-v26").mkdir(exist_ok=True)
+    (res / "mipmap-anydpi-v26" / "ic_launcher.xml").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n<!-- Written by tools/make_icons.py -->\n'
+        '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+        '    <background android:drawable="@drawable/ic_launcher_background" />\n'
+        '    <foreground android:drawable="@drawable/ic_launcher_foreground" />\n'
+        '    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />\n'
+        '</adaptive-icon>\n', encoding="utf-8")
+
+
 if __name__ == "__main__":
     banner()
     icon()
+    adaptive()
     print("banner and icon written under", RES)

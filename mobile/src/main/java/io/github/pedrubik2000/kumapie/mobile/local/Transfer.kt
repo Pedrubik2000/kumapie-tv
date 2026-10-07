@@ -132,7 +132,7 @@ class Transfer(private val context: Context) {
 
     // ------------------------------------------------------------------ receiving
 
-    /** Copies from [address] ("192.168.4.57:41234") the [categories] it has and this device doesn't. Answers a summary. */
+    /** Copies from [address] ("192.168.1.20:41234") the [categories] it has and this device doesn't. Answers a summary. */
     fun receive(address: String, code: String, categories: Set<String>, progress: (String, Float) -> Unit): String {
         val url = "http://$address"
         val c = "code=" + URLEncoder.encode(code, "UTF-8")

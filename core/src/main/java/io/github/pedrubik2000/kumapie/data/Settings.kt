@@ -12,6 +12,11 @@ class Settings(context: Context) {
         Lang.speaker = speaks
     }
 
+    /** Whose device this is ("pedro", "giovanna", "jackson"; "" = no sync): its episodes go to that person's PC library. */
+    var owner: String
+        get() = prefs.getString("owner", "") ?: ""
+        set(value) = prefs.edit().putString("owner", value).apply()
+
     /** The language the person speaks ("en" / "es"): translation lines and meanings. Unset: the phone's language. */
     var speaks: String
         get() = prefs.getString("speaks", null)

@@ -42,6 +42,8 @@ class Library(context: Context, val settings: Settings) {
     private fun knownOfWord(word: String, lang: String) = if (JAPANESE_TEXT.containsMatchIn(word)) knownJa else knownFor(lang)
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
     val yomitan = YomitanDictionaries.get(context).also {
+        // Episodes to and from the PC (the hub), when this device has an owner.
+        if (settings.owner.isNotBlank()) io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.schedule(context)
         io.github.pedrubik2000.kumapie.mobile.lang.YomitanUpdateWorker.schedule(context)
         if (io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).all().isNotEmpty()) io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.schedule(context)
     }

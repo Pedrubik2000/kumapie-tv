@@ -88,4 +88,6 @@ internal val esHome: Map<String, String> = mapOf(
     "kumapie: a scene on every unlock" to "kumapie: una escena en cada desbloqueo",
     "No i+1 scene to show" to "No hay escena i+1 para mostrar",
     "Close" to "Cerrar",
+    "Delete from this device?" to "¿Borrar de este dispositivo?",
+    "%s stays on the PC and your other devices, and won't download here again." to "%s se queda en la PC y en tus otros dispositivos, y no se volverá a descargar aquí.",
 )

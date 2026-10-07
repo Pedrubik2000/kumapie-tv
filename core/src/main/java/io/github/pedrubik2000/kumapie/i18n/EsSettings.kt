@@ -150,4 +150,7 @@ internal val esSettings: Map<String, String> = mapOf(
     "I speak" to "Hablo",
     "Meanings and the second subtitle line come in this language." to "Los significados y la segunda línea de subtítulos salen en este idioma.",
     "Order mined English cards and unlock definitions" to "Ordenar las tarjetas de inglés y desbloquear definiciones",
+    "This device belongs to" to "Este dispositivo es de",
+    "Episodes made here go to the PC, and the PC's new episodes come here (on Wi-Fi)." to "Los episodios hechos aquí van a la PC, y los nuevos de la PC llegan aquí (con Wi-Fi).",
+    "Nobody (no sync)" to "Nadie (sin sincronizar)",
 )

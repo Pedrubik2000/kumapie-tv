@@ -577,4 +577,20 @@ private fun MenuLanguage(settings: Settings) {
             })
         }
     }
+    // Whose device: its episodes go to that person's PC library and to their other devices.
+    Text(tr("This device belongs to"), color = Colors.accent)
+    Text(tr("Episodes made here go to the PC, and the PC's new episodes come here (on Wi-Fi)."), color = Colors.dim, fontSize = 14.sp)
+    var owner by remember { mutableStateOf(settings.owner) }
+    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("pedro" to "Pedro", "giovanna" to "Giovanna", "jackson" to "Jackson", "" to tr("Nobody (no sync)")).forEach { (key, label) ->
+            androidx.compose.material3.FilterChip(selected = owner == key, label = { Text(label) }, onClick = {
+                owner = key
+                settings.owner = key
+                if (key.isNotBlank()) {
+                    io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.schedule(context)
+                    io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.now(context)
+                }
+            })
+        }
+    }
 }

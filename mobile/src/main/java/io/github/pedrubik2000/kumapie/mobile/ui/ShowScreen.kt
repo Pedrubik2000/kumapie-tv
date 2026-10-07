@@ -31,6 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -102,6 +103,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
                         val art = library.thumb(ep.id, ep.thumb).let { if (it is java.io.File) android.net.Uri.fromFile(it).toString() else it.toString() }
                         io.github.pedrubik2000.kumapie.mobile.listen.CondensedService.play(context, ep.id, art)
                     }) { Icon(Icons.Default.Headphones, tr("Listen condensed")) }
+                    if (onDevice) IconButton(onClick = { deleting = ep }) { Icon(Icons.Default.Delete, tr("Delete")) }
                     if (!onDevice) DownloadButton(state, enabled = !offline || state == DownloadState.Done,
                         onStart = { library.downloads.start(show, ep) },
                         onCancel = { library.downloads.cancel(ep.id) },
@@ -111,6 +113,20 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
         }
     }
 
+    deleting?.takeIf { io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(it.id) }?.let { ep ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text(tr("Delete from this device?")) },
+            text = { Text(tr("%s stays on the PC and your other devices, and won't download here again.", ep.title)) },
+            confirmButton = { TextButton(onClick = {
+                io.github.pedrubik2000.kumapie.mobile.local.Sync(context).forget(ep.id)
+                show = show.copy(episodes = show.episodes.filter { it.id != ep.id })
+                deleting = null
+            }) { Text(tr("Delete")) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(tr("Keep")) } },
+        )
+        return
+    }
     deleting?.let { ep ->
         AlertDialog(
             onDismissRequest = { deleting = null },

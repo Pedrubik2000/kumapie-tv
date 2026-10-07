@@ -315,6 +315,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         shown = tr("Done: %s", title) + (if (synced.isNotEmpty()) tr(" (subtitles %s)", synced) else "") +
             (if (englishFile != null) tr(" (English from the video)") else "")
         report(shown!!, 1f)
+        SyncWorker.now(applicationContext) // to the PC (and the owner's other devices) on Wi-Fi
         return done
     }
 

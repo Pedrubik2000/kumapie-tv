@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.local
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.util.Log
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
@@ -90,7 +91,7 @@ class Gemma(private val context: Context) {
 /** Downloads Gemma's model file (resumable). */
 class GemmaWorker(context: Context, params: WorkerParameters) : AssetWorker(context, params) {
     private val gemma = Gemma(context)
-    override val what = "the translation model (Gemma)"
+    override val what = tr("the translation model (Gemma)")
     override val notificationId = 995
 
     override suspend fun run() {

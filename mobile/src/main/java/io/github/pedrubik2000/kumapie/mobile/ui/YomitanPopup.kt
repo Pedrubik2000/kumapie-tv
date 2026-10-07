@@ -49,6 +49,7 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.launch
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /**
  * The word popup for many Yomitan dictionaries, laid out like Hachidori's (bee-san/hachidori, docs/assets): headword
@@ -64,7 +65,7 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.He
                  /** In the player's word card: a lower card list. */
                  compact: Boolean = false) {
     if (headwords.isEmpty()) {
-        Text("Not in your ${lang.name} dictionaries.", color = Colors.dim, fontSize = 14.sp)
+        Text(tr("Not in your %s dictionaries.", lang.displayName), color = Colors.dim, fontSize = 14.sp)
         return
     }
     // Words looked up from inside a definition (Japanese): a stack, ← goes back.
@@ -88,7 +89,7 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.He
         val dicts = remember(hw) { hw.terms.flatMap { it.glossaries }.map { it.dict }.distinct() }
         val groups = remember(hw) { dicts.map { library.yomitan.groupOf(lang, it) }.filter { it.isNotBlank() }.distinct() }
         if (groups.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(selected = group == null, onClick = { group = null }, label = { Text("All ${dicts.size}", fontSize = 13.sp) })
+            FilterChip(selected = group == null, onClick = { group = null }, label = { Text(tr("All %d", dicts.size), fontSize = 13.sp) })
             groups.forEach { g ->
                 FilterChip(selected = group == g, onClick = { group = g },
                     label = { Text("$g ${dicts.count { library.yomitan.groupOf(lang, it) == g }}", fontSize = 13.sp) })
@@ -123,10 +124,10 @@ private fun Header(hw: JapaneseLookup.Headword, onSpeak: (JapaneseLookup.Headwor
         val summary = hw.terms.flatMap { it.glossaries }.firstOrNull { it.senses.isNotEmpty() }?.senses
             ?.flatMap(JapaneseLookup::meanings)?.distinct()?.take(3)?.joinToString("  ·  ") { it.take(40) }.orEmpty()
         Text(summary, fontSize = 14.sp, color = Colors.dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        IconButton(onClick = { onSpeak(hw) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Say it") }
+        IconButton(onClick = { onSpeak(hw) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, tr("Say it")) }
     }
     val badges = buildList {
-        if (hw.frequencies.isNotEmpty()) add("Freq " + hw.frequencies.take(3).joinToString(" · ") { Regex("""\d+""").find(it.second)?.value ?: it.second } +
+        if (hw.frequencies.isNotEmpty()) add(tr("Freq ") + hw.frequencies.take(3).joinToString(" · ") { Regex("""\d+""").find(it.second)?.value ?: it.second } +
             if (hw.frequencies.size > 3) "  +${hw.frequencies.size - 3}" else "")
         val kana = hw.reading.ifBlank { hw.expression }
         downsteps.take(3).forEach { add("$kana [$it] ${pattern(morae(kana).size, it)}") }

@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -72,12 +73,12 @@ fun MeaningCard(
                 else -> ShortMeaning(ctl, key, segment.text, word)
             }
             val (status, color) = statusLine(word)
-            Text(status + if (word.lookups > 0) "  ·  looked up ${word.lookups}×" else "", color = color, fontSize = 15.sp)
+            Text(status + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
             // The word picked inside the German definition: its own short meaning and status.
             picker.selectedInDef?.word?.let { inner ->
                 val w = ctl.words[inner] ?: Word("u", "")
                 val (s, c) = statusLine(w)
-                Text("${picker.selectedInDef?.text}: " + (w.meaning.substringAfter(" = ").ifBlank { "no meaning yet" }) + "  ·  $s",
+                Text("${picker.selectedInDef?.text}: " + (w.meaning.substringAfter(" = ").ifBlank { tr("no meaning yet") }) + "  ·  $s",
                     color = c, fontSize = 16.sp, modifier = Modifier.padding(top = 6.dp))
             }
             footer?.invoke()
@@ -114,10 +115,10 @@ private fun ShortMeaning(ctl: SceneController, key: String, written: String, wor
             Text(meaning, color = Colors.text, fontSize = 22.sp)
         } else {
             Text(written, color = Colors.text, fontSize = 22.sp)
-            Text("no meaning yet", color = Colors.dim, fontSize = 15.sp)
+            Text(tr("no meaning yet"), color = Colors.dim, fontSize = 15.sp)
         }
         if (word.lemma.isNotBlank() && word.lemma != key && !word.lemma.equals(written, ignoreCase = true)) {
-            Text("dictionary form: ${word.lemma}", color = Colors.dim, fontSize = 15.sp)
+            Text(tr("dictionary form: %s", word.lemma), color = Colors.dim, fontSize = 15.sp)
         }
     }
 }
@@ -157,13 +158,13 @@ private fun withoutSameWord(meaning: String, selected: String): String {
 }
 
 private fun statusLine(w: Word) = when {
-    w.marked -> "marked known" to Colors.dim
-    w.status == "k" -> (w.stability?.let { "known · ${days(it)}" } ?: "known") to Colors.dim
-    w.status == "l" -> "learning · ${w.stability?.let(::days) ?: "in Anki"}" to Colors.learning
-    else -> "never studied" to Colors.unknown
+    w.marked -> tr("marked known") to Colors.dim
+    w.status == "k" -> (w.stability?.let { tr("known · %s", days(it)) } ?: tr("known")) to Colors.dim
+    w.status == "l" -> tr("learning · %s", w.stability?.let(::days) ?: tr("in Anki")) to Colors.learning
+    else -> tr("never studied") to Colors.unknown
 }
 
-private fun days(d: Double) = if (d < 1) "under a day" else "${d.roundToInt()} day${if (d.roundToInt() == 1) "" else "s"}"
+private fun days(d: Double) = if (d < 1) tr("under a day") else if (d.roundToInt() == 1) tr("1 day") else tr("%d days", d.roundToInt())
 
 /** Places [content] centred above [anchor] (screen coordinates), 10 dp up, kept inside the screen. */
 @Composable

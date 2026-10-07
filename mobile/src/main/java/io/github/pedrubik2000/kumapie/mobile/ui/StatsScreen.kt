@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.Stats
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.i18n.tr
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -68,17 +69,17 @@ fun StatsScreen(library: Library, onBack: () -> Unit) {
             .onSuccess { stats = it }.onFailure { error = it.message ?: it.toString() }
     }
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Stats") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
+        TopAppBar(title = { Text(tr("Stats")) },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
     }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             val s = stats
             when {
                 error != null -> Column(Modifier.align(Alignment.Center).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("The stats couldn't be worked out.")
+                    Text(tr("The stats couldn't be worked out."))
                     Text(error ?: "", color = Colors.dim, fontSize = 13.sp)
-                    Button(onClick = { attempt++ }) { Text("Try again") }
+                    Button(onClick = { attempt++ }) { Text(tr("Try again")) }
                 }
                 s == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 else -> StatsContent(s)
@@ -94,15 +95,15 @@ private fun StatsContent(s: Stats) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         item {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Tile("Today", minutes(s.today))
-                Tile("Last 7 days", minutes(s.week))
-                Tile("Total", minutes(s.total))
-                Tile("Streak", if (s.streak == 1) "1 day" else "${s.streak} days")
+                Tile(tr("Today"), minutes(s.today))
+                Tile(tr("Last 7 days"), minutes(s.week))
+                Tile(tr("Total"), minutes(s.total))
+                Tile(tr("Streak"), if (s.streak == 1) tr("1 day") else tr("%d days", s.streak))
             }
         }
         item {
             Column {
-                Heading("The last year")
+                Heading(tr("The last year"))
                 // Scrolled to today (the right end) at first.
                 val scroll = rememberScrollState(Int.MAX_VALUE)
                 Box(Modifier.horizontalScroll(scroll)) { Heatmap(s.days, today, Modifier.padding(top = 8.dp)) }
@@ -110,17 +111,17 @@ private fun StatsContent(s: Stats) {
         }
         item {
             Column {
-                Heading("The last 30 days")
+                Heading(tr("The last 30 days"))
                 Bars(s.days, today, Modifier.padding(top = 8.dp))
             }
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Heading("Scenes and words")
+                Heading(tr("Scenes and words"))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Tile("Scenes to the end", "${s.scenesSeen} / ${s.scenesTotal}")
-                    Tile("Words looked up", "${s.wordsLookedUp} (${s.lookups}×)")
-                    Tile("Marked known", "${s.markedKnown}")
+                    Tile(tr("Scenes to the end"), "${s.scenesSeen} / ${s.scenesTotal}")
+                    Tile(tr("Words looked up"), "${s.wordsLookedUp} (${s.lookups}×)")
+                    Tile(tr("Marked known"), "${s.markedKnown}")
                 }
                 s.shows.forEach { sh ->
                     Column {
@@ -135,7 +136,7 @@ private fun StatsContent(s: Stats) {
         }
         if (s.topLookups.isNotEmpty()) item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Heading("Looked up most")
+                Heading(tr("Looked up most"))
                 s.topLookups.forEach { t ->
                     Row {
                         Text("${t.times}×", color = Colors.learning, fontSize = 14.sp, modifier = Modifier.width(44.dp))
@@ -165,7 +166,7 @@ private fun Heatmap(days: Map<String, Double>, today: LocalDate, modifier: Modif
     val months = remember(start) {
         (0..52).mapNotNull { w ->
             val d = start.plusWeeks(w.toLong())
-            if (d.dayOfMonth <= 7) w to d.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH) else null
+            if (d.dayOfMonth <= 7) w to d.month.getDisplayName(TextStyle.SHORT, if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) Locale("es") else Locale.ENGLISH) else null
         }
     }
     val cell = 11.dp
@@ -206,7 +207,7 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
     val values = (29 downTo 0).map { (days[today.minusDays(it.toLong()).toString()] ?: 0.0) / 60 }
     val max = values.maxOrNull()?.takeIf { it > 0 } ?: 1.0
     Column(modifier.fillMaxWidth()) {
-        Text("most: ${minutes(max * 60)}", fontSize = 11.sp, color = Colors.dim)
+        Text(tr("most: %s", minutes(max * 60)), fontSize = 11.sp, color = Colors.dim)
         Canvas(Modifier.fillMaxWidth().height(100.dp)) {
             val w = size.width / 30
             values.forEachIndexed { i, v ->
@@ -217,10 +218,10 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
             }
         }
         Row(Modifier.fillMaxWidth()) {
-            Text(today.minusDays(29).let { "${it.dayOfMonth} ${it.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)}" },
+            Text(today.minusDays(29).let { "${it.dayOfMonth} ${it.month.getDisplayName(TextStyle.SHORT, if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) Locale("es") else Locale.ENGLISH)}" },
                 fontSize = 11.sp, color = Colors.dim)
             Box(Modifier.weight(1f))
-            Text("today", fontSize = 11.sp, color = Colors.learning)
+            Text(tr("today"), fontSize = 11.sp, color = Colors.learning)
         }
     }
 }

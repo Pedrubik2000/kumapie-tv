@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import android.app.NotificationChannel
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
@@ -40,7 +41,7 @@ abstract class AssetWorker(context: Context, params: WorkerParameters) : Corouti
             Result.success()
         } catch (e: IOException) {
             Log.w("kumapie", "$what: $e")
-            if (runAttemptCount < 8) Result.retry() else Result.failure(workDataOf(ERROR to (e.message ?: "network error")))
+            if (runAttemptCount < 8) Result.retry() else Result.failure(workDataOf(ERROR to (e.message ?: tr("network error"))))
         }
     }
 
@@ -68,11 +69,11 @@ abstract class AssetWorker(context: Context, params: WorkerParameters) : Corouti
                         if (n < 0) break
                         out.write(buf, 0, n)
                         done += n
-                        if (total > 0) report("Downloading: ${done / 1_000_000} of ${total / 1_000_000} MB", share * done / total)
+                        if (total > 0) report(tr("Downloading: %1\$d of %2\$d MB", done / 1_000_000, total / 1_000_000), share * done / total)
                     }
                 }
             }
-            if (total > 0 && done < total) throw IOException("connection closed early")
+            if (total > 0 && done < total) throw IOException(tr("connection closed early"))
         } finally {
             conn.disconnect()
         }
@@ -91,11 +92,11 @@ abstract class AssetWorker(context: Context, params: WorkerParameters) : Corouti
     private fun foreground(progress: Float): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL) == null) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, "Downloads", NotificationManager.IMPORTANCE_LOW))
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, tr("Downloads"), NotificationManager.IMPORTANCE_LOW))
         }
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Downloading $what")
+            .setContentTitle(tr("Downloading %s", what))
             .setProgress(100, (progress * 100).toInt(), false)
             .setOngoing(true)
             .setSilent(true)
@@ -118,9 +119,9 @@ abstract class AssetWorker(context: Context, params: WorkerParameters) : Corouti
         fun state(work: WorkManager, name: String): Flow<String?> = work.getWorkInfosForUniqueWorkFlow(name).map { infos ->
             val info = infos.firstOrNull() ?: return@map null
             when (info.state) {
-                WorkInfo.State.RUNNING -> info.progress.getString(STAGE) ?: "Starting…"
-                WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> "Waiting for a connection…"
-                WorkInfo.State.FAILED -> "Failed: " + (info.outputData.getString(ERROR) ?: "unknown error")
+                WorkInfo.State.RUNNING -> info.progress.getString(STAGE) ?: tr("Starting…")
+                WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> tr("Waiting for a connection…")
+                WorkInfo.State.FAILED -> tr("Failed: %s", info.outputData.getString(ERROR) ?: tr("unknown error"))
                 else -> null
             }
         }

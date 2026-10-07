@@ -38,6 +38,7 @@ import io.github.pedrubik2000.kumapie.data.Scene
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** One page of the feed: a scene, played alone from its episode. */
 private data class FeedItem(val show: Show, val episode: EpisodeDetail, val scene: Scene)
@@ -74,7 +75,7 @@ fun FeedScreen(library: Library, shows: List<Show>, onBack: () -> Unit) {
         FeedKept.items = found
         FeedKept.page = 0
         items = found
-        loading = if (found.isEmpty()) "No scenes at these levels." else ""
+        loading = if (found.isEmpty()) tr("No scenes at these levels.") else ""
     }
 
     // Feed watching sends lookups and "mark known" as usual, but no progress: an episode resumes where it was left.
@@ -111,7 +112,7 @@ fun FeedScreen(library: Library, shows: List<Show>, onBack: () -> Unit) {
         }
         IconButton(onClick = { filter = true }, modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(8.dp)
             .background(Color(0x66000000), androidx.compose.foundation.shape.CircleShape)) {
-            Icon(Icons.Default.Tune, "Feed levels", tint = Colors.text)
+            Icon(Icons.Default.Tune, tr("Feed levels"), tint = Colors.text)
         }
     }
 
@@ -119,10 +120,10 @@ fun FeedScreen(library: Library, shows: List<Show>, onBack: () -> Unit) {
         ModalBottomSheet(onDismissRequest = { filter = false }) {
             Column(Modifier.padding(horizontal = 24.dp).navigationBarsPadding().padding(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Scenes in the feed", color = Colors.accent, fontSize = 17.sp)
+                Text(tr("Scenes in the feed"), color = Colors.accent, fontSize = 17.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(0 to "i+0", 1 to "i+1", 2 to "i+2 and up").forEach { (level, label) ->
-                        FilterChip(selected = level in levels, label = { Text(label) }, onClick = {
+                        FilterChip(selected = level in levels, label = { Text(tr(label)) }, onClick = {
                             val next = if (level in levels) levels - level else levels + level
                             if (next.isNotEmpty()) {
                                 levels = next
@@ -131,7 +132,7 @@ fun FeedScreen(library: Library, shows: List<Show>, onBack: () -> Unit) {
                         })
                     }
                 }
-                Text("i+1 = one new word. Changing this reshuffles the feed.", color = Colors.dim, fontSize = 13.sp)
+                Text(tr("i+1 = one new word. Changing this reshuffles the feed."), color = Colors.dim, fontSize = 13.sp)
             }
         }
     }

@@ -1,5 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
+import io.github.pedrubik2000.kumapie.i18n.tr
+
 /**
  * morphs' Recalc (tools/morphs on the PC: recalc.py and scoring.py; keep them alike) on the device, behind a button:
  * new German cards ordered by their unknown words (i+1 by how common its unknown is, then i+2, ..., i+0 last), the
@@ -15,15 +17,16 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
     class Plan(val pkg: String, val dues: Map<Long, Long>, val notes: List<NoteChange>, val newCards: Int, val levels: Map<String, Int>,
                val defsReady: Int = 0, val defs: Int = 0) {
         val empty: Boolean get() = dues.isEmpty() && notes.isEmpty()
-        fun describe(): String = "${levels[READY] ?: 0} new cards at i+1, ${levels[NOT_READY] ?: 0} at i+2 or more, " +
-            "${levels[KNOWN] ?: 0} at i+0 (of $newCards new). $defsReady of $defs German definitions unlocked. " +
-            if (empty) "Nothing to change." else "${dues.size} change place, ${notes.size} notes get new tags or study words."
+        fun describe(): String = tr("%1\$d new cards at i+1, %2\$d at i+2 or more, %3\$d at i+0 (of %4\$d new). " +
+            "%5\$d of %6\$d German definitions unlocked. ", levels[READY] ?: 0, levels[NOT_READY] ?: 0, levels[KNOWN] ?: 0, newCards,
+            defsReady, defs) +
+            if (empty) tr("Nothing to change.") else tr("%1\$d change place, %2\$d notes get new tags or study words.", dues.size, notes.size)
     }
 
     /** Reads Anki again (word colours too) and works out what morphs' Recalc would change. */
     suspend fun plan(): Plan {
         known.refresh().getOrThrow()
-        val r = known.lastReading ?: error("Anki wasn't read.")
+        val r = known.lastReading ?: error(tr("Anki wasn't read."))
         val notes = r.notes.associateBy { it.id }
         val keys = r.morphs // judged notes only (Nicos Weg is not), inflections in text order
         val modify = keys.keys.filter { with(known) { !notes[it]!!.hasTag(KnownWords.CORE1000) } }.toSet()
@@ -76,7 +79,7 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
     fun apply(plan: Plan): String {
         val moved = if (plan.dues.isEmpty()) 0 else anki.setNewDues(plan.pkg, plan.dues)
         for (n in plan.notes) anki.updateNote(plan.pkg, n.id, n.tags, n.fields)
-        return "Done: $moved cards placed, ${plan.notes.size} notes updated."
+        return tr("Done: %1\$d cards placed, %2\$d notes updated.", moved, plan.notes.size)
     }
 
     companion object {

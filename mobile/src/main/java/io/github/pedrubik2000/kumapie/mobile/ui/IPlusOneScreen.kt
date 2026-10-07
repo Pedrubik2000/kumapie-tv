@@ -36,6 +36,7 @@ import io.github.pedrubik2000.kumapie.data.Scene
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** An i+1 scene: one new (red) word, everything else known or learning. */
 private data class Easy(val show: Show, val episode: Episode, val scene: Scene, val newWord: String, val english: String)
@@ -60,7 +61,7 @@ fun IPlusOneScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, 
         val found = ArrayList<Easy>()
         val episodes = shows.flatMap { s -> s.episodes.map { s to it } }
         episodes.forEachIndexed { i, (show, ep) ->
-            loading = "Reading episodes ${i + 1} of ${episodes.size}…"
+            loading = tr("Reading episodes %1\$d of %2\$d…", i + 1, episodes.size)
             val detail = runCatching { library.episode(ep.id) }.getOrNull() ?: return@forEachIndexed
             for (sc in detail.scenes) {
                 if (!sc.target || sc.level != 1) continue
@@ -70,15 +71,15 @@ fun IPlusOneScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, 
             }
         }
         scenes = found.shuffled().also { Kept.scenes = it }
-        loading = if (found.isEmpty()) "No i+1 scenes (episodes that can't be reached offline are skipped)." else ""
+        loading = if (found.isEmpty()) tr("No i+1 scenes (episodes that can't be reached offline are skipped).") else ""
     }
     LaunchedEffect(shuffle) { if (shuffle > 0) scenes = scenes?.shuffled()?.also { Kept.scenes = it } }
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text("i+1 scenes" + (scenes?.let { " · ${it.size}" } ?: "")) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-            actions = { IconButton(onClick = { shuffle++ }) { Icon(Icons.Default.Shuffle, "Shuffle") } },
+            title = { Text(tr("i+1 scenes") + (scenes?.let { " · ${it.size}" } ?: "")) },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
+            actions = { IconButton(onClick = { shuffle++ }) { Icon(Icons.Default.Shuffle, tr("Shuffle")) } },
         )
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {

@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -45,7 +46,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     var height by remember { mutableStateOf(library.settings.videoHeight) }
     var lang by remember { mutableStateOf(Lang.GERMAN) }
     val japanese = lang == Lang.JAPANESE
-    val jobs by remember { ProcessWorker.states(context) }.collectAsState(initial = emptyList())
+    val jobs by remember { ProcessWorker.jobs(context) }.collectAsState(initial = emptyList())
     // The job's choices, offered only when they can work (keys and downloads are in Settings); the last ones are remembered.
     val sonioxKey = library.settings.sonioxKey.isNotBlank()
     val parakeetReady = remember { io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context).isReady }
@@ -85,71 +86,71 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     Column(Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 24.dp)
         .navigationBarsPadding().padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Add an episode", color = Colors.accent, fontSize = 18.sp)
+        Text(tr("Add an episode"), color = Colors.accent, fontSize = 18.sp)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(Lang.GERMAN, Lang.JAPANESE, Lang.ENGLISH).forEach { l ->
-                androidx.compose.material3.FilterChip(selected = lang == l, label = { Text(l.name) }, onClick = { lang = l })
+                androidx.compose.material3.FilterChip(selected = lang == l, label = { Text(l.displayName) }, onClick = { lang = l })
             }
         }
-        OutlinedTextField(link, { link = it }, label = { Text("YouTube, magnet or Real-Debrid links (one or several)") }, maxLines = 6,
+        OutlinedTextField(link, { link = it }, label = { Text(tr("YouTube, magnet or Real-Debrid links (one or several)")) }, maxLines = 6,
             modifier = Modifier.fillMaxWidth())
-        if (links.size > 1) Text("${links.size} links", fontSize = 13.sp, color = Colors.dim)
+        if (links.size > 1) Text(tr("%d links", links.size), fontSize = 13.sp, color = Colors.dim)
         if (youtube) {
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
             androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOfNotNull(("video" to "This video").takeIf { !channelLink }, "shorts" to "Channel's shorts",
-                    "videos" to "Channel's videos", ("playlist" to "Playlist").takeIf { playlistLink }).forEach { (k, label) ->
+                listOfNotNull(("video" to tr("This video")).takeIf { !channelLink }, "shorts" to tr("Channel's shorts"),
+                    "videos" to tr("Channel's videos"), ("playlist" to tr("Playlist")).takeIf { playlistLink }).forEach { (k, label) ->
                     androidx.compose.material3.FilterChip(selected = ytKind == k, onClick = { ytKind = k }, label = { Text(label) })
                 }
             }
             if (ytKind != "video") OutlinedTextField(ytCount, { ytCount = it.filter(Char::isDigit).take(3) },
-                label = { Text("How many (newest first)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                label = { Text(tr("How many (newest first)")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             if (ytKind == "shorts" || ytKind == "videos") androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("Follow: new ones (and older ones not here) download by themselves, at night (Settings)", fontSize = 14.sp,
+                Text(tr("Follow: new ones (and older ones not here) download by themselves, at night (Settings)"), fontSize = 14.sp,
                     modifier = Modifier.weight(1f))
                 androidx.compose.material3.Switch(checked = follow, onCheckedChange = { follow = it })
             }
         }
-        OutlinedTextField(show, { show = it }, label = { Text("Show (blank: the channel's / file's name)") }, singleLine = true,
+        OutlinedTextField(show, { show = it }, label = { Text(tr("Show (blank: the channel's / file's name)")) }, singleLine = true,
             modifier = Modifier.fillMaxWidth())
         if (!japanese) {
-            Text("Transcription", fontSize = 14.sp, color = Colors.dim)
+            Text(tr("Transcription"), fontSize = 14.sp, color = Colors.dim)
             androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (sonioxKey) androidx.compose.material3.FilterChip(selected = !parakeet, label = { Text("Soniox (best, paid)") },
+                if (sonioxKey) androidx.compose.material3.FilterChip(selected = !parakeet, label = { Text(tr("Soniox (best, paid)")) },
                     onClick = { transcriber = "soniox"; library.settings.transcriber = "soniox" })
-                if (parakeetReady) androidx.compose.material3.FilterChip(selected = parakeet, label = { Text("Parakeet (free, offline)") },
+                if (parakeetReady) androidx.compose.material3.FilterChip(selected = parakeet, label = { Text(tr("Parakeet (free, offline)")) },
                     onClick = { transcriber = "parakeet"; library.settings.transcriber = "parakeet" })
             }
         }
-        Text("English subtitles", fontSize = 14.sp, color = Colors.dim)
+        Text(tr("English subtitles"), fontSize = 14.sp, color = Colors.dim)
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOfNotNull(
-                ("soniox" to "Soniox (with the transcription)").takeIf { !japanese && !parakeet && sonioxKey },
-                ("gemma" to "Gemma (good, ~3 s a line)").takeIf { gemmaDownloaded },
-                "device" to "Google's translator (instant)",
-                "none" to "None (fastest)",
+                ("soniox" to tr("Soniox (with the transcription)")).takeIf { !japanese && !parakeet && sonioxKey },
+                ("gemma" to tr("Gemma (good, ~3 s a line)")).takeIf { gemmaDownloaded },
+                "device" to tr("Google's translator (instant)"),
+                "none" to tr("None (fastest)"),
             ).forEach { (value, label) ->
                 androidx.compose.material3.FilterChip(selected = englishNow == value, label = { Text(label) },
                     onClick = { english = value; library.settings.englishSource = value })
             }
         }
-        Text("Video quality", fontSize = 14.sp, color = Colors.dim)
+        Text(tr("Video quality"), fontSize = 14.sp, color = Colors.dim)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(360, 480, 720, 1080).forEach { h ->
                 androidx.compose.material3.FilterChip(selected = height == h, label = { Text("${h}p") },
                     onClick = { height = h; library.settings.videoHeight = h })
             }
         }
-        Text("For YouTube. Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p.",
+        Text(tr("For YouTube. Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p."),
             fontSize = 12.sp, color = Colors.dim)
-        if (!gemmaReady) Text("First: Settings > download the translation model (Gemma), or pick another English source.",
+        if (!gemmaReady) Text(tr("First: Settings > download the translation model (Gemma), or pick another English source."),
             color = Colors.unknown, fontSize = 14.sp)
-        else if (!ready && japanese) Text("First: Settings > the Japanese words dictionary, and your Jimaku API key.",
+        else if (!ready && japanese) Text(tr("First: Settings > the Japanese words dictionary, and your Jimaku API key."),
             color = Colors.unknown, fontSize = 14.sp)
-        else if (!ready) Text(if (parakeet) "First: Settings > the German model and the speech model (Parakeet)."
-            else "First: Settings > the German model, and your Soniox key.", color = Colors.unknown, fontSize = 14.sp)
-        if (needsRd && library.settings.rdToken.isBlank()) Text("For magnets and Real-Debrid links: Settings > your Real-Debrid token.",
+        else if (!ready) Text(if (parakeet) tr("First: Settings > the German model and the speech model (Parakeet).")
+            else tr("First: Settings > the German model, and your Soniox key."), color = Colors.unknown, fontSize = 14.sp)
+        if (needsRd && library.settings.rdToken.isBlank()) Text(tr("For magnets and Real-Debrid links: Settings > your Real-Debrid token."),
             color = Colors.unknown, fontSize = 14.sp)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(enabled = ready && links.isNotEmpty() && !(needsRd && library.settings.rdToken.isBlank()),
@@ -162,25 +163,25 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
                             kind, ytCount.toIntOrNull()?.coerceIn(1, 200) ?: 10)
                     }
                     link = ""
-                }) { Text(if (links.size > 1) "Make them episodes" else "Make it an episode") }
-            androidx.compose.material3.OutlinedButton(enabled = ready, onClick = { pick.launch(arrayOf("video/*")) }) { Text("Video files…") }
+                }) { Text(if (links.size > 1) tr("Make them episodes") else tr("Make it an episode")) }
+            androidx.compose.material3.OutlinedButton(enabled = ready, onClick = { pick.launch(arrayOf("video/*")) }) { Text(tr("Video files…")) }
         }
         val noEnglish = englishNow == "none"
-        if (japanese) Text("Download → Japanese subtitles from Jimaku, fitted to the audio → " + when {
-                noEnglish -> "no English (Settings)"
-                gemma -> "English (Gemma on the tablet, about 3 s a line)"
-                else -> "English (the device's translator)"
-            } + " → scenes. Show blank: its " +
-            "AniList name. MKV files keep their Japanese audio. Jobs run one after another in the background.",
+        if (japanese) Text(tr("Download → Japanese subtitles from Jimaku, fitted to the audio → ") + when {
+                noEnglish -> tr("no English (Settings)")
+                gemma -> tr("English (Gemma on the tablet, about 3 s a line)")
+                else -> tr("English (the device's translator)")
+            } + tr(" → scenes. Show blank: its " +
+            "AniList name. MKV files keep their Japanese audio. Jobs run one after another in the background."),
             color = Colors.dim, fontSize = 13.sp)
-        else Text("Download → " + (if (parakeet) "Parakeet on the tablet (free)" else "Soniox (paid, about \$0.10 an hour)") +
-            " → German subtitles → " + when {
-                noEnglish -> "no English (Settings)"
-                gemma -> "English (Gemma on the tablet, about 3 s a line)"
-                englishNow == "soniox" -> "English (Soniox)"
-                else -> "English (the device's translator)"
-            } + " → scenes. A season (magnet) becomes one episode per file; MKV files keep their German audio. Jobs run " +
-            "one after another in the background; each episode appears on the home screen when done.", color = Colors.dim, fontSize = 13.sp)
-        jobs.forEach { Text(it, fontSize = 14.sp) }
+        else Text(tr("Download → ") + (if (parakeet) tr("Parakeet on the tablet (free)") else tr("Soniox (paid, about \$0.10 an hour)")) +
+            tr(" → German subtitles → ") + when {
+                noEnglish -> tr("no English (Settings)")
+                gemma -> tr("English (Gemma on the tablet, about 3 s a line)")
+                englishNow == "soniox" -> tr("English (Soniox)")
+                else -> tr("English (the device's translator)")
+            } + tr(" → scenes. A season (magnet) becomes one episode per file; MKV files keep their German audio. Jobs run " +
+            "one after another in the background; each episode appears on the home screen when done."), color = Colors.dim, fontSize = 13.sp)
+        jobs.forEach { Text(it.stage, fontSize = 14.sp) }
     }
 }

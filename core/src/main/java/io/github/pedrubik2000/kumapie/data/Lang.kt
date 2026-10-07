@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.data
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import java.util.Locale
 
 /**
@@ -23,6 +24,10 @@ data class Lang(
     val tagPrefix: String,
 ) {
     fun tag(name: String) = "$tagPrefix::$name"
+
+    /** [name] and [translationName] in the menu language, for display only ([name] also goes to Gemma's prompt). */
+    val displayName: String get() = tr(name)
+    val translationDisplayName: String get() = tr(translationName)
 
     companion object {
         val GERMAN = Lang("de", "German", "en", "English", Locale.GERMANY, listOf("🐻 German", "🇩🇪 MvJ"), "Deutsch::Mined", "_de")

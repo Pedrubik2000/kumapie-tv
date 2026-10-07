@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.content.Context
 import android.net.Uri
 import android.text.TextUtils
@@ -79,20 +80,20 @@ class Miner(
         // German and English cards share the layout (🐻 German / 🐻 English).
         val lang = Lang.of(r.episode.lang)
         val known = if (lang == Lang.ENGLISH) knownEn ?: known else known
-        val pkg = known.ankiApp() ?: error("No kuma3 Anki on this device.")
-        if (!known.hasPermission(pkg)) error("kumapie may not use Anki yet: allow it in Settings.")
+        val pkg = known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
+        if (!known.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
         val (mid, fieldNames) = anki.noteType(pkg, known.noteTypes)
-            ?: error("The ${lang.name} note type isn't in Anki.")
+            ?: error(tr("The %s note type isn't in Anki.", lang.displayName))
         val (sentence, cues) = sentence(r.scene, r.line)
         val slug = slug(r.episode.show)
         dir.mkdirs()
 
-        progress("Cutting the scene…")
+        progress(tr("Cutting the scene…"))
         val clipFile = File(dir, "clip.webm").apply { delete() }
         val start = (r.scene.start * 1000).toLong()
         val end = (r.scene.end * 1000).toLong()
         clip(r.episode.video, start, end, clipFile)
-        progress("Adding to Anki…")
+        progress(tr("Adding to Anki…"))
         val clip = anki.addMedia(pkg, clipFile, "${slug}_$start-$end")
 
         val fields = HashMap<String, String>()
@@ -113,11 +114,11 @@ class Miner(
 
         val missing = (listOf("Sentence", "Video") + if (r.word != null) listOf(KnownWords.DEF_BI, KnownWords.DEF_MONO) else emptyList())
             .filter { it !in fieldNames }
-        if (missing.isNotEmpty()) error("The note type has no field ${missing.joinToString()}.")
+        if (missing.isNotEmpty()) error(tr("The note type has no field %s.", missing.joinToString()))
         val deck = anki.deck(pkg, lang.deck)
         anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, deck)
         clipFile.delete()
-        "Added to ${lang.deck}" + (r.word?.let { ": ${it.surface}" } ?: "")
+        tr("Added to %s", lang.deck) + (r.word?.let { ": ${it.surface}" } ?: "")
     }
 
     /**
@@ -127,20 +128,20 @@ class Miner(
      */
     private suspend fun mineJapanese(r: Request, progress: (String) -> Unit): String {
         val ja = Lang.JAPANESE
-        val pkg = knownJa.ankiApp() ?: error("No kuma3 Anki on this device.")
-        if (!knownJa.hasPermission(pkg)) error("kumapie may not use Anki yet: allow it in Settings.")
-        val (mid, fieldNames) = anki.noteType(pkg, knownJa.noteTypes) ?: error("The Japanese note type isn't in Anki.")
+        val pkg = knownJa.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
+        if (!knownJa.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
+        val (mid, fieldNames) = anki.noteType(pkg, knownJa.noteTypes) ?: error(tr("The Japanese note type isn't in Anki."))
         val cue = r.scene.cues[r.line]
         val slug = slug(r.episode.show)
         dir.mkdirs()
         val startMs = ((cue.start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
         val endMs = ((cue.end + 0.25) * 1000).toLong()
 
-        progress("Cutting the line's audio…")
+        progress(tr("Cutting the line's audio…"))
         val lineAudio = File(dir, "line.m4a").apply { delete() }
         audioClip(r.episode.video, startMs, endMs, lineAudio)
         val shot = screenshot(r.episode.video, (startMs + endMs) / 2)
-        progress("Adding to Anki…")
+        progress(tr("Adding to Anki…"))
         val fields = HashMap<String, String>()
         fields["Sentence Audio"] = "[audio:${anki.addMedia(pkg, lineAudio, "${slug}_$startMs-$endMs")}]"
         shot?.let { fields["Image"] = "<img src=\"${anki.addMedia(pkg, it, "${slug}_$startMs")}\">" }
@@ -171,11 +172,11 @@ class Miner(
             tags += ja.tag("sentence")
         }
         val missing = listOf("Sentence", "Sentence Audio", KnownWords.DEF_BI).filter { it !in fieldNames }
-        if (missing.isNotEmpty()) error("The Japanese note type has no field ${missing.joinToString()}.")
+        if (missing.isNotEmpty()) error(tr("The Japanese note type has no field %s.", missing.joinToString()))
         anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, anki.deck(pkg, ja.deck))
         lineAudio.delete()
         shot?.delete()
-        return "Added to ${ja.deck}" + (w?.let { ": ${it.lemma ?: it.surface}" } ?: "")
+        return tr("Added to %s", ja.deck) + (w?.let { ": ${it.lemma ?: it.surface}" } ?: "")
     }
 
     /** [startMs]..[endMs] of the episode's audio alone, as AAC in .m4a. */
@@ -195,7 +196,7 @@ class Miner(
 
                     override fun onError(composition: Composition, result: ExportResult, e: ExportException) {
                         Log.w("kumapie", "audio clip: $e")
-                        if (cont.isActive) cont.resumeWithException(IllegalStateException("Couldn't cut the line's audio: ${e.errorCodeName}", e))
+                        if (cont.isActive) cont.resumeWithException(IllegalStateException(tr("Couldn't cut the line's audio: %s", e.errorCodeName), e))
                     }
                 })
                 .build()
@@ -246,7 +247,7 @@ class Miner(
 
                     override fun onError(composition: Composition, result: ExportResult, e: ExportException) {
                         Log.w("kumapie", "clip: $e")
-                        if (cont.isActive) cont.resumeWithException(IllegalStateException("Couldn't cut the scene: ${e.errorCodeName}", e))
+                        if (cont.isActive) cont.resumeWithException(IllegalStateException(tr("Couldn't cut the scene: %s", e.errorCodeName), e))
                     }
                 })
                 .build()

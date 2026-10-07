@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -59,12 +60,12 @@ class Voice(context: Context, private val lang: Lang = Lang.GERMAN) {
 
     /** For Settings: whether a German voice works without internet. */
     fun describe(): String {
-        if (!ready) return "No ${lang.name} voice yet: install one in the speech engine's settings."
+        if (!ready) return tr("No %s voice yet: install one in the speech engine's settings.", lang.displayName)
         val voices = runCatching { tts.voices?.filter { it.locale.language == lang.code } }.getOrNull().orEmpty()
         val offline = voices.any {
             !it.isNetworkConnectionRequired && TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in it.features.orEmpty()
         }
-        return if (offline) "${lang.name} voice: installed, works offline (${tts.defaultEngine})."
-        else "${lang.name} voice: needs internet. Install the ${lang.name} voice data in the speech engine's settings."
+        return if (offline) tr("%1\$s voice: installed, works offline (%2\$s).", lang.displayName, tts.defaultEngine)
+        else tr("%1\$s voice: needs internet. Install the %1\$s voice data in the speech engine's settings.", lang.displayName)
     }
 }

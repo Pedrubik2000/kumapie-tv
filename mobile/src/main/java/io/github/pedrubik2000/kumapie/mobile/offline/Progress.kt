@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.offline
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.os.Build
 import android.util.Log
 import io.github.pedrubik2000.kumapie.data.Settings
@@ -109,7 +110,7 @@ class Progress private constructor(context: Context, private val settings: Setti
             anki.suspendCards(pkg, nid)
         } catch (e: Exception) { // an older kuma3 Anki: take the note out again rather than leave a card to review
             anki.deleteNote(pkg, nid)
-            throw IllegalStateException("kuma3 Anki is too old to keep kumapie's progress (update it)", e)
+            throw IllegalStateException(tr("kuma3 Anki is too old to keep kumapie's progress (update it)"), e)
         }
     }
 

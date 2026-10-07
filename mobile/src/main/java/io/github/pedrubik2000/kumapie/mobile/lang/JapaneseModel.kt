@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -57,7 +58,7 @@ class JapaneseModel(private val context: Context) {
 
     private fun tokenizer(): Tokenizer = synchronized(Companion) {
         loaded?.takeIf { it.first == dic.path }?.second ?: run {
-            check(isReady) { "The Japanese dictionary isn't downloaded yet." }
+            check(isReady) { tr("The Japanese dictionary isn't downloaded yet.") }
             val d: Dictionary = DictionaryFactory().create(Config.defaultConfig().systemDictionary(dic.toPath()))
             d.create().also { loaded = dic.path to it }
         }
@@ -128,7 +129,7 @@ class JapaneseModel(private val context: Context) {
 /** Downloads the sudachidict-core wheel, keeps its system.dic and deletes the wheel. */
 class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWorker(context, params) {
     private val model = JapaneseModel(context)
-    override val what = "the Japanese dictionary"
+    override val what = tr("the Japanese dictionary")
     override val notificationId = 994
 
     override suspend fun run() {
@@ -136,7 +137,7 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
         val base = model.dic.parentFile!!.apply { mkdirs() }
         val wheel = File(base, "sudachidict-core.whl.part")
         fetch(JapaneseModel.URL, wheel)
-        report("Unpacking…", 0.95f)
+        report(tr("Unpacking…"), 0.95f)
         val tmp = File(base, "${model.dic.name}.tmp").apply { delete() }
         ZipInputStream(wheel.inputStream().buffered()).use { zip ->
             while (true) {
@@ -147,8 +148,8 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
                 }
             }
         }
-        if (tmp.length() < 10_000_000) throw IOException("the download has no Sudachi dictionary")
-        if (!tmp.renameTo(model.dic)) throw IOException("couldn't move the dictionary into place")
+        if (tmp.length() < 10_000_000) throw IOException(tr("the download has no Sudachi dictionary"))
+        if (!tmp.renameTo(model.dic)) throw IOException(tr("couldn't move the dictionary into place"))
         wheel.delete()
     }
 }

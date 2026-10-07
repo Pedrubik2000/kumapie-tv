@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import io.github.pedrubik2000.kumapie.mobile.BuildConfig
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.update.Updater
+import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.launch
 
 /** "Version X is out": Update downloads it and hands it to Android's installer; Later closes. */
@@ -36,30 +37,30 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
 
     fun update() {
         if (!Updater.canInstall(context)) {
-            message = "Allow kumapie to install apps on the page that opened, then tap Update again."
+            message = tr("Allow kumapie to install apps on the page that opened, then tap Update again.")
             return
         }
         progress = 0f
-        message = "Downloading…"
+        message = tr("Downloading…")
         scope.launch {
             runCatching { Updater.download(context, release) { progress = it } }
-                .onSuccess { message = "Installing…"; Updater.install(context, it) }
-                .onFailure { progress = -1f; message = "Download failed: ${it.message}" }
+                .onSuccess { message = tr("Installing…"); Updater.install(context, it) }
+                .onFailure { progress = -1f; message = tr("Download failed: %s", it.message) }
         }
     }
 
     AlertDialog(
         onDismissRequest = onClose,
-        title = { Text("kumapie ${release.version} is out") },
+        title = { Text(tr("kumapie %s is out", release.version)) },
         text = {
             Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("You have ${BuildConfig.VERSION_NAME}.", color = Colors.dim)
+                Text(tr("You have %s.", BuildConfig.VERSION_NAME), color = Colors.dim)
                 if (release.notes.isNotBlank()) Text(release.notes.take(800), fontSize = 14.sp)
                 if (progress >= 0f) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
                 if (message.isNotEmpty()) Text(message, color = Colors.dim)
             }
         },
-        confirmButton = { TextButton(onClick = ::update) { Text("Update") } },
-        dismissButton = { TextButton(onClick = onClose) { Text("Later") } },
+        confirmButton = { TextButton(onClick = ::update) { Text(tr("Update")) } },
+        dismissButton = { TextButton(onClick = onClose) { Text(tr("Later")) } },
     )
 }

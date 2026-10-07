@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Settings
+import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.mobile.BuildConfig
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
@@ -76,29 +77,30 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text(if (firstRun) "Welcome to kumapie" else "Settings") },
-            navigationIcon = { if (!firstRun) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            title = { Text(if (firstRun) tr("Welcome to kumapie") else tr("Settings")) },
+            navigationIcon = { if (!firstRun) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
         )
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Server", color = Colors.accent)
+            MenuLanguage(settings)
+            Text(tr("Server"), color = Colors.accent)
             OutlinedTextField(server, { server = it }, label = { Text("https://my-pc.my-tailnet.ts.net:8445") },
                 singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
             Button(onClick = {
                 val url = Settings.normalizeServer(server)
-                message = "Checking…"
+                message = tr("Checking…")
                 scope.launch {
                     runCatching { Api(url).info() }
                         .onSuccess {
                             settings.server = url
                             server = url
-                            message = "Connected: ${it.episodes} episodes in ${it.language}."
+                            message = tr("Connected: %1\$s episodes in %2\$s.", it.episodes, it.language)
                             onSaved()
                         }
-                        .onFailure { message = "No answer from $url: ${it.message}" }
+                        .onFailure { message = tr("No answer from %1\$s: %2\$s", url, it.message) }
                 }
-            }) { Text("Save") }
+            }) { Text(tr("Save")) }
             if (message.isNotEmpty()) Text(message, color = Colors.dim, fontSize = 14.sp)
 
             if (!firstRun) {
@@ -119,26 +121,26 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                 UnlockSection(library)
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Text("On this device", color = Colors.accent)
-                Text("Downloads: ${"%.1f".format(used / 1e9)} GB", fontSize = 15.sp)
-                OutlinedButton(onClick = { library.downloads.deleteAll(); refresh++ }) { Text("Remove all downloads") }
-                Text(if (waiting == 0) "Nothing waiting to be sent to the PC." else "$waiting reports waiting for the PC (sent when it answers).",
+                Text(tr("On this device"), color = Colors.accent)
+                Text(tr("Downloads: %.1f GB", used / 1e9), fontSize = 15.sp)
+                OutlinedButton(onClick = { library.downloads.deleteAll(); refresh++ }) { Text(tr("Remove all downloads")) }
+                Text(if (waiting == 0) tr("Nothing waiting to be sent to the PC.") else tr("%d reports waiting for the PC (sent when it answers).", waiting),
                     fontSize = 15.sp, color = Colors.dim)
                 if (waiting > 0) OutlinedButton(onClick = {
                     scope.launch { library.pending.flush(library.api, force = true); refresh++ }
-                }) { Text("Send now") }
+                }) { Text(tr("Send now")) }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 OutlinedButton(onClick = {
-                    message = "Looking for updates…"
+                    message = tr("Looking for updates…")
                     scope.launch {
                         runCatching { Updater.newer() }
-                            .onSuccess { r -> if (r == null) message = "This is the newest version." else { message = ""; onUpdate(r) } }
-                            .onFailure { message = "Couldn't check: ${it.message}" }
+                            .onSuccess { r -> if (r == null) message = tr("This is the newest version.") else { message = ""; onUpdate(r) } }
+                            .onFailure { message = tr("Couldn't check: %s", it.message) }
                     }
-                }) { Text("Check for updates") }
+                }) { Text(tr("Check for updates")) }
             }
-            Text("Version ${BuildConfig.VERSION_NAME}", color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
+            Text(tr("Version %s", BuildConfig.VERSION_NAME), color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
         }
     }
 }
@@ -163,41 +165,41 @@ private fun KnownWordsSection(library: Library) {
     var days by remember { mutableStateOf(known.threshold.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }) }
     var busy by remember { mutableStateOf(false) }
 
-    Text("Word colours from Anki", color = Colors.accent)
+    Text(tr("Word colours from Anki"), color = Colors.accent)
     Text(status, fontSize = 15.sp)
 
     // 1. The German model (spaCy, the same as morphs on the PC).
     when {
-        modelReady -> Text("German model: ready (de_core_news_lg).", fontSize = 14.sp, color = Colors.dim)
-        modelState != null -> Text("German model: $modelState", fontSize = 14.sp, color = Colors.dim)
+        modelReady -> Text(tr("German model: ready (de_core_news_lg)."), fontSize = 14.sp, color = Colors.dim)
+        modelState != null -> Text(tr("German model: %s", modelState), fontSize = 14.sp, color = Colors.dim)
         else -> {
-            Text("The German model (about 550 MB, once) finds each word's form like morphs on the PC.", fontSize = 14.sp, color = Colors.dim)
-            OutlinedButton(onClick = { known.model.download() }) { Text("Download the German model") }
+            Text(tr("The German model (about 550 MB, once) finds each word's form like morphs on the PC."), fontSize = 14.sp, color = Colors.dim)
+            OutlinedButton(onClick = { known.model.download() }) { Text(tr("Download the German model")) }
         }
     }
 
     // 2. Reading AnkiDroid.
     when {
-        app == null -> Text("No kuma3 Anki or AnkiDroid on this device.", fontSize = 14.sp, color = Colors.dim)
-        !allowed -> OutlinedButton(onClick = { ask.launch(known.permission(app)) }) { Text("Allow reading Anki") }
-        else -> Text("Anki: " + when (app) {
+        app == null -> Text(tr("No kuma3 Anki or AnkiDroid on this device."), fontSize = 14.sp, color = Colors.dim)
+        !allowed -> OutlinedButton(onClick = { ask.launch(known.permission(app)) }) { Text(tr("Allow reading Anki")) }
+        else -> Text(tr("Anki: %s.", when (app) {
             "io.github.pedrubik2000.kuma3" -> "kuma3 Anki"
-            "com.ichi2.anki.debug" -> "kuma3 test build"
+            "com.ichi2.anki.debug" -> tr("kuma3 test build")
             else -> app
-        } + ".", fontSize = 14.sp, color = Colors.dim)
+        }), fontSize = 14.sp, color = Colors.dim)
     }
 
     // 3. Known from this stability (days) on.
     OutlinedTextField(days, { v ->
         days = v
         v.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }?.let { known.threshold = it }
-    }, label = { Text("Known from stability (days)") }, singleLine = true,
+    }, label = { Text(tr("Known from stability (days)")) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
 
     if (modelReady && allowed) OutlinedButton(enabled = !busy, onClick = {
         busy = true
         scope.launch { known.refresh(); busy = false }
-    }) { Text(if (busy) "Reading Anki…" else "Read Anki now") }
+    }) { Text(if (busy) tr("Reading Anki…") else tr("Read Anki now")) }
 
     // 4. morphs' Recalc (the PC's daily `morphs recalc`): first what would change, then Apply. kuma3 Anki only.
     if (modelReady && allowed && app != "com.ichi2.anki") {
@@ -206,13 +208,13 @@ private fun KnownWordsSection(library: Library) {
         val recalc = remember { io.github.pedrubik2000.kumapie.mobile.lang.Recalc(known) }
         OutlinedButton(enabled = !busy, onClick = {
             busy = true
-            said = "Working out the order…"
+            said = tr("Working out the order…")
             scope.launch {
                 runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { recalc.plan() } }
                     .onSuccess { plan = it; said = it.describe() }.onFailure { said = it.message ?: it.toString() }
                 busy = false
             }
-        }) { Text("Order new cards (morphs)") }
+        }) { Text(tr("Order new cards (morphs)")) }
         if (said.isNotEmpty()) Text(said, fontSize = 14.sp, color = Colors.dim)
         plan?.takeIf { !it.empty }?.let { p ->
             androidx.compose.material3.Button(enabled = !busy, onClick = {
@@ -223,10 +225,10 @@ private fun KnownWordsSection(library: Library) {
                     plan = null
                     busy = false
                 }
-            }) { Text("Apply") }
+            }) { Text(tr("Apply")) }
         }
-        Text("Like morphs recalc on the PC: after reviewing, new cards with one unknown word come first. Run it on " +
-            "one device only (the PC's morphs and this would undo each other's marked-known words).", fontSize = 13.sp, color = Colors.dim)
+        Text(tr("Like morphs recalc on the PC: after reviewing, new cards with one unknown word come first. Run it on " +
+            "one device only (the PC's morphs and this would undo each other's marked-known words)."), fontSize = 13.sp, color = Colors.dim)
     }
 }
 
@@ -242,21 +244,21 @@ private fun JapaneseWordsSection(library: Library) {
     var busy by remember { mutableStateOf(false) }
     val app = remember { known.ankiApp() }
 
-    Text("Japanese words", color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
+    Text(tr("Japanese words"), color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
     Text(status, fontSize = 15.sp)
     when {
-        ready -> Text("Japanese dictionary: ready (Sudachi core).", fontSize = 14.sp, color = Colors.dim)
-        state != null -> Text("Japanese dictionary: $state", fontSize = 14.sp, color = Colors.dim)
+        ready -> Text(tr("Japanese dictionary: ready (Sudachi core)."), fontSize = 14.sp, color = Colors.dim)
+        state != null -> Text(tr("Japanese dictionary: %s", state), fontSize = 14.sp, color = Colors.dim)
         else -> {
-            Text("The Japanese dictionary (about 80 MB to download, 200 MB on the device, once) splits Japanese into words.",
+            Text(tr("The Japanese dictionary (about 80 MB to download, 200 MB on the device, once) splits Japanese into words."),
                 fontSize = 14.sp, color = Colors.dim)
-            OutlinedButton(onClick = { known.japanese.download() }) { Text("Download the Japanese dictionary") }
+            OutlinedButton(onClick = { known.japanese.download() }) { Text(tr("Download the Japanese dictionary")) }
         }
     }
     if (ready && app != null && known.hasPermission(app)) OutlinedButton(enabled = !busy, onClick = {
         busy = true
         scope.launch { known.refresh(); busy = false }
-    }) { Text(if (busy) "Reading Anki…" else "Read Japanese cards now") }
+    }) { Text(if (busy) tr("Reading Anki…") else tr("Read Japanese cards now")) }
 }
 
 /**
@@ -281,30 +283,31 @@ private fun YomitanSection(library: Library) {
         }
     }
 
-    Text("Dictionaries (Yomitan)", color = Colors.accent)
+    Text(tr("Dictionaries (Yomitan)"), color = Colors.accent)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         io.github.pedrubik2000.kumapie.data.Lang.ALL.forEach { l ->
-            androidx.compose.material3.FilterChip(selected = lang == l, onClick = { lang = l }, label = { Text(l.name) })
+            androidx.compose.material3.FilterChip(selected = lang == l, onClick = { lang = l }, label = { Text(tr(l.name)) })
         }
     }
     val mine = all.filter { it.lang == lang.code }
-    if (mine.isEmpty()) Text("No ${lang.name} dictionaries yet. Import Yomitan .zip files (e.g. kty-de-en for German, Jitendex for Japanese).",
+    val langName = tr(lang.name).let { if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) it.lowercase() else it } // "alemán" mid-sentence
+    if (mine.isEmpty()) Text(tr("No %s dictionaries yet. Import Yomitan .zip files (e.g. kty-de-en for German, Jitendex for Japanese).", langName),
         fontSize = 14.sp, color = Colors.dim)
     mine.forEachIndexed { i, d ->
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(d.title, fontSize = 15.sp)
-                Text(d.kinds + (if (d.revision.isNotBlank()) " · ${d.revision}" else "") + (if (d.updatable) " · updates itself" else ""),
+                Text(d.kinds + (if (d.revision.isNotBlank()) " · ${d.revision}" else "") + (if (d.updatable) " · " + tr("updates itself") else ""),
                     fontSize = 12.sp, color = Colors.dim)
             }
-            IconButton(enabled = i > 0, onClick = { dicts.move(d.folder, -1) }) { Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowUp, "Up") }
-            IconButton(enabled = i < mine.lastIndex, onClick = { dicts.move(d.folder, 1) }) { Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowDown, "Down") }
+            IconButton(enabled = i > 0, onClick = { dicts.move(d.folder, -1) }) { Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowUp, tr("Up")) }
+            IconButton(enabled = i < mine.lastIndex, onClick = { dicts.move(d.folder, 1) }) { Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowDown, tr("Down")) }
             androidx.compose.material3.Switch(d.enabled, { dicts.setEnabled(d.folder, it) })
-            IconButton(onClick = { deleting = d }) { Icon(androidx.compose.material.icons.Icons.Default.Delete, "Delete") }
+            IconButton(onClick = { deleting = d }) { Icon(androidx.compose.material.icons.Icons.Default.Delete, tr("Delete")) }
         }
     }
     OutlinedButton(enabled = !busy, onClick = { pick.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) }) {
-        Text(if (busy) "Working…" else "Import ${lang.name} dictionaries (.zip)")
+        Text(if (busy) tr("Working…") else tr("Import %s dictionaries (.zip)", langName))
     }
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
         if (tree == null) return@rememberLauncherForActivityResult
@@ -313,26 +316,26 @@ private fun YomitanSection(library: Library) {
             val zips = withContext(Dispatchers.IO) { dicts.zipsIn(tree) }
             var n = 0
             val lines = dicts.import(zips, lang) { said = "${++n}/${zips.size}: $it" }
-            said = "${lines.count { "imported" in it }} of ${zips.size} imported." + lines.filterNot { "imported" in it }.joinToString("") { "\n$it" }
+            said = tr("%1\$d of %2\$d imported.", lines.count { "imported" in it }, zips.size) + lines.filterNot { "imported" in it }.joinToString("") { "\n$it" }
             busy = false
         }
     }
-    OutlinedButton(enabled = !busy, onClick = { pickFolder.launch(null) }) { Text("Import a folder of ${lang.name} dictionaries") }
+    OutlinedButton(enabled = !busy, onClick = { pickFolder.launch(null) }) { Text(tr("Import a folder of %s dictionaries", langName)) }
     if (io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.RECOMMENDED[lang.code] != null) OutlinedButton(enabled = !busy, onClick = {
         busy = true
         scope.launch { said = dicts.installRecommended(lang) { said = it }.joinToString("\n"); busy = false }
-    }) { Text("Download the recommended ${lang.name} dictionaries") }
+    }) { Text(tr("Download the recommended %s dictionaries", langName)) }
     if (all.any { it.updatable }) OutlinedButton(enabled = !busy, onClick = {
         busy = true
-        scope.launch { said = dicts.update { said = it }.ifEmpty { listOf("Every dictionary is up to date.") }.joinToString("\n"); busy = false }
-    }) { Text("Check for updates now") }
-    Text("Dictionaries that can update themselves are checked weekly on Wi-Fi.", fontSize = 12.sp, color = Colors.dim)
+        scope.launch { said = dicts.update { said = it }.ifEmpty { listOf(tr("Every dictionary is up to date.")) }.joinToString("\n"); busy = false }
+    }) { Text(tr("Check for updates now")) }
+    Text(tr("Dictionaries that can update themselves are checked weekly on Wi-Fi."), fontSize = 12.sp, color = Colors.dim)
     if (said.isNotEmpty()) Text(said, fontSize = 13.sp, color = Colors.dim)
     deleting?.let { d ->
         androidx.compose.material3.AlertDialog(onDismissRequest = { deleting = null },
-            title = { Text("Delete ${d.title}?") }, text = { Text("You can import it again later.") },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { scope.launch(Dispatchers.IO) { dicts.delete(d.folder) }; deleting = null }) { Text("Delete") } },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = null }) { Text("Cancel") } })
+            title = { Text(tr("Delete %s?", d.title)) }, text = { Text(tr("You can import it again later.")) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { scope.launch(Dispatchers.IO) { dicts.delete(d.folder) }; deleting = null }) { Text(tr("Delete")) } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = null }) { Text(tr("Cancel")) } })
     }
 }
 
@@ -351,20 +354,20 @@ private fun DictionarySection(library: Library) {
         voice = library.voice.describe()
     }
 
-    Text("Word audio", color = Colors.accent)
+    Text(tr("Word audio"), color = Colors.accent)
     when {
-        state != null -> Text("Recordings list: $state", fontSize = 15.sp)
-        built != null -> Text("Recordings list: offline, built $built (which German words have a person's recording).", fontSize = 15.sp)
-        else -> Text("Which German words have a person's recording on Wikimedia Commons: a small list (about 3 MB), once.", fontSize = 15.sp)
+        state != null -> Text(tr("Recordings list: %s", state), fontSize = 15.sp)
+        built != null -> Text(tr("Recordings list: offline, built %s (which German words have a person's recording).", built), fontSize = 15.sp)
+        else -> Text(tr("Which German words have a person's recording on Wikimedia Commons: a small list (about 3 MB), once."), fontSize = 15.sp)
     }
     if (state == null) OutlinedButton(onClick = { dictionary.download() }) {
-        Text(if (built == null) "Download the recordings list" else "Update the recordings list")
+        Text(if (built == null) tr("Download the recordings list") else tr("Update the recordings list"))
     }
     if (voice.isNotEmpty()) Text(voice, fontSize = 14.sp, color = Colors.dim)
     OutlinedButton(onClick = {
         runCatching { context.startActivity(android.content.Intent("com.android.settings.TTS_SETTINGS")) }
-    }) { Text("Speech settings") }
-    Text("Words are read by a person's recording when Wikimedia Commons has one, else by this voice.",
+    }) { Text(tr("Speech settings")) }
+    Text(tr("Words are read by a person's recording when Wikimedia Commons has one, else by this voice."),
         fontSize = 13.sp, color = Colors.dim)
     Text(io.github.pedrubik2000.kumapie.mobile.lang.Dictionary.ATTRIBUTION, fontSize = 12.sp, color = Colors.dim)
 }
@@ -387,9 +390,9 @@ private fun UnlockSection(library: Library) {
         lifecycle.lifecycle.currentStateFlow.collect { overlay = android.provider.Settings.canDrawOverlays(context) }
     }
 
-    Text("Unlock", color = Colors.accent)
+    Text(tr("Unlock"), color = Colors.accent)
     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-        Text("Show an i+1 scene every time I unlock", fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text(tr("Show an i+1 scene every time I unlock"), fontSize = 15.sp, modifier = Modifier.weight(1f))
         androidx.compose.material3.Switch(checked = on, onCheckedChange = {
             on = it
             library.settings.unlockScenes = it
@@ -397,15 +400,15 @@ private fun UnlockSection(library: Library) {
         })
     }
     if (on && !overlay) {
-        Text("Allow \"Display over other apps\" so the scene can open when you unlock.", fontSize = 14.sp, color = Colors.dim)
+        Text(tr("Allow \"Display over other apps\" so the scene can open when you unlock."), fontSize = 14.sp, color = Colors.dim)
         OutlinedButton(onClick = {
             context.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 android.net.Uri.parse("package:" + context.packageName)))
-        }) { Text("Allow display over other apps") }
+        }) { Text(tr("Allow display over other apps")) }
     }
-    if (on) Text(if (pool > 0) "$pool i+1 scenes to pick from (refreshed when kumapie opens)."
-        else "Reading the episodes for i+1 scenes…", fontSize = 13.sp, color = Colors.dim)
-    Text("If the separate Unlock Cards app is still on, turn it off so only one opens.", fontSize = 13.sp, color = Colors.dim)
+    if (on) Text(if (pool > 0) tr("%d i+1 scenes to pick from (refreshed when kumapie opens).", pool)
+        else tr("Reading the episodes for i+1 scenes…"), fontSize = 13.sp, color = Colors.dim)
+    Text(tr("If the separate Unlock Cards app is still on, turn it off so only one opens."), fontSize = 13.sp, color = Colors.dim)
 }
 
 /** New episodes made on the tablet: the Soniox key (kept only in kumapie's private settings) and the English source. */
@@ -425,48 +428,48 @@ private fun NewEpisodesSection(library: Library) {
     val gemmaState by remember { gemma.state() }.collectAsState(initial = null)
     var gemmaReady by remember { mutableStateOf(gemma.isReady) }
     LaunchedEffect(gemmaState) { gemmaReady = gemma.isReady }
-    Text("New episodes", color = Colors.accent)
-    Text("Transcription", fontSize = 15.sp)
+    Text(tr("New episodes"), color = Colors.accent)
+    Text(tr("Transcription"), fontSize = 15.sp)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        androidx.compose.material3.FilterChip(selected = transcriber == "soniox", label = { Text("Soniox (best, paid)") },
+        androidx.compose.material3.FilterChip(selected = transcriber == "soniox", label = { Text(tr("Soniox (best, paid)")) },
             onClick = { transcriber = "soniox"; library.settings.transcriber = "soniox" })
-        androidx.compose.material3.FilterChip(selected = transcriber == "parakeet", label = { Text("Parakeet on the tablet (free, offline)") },
+        androidx.compose.material3.FilterChip(selected = transcriber == "parakeet", label = { Text(tr("Parakeet on the tablet (free, offline)")) },
             onClick = { transcriber = "parakeet"; library.settings.transcriber = "parakeet" })
     }
     if (transcriber == "parakeet") when {
-        parakeetReady -> Text("Parakeet: ready. More mistakes than Soniox (about 1 word in 9 differed in a test).",
+        parakeetReady -> Text(tr("Parakeet: ready. More mistakes than Soniox (about 1 word in 9 differed in a test)."),
             fontSize = 13.sp, color = Colors.dim)
-        parakeetState != null -> Text("Parakeet: $parakeetState", fontSize = 13.sp, color = Colors.dim)
-        else -> OutlinedButton(onClick = { parakeet.download() }) { Text("Download Parakeet (about 640 MB, once)") }
+        parakeetState != null -> Text(tr("Parakeet: %s", parakeetState), fontSize = 13.sp, color = Colors.dim)
+        else -> OutlinedButton(onClick = { parakeet.download() }) { Text(tr("Download Parakeet (about 640 MB, once)")) }
     }
-    OutlinedTextField(key, { key = it; library.settings.sonioxKey = it }, label = { Text("Soniox API key") }, singleLine = true,
+    OutlinedTextField(key, { key = it; library.settings.sonioxKey = it }, label = { Text(tr("Soniox API key")) }, singleLine = true,
         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(rd, { rd = it; library.settings.rdToken = it }, label = { Text("Real-Debrid token (real-debrid.com/apitoken)") },
+    OutlinedTextField(rd, { rd = it; library.settings.rdToken = it }, label = { Text(tr("Real-Debrid token (real-debrid.com/apitoken)")) },
         singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, label = { Text("Jimaku API key (jimaku.cc > Account), Japanese subtitles") },
+    OutlinedTextField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, label = { Text(tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles")) },
         singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-    Text("English subtitles", fontSize = 15.sp)
+    Text(tr("English subtitles"), fontSize = 15.sp)
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        androidx.compose.material3.FilterChip(selected = english == "soniox", label = { Text("Soniox (best, no extra cost)") },
+        androidx.compose.material3.FilterChip(selected = english == "soniox", label = { Text(tr("Soniox (best, no extra cost)")) },
             onClick = { english = "soniox"; library.settings.englishSource = "soniox" })
-        androidx.compose.material3.FilterChip(selected = english == "gemma", label = { Text("Gemma on the tablet (free, offline, good)") },
+        androidx.compose.material3.FilterChip(selected = english == "gemma", label = { Text(tr("Gemma on the tablet (free, offline, good)")) },
             onClick = { english = "gemma"; library.settings.englishSource = "gemma" })
-        androidx.compose.material3.FilterChip(selected = english == "device", label = { Text("Google's translator (instant, rough)") },
+        androidx.compose.material3.FilterChip(selected = english == "device", label = { Text(tr("Google's translator (instant, rough)")) },
             onClick = { english = "device"; library.settings.englishSource = "device" })
-        androidx.compose.material3.FilterChip(selected = english == "none", label = { Text("None (no translation, fastest)") },
+        androidx.compose.material3.FilterChip(selected = english == "none", label = { Text(tr("None (no translation, fastest)")) },
             onClick = { english = "none"; library.settings.englishSource = "none" })
     }
     if (english == "soniox" && transcriber == "parakeet") {
-        Text("With Parakeet there is no Soniox: the English then comes from Google's translator.", fontSize = 13.sp, color = Colors.dim)
+        Text(tr("With Parakeet there is no Soniox: the English then comes from Google's translator."), fontSize = 13.sp, color = Colors.dim)
     }
     if (english == "gemma") when {
-        gemmaReady -> Text("Gemma: ready. It takes about 3 seconds a line (some 15 minutes for a 10-minute video) in the background.",
+        gemmaReady -> Text(tr("Gemma: ready. It takes about 3 seconds a line (some 15 minutes for a 10-minute video) in the background."),
             fontSize = 13.sp, color = Colors.dim)
-        gemmaState != null -> Text("Gemma: $gemmaState", fontSize = 13.sp, color = Colors.dim)
-        else -> OutlinedButton(onClick = { gemma.download() }) { Text("Download Gemma (about 2.8 GB, once)") }
+        gemmaState != null -> Text(tr("Gemma: %s", gemmaState), fontSize = 13.sp, color = Colors.dim)
+        else -> OutlinedButton(onClick = { gemma.download() }) { Text(tr("Download Gemma (about 2.8 GB, once)")) }
     }
-    Text("Add episodes with + on the home screen (YouTube, magnets, Real-Debrid links, video files), or share a link to kumapie.", fontSize = 13.sp, color = Colors.dim)
+    Text(tr("Add episodes with + on the home screen (YouTube, magnets, Real-Debrid links, video files), or share a link to kumapie."), fontSize = 13.sp, color = Colors.dim)
     FollowedChannels(library)
 }
 
@@ -478,35 +481,35 @@ private fun FollowedChannels(library: Library) {
     var list by remember { mutableStateOf(subs.all()) }
     var from by remember { mutableStateOf(library.settings.subFrom) }
     var to by remember { mutableStateOf(library.settings.subTo) }
-    Text("Followed channels", color = Colors.accent, modifier = Modifier.padding(top = 12.dp))
+    Text(tr("Followed channels"), color = Colors.accent, modifier = Modifier.padding(top = 12.dp))
     if (list.isEmpty()) {
-        Text("None yet. In Add an episode, paste a channel's video, pick its shorts or videos and turn on Follow.", fontSize = 13.sp, color = Colors.dim)
+        Text(tr("None yet. In Add an episode, paste a channel's video, pick its shorts or videos and turn on Follow."), fontSize = 13.sp, color = Colors.dim)
         return
     }
     list.forEach { s ->
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text((s.name.ifBlank { s.url.substringAfter("youtube.com/").substringBefore('?') }) + " · " + (if (s.kind == "shorts") "shorts" else "videos"), fontSize = 15.sp)
-                Text("${s.perRun} a night · " + (if (s.lastCheck > 0) "checked " + android.text.format.DateUtils.getRelativeTimeSpanString(s.lastCheck) else "not checked yet"),
+                Text((s.name.ifBlank { s.url.substringAfter("youtube.com/").substringBefore('?') }) + " · " + (if (s.kind == "shorts") tr("shorts") else tr("videos")), fontSize = 15.sp)
+                Text(tr("%d a night", s.perRun) + " · " + (if (s.lastCheck > 0) tr("checked %s", android.text.format.DateUtils.getRelativeTimeSpanString(s.lastCheck)) else tr("not checked yet")),
                     fontSize = 13.sp, color = Colors.dim)
             }
             listOf(1, 5, 10).forEach { n ->
                 androidx.compose.material3.FilterChip(selected = s.perRun == n, label = { Text("$n") }, modifier = Modifier.padding(start = 4.dp),
                     onClick = { subs.save(subs.all().map { if (it == s) it.copy(perRun = n) else it }); list = subs.all() })
             }
-            androidx.compose.material3.TextButton(onClick = { subs.remove(s); list = subs.all() }) { Text("Remove") }
+            androidx.compose.material3.TextButton(onClick = { subs.remove(s); list = subs.all() }) { Text(tr("Remove")) }
         }
     }
     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Download between", fontSize = 14.sp)
+        Text(tr("Download between"), fontSize = 14.sp)
         OutlinedTextField(from.toString(), { v -> v.filter(Char::isDigit).take(2).toIntOrNull()?.takeIf { it in 0..23 }?.let { from = it; library.settings.subFrom = it } },
             singleLine = true, modifier = Modifier.width(70.dp))
-        Text("and", fontSize = 14.sp)
+        Text(tr("and"), fontSize = 14.sp)
         OutlinedTextField(to.toString(), { v -> v.filter(Char::isDigit).take(2).toIntOrNull()?.takeIf { it in 0..24 }?.let { to = it; library.settings.subTo = it } },
             singleLine = true, modifier = Modifier.width(70.dp))
-        Text("o'clock, on Wi-Fi", fontSize = 14.sp)
+        Text(tr("o'clock, on Wi-Fi"), fontSize = 14.sp)
     }
-    OutlinedButton(onClick = { io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.checkNow(context) }) { Text("Check now") }
+    OutlinedButton(onClick = { io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.checkNow(context) }) { Text(tr("Check now")) }
 }
 
 /** English words from 🐻 English (English Core 1000): spaCy's English model (downloaded once) and reading Anki for English. */
@@ -520,15 +523,30 @@ private fun EnglishWordsSection(library: Library) {
     LaunchedEffect(state) { ready = known.model.isReady }
     var busy by remember { mutableStateOf(false) }
     val app = remember { known.ankiApp() }
-    Text("English words", color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
+    Text(tr("English words"), color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
     Text(status, fontSize = 15.sp)
     when {
-        ready -> Text("English model: ready (${known.model.name}).", fontSize = 14.sp, color = Colors.dim)
-        state != null -> Text("English model: $state", fontSize = 14.sp, color = Colors.dim)
-        else -> OutlinedButton(onClick = { known.model.download() }) { Text("Download the English model (about 40 MB)") }
+        ready -> Text(tr("English model: ready (%s).", known.model.name), fontSize = 14.sp, color = Colors.dim)
+        state != null -> Text(tr("English model: %s", state), fontSize = 14.sp, color = Colors.dim)
+        else -> OutlinedButton(onClick = { known.model.download() }) { Text(tr("Download the English model (about 40 MB)")) }
     }
     if (ready && app != null && known.hasPermission(app)) OutlinedButton(enabled = !busy, onClick = {
         busy = true
         scope.launch { known.refresh(); busy = false }
-    }) { Text(if (busy) "Reading Anki…" else "Read English cards now") }
+    }) { Text(if (busy) tr("Reading Anki…") else tr("Read English cards now")) }
+}
+
+/** The menus' language: the phone's, English or Spanish. The screen restarts so every text redraws. */
+@Composable
+private fun MenuLanguage(settings: Settings) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Text(tr("Menu language"), color = Colors.accent)
+    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("" to tr("Phone's language"), "en" to "English", "es" to "Español").forEach { (code, label) ->
+            androidx.compose.material3.FilterChip(selected = settings.menuLanguage == code, label = { Text(label) }, onClick = {
+                settings.menuLanguage = code
+                (context as? android.app.Activity)?.recreate()
+            })
+        }
+    }
 }

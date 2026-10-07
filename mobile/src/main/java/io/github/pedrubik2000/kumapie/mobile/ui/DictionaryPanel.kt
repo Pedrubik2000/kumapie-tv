@@ -26,6 +26,7 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /**
  * The picked word in the dictionary, under the card's own meaning: every entry and sense (the first entries and
@@ -56,27 +57,27 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
         verticalArrangement = Arrangement.spacedBy(3.dp)) {
         val found = entries
         when {
-            found == null -> Text("Looking it up…", color = Colors.dim, fontSize = 14.sp)
+            found == null -> Text(tr("Looking it up…"), color = Colors.dim, fontSize = 14.sp)
             headwords.isNotEmpty() && found.isNotEmpty() -> {
                 val fits = remember(found) { if (picker.selectedInDef != null) null else SensePick.best(found, SensePick.english(ctl.scene, picker.line)) }
-                fits?.let { (i, j) -> Text("In this line: " + found[i].senses[j].gloss, color = Colors.accent, fontSize = 15.sp) }
+                fits?.let { (i, j) -> Text(tr("In this line: %s", found[i].senses[j].gloss), color = Colors.accent, fontSize = 15.sp) }
                 YomitanPopup(library, ctl.lang, headwords, onSpeak = { library.voice.speak(it.expression) }, compact = true)
             }
             found.isEmpty() -> Text(
-                if (library.yomitan.of(ctl.lang).any { it.enabled && it.terms > 0 }) "Not in the dictionary."
-                else "Download the recommended ${ctl.lang.name} dictionaries in Settings to see meanings here.",
+                if (library.yomitan.of(ctl.lang).any { it.enabled && it.terms > 0 }) tr("Not in the dictionary.")
+                else tr("Download the recommended %s dictionaries in Settings to see meanings here.", ctl.lang.displayName),
                 color = Colors.dim, fontSize = 14.sp,
             )
             else -> {
                 val fits = remember(found) { if (picker.selectedInDef != null) null else SensePick.best(found, SensePick.english(ctl.scene, picker.line)) }
                 fits?.let { (i, j) ->
-                    Text("In this line: " + found[i].senses[j].gloss, color = Colors.accent, fontSize = 15.sp)
+                    Text(tr("In this line: %s", found[i].senses[j].gloss), color = Colors.accent, fontSize = 15.sp)
                 }
                 val shown = if (all) found else found.take(2)
                 shown.forEachIndexed { i, e -> Entry(e, all, fits?.takeIf { it.first == i }?.second) }
                 val more = found.size > shown.size || (!all && shown.any { it.senses.size > 3 })
-                if (more) TextButton(onClick = { all = true }) { Text("All meanings (${found.sumOf { it.senses.size }})", fontSize = 14.sp) }
-                if (found.any { it.online }) Text("From Wiktionary online, saved on this device.", color = Colors.dim, fontSize = 12.sp)
+                if (more) TextButton(onClick = { all = true }) { Text(tr("All meanings (%d)", found.sumOf { it.senses.size }), fontSize = 14.sp) }
+                if (found.any { it.online }) Text(tr("From Wiktionary online, saved on this device."), color = Colors.dim, fontSize = 12.sp)
             }
         }
     }
@@ -98,8 +99,8 @@ private fun JapanesePanel(library: Library, ctl: SceneController, picker: WordPi
     HorizontalDivider(Modifier.padding(top = 8.dp, bottom = 4.dp), color = Colors.dim.copy(alpha = 0.3f))
     Column { // the cards scroll inside the popup; a second scroller here fought with it
         when {
-            !library.knownJa.modelReady -> Text("Download the Japanese words dictionary (Sudachi) in Settings first.", color = Colors.dim, fontSize = 14.sp)
-            headwords == null -> Text("Looking it up…", color = Colors.dim, fontSize = 14.sp)
+            !library.knownJa.modelReady -> Text(tr("Download the Japanese words dictionary (Sudachi) in Settings first."), color = Colors.dim, fontSize = 14.sp)
+            headwords == null -> Text(tr("Looking it up…"), color = Colors.dim, fontSize = 14.sp)
             else -> {
                 // "In this line": the bilingual meaning that shares the most words with the line's English.
                 val fit = remember(headwords) {
@@ -108,7 +109,7 @@ private fun JapanesePanel(library: Library, ctl: SceneController, picker: WordPi
                         ?.flatMap { g -> g.senses.flatMap { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.bilingualMeanings(it) } }?.distinct().orEmpty()
                     SensePick.bestMeaning(meanings, SensePick.english(ctl.scene, picker.line))?.let { meanings[it] }
                 }
-                fit?.let { Text("In this line: $it", color = Colors.accent, fontSize = 15.sp, modifier = Modifier.padding(bottom = 4.dp)) }
+                fit?.let { Text(tr("In this line: %s", it), color = Colors.accent, fontSize = 15.sp, modifier = Modifier.padding(bottom = 4.dp)) }
                 YomitanPopup(library, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE, headwords!!,
                     onSpeak = { library.speakJa(it.expression, it.reading) }, compact = true)
             }

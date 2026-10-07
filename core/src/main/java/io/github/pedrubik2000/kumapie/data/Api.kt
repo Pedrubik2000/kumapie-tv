@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.data
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -144,7 +145,7 @@ class Api(private val base: String) : Backend {
         conn.setRequestProperty("Content-Type", "application/json")
         try {
             conn.outputStream.use { it.write(body.toByteArray()) }
-            if (conn.responseCode != 200) throw IOException("HTTP ${conn.responseCode} for $path")
+            if (conn.responseCode != 200) throw IOException(tr("HTTP %1\$d for %2\$s", conn.responseCode, path))
             conn.inputStream.bufferedReader().use { it.readText() }
         } finally {
             conn.disconnect()
@@ -157,7 +158,7 @@ class Api(private val base: String) : Backend {
         conn.connectTimeout = 8_000
         conn.readTimeout = 20_000
         try {
-            if (conn.responseCode != 200) throw IOException("HTTP ${conn.responseCode} for $path")
+            if (conn.responseCode != 200) throw IOException(tr("HTTP %1\$d for %2\$s", conn.responseCode, path))
             conn.inputStream.bufferedReader().use { it.readText() }
                 .also { Log.i("kumapie", "GET $path: ${it.length} chars in ${System.currentTimeMillis() - started} ms") }
         } finally {

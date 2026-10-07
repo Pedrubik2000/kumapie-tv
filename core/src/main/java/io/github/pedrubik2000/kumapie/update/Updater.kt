@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.update
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -42,7 +43,7 @@ object Updater {
         conn.readTimeout = 15_000
         try {
             if (conn.responseCode == 404) return@withContext null // no release yet
-            if (conn.responseCode != 200) throw IOException("GitHub answered ${conn.responseCode}")
+            if (conn.responseCode != 200) throw IOException(tr("GitHub answered %d", conn.responseCode))
             val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
             val assets = json.getJSONArray("assets")
             val apk = (0 until assets.length()).map { assets.getJSONObject(it) }
@@ -86,7 +87,7 @@ object Updater {
                 } else break
             }
             try {
-                if (conn.responseCode != 200) throw IOException("download failed: HTTP ${conn.responseCode}")
+                if (conn.responseCode != 200) throw IOException(tr("download failed: HTTP %d", conn.responseCode))
                 val total = conn.contentLengthLong.takeIf { it > 0 }
                 conn.inputStream.use { input ->
                     out.outputStream().use { output ->

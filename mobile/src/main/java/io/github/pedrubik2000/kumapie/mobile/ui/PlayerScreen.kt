@@ -91,6 +91,7 @@ import io.github.pedrubik2000.kumapie.ui.MeaningCard
 import io.github.pedrubik2000.kumapie.ui.SubtitleTap
 import io.github.pedrubik2000.kumapie.ui.Subtitles
 import kotlinx.coroutines.delay
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** Loads the episode (from the PC, or its download), then plays it scene by scene, full screen in landscape. */
 @Composable
@@ -114,8 +115,8 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(error ?: "", color = Colors.text)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { attempt++ }) { Text("Try again") }
-                    TextButton(onClick = onBack) { Text("Back") }
+                    Button(onClick = { attempt++ }) { Text(tr("Try again")) }
+                    TextButton(onClick = onBack) { Text(tr("Back")) }
                 }
             }
             d == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 18.sp,
@@ -267,7 +268,7 @@ internal fun ScenePlayer(
                         },
                         onDoubleTap = { p ->
                             picker.close()
-                            if (p.x < size.width / 2) { ctl.replayLine(); flash("↺ line") } else { ctl.replayScene(); flash("↺ scene") }
+                            if (p.x < size.width / 2) { ctl.replayLine(); flash(tr("↺ line")) } else { ctl.replayScene(); flash(tr("↺ scene")) }
                         },
                     )
                 }
@@ -344,21 +345,21 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
             .padding(horizontal = 8.dp, vertical = 6.dp).padding(bottom = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Colors.text) }
+        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Colors.text) }
         Text("${ctl.episode.show} · ${ctl.episode.title}", color = Colors.text, fontSize = 15.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        val modes = listOfNotNull(if (ctl.newStraight) "new: straight" else null,
-            if (ctl.pauseAtSceneStart) "primed" else null, if (ctl.pauseAtSceneEnd) null else "plays on",
+        val modes = listOfNotNull(if (ctl.newStraight) tr("new: straight") else null,
+            if (ctl.pauseAtSceneStart) tr("primed") else null, if (ctl.pauseAtSceneEnd) null else tr("plays on"),
             if (ctl.slow) "0.75x" else null)
         if (modes.isNotEmpty()) Text(modes.joinToString(" · "), color = Colors.dim, fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 8.dp))
         // One scene alone (feed, unlock): its place in the episode.
         // Tap: the list of scenes, to jump to one.
-        Text(if (ctl.scenes.size == 1) "scene ${scene.index + 1}" else "${scene.index + 1} / ${ctl.scenes.size}",
+        Text(if (ctl.scenes.size == 1) tr("scene %d", scene.index + 1) else "${scene.index + 1} / ${ctl.scenes.size}",
             color = Colors.text, fontSize = 15.sp, modifier = if (ctl.scenes.size > 1)
                 Modifier.clickable(onClick = onScenes).padding(horizontal = 6.dp, vertical = 8.dp) else Modifier)
         LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 10.dp))
-        IconButton(onClick = onOptions) { Icon(Icons.Default.MoreVert, "Options", tint = Colors.text) }
+        IconButton(onClick = onOptions) { Icon(Icons.Default.MoreVert, tr("Options"), tint = Colors.text) }
     }
 }
 
@@ -389,7 +390,7 @@ private fun SceneList(ctl: SceneController, onPick: (Int) -> Unit) {
                 Text("%d:%02d".format(start / 60, start % 60), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.width(52.dp))
                 Text(sc.cues.firstOrNull()?.text ?: "", fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f))
-                if (sc.seen) Icon(Icons.Default.Check, "Seen", tint = Colors.dim, modifier = Modifier.padding(horizontal = 6.dp).size(16.dp))
+                if (sc.seen) Icon(Icons.Default.Check, tr("Seen"), tint = Colors.dim, modifier = Modifier.padding(horizontal = 6.dp).size(16.dp))
                 LevelBadge(ctl.levelOf(sc))
             }
         }
@@ -403,14 +404,14 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> 
     val marked = word?.let { ctl.words[it]?.marked } == true
     Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = picker::hearWord) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Hear the word", tint = Colors.text) }
+        IconButton(onClick = picker::hearWord) { Icon(Icons.AutoMirrored.Filled.VolumeUp, tr("Hear the word"), tint = Colors.text) }
         if (picker.definition != null) {
-            IconButton(onClick = picker::hearDefinition) { Icon(Icons.Default.RecordVoiceOver, "Hear the definition", tint = Colors.text) }
+            IconButton(onClick = picker::hearDefinition) { Icon(Icons.Default.RecordVoiceOver, tr("Hear the definition"), tint = Colors.text) }
         }
-        IconButton(onClick = picker::replayLine) { Icon(Icons.Default.Replay, "Replay the line", tint = Colors.text) }
-        IconButton(onClick = onMine) { Icon(Icons.Default.BookmarkAdd, "Add to Anki", tint = Colors.text) }
+        IconButton(onClick = picker::replayLine) { Icon(Icons.Default.Replay, tr("Replay the line"), tint = Colors.text) }
+        IconButton(onClick = onMine) { Icon(Icons.Default.BookmarkAdd, tr("Add to Anki"), tint = Colors.text) }
         Spacer(Modifier.weight(1f, fill = false).width(8.dp))
-        FilterChip(selected = marked, onClick = picker::toggleKnown, label = { Text(if (marked) "Known" else "Mark known") },
+        FilterChip(selected = marked, onClick = picker::toggleKnown, label = { Text(if (marked) tr("Known") else tr("Mark known")) },
             leadingIcon = if (marked) ({ Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }) else null)
     }
 }
@@ -421,31 +422,31 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
                     onShift: ((Double) -> Unit)? = null, shifted: Double? = null) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OptionRow("Primed Listening: pause at the start of each scene (read, then play)", ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
-        OptionRow("Pause at the end of each scene", ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
-        OptionRow("Scenes I haven't seen: play straight through (no pauses, nothing skipped)", ctl.newStraight, ctl::toggleNewStraight)
-        OptionRow("Slow (0.75x)", ctl.slow, ctl::toggleSlow)
-        if (onUpright != null) OptionRow("Upright: scene by scene, swipe up", uprightNow, onUpright)
+        OptionRow(tr("Primed Listening: pause at the start of each scene (read, then play)"), ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
+        OptionRow(tr("Pause at the end of each scene"), ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
+        OptionRow(tr("Scenes I haven't seen: play straight through (no pauses, nothing skipped)"), ctl.newStraight, ctl::toggleNewStraight)
+        OptionRow(tr("Slow (0.75x)"), ctl.slow, ctl::toggleSlow)
+        if (onUpright != null) OptionRow(tr("Upright: scene by scene, swipe up"), uprightNow, onUpright)
         if (onShift != null) {
-            Text("Subtitle timing" + (shifted?.takeIf { it != 0.0 }?.let { " (moved %+.1f s so far)".format(java.util.Locale.ROOT, it) } ?: ""),
+            Text(tr("Subtitle timing") + (shifted?.takeIf { it != 0.0 }?.let { tr(" (moved %+.1f s so far)").format(java.util.Locale.ROOT, it) } ?: ""),
                 color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 listOf(-1.0, -0.5, -0.1, 0.1, 0.5, 1.0).forEach { s ->
                     FilterChip(selected = false, onClick = { onShift(s) }, label = { Text("%+.1f s".format(java.util.Locale.ROOT, s), fontSize = 12.sp) })
                 }
             }
-            Text("− shows the subtitles earlier, + later. Every line of the episode moves.", color = Colors.dim, fontSize = 12.sp)
+            Text(tr("− shows the subtitles earlier, + later. Every line of the episode moves."), color = Colors.dim, fontSize = 12.sp)
         }
-        Text("Subtitles", color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+        Text(tr("Subtitles"), color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(SubtitleMode.HIDDEN, SubtitleMode.BLURRED, SubtitleMode.TARGET, SubtitleMode.BOTH).forEach { m ->
                 FilterChip(selected = ctl.subtitles == m, onClick = { ctl.changeSubtitles(m) }, label = { Text(m.label(ctl.lang), fontSize = 12.sp) })
             }
         }
         Text(
-            "Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
+            tr("Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
                 "right: the scene · tap the subtitles: next mode (hidden: tap the bottom of the screen) · " +
-                "tap a word: its meaning, then tap the words of the German definition too.",
+                "tap a word: its meaning, then tap the words of the German definition too."),
             color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
         )
     }

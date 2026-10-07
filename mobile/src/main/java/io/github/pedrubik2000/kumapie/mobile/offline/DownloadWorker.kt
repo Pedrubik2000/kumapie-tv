@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.offline
 
 import android.app.NotificationChannel
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
@@ -32,7 +33,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
     override suspend fun doWork(): Result {
         val id = inputData.getString(ID) ?: return Result.failure()
-        val title = inputData.getString(TITLE) ?: "episode"
+        val title = inputData.getString(TITLE) ?: tr("episode")
         val api = Api(Settings(applicationContext).server)
         runCatching { setForeground(foreground(title, 0f)) }
 
@@ -41,7 +42,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             Result.success()
         } catch (e: IOException) {
             Log.w("kumapie", "download $id: $e")
-            if (runAttemptCount < 8) Result.retry() else Result.failure(workDataOf(ERROR to (e.message ?: "network error")))
+            if (runAttemptCount < 8) Result.retry() else Result.failure(workDataOf(ERROR to (e.message ?: tr("network error"))))
         }
     }
 
@@ -77,7 +78,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 // A missing audio file is not worth failing the episode for: it plays from the PC when online.
                 runCatching { fetch(url, tmp, resume = false) { _, _ -> }; tmp.renameTo(file) }
                     .onFailure { failed++; tmp.delete() }
-                if (failed > 50 && failed > i / 2) throw IOException("the PC stopped answering")
+                if (failed > 50 && failed > i / 2) throw IOException(tr("the PC stopped answering"))
             }
             if (i % 10 == 0) report(title, "audio", 0.85f + 0.15f * i / jobs.size)
         }
@@ -131,7 +132,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     }
                 }
             }
-            if (total > 0 && done < total) throw IOException("connection closed early")
+            if (total > 0 && done < total) throw IOException(tr("connection closed early"))
         } finally {
             conn.disconnect()
         }
@@ -140,11 +141,11 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
     private fun foreground(title: String, progress: Float): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL) == null) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, "Downloads", NotificationManager.IMPORTANCE_LOW))
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, tr("Downloads"), NotificationManager.IMPORTANCE_LOW))
         }
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Downloading $title")
+            .setContentTitle(tr("Downloading %s", title))
             .setProgress(100, (progress * 100).toInt(), false)
             .setOngoing(true)
             .setSilent(true)

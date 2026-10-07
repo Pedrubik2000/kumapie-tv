@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import android.content.ContentValues
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -77,7 +78,7 @@ class AnkiCards(private val context: Context) {
             while (c.moveToNext()) if (c.getString(1) == name) return c.getLong(0)
         }
         val uri = context.contentResolver.insert(Uri.parse("content://$pkg.flashcards/decks"),
-            ContentValues().apply { put("deck_name", name) }) ?: error("Anki couldn't make the deck $name")
+            ContentValues().apply { put("deck_name", name) }) ?: error(tr("Anki couldn't make the deck %s", name))
         return uri.lastPathSegment!!.toLong()
     }
 
@@ -89,7 +90,7 @@ class AnkiCards(private val context: Context) {
             val added = context.contentResolver.insert(Uri.parse("content://$pkg.flashcards/media"), ContentValues().apply {
                 put("file_uri", uri.toString())
                 put("preferred_name", preferredName)
-            }) ?: error("Anki didn't take the file ${file.name}")
+            }) ?: error(tr("Anki didn't take the file %s", file.name))
             return added.lastPathSegment!!
         } finally {
             context.revokeUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -102,7 +103,7 @@ class AnkiCards(private val context: Context) {
             put("mid", mid)
             put("flds", fields.joinToString(SEPARATOR))
             put("tags", tags.joinToString(" "))
-        }) ?: error("Anki didn't add the note")
+        }) ?: error(tr("Anki didn't add the note"))
         val nid = uri.lastPathSegment!!.toLong()
         // Cards go to the note type's last deck; move them, as AnkiDroid's own API does.
         val ords = ArrayList<Int>()
@@ -137,7 +138,7 @@ class AnkiCards(private val context: Context) {
             put("name", name)
             put("field_names", fields.joinToString(SEPARATOR))
             put("num_cards", 1)
-        })?.lastPathSegment?.toLong() ?: error("Anki didn't add the note type $name")
+        })?.lastPathSegment?.toLong() ?: error(tr("Anki didn't add the note type %s", name))
 
     /** Sets a card's flag (2 = orange: changed by kumapie, as the PC's improve-card does). */
     fun flag(pkg: String, nid: Long, ord: Int, flag: Int) {

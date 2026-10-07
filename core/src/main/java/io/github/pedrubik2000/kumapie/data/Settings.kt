@@ -7,6 +7,13 @@ class Settings(context: Context) {
     /** Public so each app can keep its own settings in the same file (the TV keeps its button map here). */
     val prefs = context.getSharedPreferences("kumapie", Context.MODE_PRIVATE)
 
+    init { io.github.pedrubik2000.kumapie.i18n.Tr.use(menuLanguage) }
+
+    /** The menus' language: "" = the phone's, "en" or "es" (Settings > Menu language; the app restarts its screen). */
+    var menuLanguage: String
+        get() = prefs.getString("ui_lang", "") ?: ""
+        set(value) { prefs.edit().putString("ui_lang", value).apply(); io.github.pedrubik2000.kumapie.i18n.Tr.use(value) }
+
     /** The dojo server, e.g. https://<pc>.<tailnet>.ts.net:8445 (no trailing slash). Empty = not set up yet. */
     var server: String
         get() = prefs.getString("server", "") ?: ""
@@ -65,11 +72,11 @@ enum class Subtitles {
     HIDDEN, BLURRED, TARGET, BOTH, ENGLISH;
 
     fun label(lang: Lang): String = when (this) {
-        HIDDEN -> "Hidden"
-        BLURRED -> "${lang.name}, blurred"
-        TARGET -> lang.name
-        BOTH -> "${lang.name} + ${lang.translationName}"
-        ENGLISH -> lang.translationName
+        HIDDEN -> io.github.pedrubik2000.kumapie.i18n.tr("Hidden")
+        BLURRED -> io.github.pedrubik2000.kumapie.i18n.tr("%s, blurred", lang.displayName)
+        TARGET -> lang.displayName
+        BOTH -> "${lang.displayName} + ${lang.translationDisplayName}"
+        ENGLISH -> lang.translationDisplayName
     }
 
     fun next(): Subtitles = entries[(ordinal + 1) % entries.size]

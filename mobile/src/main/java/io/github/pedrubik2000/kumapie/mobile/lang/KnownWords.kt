@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.content.Context
 import android.util.Log
 import com.chaquo.python.Python
@@ -130,14 +131,15 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
     suspend fun refresh(): Result<Snapshot> = lock.withLock {
         withContext(Dispatchers.IO) {
             runCatching {
-                val pkg = ankiApp() ?: error("No AnkiDroid found on this device.")
-                if (!hasPermission(pkg)) error("kumapie may not read Anki yet: allow it in Settings.")
-                if (!modelReady) error("The ${lang.name} ${if (lang == Lang.JAPANESE) "dictionary" else "model"} isn't downloaded yet.")
+                val pkg = ankiApp() ?: error(tr("No AnkiDroid found on this device."))
+                if (!hasPermission(pkg)) error(tr("kumapie may not read Anki yet: allow it in Settings."))
+                if (!modelReady) error(if (lang == Lang.JAPANESE) tr("The %s dictionary isn't downloaded yet.", lang.displayName)
+                    else tr("The %s model isn't downloaded yet.", lang.displayName))
                 val started = System.currentTimeMillis()
-                _status.value = "Reading Anki…"
+                _status.value = tr("Reading Anki…")
                 val search = noteTypes.joinToString(" OR ", "(", ")") { "\"note:$it\"" }
                 val notes = whileAnkiStarts { anki.notes(pkg, search) }
-                if (notes.isEmpty()) error("No notes of type \"${noteTypes[0]}\" in Anki.")
+                if (notes.isEmpty()) error(tr("No notes of type \"%s\" in Anki.", noteTypes[0]))
                 val cards = anki.cards(pkg, search)
                 val read = System.currentTimeMillis()
 
@@ -155,7 +157,7 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
                 }.toMap()
                 // Monolingual definitions too (Recalc unlocks them), keyed by -note id in the same parse cache.
                 val defs = notes.mapNotNull { n -> n.fields[DEF_MONO]?.takeIf { it.isNotBlank() }?.let { -n.id to it } }.toMap()
-                _status.value = "Parsing ${fields.size} notes…"
+                _status.value = tr("Parsing %d notes…", fields.size)
                 val parsedAll = parse(fields + defs)
                 val morphs = parsedAll.filterKeys { it > 0 }
                 val defMorphs = parsedAll.filterKeys { it < 0 }.mapKeys { -it.key }
@@ -239,7 +241,7 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
                 return read()
             } catch (e: IllegalStateException) {
                 if (e.message?.contains("storage is not configured", true) == true) {
-                    error("That Anki isn't set up yet: open it once, then read Anki again.")
+                    error(tr("That Anki isn't set up yet: open it once, then read Anki again."))
                 }
                 if (e.message?.contains("before AnkiDroidApp was initialized") != true) throw e
                 Log.i("kumapie", "known words: Anki is still starting, trying again")
@@ -273,18 +275,18 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
     }.getOrNull()
 
     private fun describe(): String {
-        val snap = snapshot ?: return if (lang == Lang.GERMAN) "Colours come from the PC until Anki is read here." else "Anki not read yet."
+        val snap = snapshot ?: return if (lang == Lang.GERMAN) tr("Colours come from the PC until Anki is read here.") else tr("Anki not read yet.")
         var known = 0
         var learning = 0
         for (w in snap.words.keys) when (status(w)) { "k" -> known++; "l" -> learning++ }
         val ago = (System.currentTimeMillis() - snap.time) / 60_000
         val whenText = when {
-            ago < 1 -> "just now"
-            ago < 120 -> "$ago min ago"
-            else -> "${ago / 60} h ago"
+            ago < 1 -> tr("just now")
+            ago < 120 -> tr("%d min ago", ago)
+            else -> tr("%d h ago", ago / 60)
         }
-        return "$known known, $learning learning, ${snap.words.size - known - learning} new " +
-            "(${snap.notes} notes, read $whenText)."
+        return tr("%1\$d known, %2\$d learning, %3\$d new (%4\$d notes, read %5\$s).", known, learning,
+            snap.words.size - known - learning, snap.notes, whenText)
     }
 
     companion object {

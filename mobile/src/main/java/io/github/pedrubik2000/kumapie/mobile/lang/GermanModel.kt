@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -48,7 +49,7 @@ class GermanModel(private val context: Context, val lang: io.github.pedrubik2000
 /** Downloads the model wheel, unpacks the model folder from it and deletes the wheel. */
 class ModelWorker(context: Context, params: WorkerParameters) : AssetWorker(context, params) {
     private val model = GermanModel(context, io.github.pedrubik2000.kumapie.data.Lang.of(params.inputData.getString("lang")))
-    override val what = "the ${model.lang.name} model"
+    override val what = tr("the %s model", model.lang.displayName)
     override val notificationId = 999
 
     override suspend fun run() {
@@ -58,7 +59,7 @@ class ModelWorker(context: Context, params: WorkerParameters) : AssetWorker(cont
         fetch(model.url, wheel)
 
         // The wheel holds <name>/<name>-<version>/... : that inner folder is what spaCy loads.
-        report("Unpacking…", 0.95f)
+        report(tr("Unpacking…"), 0.95f)
         val prefix = "${model.name}/${model.name}-${GermanModel.VERSION}/"
         val tmp = File(base, "${model.name}.tmp").apply { deleteRecursively(); mkdirs() }
         ZipInputStream(wheel.inputStream().buffered()).use { zip ->
@@ -71,9 +72,9 @@ class ModelWorker(context: Context, params: WorkerParameters) : AssetWorker(cont
                 out.outputStream().use { zip.copyTo(it) }
             }
         }
-        if (!File(tmp, "config.cfg").exists()) throw IOException("the download is not a spaCy model")
+        if (!File(tmp, "config.cfg").exists()) throw IOException(tr("the download is not a spaCy model"))
         model.dir.deleteRecursively()
-        if (!tmp.renameTo(model.dir)) throw IOException("couldn't move the model into place")
+        if (!tmp.renameTo(model.dir)) throw IOException(tr("couldn't move the model into place"))
         wheel.delete()
     }
 }

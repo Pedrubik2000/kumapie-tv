@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.local
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
@@ -37,7 +38,7 @@ class SubSync(private val context: Context) {
             try {
                 val log = alass(ref, subs, out, "--split-penalty", "11")
                 return@withContext (if (!strayPart(log)) summary(log) else summary(alass(ref, subs, out, "--no-split"))) +
-                    " (to the video's English subtitles)"
+                    tr(" (to the video's English subtitles)")
             } finally {
                 ref.delete()
             }
@@ -59,7 +60,7 @@ class SubSync(private val context: Context) {
             // rest means one offset for everything. ponytail: 20 s guard; TV captures with whole ad breaks
             // differ by more and then need the manual fix.
             val log = alass(ref, subs, out, "--split-penalty", "11")
-            if (!strayPart(log)) summary(log) else summary(alass(ref, subs, out, "--no-split")) + " (one offset: parts looked like songs)"
+            if (!strayPart(log)) summary(log) else summary(alass(ref, subs, out, "--no-split")) + tr(" (one offset: parts looked like songs)")
         } finally {
             ref.delete()
         }
@@ -103,7 +104,7 @@ class SubSync(private val context: Context) {
             fun s(x: Double) = "%+.2f s".format(Locale.ROOT, x)
             val main = shifts.maxByOrNull { it.first }?.second ?: 0.0
             val parts = shifts.count { it.first >= 5 } // a handful of lines alone is noise at a cut, not a part
-            return (if (parts > 1) "$parts parts, mostly ${s(main)}" else s(main)) + (ratio?.let { ", frame rate $it" } ?: "")
+            return (if (parts > 1) tr("%1\$d parts, mostly %2\$s", parts, s(main)) else s(main)) + (ratio?.let { tr(", frame rate %s", it) } ?: "")
         }
     }
 }

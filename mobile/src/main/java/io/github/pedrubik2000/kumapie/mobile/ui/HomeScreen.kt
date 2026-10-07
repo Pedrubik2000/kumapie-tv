@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.github.pedrubik2000.kumapie.data.Show
+import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.mobile.offline.DownloadState
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
@@ -106,31 +107,31 @@ fun HomeScreen(
     val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 600
     var menu by remember { mutableStateOf(false) }
     val more = listOf(
-        Triple(Icons.Default.Refresh, "Refresh") { attempt += 1 },
-        Triple(Icons.Default.School, "Grammar", onGrammar),
-        Triple(Icons.Default.Healing, "Cards that don't stick", onImprove),
-        Triple(Icons.Default.BarChart, "Stats", onStats),
-        Triple(Icons.Default.Translate, "Japanese dictionary", onSearch),
-        Triple(Icons.Default.Settings, "Settings", onSettings),
+        Triple(Icons.Default.Refresh, tr("Refresh")) { attempt += 1 },
+        Triple(Icons.Default.School, tr("Grammar"), onGrammar),
+        Triple(Icons.Default.Healing, tr("Cards that don't stick"), onImprove),
+        Triple(Icons.Default.BarChart, tr("Stats"), onStats),
+        Triple(Icons.Default.Translate, tr("Japanese dictionary"), onSearch),
+        Triple(Icons.Default.Settings, tr("Settings"), onSettings),
     )
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text(if (offline) "kumapie · offline" else "kumapie", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            title = { Text(if (offline) tr("kumapie · offline") else "kumapie", maxLines = 1, overflow = TextOverflow.Ellipsis) },
             actions = {
-                IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, "Add an episode") }
-                IconButton(onClick = onFeed) { Icon(Icons.Default.Swipe, "Feed") }
-                IconButton(onClick = onIPlusOne) { Icon(Icons.Default.AutoAwesome, "i+1 scenes") }
+                IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, tr("Add an episode")) }
+                IconButton(onClick = onFeed) { Icon(Icons.Default.Swipe, tr("Feed")) }
+                IconButton(onClick = onIPlusOne) { Icon(Icons.Default.AutoAwesome, tr("i+1 scenes")) }
                 // Downloads: how many jobs are running or waiting.
                 val jobList by remember { io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker.jobs(context) }.collectAsState(initial = emptyList())
                 val active = jobList.count { it.state == "running" || it.state == "waiting" }
                 IconButton(onClick = onDownloads) {
                     androidx.compose.material3.BadgedBox(badge = { if (active > 0) androidx.compose.material3.Badge { Text("$active") } }) {
-                        Icon(Icons.Default.Download, "Downloads")
+                        Icon(Icons.Default.Download, tr("Downloads"))
                     }
                 }
                 if (!narrow) more.forEach { (icon, label, go) -> IconButton(onClick = go) { Icon(icon, label) } }
                 else Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More") }
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, tr("More")) }
                     androidx.compose.material3.DropdownMenu(menu, { menu = false }) {
                         more.forEach { (icon, label, go) ->
                             androidx.compose.material3.DropdownMenuItem(text = { Text(label) }, leadingIcon = { Icon(icon, null) },
@@ -151,15 +152,15 @@ fun HomeScreen(
         if (langs.size > 1 || kinds.size > 1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (langs.size > 1) langs.forEach { l ->
-                FilterChip(selected = homeLang == l.code, onClick = { onHomeLang(l.code) }, label = { Text(l.name) })
+                FilterChip(selected = homeLang == l.code, onClick = { onHomeLang(l.code) }, label = { Text(tr(l.name)) })
             }
             if (langs.size > 1 && kinds.size > 1) Text("·", color = Colors.dim)
             if (kinds.size > 1) {
                 FilterChip(selected = kind.isEmpty() || kinds.none { it.first == kind }, onClick = { kind = ""; library.settings.prefs.edit().putString("home_kind", "").apply() },
-                    label = { Text("All") })
+                    label = { Text(tr("All")) })
                 kinds.forEach { (k, label) ->
                     FilterChip(selected = kind == k, onClick = { kind = k; library.settings.prefs.edit().putString("home_kind", k).apply() },
-                        label = { Text(label) })
+                        label = { Text(tr(label)) })
                 }
             }
         }
@@ -168,9 +169,9 @@ fun HomeScreen(
             when {
                 error != null && list == null -> Column(Modifier.align(Alignment.Center).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Can't reach the PC", fontSize = 20.sp)
+                    Text(tr("Can't reach the PC"), fontSize = 20.sp)
                     Text(error ?: "", color = Colors.dim, fontSize = 14.sp)
-                    Button(onClick = { attempt++ }) { Text("Try again") }
+                    Button(onClick = { attempt++ }) { Text(tr("Try again")) }
                 }
                 list == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 else -> LazyVerticalGrid(
@@ -187,7 +188,7 @@ fun HomeScreen(
                             Text(show.title, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(top = 6.dp))
                             val n = show.episodes.size
-                            Text((if (n == 1) "1 episode" else "$n episodes") + if (downloaded > 0) " · $downloaded saved" else "",
+                            Text((if (n == 1) tr("1 episode") else tr("%d episodes", n)) + if (downloaded > 0) tr(" · %d saved", downloaded) else "",
                                 fontSize = 12.sp, color = Colors.dim)
                         }
                     }

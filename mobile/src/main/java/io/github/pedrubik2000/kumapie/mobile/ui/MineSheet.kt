@@ -33,6 +33,7 @@ import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
 import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.launch
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** One meaning to choose for a word card. */
 private data class Choice(val label: String, val gloss: String, val example: Pair<String, String>?)
@@ -74,7 +75,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
         entries.forEachIndexed { i, e ->
             e.senses.forEachIndexed { j, s ->
                 if (fits == i to j) fitting = list.size
-                list += Choice("${e.word} (${e.pos}): ${s.gloss}" + if (fits == i to j) "  · fits this line" else "", s.gloss,
+                list += Choice("${e.word} (${e.pos}): ${s.gloss}" + if (fits == i to j) tr("  · fits this line") else "", s.gloss,
                     s.examples.firstOrNull())
             }
         }
@@ -84,15 +85,15 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
 
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Add to Anki · ${ctl.lang.deck}", color = Colors.accent, fontSize = 18.sp)
+        Text(tr("Add to Anki · %s", ctl.lang.deck), color = Colors.accent, fontSize = 18.sp)
         Text(Miner.sentence(scene, line).first, color = Colors.text, fontSize = 18.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text("Sentence card") })
+            FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text(tr("Sentence card")) })
             if (segment?.word != null) FilterChip(selected = wordCard, onClick = { wordCard = true },
-                label = { Text("Word card: ${segment.text}") })
+                label = { Text(tr("Word card: %s", segment.text)) })
         }
         if (wordCard) {
-            if (choices.isEmpty()) Text("Looking up meanings…", color = Colors.dim, fontSize = 14.sp)
+            if (choices.isEmpty()) Text(tr("Looking up meanings…"), color = Colors.dim, fontSize = 14.sp)
             choices.forEachIndexed { i, c ->
                 Row(Modifier.fillMaxWidth().clickable { chosen = i }, verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = chosen == i, onClick = { chosen = i })
@@ -103,7 +104,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
                 }
             }
         } else {
-            Text("The sentence, a video clip of the whole scene and the English.", color = Colors.dim, fontSize = 14.sp)
+            Text(tr("The sentence, a video clip of the whole scene and the English."), color = Colors.dim, fontSize = 14.sp)
         }
         Button(enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
             busy = true
@@ -117,7 +118,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
                     .onFailure { status = it.message ?: it.toString() }
                 busy = false
             }
-        }) { Text(if (done) "Added" else "Add") }
+        }) { Text(if (done) tr("Added") else tr("Add")) }
         if (status.isNotEmpty()) Text(status, color = if (done) Colors.levelZero else Colors.dim, fontSize = 14.sp)
         if (done) LaunchedEffect(Unit) { kotlinx.coroutines.delay(1200); onDone() }
     }
@@ -173,7 +174,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         }.distinctBy { it.gloss }.take(40)
         // The meaning that fits the line's English starts chosen, marked.
         SensePick.bestMeaning(choices.map { it.gloss }, SensePick.english(scene, line))?.let { i ->
-            choices = choices.mapIndexed { k, c -> if (k == i) c.copy(label = c.label + "  · fits this line") else c }
+            choices = choices.mapIndexed { k, c -> if (k == i) c.copy(label = c.label + tr("  · fits this line")) else c }
             chosen = i
         }
         // Monolingual definitions: one per dictionary; encyclopedias (Pixiv, Wikipedia…) last, so a 国語 dictionary leads.
@@ -186,18 +187,18 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
 
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Add to Anki · ${ja.deck}", color = Colors.accent, fontSize = 18.sp)
+        Text(tr("Add to Anki · %s", ja.deck), color = Colors.accent, fontSize = 18.sp)
         Text(cue.text, color = Colors.text, fontSize = 20.sp)
         val hw = headword
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text("Sentence card") })
+            FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text(tr("Sentence card")) })
             if (segment?.word != null) FilterChip(selected = wordCard, onClick = { wordCard = true },
-                label = { Text("Word card: " + (hw?.let { it.expression + if (it.reading.isNotBlank() && it.reading != it.expression) " [${it.reading}]" else "" } ?: segment.text)) })
+                label = { Text(tr("Word card: %s", hw?.let { it.expression + if (it.reading.isNotBlank() && it.reading != it.expression) " [${it.reading}]" else "" } ?: segment.text)) })
         }
         if (wordCard) {
             when {
-                !looked -> Text("Looking up meanings…", color = Colors.dim, fontSize = 14.sp)
-                choices.isEmpty() -> Text("Not in your Japanese dictionaries: a sentence card is still possible.", color = Colors.dim, fontSize = 14.sp)
+                !looked -> Text(tr("Looking up meanings…"), color = Colors.dim, fontSize = 14.sp)
+                choices.isEmpty() -> Text(tr("Not in your Japanese dictionaries: a sentence card is still possible."), color = Colors.dim, fontSize = 14.sp)
             }
             choices.forEachIndexed { i, c ->
                 Row(Modifier.fillMaxWidth().clickable { chosen = i }, verticalAlignment = Alignment.CenterVertically) {
@@ -206,8 +207,8 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
                 }
             }
             if (monos.isNotEmpty()) {
-                Text("Monolingual definition", color = Colors.accent, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp))
-                (monos + Choice("None", "", null)).forEachIndexed { i, c ->
+                Text(tr("Monolingual definition"), color = Colors.accent, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp))
+                (monos + Choice(tr("None"), "", null)).forEachIndexed { i, c ->
                     Row(Modifier.fillMaxWidth().clickable { monoChosen = i }, verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = monoChosen == i, onClick = { monoChosen = i })
                         Text(c.label, color = Colors.text, fontSize = 15.sp)
@@ -215,7 +216,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
                 }
             }
         } else {
-            Text("The line, its audio, a screenshot and the English.", color = Colors.dim, fontSize = 14.sp)
+            Text(tr("The line, its audio, a screenshot and the English."), color = Colors.dim, fontSize = 14.sp)
         }
         Button(enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
             busy = true
@@ -229,7 +230,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
                     .onFailure { status = it.message ?: it.toString() }
                 busy = false
             }
-        }) { Text(if (done) "Added" else "Add") }
+        }) { Text(if (done) tr("Added") else tr("Add")) }
         if (status.isNotEmpty()) Text(status, color = if (done) Colors.levelZero else Colors.dim, fontSize = 14.sp)
         if (done) LaunchedEffect(Unit) { kotlinx.coroutines.delay(1200); onDone() }
     }

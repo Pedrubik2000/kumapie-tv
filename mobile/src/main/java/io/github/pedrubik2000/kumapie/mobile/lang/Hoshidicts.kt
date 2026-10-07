@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.net.Uri
 import android.util.Log
 import io.github.pedrubik2000.kumapie.data.Lang
@@ -87,10 +88,10 @@ class YomitanDictionaries private constructor(private val context: Context) {
                     ?.use { if (it.moveToFirst()) it.getString(0) else null }
             }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "dictionary.zip"
             runCatching {
-                progress("Importing $name…")
+                progress(tr("Importing %s…", name))
                 val zip = File(context.cacheDir, "yomitan-import.zip")
                 context.contentResolver.openInputStream(uri)?.use { input -> zip.outputStream().use { input.copyTo(it) } }
-                    ?: throw IOException("can't read $name")
+                    ?: throw IOException(tr("can't read %s", name))
                 importFile(zip, lang, null, groupOf(name))
             }.getOrElse { "$name: ${it.message}" }
         }
@@ -104,13 +105,13 @@ class YomitanDictionaries private constructor(private val context: Context) {
         val tmp = File(base, ".import").apply { deleteRecursively(); mkdirs() }
         try {
             val r = JSONObject(Hoshidicts.nativeImport(zip.path, tmp.path))
-            if (!r.optBoolean("ok")) throw IOException(r.optString("error").ifBlank { "not a Yomitan dictionary" })
+            if (!r.optBoolean("ok")) throw IOException(r.optString("error").ifBlank { tr("not a Yomitan dictionary") })
             val folder = r.getString("folder")
             synchronized(this) {
                 closeAll()
                 replacing?.let { if (it.folder != folder) File(base, it.folder).deleteRecursively() }
                 File(base, folder).deleteRecursively()
-                if (!File(tmp, folder).renameTo(File(base, folder))) throw IOException("couldn't move $folder into place")
+                if (!File(tmp, folder).renameTo(File(base, folder))) throw IOException(tr("couldn't move %s into place", folder))
                 val d = Dict(folder, r.getString("title"), lang.code, r.optString("revision"), r.optLong("terms"),
                     r.optLong("freq"), r.optLong("pitch"), r.optLong("kanji"), true, r.optBoolean("isUpdatable"),
                     r.optString("indexUrl").takeIf { it.isNotBlank() && it != "null" },
@@ -119,9 +120,9 @@ class YomitanDictionaries private constructor(private val context: Context) {
                 save(if (old >= 0) _all.value.toMutableList().also { it[old] = d.copy(enabled = it[old].enabled) }
                      else _all.value + d)
             }
-            return "${r.getString("title")} ${r.optString("revision")}: imported (" + listOf(r.optLong("terms") to "words",
-                r.optLong("freq") to "frequencies", r.optLong("pitch") to "pronunciations").filter { it.first > 0 }
-                .joinToString { "${it.first} ${it.second}" } + ")"
+            return tr("%1\$s %2\$s: imported (%3\$s)", r.getString("title"), r.optString("revision"), listOf(r.optLong("terms") to tr("words"),
+                r.optLong("freq") to tr("frequencies"), r.optLong("pitch") to tr("pronunciations")).filter { it.first > 0 }
+                .joinToString { "${it.first} ${it.second}" })
         } finally {
             zip.delete()
             tmp.deleteRecursively()
@@ -131,8 +132,8 @@ class YomitanDictionaries private constructor(private val context: Context) {
     /** Downloads [url] (a dictionary zip) and imports it for [lang]. */
     private fun install(url: String, lang: Lang, replacing: Dict?, progress: (String) -> Unit): String {
         val zip = File(context.cacheDir, "yomitan-download.zip")
-        download(url, zip) { mb -> progress("Downloading… $mb MB") }
-        progress("Importing…")
+        download(url, zip) { mb -> progress(tr("Downloading… %d MB", mb)) }
+        progress(tr("Importing…"))
         return importFile(zip, lang, replacing, replacing?.group ?: "")
     }
 
@@ -142,7 +143,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
             runCatching {
                 val index = JSONObject(fetchText(indexUrl))
                 val title = index.getString("title")
-                if (of(lang).any { it.title == title || it.indexUrl == indexUrl }) return@runCatching "$title: already there"
+                if (of(lang).any { it.title == title || it.indexUrl == indexUrl }) return@runCatching tr("%s: already there", title)
                 progress("$title…")
                 install(index.getString("downloadUrl"), lang, null) { progress("$title: $it") }
             }.getOrElse { "${indexUrl.substringAfterLast('/').substringBefore('?')}: ${it.message}" }
@@ -157,13 +158,13 @@ class YomitanDictionaries private constructor(private val context: Context) {
     suspend fun update(progress: (String) -> Unit = {}): List<String> = work.withLock { withContext(Dispatchers.IO) {
         _all.value.filter { it.updatable && it.indexUrl != null }.mapNotNull { d ->
             runCatching {
-                progress("Checking ${d.title}…")
+                progress(tr("Checking %s…", d.title))
                 val index = JSONObject(fetchText(d.indexUrl!!))
                 val revision = index.optString("revision")
                 if (revision.isBlank() || revision == d.revision) return@runCatching null
-                val url = index.optString("downloadUrl").ifBlank { d.downloadUrl ?: throw IOException("no download link") }
+                val url = index.optString("downloadUrl").ifBlank { d.downloadUrl ?: throw IOException(tr("no download link")) }
                 install(url, Lang.of(d.lang), d) { progress("${d.title}: $it") }
-            }.getOrElse { "${d.title}: update failed (${it.message})" }
+            }.getOrElse { tr("%1\$s: update failed (%2\$s)", d.title, it.message) }
         }
     } }
 

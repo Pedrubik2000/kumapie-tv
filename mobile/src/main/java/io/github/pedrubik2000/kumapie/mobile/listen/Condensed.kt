@@ -19,6 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** Padding around each line, as the PC's condensed audio (subs2cia -p 500). */
 private const val PAD = 0.5
@@ -65,12 +66,12 @@ class CondensedService : MediaSessionService() {
                 val settings = Settings(this@CondensedService)
                 val episode = runCatching { Library(this@CondensedService, settings).episode(id) }.getOrElse { e ->
                     android.util.Log.w("kumapie", "condensed $id: $e")
-                    android.widget.Toast.makeText(this@CondensedService, "Couldn't open the episode: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(this@CondensedService, tr("Couldn't open the episode: %s", e.message), android.widget.Toast.LENGTH_LONG).show()
                     episodeId = null
                     return@launch
                 }
                 val player = session?.player ?: return@launch
-                val meta = MediaMetadata.Builder().setTitle(episode.title).setArtist(episode.show + " · condensed")
+                val meta = MediaMetadata.Builder().setTitle(episode.title).setArtist(tr("%s · condensed", episode.show))
                     .setArtworkUri(art?.let(Uri::parse)).build()
                 val items = speech(episode).map { (s, e) ->
                     MediaItem.Builder().setUri(episode.video).setMediaMetadata(meta).setClippingConfiguration(

@@ -48,6 +48,7 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /**
  * The next grammar point: its ten sentences, a picture to choose for each (Openverse; the best match is picked to
@@ -60,7 +61,7 @@ fun GrammarScreen(library: Library, onBack: () -> Unit) {
     val grammar = remember { Grammar(context, library.settings) }
     val scope = rememberCoroutineScope()
     var point by remember { mutableStateOf<Grammar.Point?>(null) }
-    var said by remember { mutableStateOf("Reading the grammar points…") }
+    var said by remember { mutableStateOf(tr("Reading the grammar points…")) }
     var waiting by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf("") } // what the last "Add" did
@@ -72,7 +73,7 @@ fun GrammarScreen(library: Library, onBack: () -> Unit) {
         point = null
         val result = withContext(Dispatchers.IO) {
             runCatching {
-                val pkg = grammar.ankiApp() ?: error("No kuma3 Anki on this device.")
+                val pkg = grammar.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
                 val all = grammar.points()
                 val added = grammar.added(pkg, all)
                 all.filter { it.key !in added }
@@ -81,7 +82,7 @@ fun GrammarScreen(library: Library, onBack: () -> Unit) {
         result.onSuccess { left ->
             waiting = left.size
             point = left.firstOrNull()
-            said = if (left.isEmpty()) "No new grammar points here. Ask Claude on the PC for the next batch." else ""
+            said = if (left.isEmpty()) tr("No new grammar points here. Ask Claude on the PC for the next batch.") else ""
         }.onFailure { said = it.message ?: it.toString() }
         val p = point ?: return@LaunchedEffect
         choices.clear(); choices.addAll(List(p.notes.size) { null })
@@ -92,8 +93,8 @@ fun GrammarScreen(library: Library, onBack: () -> Unit) {
     }
 
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Grammar") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
+        TopAppBar(title = { Text(tr("Grammar")) },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
     }) { padding ->
         val p = point
         if (p == null) {
@@ -109,7 +110,7 @@ fun GrammarScreen(library: Library, onBack: () -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("${p.number}. ${p.title}", color = Colors.accent, fontSize = 20.sp)
                     Text(p.explanation, fontSize = 15.sp)
-                    Text("$waiting point(s) waiting on this device. Choose a picture for each sentence, then add the point.",
+                    Text(tr("%d point(s) waiting on this device. Choose a picture for each sentence, then add the point.", waiting),
                         fontSize = 13.sp, color = Colors.dim)
                 }
             }
@@ -119,8 +120,8 @@ fun GrammarScreen(library: Library, onBack: () -> Unit) {
                     Text(note.english, fontSize = 13.sp, color = Colors.dim)
                     val pics = choices.getOrNull(i)
                     when {
-                        pics == null -> Text("Finding pictures for \"${note.query}\"…", fontSize = 13.sp, color = Colors.dim)
-                        pics.isEmpty() -> Text("No pictures for \"${note.query}\" (offline?). The card gets none.", fontSize = 13.sp, color = Colors.dim)
+                        pics == null -> Text(tr("Finding pictures for \"%s\"…", note.query), fontSize = 13.sp, color = Colors.dim)
+                        pics.isEmpty() -> Text(tr("No pictures for \"%s\" (offline?). The card gets none.", note.query), fontSize = 13.sp, color = Colors.dim)
                         else -> LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             itemsIndexed(pics.take(8)) { k, pic ->
                                 val on = chosen.getOrNull(i) == k
@@ -133,7 +134,7 @@ fun GrammarScreen(library: Library, onBack: () -> Unit) {
                                 val on = chosen.getOrNull(i) == -1
                                 Box(Modifier.size(90.dp).clip(RoundedCornerShape(8.dp))
                                     .border(if (on) 3.dp else 1.dp, if (on) Colors.accent else Colors.dim, RoundedCornerShape(8.dp))
-                                    .clickable { chosen[i] = -1 }, contentAlignment = Alignment.Center) { Text("none", color = Colors.dim) }
+                                    .clickable { chosen[i] = -1 }, contentAlignment = Alignment.Center) { Text(tr("none"), color = Colors.dim) }
                             }
                         }
                     }
@@ -141,8 +142,8 @@ fun GrammarScreen(library: Library, onBack: () -> Unit) {
             }
             item {
                 Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (grammar.addedToday) Text("A point was added today: the deck shows 20 new cards a day, so the next one is " +
-                        "for tomorrow.", fontSize = 14.sp, color = Colors.dim)
+                    if (grammar.addedToday) Text(tr("A point was added today: the deck shows 20 new cards a day, so the next one is " +
+                        "for tomorrow."), fontSize = 14.sp, color = Colors.dim)
                     val add = {
                         busy = true
                         scope.launch {
@@ -154,8 +155,8 @@ fun GrammarScreen(library: Library, onBack: () -> Unit) {
                             reload++
                         }
                     }
-                    if (!grammar.addedToday) Button(enabled = !busy && choices.none { it == null }, onClick = { add() }) { Text("Add to Anki") }
-                    else TextButton(enabled = !busy && choices.none { it == null }, onClick = { add() }) { Text("Add it anyway") }
+                    if (!grammar.addedToday) Button(enabled = !busy && choices.none { it == null }, onClick = { add() }) { Text(tr("Add to Anki")) }
+                    else TextButton(enabled = !busy && choices.none { it == null }, onClick = { add() }) { Text(tr("Add it anyway")) }
                     if (done.isNotEmpty()) Text(done, fontSize = 14.sp)
                 }
             }

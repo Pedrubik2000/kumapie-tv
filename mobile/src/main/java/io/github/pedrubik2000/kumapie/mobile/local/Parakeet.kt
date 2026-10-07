@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.local
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -53,9 +54,9 @@ class Parakeet(private val context: Context) {
      * {"words": canonical words (word/spacing with start/end), "english": []}.
      */
     suspend fun transcribe(audio: File, progress: suspend (String) -> Unit): String {
-        progress("Reading the audio…")
+        progress(tr("Reading the audio…"))
         val samples = decode16k(audio)
-        progress("Finding speech…")
+        progress(tr("Finding speech…"))
         val segments = speech(samples)
         val rec = OfflineRecognizer(null, OfflineRecognizerConfig(modelConfig = OfflineModelConfig(
             transducer = OfflineTransducerModelConfig(encoder = f("encoder"), decoder = f("decoder"), joiner = f("joiner")),
@@ -63,7 +64,7 @@ class Parakeet(private val context: Context) {
         val words = JSONArray()
         try {
             segments.forEachIndexed { i, (start, pcm) ->
-                if (i % 5 == 0) progress("Transcribing on the tablet: ${i * 100 / segments.size}%")
+                if (i % 5 == 0) progress(tr("Transcribing on the tablet: %d%%", i * 100 / segments.size))
                 val st = rec.createStream()
                 st.acceptWaveform(pcm, 16000)
                 rec.decode(st)
@@ -202,7 +203,7 @@ class Parakeet(private val context: Context) {
 /** Downloads Parakeet's files (resumable), each to a .part then renamed. */
 class ParakeetWorker(context: Context, params: WorkerParameters) : AssetWorker(context, params) {
     private val parakeet = Parakeet(context)
-    override val what = "the speech model (Parakeet)"
+    override val what = tr("the speech model (Parakeet)")
     override val notificationId = 996
 
     override suspend fun run() {
@@ -211,7 +212,7 @@ class ParakeetWorker(context: Context, params: WorkerParameters) : AssetWorker(c
             val out = File(parakeet.dir, name)
             if (out.exists()) return@forEachIndexed
             val part = File(parakeet.dir, "$name.part")
-            report("File ${i + 1} of ${Parakeet.FILES.size}", i.toFloat() / Parakeet.FILES.size)
+            report(tr("File %1\$d of %2\$d", i + 1, Parakeet.FILES.size), i.toFloat() / Parakeet.FILES.size)
             fetch(url, part, share = 1f)
             part.renameTo(out)
         }

@@ -45,6 +45,7 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** What the screen was showing, kept while a scene plays (back from the player lands here again). */
 private object ImproveKept {
@@ -85,9 +86,9 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
 
     LaunchedEffect(Unit) {
         if (cards != null) return@LaunchedEffect
-        said = "Reading Anki…"
+        said = tr("Reading Anki…")
         runCatching { withContext(Dispatchers.IO) { improve.struggling() } }
-            .onSuccess { cards = it; said = if (it.isEmpty()) "No cards are struggling right now." else "" }
+            .onSuccess { cards = it; said = if (it.isEmpty()) tr("No cards are struggling right now.") else "" }
             .onFailure { said = it.message ?: it.toString() }
     }
     LaunchedEffect(card) {
@@ -103,9 +104,9 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
     BackHandler { if (card != null) { card = null; candidates = null; said = "" } else leave() }
 
     Scaffold(topBar = {
-        TopAppBar(title = { Text(card?.let { "Improve: ${it.word}" } ?: "Cards that don't stick") },
+        TopAppBar(title = { Text(card?.let { tr("Improve: %s", it.word) } ?: tr("Cards that don't stick")) },
             navigationIcon = { IconButton(onClick = { if (card != null) { card = null; candidates = null; said = "" } else leave() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
     }) { padding ->
         val c = card
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -116,21 +117,21 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
                         .clickable { card = s; candidates = null }.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(s.word, fontSize = 18.sp, color = Colors.accent)
                         Text(s.sentence, fontSize = 15.sp)
-                        Text("${s.lapses} lapses" + (s.stability?.let { " · stability %.1f days".format(it) } ?: ""), fontSize = 12.sp, color = Colors.dim)
+                        Text(tr("%d lapses", s.lapses) + (s.stability?.let { tr(" · stability %.1f days", it) } ?: ""), fontSize = 12.sp, color = Colors.dim)
                     }
                 }
                 return@LazyColumn
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Now: ${c.sentence}", fontSize = 15.sp, color = Colors.dim)
-                    OutlinedTextField(sentence, { sentence = it }, label = { Text("Sentence") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(bilingual, { bilingual = it }, label = { Text("Definition (bilingual)") },
+                    Text(tr("Now: %s", c.sentence), fontSize = 15.sp, color = Colors.dim)
+                    OutlinedTextField(sentence, { sentence = it }, label = { Text(tr("Sentence")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(bilingual, { bilingual = it }, label = { Text(tr("Definition (bilingual)")) },
                         modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp))
-                    OutlinedTextField(monolingual, { monolingual = it }, label = { Text("Definition (monolingual)") },
+                    OutlinedTextField(monolingual, { monolingual = it }, label = { Text(tr("Definition (monolingual)")) },
                         modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp))
                     if (hasRecording) Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Use a person's recording of \"${c.word}\" (Wiktionary)", modifier = Modifier.weight(1f))
+                        Text(tr("Use a person's recording of \"%s\" (Wiktionary)", c.word), modifier = Modifier.weight(1f))
                         Switch(recording, { recording = it })
                     }
                     Button(enabled = !busy, onClick = {
@@ -141,9 +142,9 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
                             cards = cards?.filter { it.note.id != c.note.id }
                             card = null; candidates = null
                         }
-                    }) { Text("Save and flag orange") }
-                    Text(if (candidates == null) "Looking for scenes with \"${c.key ?: c.word}\"…"
-                        else "${candidates?.size ?: 0} other scenes with \"${c.key ?: c.word}\" (easiest first). Tap one to use it, ▶ to watch it.",
+                    }) { Text(tr("Save and flag orange")) }
+                    Text(if (candidates == null) tr("Looking for scenes with \"%s\"…", c.key ?: c.word)
+                        else tr("%1\$d other scenes with \"%2\$s\" (easiest first). Tap one to use it, ▶ to watch it.", candidates?.size ?: 0, c.key ?: c.word),
                         fontSize = 13.sp, color = Colors.dim)
                 }
             }
@@ -157,7 +158,7 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
                         Text(k.english, fontSize = 13.sp, color = Colors.dim)
                         Text("${k.show.title} · ${k.episode.title}" + " · i+${k.unknown}", fontSize = 12.sp, color = Colors.accent)
                     }
-                    IconButton(onClick = { keep(); onPlay(k.show, k.episode, k.scene.start) }) { Icon(Icons.Default.PlayArrow, "Watch the scene") }
+                    IconButton(onClick = { keep(); onPlay(k.show, k.episode, k.scene.start) }) { Icon(Icons.Default.PlayArrow, tr("Watch the scene")) }
                 }
             }
         }

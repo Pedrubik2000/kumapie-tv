@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.local
 
 import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -110,6 +111,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     /** This job's choices, picked in Add an episode ("soniox" / "parakeet"; "soniox" / "gemma" / "device" / "none"). */
     private var transcriber = "soniox"
     private var english = "device"
+    /** The job's last line in the menu language ([SHOWN]); [STAGE] keeps the English one ("Done…", "Failed…"). */
+    private var shown: String? = null
 
     override suspend fun doWork(): Result {
         val url = inputData.getString(URL) ?: return Result.failure()
@@ -119,13 +122,14 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         transcriber = inputData.getString(TRANSCRIBER) ?: settings.transcriber
         english = inputData.getString(ENGLISH) ?: settings.englishSource
         val id = idFor(url)
-        runCatching { setForeground(foreground("Starting…", 0f)) }
+        runCatching { setForeground(foreground(tr("Starting…"), 0f)) }
         return try {
-            Result.success(workDataOf(STAGE to withContext(Dispatchers.IO) { process(id, url, show) }))
+            Result.success(workDataOf(STAGE to withContext(Dispatchers.IO) { process(id, url, show) }, SHOWN to shown))
         } catch (e: Throwable) {
             Log.w("kumapie", "process $url: $e")
             // Succeeds anyway, so the episodes queued after this one still run.
-            Result.success(workDataOf(STAGE to "Failed: " + (e.message?.lineSequence()?.lastOrNull { it.isNotBlank() } ?: e.toString())))
+            val why = e.message?.lineSequence()?.lastOrNull { it.isNotBlank() } ?: e.toString()
+            Result.success(workDataOf(STAGE to "Failed: $why", SHOWN to tr("Failed: %s", why)))
         }
     }
 
@@ -133,18 +137,18 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         // A YouTube channel or playlist: one job per video in it, queued after this one.
         val listKind = inputData.getString(KIND)
         if (listKind != null && !inputData.getBoolean(PART, false)) {
-            report("Asking YouTube…", 0.02f)
+            report(tr("Asking YouTube…"), 0.02f)
             if (!Python.isStarted()) Python.start(AndroidPlatform(applicationContext))
             val qjs = File(applicationContext.applicationInfo.nativeLibraryDir, "libqjs.so").path
             val urls = JSONArray(Python.getInstance().getModule("youtube").callAttr("listing", url, listKind, inputData.getInt(COUNT, 10), qjs).toString())
             for (i in 0 until urls.length()) enqueue(applicationContext, urls.getString(i), showName, height, lang, transcriber, english, part = true,
                 label = "YouTube ${i + 1}/${urls.length()}: ${urls.getString(i).substringAfterLast('/')}")
-            return "YouTube: ${urls.length()} video(s) queued"
+            return "YouTube: ${urls.length()} video(s) queued".also { shown = tr("YouTube: %d video(s) queued", urls.length()) }
         }
-        if (local.json(id).exists()) return "Already here: " + (local.entries().firstOrNull { it.id == id }?.title ?: url)
+        if (local.json(id).exists()) return (local.entries().firstOrNull { it.id == id }?.title ?: url).let { shown = tr("Already here: %s", it); "Already here: $it" }
         val youtube = isYouTube(url)
         val file = url.startsWith("content:")
-        val rdToken = if (youtube || file) "" else settings.rdToken.ifBlank { error("Add your Real-Debrid token in Settings first.") }
+        val rdToken = if (youtube || file) "" else settings.rdToken.ifBlank { error(tr("Add your Real-Debrid token in Settings first.")) }
         if (!Python.isStarted()) Python.start(AndroidPlatform(applicationContext))
         val py = Python.getInstance()
         val logger = Logger()
@@ -152,7 +156,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
         // A magnet or link not yet split: one job per video file in it, queued after this one.
         if (!youtube && !file && !inputData.getBoolean(PART, false)) {
-            report("Asking Real-Debrid…", 0.02f)
+            report(tr("Asking Real-Debrid…"), 0.02f)
             val files = JSONArray(ticking(0.02f) { rd.callAttr("episodes", rdToken, url, logger).toString() })
             for (i in 0 until files.length()) {
                 val f = files.getJSONObject(i)
@@ -161,21 +165,21 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 enqueue(applicationContext, f.getString("link"), showName ?: about.getString("show").takeIf { lang != Lang.JAPANESE }, height, lang, transcriber, english, part = true,
                     label = f.getString("name"))
             }
-            return "Real-Debrid: ${files.length()} episode(s) queued"
+            return "Real-Debrid: ${files.length()} episode(s) queued".also { shown = tr("Real-Debrid: %d episode(s) queued", files.length()) }
         }
 
         // Japanese: subtitles from Jimaku instead of a transcription (kumapie_languages_plan.md, step 4).
         val japanese = lang == Lang.JAPANESE
-        if (japanese && youtube) error("Japanese episodes come from Real-Debrid or a video file (subtitles from Jimaku).")
-        val jimakuKey = if (japanese) settings.jimakuKey.ifBlank { error("Add your Jimaku API key in Settings first.") } else ""
-        if (japanese && !JapaneseModel(applicationContext).isReady) error("Download the Japanese words dictionary in Settings first.")
+        if (japanese && youtube) error(tr("Japanese episodes come from Real-Debrid or a video file (subtitles from Jimaku)."))
+        val jimakuKey = if (japanese) settings.jimakuKey.ifBlank { error(tr("Add your Jimaku API key in Settings first.")) } else ""
+        if (japanese && !JapaneseModel(applicationContext).isReady) error(tr("Download the Japanese words dictionary in Settings first."))
         val parakeetHere = !japanese && transcriber == "parakeet"
-        val key = if (parakeetHere || japanese) "" else settings.sonioxKey.ifBlank { error("Add your Soniox key in Settings first.") }
-        if (parakeetHere && !Parakeet(applicationContext).isReady) error("Download the speech model (Parakeet) in Settings first.")
+        val key = if (parakeetHere || japanese) "" else settings.sonioxKey.ifBlank { error(tr("Add your Soniox key in Settings first.")) }
+        if (parakeetHere && !Parakeet(applicationContext).isReady) error(tr("Download the speech model (Parakeet) in Settings first."))
         val gemma = Gemma(applicationContext)
-        if (english == "gemma" && !gemma.isReady) error("Download the translation model (Gemma) in Settings first.")
+        if (english == "gemma" && !gemma.isReady) error(tr("Download the translation model (Gemma) in Settings first."))
         val model = GermanModel(applicationContext, if (japanese) Lang.GERMAN else lang)
-        if (!japanese && !model.isReady) error("Download the ${lang.name} model in Settings first.")
+        if (!japanese && !model.isReady) error(tr("Download the %s model in Settings first.", lang.displayName))
         val dir = local.dir(id).apply { mkdirs() }
         val dl = File(dir, "download").apply { mkdirs() }
         val embedded = File(dir, "embedded").apply { mkdirs() }
@@ -190,12 +194,12 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         var season: Int? = null
         var number: Int? = null
         if (youtube) {
-            report("Downloading…", 0.02f)
+            report(tr("Downloading…"), 0.02f)
             val qjs = File(applicationContext.applicationInfo.nativeLibraryDir, "libqjs.so").path
             val got = JSONObject(ticking(0.02f) { py.getModule("youtube").callAttr("download", url, dl.path, qjs, logger, height).toString() })
             title = got.getString("title")
             show = showName ?: got.optString("channel").ifBlank { "YouTube" }
-            report("Putting the video together…", 0.35f)
+            report(tr("Putting the video together…"), 0.35f)
             val audioPart = got.optString("audio").takeIf { it.isNotBlank() && it != "null" }
             if (audioPart != null) {
                 mux(got.getString("video"), audioPart, video)
@@ -210,7 +214,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             val kept = File(dir, "source.txt")
             val converted = local.thumb(id).exists() && kept.exists()
             val source = if (file) Uri.parse(url) else if (converted) null else {
-                report("Downloading…", 0.02f)
+                report(tr("Downloading…"), 0.02f)
                 Uri.fromFile(File(ticking(0.02f) { rd.callAttr("download", rdToken, url, dl.path, logger).toString() }))
             }
             val name = if (converted) kept.readText() else if (file) displayName(source!!) else source!!.lastPathSegment ?: "video"
@@ -224,11 +228,11 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             // Subtitles inside an MKV are made for this very video (no sync): read them before it is converted.
             val mkv = source?.takeIf { it.scheme == "file" }?.path?.takeIf { it.endsWith(".mkv", ignoreCase = true) }
             if (mkv != null && embedded.list().isNullOrEmpty()) {
-                report("Reading the subtitles inside the video…", 0.3f)
+                report(tr("Reading the subtitles inside the video…"), 0.3f)
                 for (code in setOf(lang.code, "en")) py.getModule("mkvsubs").callAttr("extract", mkv, code, embedded.path)
             }
             if (!converted) {
-                report("Converting the video (${lang.name} audio)…", 0.35f)
+                report(tr("Converting the video (%s audio)…", lang.displayName), 0.35f)
                 remux(source!!, video)
             }
             if (!converted || !audio.exists()) extractAudio(video, audio)
@@ -242,18 +246,18 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         var sonioxEnglish = JSONArray()
         var synced = ""
         val cues = if (japanese && inside("ja") != null) {
-            synced = "inside the video"
+            synced = tr("inside the video")
             py.getModule("jimaku").callAttr("cues", inside("ja")!!.path, "ja").toString()
         } else if (japanese) {
-            report("Finding Japanese subtitles on Jimaku…", 0.45f)
+            report(tr("Finding Japanese subtitles on Jimaku…"), 0.45f)
             val jm = py.getModule("jimaku")
             val found = JSONObject(jm.callAttr("candidates", jimakuKey, show, season, number, sourceName).toString())
             if (showName == null) found.optJSONObject("anilist")?.optString("romaji")?.takeIf { it.isNotBlank() }?.let { show = it }
             val files = found.getJSONArray("files")
-            if (files.length() == 0) error("No Japanese subtitles on Jimaku for $show" + (number?.let { " episode $it" } ?: ""))
+            if (files.length() == 0) error(tr("No Japanese subtitles on Jimaku for %s", show) + (number?.let { tr(" episode %d", it) } ?: ""))
             val pick = files.getJSONObject(0)
             val raw = File(jm.callAttr("download", jimakuKey, pick.getString("url"), pick.getString("name"), number, dl.path).toString())
-            report("Fitting the subtitles to the audio…", 0.55f)
+            report(tr("Fitting the subtitles to the audio…"), 0.55f)
             val fitted = File(dir, "subtitles." + raw.extension.lowercase())
             // The video's own English subtitles (timed to it) are the best reference; else the speech in the audio.
             val reference = inside("en")?.let { JSONArray(py.getModule("jimaku").callAttr("cues", it.path, "en").toString()) }
@@ -265,7 +269,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             val transcript = if (kept.exists()) kept.readText() else if (parakeetHere) { // a retry: never pay Soniox twice
                 Parakeet(applicationContext).transcribe(audio) { report(it, 0.55f) }
             } else {
-                report("Transcribing with Soniox…", 0.45f)
+                report(tr("Transcribing with Soniox…"), 0.45f)
                 py.getModule("newepisode").callAttr("transcribe", audio.path, key, lang.code, if (soniox && lang != Lang.ENGLISH) "en" else "", logger).toString()
             }
             kept.writeText(transcript) // Soniox's answer, kept (redoing it would cost again)
@@ -280,18 +284,18 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             soniox && sonioxEnglish.length() > 0 -> sonioxEnglish.toString()
             english == "none" || lang == Lang.ENGLISH -> "[]" // English episodes: no translation track (Pedro's accent work)
             english == "gemma" -> withTranslator { translator ->
-                gemma.englishCues(JSONArray(cues), { report("Translating to English with Gemma: $it%", 0.75f + 0.15f * it / 100) }, lang.name) {
+                gemma.englishCues(JSONArray(cues), { report(tr("Translating to English with Gemma: %d%%", it), 0.75f + 0.15f * it / 100) }, lang.name) {
                     translator.translate(it).await() // a line Gemma skipped
                 }
             }
             else -> {
-                report("Translating to English on the device…", 0.75f)
+                report(tr("Translating to English on the device…"), 0.75f)
                 translate(JSONArray(cues))
             }
         }
 
         // 5. Scenes and words (Japanese words from Sudachi here, German ones from spaCy in Python).
-        report("Finding scenes and words…", 0.9f)
+        report(tr("Finding scenes and words…"), 0.9f)
         val parsed = if (!japanese) "" else {
             val texts = JSONArray(cues).let { a -> (0 until a.length()).map { a.getJSONArray(it).getString(2) } }
             JSONArray(JapaneseModel(applicationContext).words(texts).map { tokens ->
@@ -307,7 +311,9 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             kind = LocalEpisodes.category(url, lang.code, number)))
         val done = "Done: $title" + (if (synced.isNotEmpty()) " (subtitles $synced)" else "") +
             (if (englishFile != null) " (English from the video)" else "")
-        report(done, 1f)
+        shown = tr("Done: %s", title) + (if (synced.isNotEmpty()) tr(" (subtitles %s)", synced) else "") +
+            (if (englishFile != null) tr(" (English from the video)") else "")
+        report(shown!!, 1f)
         return done
     }
 
@@ -333,7 +339,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         // different codec, so Transformer can't just copy it);
         // web releases (a few Mbps) are copied as they are. ponytail: 15 Mbps cut-off, size by file length / duration.
         val heavy = withContext(Dispatchers.IO) { bitsPerSecond(source) > 15_000_000 }
-        if (heavy) report("Converting the video (${lang.name} audio, re-encoding a large video)…", 0.35f)
+        if (heavy) report(tr("Converting the video (%s audio, re-encoding a large video)…", lang.displayName), 0.35f)
         suspendCancellableCoroutine { cont ->
             val ctx = applicationContext
             val german = DefaultTrackSelector.Parameters.Builder(ctx).setPreferredAudioLanguage(lang.code)
@@ -354,7 +360,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
                     override fun onError(composition: Composition, result: ExportResult, e: ExportException) {
                         Log.w("kumapie", "remux: $e")
-                        if (cont.isActive) cont.resumeWithException(IllegalStateException("Couldn't convert the video: ${e.errorCodeName}", e))
+                        if (cont.isActive) cont.resumeWithException(IllegalStateException(tr("Couldn't convert the video: %s", e.errorCodeName), e))
                     }
                 })
                 .build()
@@ -379,7 +385,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         for (i in 0 until cues.length()) {
             val c = cues.getJSONArray(i)
             out.put(JSONArray().put(c.getDouble(0)).put(c.getDouble(1)).put(translator.translate(c.getString(2)).await()))
-            if (i % 20 == 0) report("Translating to English: ${i * 100 / cues.length()}%", 0.75f + 0.15f * i / cues.length())
+            if (i % 20 == 0) report(tr("Translating to English: %d%%", i * 100 / cues.length()), 0.75f + 0.15f * i / cues.length())
         }
         out.toString()
     }
@@ -479,11 +485,11 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     private fun foreground(stage: String, progress: Float): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         if (manager.getNotificationChannel(CHANNEL) == null) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, "Downloads", NotificationManager.IMPORTANCE_LOW))
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, tr("Downloads"), NotificationManager.IMPORTANCE_LOW))
         }
         val n = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("New episode")
+            .setContentTitle(tr("New episode"))
             .setContentText(stage)
             .setProgress(100, (progress * 100).toInt(), false)
             .setOngoing(true).setSilent(true).build()
@@ -504,6 +510,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         /** A file of a magnet / link already split into episodes. */
         const val PART = "part"
         const val STAGE = "stage"
+        /** A finished job's line in the menu language (STAGE stays English: Home looks for "Done"). */
+        const val SHOWN = "shown"
         const val PROGRESS = "progress"
         /** What the Downloads page calls the job: the file's name, else the link. */
         const val LABEL = "label"
@@ -545,15 +553,15 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         /** Every job, running first, then waiting (in queue order), then finished. */
         fun jobs(context: Context): Flow<List<Job>> = WorkManager.getInstance(context).getWorkInfosByTagFlow(TAG).map { infos ->
             infos.filter { it.state != WorkInfo.State.CANCELLED }.map { info ->
-                val label = info.tags.firstOrNull { it.startsWith("label:") }?.removePrefix("label:") ?: "Episode"
+                val label = info.tags.firstOrNull { it.startsWith("label:") }?.removePrefix("label:") ?: tr("Episode")
                 when (info.state) {
-                    WorkInfo.State.RUNNING -> Job(info.id, label, "running", info.progress.getString(STAGE) ?: "Starting…",
+                    WorkInfo.State.RUNNING -> Job(info.id, label, "running", info.progress.getString(STAGE) ?: tr("Starting…"),
                         info.progress.getFloat(PROGRESS, 0f))
                     WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> Job(info.id, label, "waiting",
-                        if (info.state == WorkInfo.State.ENQUEUED) "Waiting for a connection" else "Queued", 0f)
+                        if (info.state == WorkInfo.State.ENQUEUED) tr("Waiting for a connection") else tr("Queued"), 0f)
                     else -> {
                         val out = info.outputData.getString(STAGE) ?: "Done"
-                        Job(info.id, label, if (out.startsWith("Failed")) "failed" else "done", out, 1f)
+                        Job(info.id, label, if (out.startsWith("Failed")) "failed" else "done", info.outputData.getString(SHOWN) ?: tr(out), 1f)
                     }
                 }
             }.sortedBy { listOf("running", "waiting", "done", "failed").indexOf(it.state) }

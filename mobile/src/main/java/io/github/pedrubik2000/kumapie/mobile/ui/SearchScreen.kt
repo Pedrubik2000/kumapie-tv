@@ -36,6 +36,7 @@ import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup
 import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseModel
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -57,7 +58,7 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
 
     LaunchedEffect(text) {
         library.settings.prefs.edit().putString("search_text", text).apply()
-        if (!library.knownJa.modelReady) { said = "Download the Japanese dictionary (Sudachi) in Settings first."; return@LaunchedEffect }
+        if (!library.knownJa.modelReady) { said = tr("Download the Japanese dictionary (Sudachi) in Settings first."); return@LaunchedEffect }
         tokens = runCatching { withContext(Dispatchers.Default) { library.knownJa.japanese.parse(listOf(text.trim())).first() } }.getOrDefault(emptyList())
         if (tokens.size == 1 && tokens[0].isWord) picked = tokens[0]
     }
@@ -66,16 +67,16 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
         headwords = null
         val started = System.currentTimeMillis()
         headwords = withContext(Dispatchers.IO) { runCatching { lookup.lookup(text.trim(), t.begin) }.getOrElse { said = it.message ?: it.toString(); emptyList() } }
-        said = "${headwords?.size ?: 0} words · ${System.currentTimeMillis() - started} ms"
+        said = tr("%1\$d words · %2\$d ms", headwords?.size ?: 0, System.currentTimeMillis() - started)
     }
 
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Japanese dictionary") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
+        TopAppBar(title = { Text(tr("Japanese dictionary")) },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedTextField(text, { text = it; picked = null; headwords = null }, label = { Text("Japanese text") },
+            OutlinedTextField(text, { text = it; picked = null; headwords = null }, label = { Text(tr("Japanese text")) },
                 modifier = Modifier.fillMaxWidth())
             FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 tokens.forEach { t ->

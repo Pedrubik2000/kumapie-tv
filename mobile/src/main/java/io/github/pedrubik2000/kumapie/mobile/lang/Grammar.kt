@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.text.Html
@@ -94,12 +95,12 @@ class Grammar(private val context: Context, private val settings: Settings, priv
      * then the note in the point's deck. [pictures]: per note, or null for none (left for later).
      */
     fun add(point: Point, pictures: List<Picture?>, progress: (String) -> Unit): String {
-        val pkg = ankiApp() ?: error("No kuma3 Anki on this device.")
-        if (point.key in added(pkg, listOf(point))) return "Already in Anki."
-        val (mid, names) = anki.noteType(pkg, listOf(point.noteType)) ?: error("No note type \"${point.noteType}\" in Anki.")
+        val pkg = ankiApp() ?: error(tr("No kuma3 Anki on this device."))
+        if (point.key in added(pkg, listOf(point))) return tr("Already in Anki.")
+        val (mid, names) = anki.noteType(pkg, listOf(point.noteType)) ?: error(tr("No note type \"%s\" in Anki.", point.noteType))
         val deck = anki.deck(pkg, point.deck)
         point.notes.forEachIndexed { i, note ->
-            progress("Adding ${i + 1} of ${point.notes.size}…")
+            progress(tr("Adding %1\$d of %2\$d…", i + 1, point.notes.size))
             val fields = JSONObject(note.fields.toString())
             for (name in note.audio) {
                 val stored = anki.addMedia(pkg, File(point.dir, name), name.substringBeforeLast(".")) // Anki adds the extension
@@ -116,7 +117,7 @@ class Grammar(private val context: Context, private val settings: Settings, priv
             anki.addNote(pkg, mid, names.map { fields.optString(it) }, point.tags, deck)
         }
         settings.prefs.edit().putString("grammar_day", LocalDate.now().toString()).apply()
-        return "Added: ${point.number}. ${point.title} (${point.notes.size} notes)."
+        return tr("Added: %1\$d. %2\$s (%3\$d notes).", point.number, point.title, point.notes.size)
     }
 
     private fun savePicture(url: String, out: File) {

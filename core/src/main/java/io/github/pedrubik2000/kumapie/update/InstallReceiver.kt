@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.update
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -21,8 +22,8 @@ class InstallReceiver : BroadcastReceiver() {
             }
             PackageInstaller.STATUS_SUCCESS -> Unit // the app restarts as the new version
             else -> {
-                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "status $status"
-                Toast.makeText(context, "Update failed: $msg", Toast.LENGTH_LONG).show()
+                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: tr("status %d", status)
+                Toast.makeText(context, tr("Update failed: %s", msg), Toast.LENGTH_LONG).show()
             }
         }
     }

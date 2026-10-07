@@ -52,6 +52,7 @@ import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.DownloadState
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** A show's episodes: progress, how many scenes are easy today, and a download button for each. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,7 +75,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     Scaffold(topBar = {
         TopAppBar(
             title = { Text(show.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
         )
     }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
@@ -91,8 +92,8 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
                         modifier = Modifier.width(if (narrow) 96.dp else 128.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)))
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(ep.title, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(if (onDevice) "${minutes(ep.duration)} · on this device" else "${minutes(ep.duration)} · ${ep.easy} of ${ep.scenes} scenes easy" +
-                            if (ep.seen > 0) " · ${ep.seen} seen" else "", fontSize = 12.sp, color = Colors.dim)
+                        Text(if (onDevice) tr("%s · on this device", minutes(ep.duration)) else tr("%1\$s · %2\$d of %3\$d scenes easy", minutes(ep.duration), ep.easy, ep.scenes) +
+                            if (ep.seen > 0) tr(" · %d seen", ep.seen) else "", fontSize = 12.sp, color = Colors.dim)
                         val resume = ep.resume
                         if (resume != null && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(), Modifier.fillMaxWidth())
                     }
@@ -100,7 +101,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
                     IconButton(enabled = playable, onClick = {
                         val art = library.thumb(ep.id, ep.thumb).let { if (it is java.io.File) android.net.Uri.fromFile(it).toString() else it.toString() }
                         io.github.pedrubik2000.kumapie.mobile.listen.CondensedService.play(context, ep.id, art)
-                    }) { Icon(Icons.Default.Headphones, "Listen condensed") }
+                    }) { Icon(Icons.Default.Headphones, tr("Listen condensed")) }
                     if (!onDevice) DownloadButton(state, enabled = !offline || state == DownloadState.Done,
                         onStart = { library.downloads.start(show, ep) },
                         onCancel = { library.downloads.cancel(ep.id) },
@@ -113,10 +114,10 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     deleting?.let { ep ->
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Remove the download?") },
-            text = { Text("${ep.title} will need the PC again to play.") },
-            confirmButton = { TextButton(onClick = { library.downloads.delete(ep.id); deleting = null }) { Text("Remove") } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Keep") } },
+            title = { Text(tr("Remove the download?")) },
+            text = { Text(tr("%s will need the PC again to play.", ep.title)) },
+            confirmButton = { TextButton(onClick = { library.downloads.delete(ep.id); deleting = null }) { Text(tr("Remove")) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(tr("Keep")) } },
         )
     }
 }
@@ -125,7 +126,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
 private fun DownloadButton(state: DownloadState, enabled: Boolean, onStart: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit) {
     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
         when (state) {
-            DownloadState.None -> IconButton(onClick = onStart, enabled = enabled) { Icon(Icons.Default.Download, "Download") }
+            DownloadState.None -> IconButton(onClick = onStart, enabled = enabled) { Icon(Icons.Default.Download, tr("Download")) }
             DownloadState.Waiting -> IconButton(onClick = onCancel) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
             is DownloadState.Running -> IconButton(onClick = onCancel) {
                 Box(contentAlignment = Alignment.Center) {
@@ -133,9 +134,9 @@ private fun DownloadButton(state: DownloadState, enabled: Boolean, onStart: () -
                     Text("${(state.progress * 100).toInt()}", fontSize = 10.sp)
                 }
             }
-            DownloadState.Done -> IconButton(onClick = onDelete) { Icon(Icons.Default.CheckCircle, "Downloaded", tint = Colors.levelZero) }
+            DownloadState.Done -> IconButton(onClick = onDelete) { Icon(Icons.Default.CheckCircle, tr("Downloaded"), tint = Colors.levelZero) }
             is DownloadState.Failed -> IconButton(onClick = onStart, enabled = enabled) {
-                Icon(Icons.Default.ErrorOutline, "Failed: ${state.message}. Tap to try again", tint = Colors.unknown)
+                Icon(Icons.Default.ErrorOutline, tr("Failed: %s. Tap to try again", state.message), tint = Colors.unknown)
             }
         }
     }

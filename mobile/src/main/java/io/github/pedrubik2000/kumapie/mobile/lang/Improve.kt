@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import android.text.Html
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.text.TextUtils
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
@@ -33,7 +34,7 @@ class Improve(private val library: Library) {
     /** Word cards (Core 1000, mined words) with 2+ lapses, or under 3 days of stability after 4+ reviews; worst first. */
     suspend fun struggling(): List<Struggling> {
         library.known.refresh().getOrThrow()
-        val r = library.known.lastReading ?: error("Anki wasn't read.")
+        val r = library.known.lastReading ?: error(tr("Anki wasn't read."))
         val cards = r.cards.groupBy { it.noteId }
         return r.notes.mapNotNull { n ->
             val word = plain(n.fields["Word"] ?: "").substringBefore("[").trim()
@@ -72,10 +73,10 @@ class Improve(private val library: Library) {
      * edited, the definitions as edited, the word's recording when [recording]; then flags the cards orange.
      */
     suspend fun apply(s: Struggling, c: Candidate?, sentence: String, bilingual: String, monolingual: String, recording: Boolean, progress: (String) -> Unit): String {
-        val pkg = library.known.ankiApp() ?: error("No kuma3 Anki on this device.")
+        val pkg = library.known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
         val fields = LinkedHashMap(s.note.fields)
         if (c != null) {
-            progress("Cutting the scene…")
+            progress(tr("Cutting the scene…"))
             cut.mkdirs()
             val file = File(cut, "clip.webm").apply { delete() }
             val start = (c.scene.start * 1000).toLong()
@@ -91,13 +92,13 @@ class Improve(private val library: Library) {
         if (bilingual != s.bilingual) fields[KnownWords.DEF_BI] = bilingual
         if (monolingual != s.monolingual) fields[KnownWords.DEF_MONO] = monolingual
         if (recording) {
-            progress("Getting the recording…")
+            progress(tr("Getting the recording…"))
             library.miner.wordAudio(s.word)?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-${library.miner.slug(s.word)}")}]" }
         }
-        progress("Saving…")
+        progress(tr("Saving…"))
         if (fields != s.note.fields) anki.updateNote(pkg, s.note.id, s.note.tags, fields.values.toList())
         s.cards.forEach { anki.flag(pkg, s.note.id, it.ord, 2) }
-        return "Saved \"${s.word}\" and flagged it orange."
+        return tr("Saved \"%s\" and flagged it orange.", s.word)
     }
 
     companion object {

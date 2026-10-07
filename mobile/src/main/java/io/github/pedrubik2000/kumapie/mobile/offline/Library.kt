@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.offline
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.net.Uri
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Backend
@@ -133,7 +134,7 @@ class Library(context: Context, val settings: Settings) {
         val json = withContext(Dispatchers.IO) {
             if (fresh != null && downloaded) downloads.episodeJson(id).writeText(fresh) // fresher word colours offline
             fresh ?: if (downloaded) downloads.episodeJson(id).readText() else null
-        } ?: throw IOException("The PC doesn't answer and this episode isn't downloaded.")
+        } ?: throw IOException(tr("The PC doesn't answer and this episode isn't downloaded."))
         val detail = withSeen(api.parseEpisode(json).let { knownFor(it.lang).apply(it) })
         return detail.copy(
             video = if (downloaded) Uri.fromFile(downloads.video(id)).toString() else detail.video,
@@ -175,7 +176,7 @@ class Library(context: Context, val settings: Settings) {
     suspend fun allEpisodes(shows: List<Show>, progress: (String) -> Unit = {}): List<Pair<Show, EpisodeDetail>> {
         val list = shows.flatMap { s -> s.episodes.map { s to it } }
         return list.mapIndexedNotNull { i, (show, ep) ->
-            progress("Reading episodes ${i + 1} of ${list.size}…")
+            progress(tr("Reading episodes %1\$d of %2\$d…", i + 1, list.size))
             val detail = episodeCache[ep.id] ?: runCatching { episode(ep.id) }.getOrNull()?.also { episodeCache[ep.id] = it }
             detail?.let { show to it }
         }.also { found -> if (found.isNotEmpty()) UnlockPool.save(appContext, found.map { it.second }) }

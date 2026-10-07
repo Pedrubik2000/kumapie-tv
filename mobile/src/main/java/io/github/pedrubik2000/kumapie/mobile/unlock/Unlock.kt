@@ -44,6 +44,7 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.ui.MobileTheme
 import io.github.pedrubik2000.kumapie.mobile.ui.ScenePlayer
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.i18n.tr
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -109,14 +110,14 @@ class UnlockService : Service() {
 
     private fun goForeground() {
         val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Unlock scenes", NotificationManager.IMPORTANCE_MIN).apply {
-            description = "Keeps kumapie listening for unlocks to show an i+1 scene"
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, tr("Unlock scenes"), NotificationManager.IMPORTANCE_MIN).apply {
+            description = tr("Keeps kumapie listening for unlocks to show an i+1 scene")
             setShowBadge(false)
         })
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val notification = Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("kumapie: a scene on every unlock")
+            .setContentTitle(tr("kumapie: a scene on every unlock"))
             .setContentIntent(open)
             .setOngoing(true)
             .build()
@@ -179,10 +180,10 @@ class UnlockActivity : ComponentActivity() {
                         ScenePlayer(library, library.settings, backend, ep, startPaused = true, onBack = { finish() },
                             subtitles = Subtitles.BOTH)
                     }
-                    if (nothing) Text("No i+1 scene to show", color = Colors.dim, modifier = Modifier.align(Alignment.Center))
+                    if (nothing) Text(tr("No i+1 scene to show"), color = Colors.dim, modifier = Modifier.align(Alignment.Center))
                     IconButton(onClick = { finish() }, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 56.dp, end = 8.dp)
                         .background(Color(0x66000000), CircleShape)) {
-                        Icon(Icons.Default.Close, "Close", tint = Colors.text)
+                        Icon(Icons.Default.Close, tr("Close"), tint = Colors.text)
                     }
                 }
             }

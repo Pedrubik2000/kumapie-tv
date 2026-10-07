@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.database.sqlite.SQLiteDatabase
 import android.text.Html
 import android.util.Log
@@ -261,22 +262,22 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
 /** Downloads the gzipped dictionary from the repo's "dictionary" release and puts it in place. */
 class DictionaryWorker(context: Context, params: WorkerParameters) : AssetWorker(context, params) {
     private val dictionary = Dictionary(context)
-    override val what = "the word recordings list"
+    override val what = tr("the word recordings list")
     override val notificationId = 998
 
     override suspend fun run() {
         val dir = dictionary.file.parentFile!!.apply { mkdirs() }
         val gz = File(dir, "de-recordings.sqlite.gz.part")
         fetch(Dictionary.URL_FILE, gz)
-        report("Unpacking…", 0.95f)
+        report(tr("Unpacking…"), 0.95f)
         val tmp = File(dir, "de-recordings.sqlite.tmp")
         GZIPInputStream(gz.inputStream().buffered(1 shl 16)).use { input -> tmp.outputStream().use { input.copyTo(it, 1 shl 16) } }
         runCatching { SQLiteDatabase.openDatabase(tmp.path, null, SQLiteDatabase.OPEN_READONLY).close() }
-            .onFailure { tmp.delete(); gz.delete(); throw IOException("the download is not the recordings list") }
+            .onFailure { tmp.delete(); gz.delete(); throw IOException(tr("the download is not the recordings list")) }
         dictionary.close()
         if (!tmp.renameTo(dictionary.file)) {
             dictionary.file.delete()
-            if (!tmp.renameTo(dictionary.file)) throw IOException("couldn't move the dictionary into place")
+            if (!tmp.renameTo(dictionary.file)) throw IOException(tr("couldn't move the dictionary into place"))
         }
         gz.delete()
     }

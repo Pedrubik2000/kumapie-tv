@@ -34,6 +34,8 @@ data class DictEntry(
     val senses: List<Sense>,
     /** From Wiktionary online (cached), not from the offline file. */
     val online: Boolean = false,
+    /** The Yomitan dictionary's title ("" for Wiktionary online). */
+    val dict: String = "",
 )
 
 data class Sense(val gloss: String, val tags: String, val examples: List<Pair<String, String>>)
@@ -119,7 +121,7 @@ class Dictionary(private val context: Context, private val yomitan: YomitanDicti
         return yomitanTerms(surface, key, lemma, lang).flatMap { t ->
             t.glossaries.filter { seen.add("${t.expression}|${t.reading}|${it.dict}|${it.senses.firstOrNull()}") }.map { g ->
                 DictEntry(t.expression, g.tags, listOf(t.reading.takeIf { it.isNotBlank() && it != t.expression }, g.dict)
-                    .filterNotNull().joinToString(" · "), t.ipa.joinToString(", "), g.senses.map { Sense(it, "", emptyList()) })
+                    .filterNotNull().joinToString(" · "), t.ipa.joinToString(", "), g.senses.map { Sense(it, "", emptyList()) }, dict = g.dict)
             }
         }
     }

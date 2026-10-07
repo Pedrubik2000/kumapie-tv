@@ -140,6 +140,31 @@ class AnkiCards(private val context: Context) {
             put("num_cards", 1)
         })?.lastPathSegment?.toLong() ?: error(tr("Anki didn't add the note type %s", name))
 
+    /**
+     * A fresh collection (the parents' kuma3) gets [lang]'s note type from kumapie's copy of Pedro's
+     * (`assets/notetypes/<code>.json`: fields, one template, CSS). Answers (id, fields), or null without a copy.
+     */
+    fun addBundledNoteType(pkg: String, lang: io.github.pedrubik2000.kumapie.data.Lang): Pair<Long, List<String>>? {
+        val json = runCatching { context.assets.open("notetypes/${lang.code}.json").use { it.readBytes().toString(Charsets.UTF_8) } }
+            .getOrNull() ?: return null
+        val nt = org.json.JSONObject(json)
+        val fields = nt.getJSONArray("fields").let { a -> (0 until a.length()).map { a.getString(it) } }
+        val t = nt.getJSONArray("templates").getJSONObject(0)
+        val mid = context.contentResolver.insert(Uri.parse("content://$pkg.flashcards/models"), ContentValues().apply {
+            put("name", lang.noteTypes.first())
+            put("field_names", fields.joinToString(SEPARATOR))
+            put("num_cards", 1)
+            put("css", nt.getString("css"))
+            put("sort_field_index", nt.optInt("sortf"))
+        })?.lastPathSegment?.toLong() ?: return null
+        context.contentResolver.update(Uri.parse("content://$pkg.flashcards/models/$mid/templates/0"), ContentValues().apply {
+            put("name", t.getString("name"))
+            put("question_format", t.getString("qfmt"))
+            put("answer_format", t.getString("afmt"))
+        }, null, null)
+        return mid to fields
+    }
+
     /** Sets a card's flag (2 = orange: changed by kumapie, as the PC's improve-card does). */
     fun flag(pkg: String, nid: Long, ord: Int, flag: Int) {
         context.contentResolver.update(Uri.parse("content://$pkg.flashcards/notes/$nid/cards/$ord"),

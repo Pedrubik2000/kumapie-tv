@@ -59,6 +59,8 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
     var wordCard by remember { mutableStateOf(segment?.word != null) }
     var choices by remember { mutableStateOf<List<Choice>>(emptyList()) }
     var chosen by remember { mutableIntStateOf(0) }
+    var monos by remember { mutableStateOf<List<Choice>>(emptyList()) }
+    var monoChosen by remember { mutableIntStateOf(0) }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf(false) }
@@ -69,7 +71,12 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             ?.takeIf { it.isNotBlank() }
         val list = mutableListOf<Choice>()
         own?.let { list += Choice("kumapie: $it", it, null) }
-        val entries = library.dictionary.lookup(segment.text, key, lemma, lang = ctl.lang)
+        val all = library.dictionary.lookup(segment.text, key, lemma, lang = ctl.lang)
+        // Monolingual dictionaries (wty-de-de, wty-en-en) give the card's monolingual definition, not its meaning.
+        val isMono = { e: io.github.pedrubik2000.kumapie.mobile.lang.DictEntry -> library.yomitan.groupOf(ctl.lang, e.dict) == "Monolingual" }
+        val entries = all.filterNot(isMono).ifEmpty { all }
+        monos = all.filter(isMono).flatMap { e -> e.senses.take(3).map { Choice("${e.word} (${e.pos}): ${it.gloss}", it.gloss, null) } }
+            .distinctBy { it.gloss }.take(8)
         val fits = SensePick.best(entries, SensePick.english(scene, line))
         var fitting = -1
         entries.forEachIndexed { i, e ->
@@ -103,6 +110,15 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
                     }
                 }
             }
+            if (monos.isNotEmpty() && def?.targetText.isNullOrBlank()) {
+                Text(tr("Monolingual definition"), color = Colors.accent, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp))
+                (monos + Choice(tr("None"), "", null)).forEachIndexed { i, c ->
+                    Row(Modifier.fillMaxWidth().clickable { monoChosen = i }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = monoChosen == i, onClick = { monoChosen = i })
+                        Text(c.label, color = Colors.text, fontSize = 15.sp)
+                    }
+                }
+            }
         } else {
             Text(tr("The sentence, a video clip of the whole scene and the English."), color = Colors.dim, fontSize = 14.sp)
         }
@@ -110,7 +126,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             busy = true
             val pick = choices.getOrNull(chosen)
             val request = Miner.Request(episode, scene, line, if (wordCard && segment != null && pick != null) {
-                Miner.Word(segment.text, key, lemma, pick.gloss, pick.example, def)
+                Miner.Word(segment.text, key, lemma, pick.gloss, pick.example, def, mono = monos.getOrNull(monoChosen)?.gloss)
             } else null)
             scope.launch {
                 runCatching { library.miner.mine(request) { status = it } }

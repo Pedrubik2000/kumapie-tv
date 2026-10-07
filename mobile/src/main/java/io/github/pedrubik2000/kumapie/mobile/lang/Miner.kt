@@ -82,23 +82,37 @@ class Miner(
         val known = if (lang == Lang.ENGLISH) knownEn ?: known else known
         val pkg = known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
         if (!known.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
-        val (mid, fieldNames) = anki.noteType(pkg, known.noteTypes)
+        // A fresh kuma3 (Giovanna, Jackson): the note type comes from kumapie's copy of Pedro's.
+        val (mid, fieldNames) = anki.noteType(pkg, known.noteTypes) ?: anki.addBundledNoteType(pkg, lang)
             ?: error(tr("The %s note type isn't in Anki.", lang.displayName))
         val (sentence, cues) = sentence(r.scene, r.line)
         val slug = slug(r.episode.show)
         dir.mkdirs()
 
-        progress(tr("Cutting the scene…"))
-        val clipFile = File(dir, "clip.webm").apply { delete() }
-        val start = (r.scene.start * 1000).toLong()
-        val end = (r.scene.end * 1000).toLong()
-        clip(r.episode.video, start, end, clipFile)
-        progress(tr("Adding to Anki…"))
-        val clip = anki.addMedia(pkg, clipFile, "${slug}_$start-$end")
-
         val fields = HashMap<String, String>()
+        // 🐻 German: a video clip of the scene. 🐻 English (Core 1000 layout): the line's audio and a screenshot.
+        val video = "Video" in fieldNames
+        val clipFile = File(dir, if (video) "clip.webm" else "line.m4a").apply { delete() }
+        val shot: File?
+        if (video) {
+            progress(tr("Cutting the scene…"))
+            val start = (r.scene.start * 1000).toLong()
+            val end = (r.scene.end * 1000).toLong()
+            clip(r.episode.video, start, end, clipFile)
+            progress(tr("Adding to Anki…"))
+            fields["Video"] = "[audio:${anki.addMedia(pkg, clipFile, "${slug}_$start-$end")}]"
+            shot = null
+        } else {
+            progress(tr("Cutting the line's audio…"))
+            val startMs = ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
+            val endMs = ((cues.last().end + 0.25) * 1000).toLong()
+            audioClip(r.episode.video, startMs, endMs, clipFile)
+            shot = screenshot(r.episode.video, (startMs + endMs) / 2)
+            progress(tr("Adding to Anki…"))
+            fields["Sentence Audio"] = "[audio:${anki.addMedia(pkg, clipFile, "${slug}_$startMs-$endMs")}]"
+            shot?.let { fields["Image"] = "<img src=\"${anki.addMedia(pkg, it, "${slug}_$startMs")}\">" }
+        }
         fields["Sentence"] = esc(sentence)
-        fields["Video"] = "[audio:$clip]"
         fields["Notes"] = esc(english(r.scene, cues))
         fields["Context"] = esc("Mined in kumapie: ${r.episode.show} · ${r.episode.title}, scene ${r.scene.index + 1}.")
         val tags = mutableListOf(slug, "kumapie")
@@ -108,16 +122,18 @@ class Miner(
             fields["Word"] = esc(written) + (w.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
             if (audio != null) fields["Word Audio"] = "[audio:$audio]"
             fields[KnownWords.DEF_BI] = definition(written, w)
-            w.definition?.targetText?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
+            // The episode's own definition (PC episodes), else the one picked from a monolingual dictionary.
+            (w.definition?.targetText?.takeIf { it.isNotBlank() } ?: w.mono?.takeIf { it.isNotBlank() })?.let { fields[KnownWords.DEF_MONO] = esc(it) }
             tags += lang.tag("word")
         } ?: tags.add(lang.tag("sentence"))
 
-        val missing = (listOf("Sentence", "Video") + if (r.word != null) listOf(KnownWords.DEF_BI, KnownWords.DEF_MONO) else emptyList())
+        val missing = (listOf("Sentence", if ("Video" in fieldNames) "Video" else "Sentence Audio") + if (r.word != null) listOf(KnownWords.DEF_BI, KnownWords.DEF_MONO) else emptyList())
             .filter { it !in fieldNames }
         if (missing.isNotEmpty()) error(tr("The note type has no field %s.", missing.joinToString()))
         val deck = anki.deck(pkg, lang.deck)
         anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, deck)
         clipFile.delete()
+        shot?.delete()
         tr("Added to %s", lang.deck) + (r.word?.let { ": ${it.surface}" } ?: "")
     }
 

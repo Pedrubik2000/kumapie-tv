@@ -96,7 +96,7 @@ private fun JapanesePanel(library: Library, ctl: SceneController, picker: WordPi
         }
     }
     HorizontalDivider(Modifier.padding(top = 8.dp, bottom = 4.dp), color = Colors.dim.copy(alpha = 0.3f))
-    Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+    Column { // the cards scroll inside the popup; a second scroller here fought with it
         when {
             !library.knownJa.modelReady -> Text("Download the Japanese words dictionary (Sudachi) in Settings first.", color = Colors.dim, fontSize = 14.sp)
             headwords == null -> Text("Looking it up…", color = Colors.dim, fontSize = 14.sp)

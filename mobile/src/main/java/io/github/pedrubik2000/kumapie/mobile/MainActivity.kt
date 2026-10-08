@@ -142,12 +142,12 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 ShowScreen(library, show, onPlay = { stack += Screen.Player(show, it) }, onBack = { stack.removeAt(stack.lastIndex) })
             }
             is Screen.Player -> PlayerScreen(library, screen.show, screen.episode, screen.startAt, onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.Feed -> FeedScreen(library, langShows, onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.IPlusOne -> IPlusOneScreen(library, langShows, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
+            Screen.Feed -> FeedScreen(library, langShows, homeLang, onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.IPlusOne -> IPlusOneScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server },
                 onUpdate = { update = it }, onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.Improve -> ImproveScreen(library, shows, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
+            Screen.Improve -> ImproveScreen(library, langShows, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Grammar -> GrammarScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Stats -> StatsScreen(library, onBack = { stack.removeAt(stack.lastIndex) })

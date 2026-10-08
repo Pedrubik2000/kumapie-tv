@@ -45,6 +45,7 @@ private data class FeedItem(val show: Show, val episode: EpisodeDetail, val scen
 
 /** The feed as last shuffled, kept while the app runs (coming back keeps the place). */
 private object FeedKept {
+    var lang: String? = null
     var levels: Set<Int>? = null
     var items: List<FeedItem>? = null
     var page = 0
@@ -57,20 +58,21 @@ private object FeedKept {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FeedScreen(library: Library, shows: List<Show>, onBack: () -> Unit) {
+fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> Unit) {
     FullScreen(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT)
     val settings = library.settings
     var levels by remember { mutableStateOf(settings.feedLevels.ifEmpty { setOf(1) }) }
-    var items by remember { mutableStateOf(FeedKept.items.takeIf { FeedKept.levels == levels }) }
+    var items by remember { mutableStateOf(FeedKept.items.takeIf { FeedKept.levels == levels && FeedKept.lang == lang }) }
     var loading by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(false) }
 
     LaunchedEffect(levels) {
-        if (items != null && FeedKept.levels == levels) return@LaunchedEffect
+        if (items != null && FeedKept.levels == levels && FeedKept.lang == lang) return@LaunchedEffect
         items = null
         val found = library.allEpisodes(shows) { loading = it }.flatMap { (show, ep) ->
             ep.scenes.filter { it.target && it.level != null && it.level!!.coerceAtMost(2) in levels }.map { FeedItem(show, ep, it) }
         }.shuffled()
+        FeedKept.lang = lang
         FeedKept.levels = levels
         FeedKept.items = found
         FeedKept.page = 0
@@ -80,7 +82,7 @@ fun FeedScreen(library: Library, shows: List<Show>, onBack: () -> Unit) {
 
     // Feed watching sends lookups and "mark known" as usual, but no progress: an episode resumes where it was left.
     val backend = remember {
-        val real = library.backend(library.settings.prefs.getString("home_lang", "de") ?: "de") // the feed follows Home's language
+        val real = library.backend(lang) // the feed follows Home's language
         object : Backend by real {
             override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {}
         }
@@ -120,7 +122,7 @@ fun FeedScreen(library: Library, shows: List<Show>, onBack: () -> Unit) {
         ModalBottomSheet(onDismissRequest = { filter = false }) {
             Column(Modifier.padding(horizontal = 24.dp).navigationBarsPadding().padding(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(tr("Scenes in the feed"), color = Colors.accent, fontSize = 17.sp)
+                Text(tr("Scenes in the feed") + " · " + io.github.pedrubik2000.kumapie.data.Lang.of(lang).displayName, color = Colors.accent, fontSize = 17.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(0 to "i+0", 1 to "i+1", 2 to "i+2 and up").forEach { (level, label) ->
                         FilterChip(selected = level in levels, label = { Text(tr(label)) }, onClick = {

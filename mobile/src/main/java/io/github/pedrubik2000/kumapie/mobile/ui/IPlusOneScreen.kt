@@ -43,6 +43,7 @@ private data class Easy(val show: Show, val episode: Episode, val scene: Scene, 
 
 /** The list as last made and shuffled, kept while the app runs (coming back from a scene keeps the order). */
 private object Kept {
+    var lang: String? = null
     var scenes: List<Easy>? = null
 }
 
@@ -52,8 +53,8 @@ private object Kept {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun IPlusOneScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, Double) -> Unit, onBack: () -> Unit) {
-    var scenes by remember { mutableStateOf(Kept.scenes) }
+fun IPlusOneScreen(library: Library, shows: List<Show>, lang: String, onPlay: (Show, Episode, Double) -> Unit, onBack: () -> Unit) {
+    var scenes by remember { mutableStateOf(Kept.scenes.takeIf { Kept.lang == lang }) }
     var loading by remember { mutableStateOf("") }
     var shuffle by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
@@ -70,14 +71,14 @@ fun IPlusOneScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, 
                 found += Easy(show, ep, sc, red.word!!, sc.english.joinToString(" ") { it.text })
             }
         }
-        scenes = found.shuffled().also { Kept.scenes = it }
+        scenes = found.shuffled().also { Kept.scenes = it; Kept.lang = lang }
         loading = if (found.isEmpty()) tr("No i+1 scenes (episodes that can't be reached offline are skipped).") else ""
     }
     LaunchedEffect(shuffle) { if (shuffle > 0) scenes = scenes?.shuffled()?.also { Kept.scenes = it } }
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text(tr("i+1 scenes") + (scenes?.let { " · ${it.size}" } ?: "")) },
+            title = { Text(tr("i+1 scenes") + " · " + io.github.pedrubik2000.kumapie.data.Lang.of(lang).displayName + (scenes?.let { " · ${it.size}" } ?: "")) },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
             actions = { IconButton(onClick = { shuffle++ }) { Icon(Icons.Default.Shuffle, tr("Shuffle")) } },
         )

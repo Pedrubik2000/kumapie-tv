@@ -145,13 +145,12 @@ fun HomeScreen(
         Dest(Icons.Default.AutoAwesome, tr("i+1 scenes"), onIPlusOne),
         Dest(Icons.Default.Download, tr("Downloads"), onDownloads, badge = active),
     )
-    // German grammar and cards that don't stick (German Core 1000) only with German; the Japanese dictionary with Japanese.
-    val learning = remember(shows) { library.settings.learning() }
+    // German grammar and cards that don't stick (German Core 1000) only in German; the Japanese dictionary only in Japanese.
     val extra = listOfNotNull(
         Dest(Icons.Default.BarChart, tr("Stats"), onStats),
-        Dest(Icons.Default.School, tr("Grammar"), onGrammar).takeIf { "de" in learning },
-        Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove).takeIf { "de" in learning },
-        Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch).takeIf { "ja" in learning },
+        Dest(Icons.Default.School, tr("Grammar"), onGrammar).takeIf { homeLang == "de" },
+        Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove).takeIf { homeLang == "de" },
+        Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch).takeIf { homeLang == "ja" },
         Dest(Icons.Default.Settings, tr("Settings"), onSettings),
     )
 

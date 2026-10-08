@@ -24,7 +24,6 @@ import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
 import io.github.pedrubik2000.kumapie.mobile.ui.FeedScreen
-import io.github.pedrubik2000.kumapie.mobile.ui.GrammarScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.ImproveScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.HomeScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.IPlusOneScreen
@@ -43,7 +42,6 @@ sealed interface Screen {
     data class Player(val show: Show, val episode: Episode, val startAt: Double? = null) : Screen
     data object IPlusOne : Screen
     data object Feed : Screen
-    data object Grammar : Screen
     data object Improve : Screen
     data object Settings : Screen
     data object Stats : Screen
@@ -129,7 +127,6 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 onStats = { stack += Screen.Stats },
                 onIPlusOne = { stack += Screen.IPlusOne },
                 onFeed = { stack += Screen.Feed },
-                onGrammar = { stack += Screen.Grammar },
                 onImprove = { stack += Screen.Improve },
                 onSearch = { stack += Screen.Search },
                 onDownloads = { stack += Screen.Downloads },
@@ -149,7 +146,6 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 onUpdate = { update = it }, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Improve -> ImproveScreen(library, langShows, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.Grammar -> GrammarScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Stats -> StatsScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Search -> io.github.pedrubik2000.kumapie.mobile.ui.SearchScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Downloads -> io.github.pedrubik2000.kumapie.mobile.ui.DownloadsScreen(onBack = { stack.removeAt(stack.lastIndex) })

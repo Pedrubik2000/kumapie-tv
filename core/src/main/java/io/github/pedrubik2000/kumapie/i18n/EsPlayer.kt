@@ -83,20 +83,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     "%1\$d other scenes with \"%2\$s\" (easiest first). Tap one to use it, ▶ to watch it." to
         "%1\$d escenas más con \"%2\$s\" (las más fáciles primero). Toca una para usarla, ▶ para verla.",
     "Watch the scene" to "Ver la escena",
-    // Grammar
-    "Reading the grammar points…" to "Leyendo los puntos de gramática…",
     "No kuma3 Anki on this device." to "No hay kuma3 Anki en este dispositivo.",
-    "No new grammar points here. Ask Claude on the PC for the next batch." to
-        "No hay puntos de gramática nuevos aquí. Pide a Claude en la PC el siguiente lote.",
-    "Grammar" to "Gramática",
-    "%d point(s) waiting on this device. Choose a picture for each sentence, then add the point." to
-        "%d punto(s) esperando en este dispositivo. Elige una imagen para cada frase y luego añade el punto.",
-    "Finding pictures for \"%s\"…" to "Buscando imágenes para \"%s\"…",
-    "No pictures for \"%s\" (offline?). The card gets none." to "No hay imágenes para \"%s\" (¿sin conexión?). La tarjeta va sin imagen.",
-    "none" to "ninguna",
-    "A point was added today: the deck shows 20 new cards a day, so the next one is for tomorrow." to
-        "Hoy ya se añadió un punto: el mazo muestra 20 tarjetas nuevas al día, así que el siguiente es para mañana.",
-    "Add it anyway" to "Añadirlo de todos modos",
     // Condensed audio
     "Couldn't open the episode: %s" to "No se pudo abrir el episodio: %s",
     "%s · condensed" to "%s · condensado",

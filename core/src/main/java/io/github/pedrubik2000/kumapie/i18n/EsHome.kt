@@ -3,7 +3,6 @@ package io.github.pedrubik2000.kumapie.i18n
 internal val esHome: Map<String, String> = mapOf(
     // Home
     "Refresh" to "Actualizar",
-    "Grammar" to "Gramática",
     "Cards that don't stick" to "Tarjetas que no se quedan",
     "Stats" to "Estadísticas",
     "Japanese dictionary" to "Diccionario de japonés",

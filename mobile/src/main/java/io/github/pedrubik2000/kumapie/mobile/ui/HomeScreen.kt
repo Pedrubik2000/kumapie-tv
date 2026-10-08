@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Swipe
 import androidx.compose.material.icons.filled.Translate
@@ -100,7 +99,6 @@ fun HomeScreen(
     onStats: () -> Unit,
     onIPlusOne: () -> Unit,
     onFeed: () -> Unit,
-    onGrammar: () -> Unit,
     onImprove: () -> Unit,
     onSettings: () -> Unit,
     onSearch: () -> Unit = {},
@@ -145,10 +143,9 @@ fun HomeScreen(
         Dest(Icons.Default.AutoAwesome, tr("i+1 scenes"), onIPlusOne),
         Dest(Icons.Default.Download, tr("Downloads"), onDownloads, badge = active),
     )
-    // German grammar and cards that don't stick (German Core 1000) only in German; the Japanese dictionary only in Japanese.
+    // Cards that don't stick (German Core 1000) only in German; the Japanese dictionary only in Japanese.
     val extra = listOfNotNull(
         Dest(Icons.Default.BarChart, tr("Stats"), onStats),
-        Dest(Icons.Default.School, tr("Grammar"), onGrammar).takeIf { homeLang == "de" },
         Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove).takeIf { homeLang == "de" },
         Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch).takeIf { homeLang == "ja" },
         Dest(Icons.Default.Settings, tr("Settings"), onSettings),

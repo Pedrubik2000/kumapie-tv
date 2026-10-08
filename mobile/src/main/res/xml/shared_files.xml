@@ -3,6 +3,4 @@
 <paths>
     <cache-path name="mining" path="mining/" />
     <external-files-path name="recordings" path="dictionary/recordings/" />
-    <!-- Grammar points pushed from the PC (tools/grammar export) and their chosen pictures: grammar/Grammar.kt. -->
-    <external-files-path name="grammar" path="grammar/" />
 </paths>

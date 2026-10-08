@@ -5,6 +5,8 @@ import android.content.pm.ActivityInfo
 import android.os.SystemClock
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -265,6 +267,14 @@ internal fun ScenePlayer(
             },
             modifier = Modifier.fillMaxSize(),
         )
+        // A novel in landscape: the picture dims under the text, like the original game's text window (not during the
+        // transition into the line, nor upright, where the text is below the picture).
+        if (episode.novel) {
+            val texted = !uprightNow && (ctl.showTarget || ctl.showEnglish) &&
+                ctl.scene.cues.firstOrNull()?.let { ctl.position >= it.start - 0.05 } == true
+            val dim by animateFloatAsState(if (texted) 0.5f else 0f, tween(250), label = "dim")
+            if (dim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
+        }
 
         // The gestures on the video. Subtitles and the card sit above and take their own taps.
         Box(

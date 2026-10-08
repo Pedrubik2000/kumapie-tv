@@ -69,7 +69,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     val current = if (picking) scene.cues.getOrNull(picker.line) else ctl.currentCue()
     val pos = ctl.position
     // A novel's scene starts with the game's transition into the line (fades, wipes, waits): no text box yet.
-    if (ctl.episode.novel && ctl.playing && !picking && scene.cues.firstOrNull()?.let { pos < it.start - 0.05 } == true) {
+    if (ctl.episode.novel && !picking &&scene.cues.firstOrNull()?.let { pos < it.start - 0.05 } == true) {
         SideEffect { onAnchor(null) }
         return
     }

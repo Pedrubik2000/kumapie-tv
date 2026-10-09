@@ -42,10 +42,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.pedrubik2000.kumapie.data.Lang
-import io.github.pedrubik2000.kumapie.mobile.lang.GlossaryHtml
-import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup
-import io.github.pedrubik2000.kumapie.mobile.lang.Headword
-import io.github.pedrubik2000.kumapie.mobile.lang.Tap
+import io.github.pedrubik2000.kumapie.lang.GlossaryHtml
+import io.github.pedrubik2000.kumapie.lang.JapaneseLookup
+import io.github.pedrubik2000.kumapie.lang.Headword
+import io.github.pedrubik2000.kumapie.lang.Tap
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import org.json.JSONObject

@@ -8,6 +8,7 @@ import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Scene
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
+import io.github.pedrubik2000.kumapie.lang.*
 import java.io.File
 
 /**

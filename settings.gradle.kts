@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "kumapie-tv"
-include(":core", ":app", ":mobile")
+include(":core", ":app", ":mobile", ":lang")

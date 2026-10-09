@@ -1,4 +1,4 @@
-package io.github.pedrubik2000.kumapie.mobile.lang
+package io.github.pedrubik2000.kumapie.lang
 
 import android.media.MediaCodec
 import android.media.MediaMuxer

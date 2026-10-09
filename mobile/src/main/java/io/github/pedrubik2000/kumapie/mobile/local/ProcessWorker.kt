@@ -49,8 +49,8 @@ import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
 import io.github.pedrubik2000.kumapie.data.Settings
-import io.github.pedrubik2000.kumapie.mobile.lang.GermanModel
-import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseModel
+import io.github.pedrubik2000.kumapie.lang.GermanModel
+import io.github.pedrubik2000.kumapie.lang.JapaneseModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay

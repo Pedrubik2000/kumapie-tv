@@ -8,11 +8,11 @@ import io.github.pedrubik2000.kumapie.data.Backend
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
-import io.github.pedrubik2000.kumapie.mobile.lang.Dictionary
-import io.github.pedrubik2000.kumapie.mobile.lang.Language
-import io.github.pedrubik2000.kumapie.mobile.lang.Languages
-import io.github.pedrubik2000.kumapie.mobile.lang.Miner
-import io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries
+import io.github.pedrubik2000.kumapie.lang.Dictionary
+import io.github.pedrubik2000.kumapie.lang.Language
+import io.github.pedrubik2000.kumapie.lang.Languages
+import io.github.pedrubik2000.kumapie.lang.Miner
+import io.github.pedrubik2000.kumapie.lang.YomitanDictionaries
 import io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes
 import io.github.pedrubik2000.kumapie.mobile.unlock.UnlockPool
 import kotlinx.coroutines.CoroutineScope
@@ -35,7 +35,7 @@ class Library(context: Context, val settings: Settings) {
     val yomitan = YomitanDictionaries.get(context).also {
         // Episodes to and from the PC (the hub), when this device has an owner.
         if (settings.owner.isNotBlank()) io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.schedule(context)
-        io.github.pedrubik2000.kumapie.mobile.lang.YomitanUpdateWorker.schedule(context)
+        io.github.pedrubik2000.kumapie.lang.YomitanUpdateWorker.schedule(context)
         if (io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).all().isNotEmpty()) io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.schedule(context)
     }
     /** Meanings without the PC: Yomitan dictionaries, else the offline Wiktionary file, Wiktionary online (cached), recordings. */
@@ -44,7 +44,11 @@ class Library(context: Context, val settings: Settings) {
         if (Dictionary.RECORDINGS.any { !d.recordingsFile(it).exists() }) d.download()
     }
     /** What each language does its own way: lookups, word audio, known words. */
-    val languages = Languages(context, settings, yomitan, dictionary)
+    val languages = Languages(context, settings, yomitan, dictionary) { modelDir, fieldsJson ->
+        // spaCy in Chaquopy's Python (python/german.py): Python lives in this app module, not in :lang.
+        if (!com.chaquo.python.Python.isStarted()) com.chaquo.python.Python.start(com.chaquo.python.android.AndroidPlatform(appContext))
+        com.chaquo.python.Python.getInstance().getModule("german").callAttr("parse_fields", modelDir, fieldsJson).toString()
+    }
     /** Cards mined into kuma3 Anki. */
     val miner by lazy { Miner(context, languages, dictionary) }
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)

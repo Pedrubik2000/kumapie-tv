@@ -1,13 +1,5 @@
 # The app parses JSON by hand (org.json), so nothing needs keeping for reflection.
 
-# Sudachi (lang/JapaneseModel.kt) builds its plugins from class names in its bundled sudachi.json, by reflection.
--keep class com.worksap.nlp.sudachi.** { *; }
--keep class com.worksap.nlp.dartsclone.** { *; }
--dontwarn com.worksap.nlp.**
--dontwarn javax.json.**
--keep class org.glassfish.json.** { *; }
--dontwarn org.glassfish.json.**
-
 # Python (Chaquopy) calls the progress logger by name: log.log(line).
 -keep class io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker$Logger { public void log(java.lang.String); }
 

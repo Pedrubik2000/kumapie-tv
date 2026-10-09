@@ -5,7 +5,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import android.os.Build
 import android.util.Log
 import io.github.pedrubik2000.kumapie.data.Settings
-import io.github.pedrubik2000.kumapie.mobile.lang.AnkiCards
+import io.github.pedrubik2000.kumapie.lang.AnkiCards
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray

@@ -1,4 +1,4 @@
-package io.github.pedrubik2000.kumapie.mobile.lang
+package io.github.pedrubik2000.kumapie.lang
 
 import org.json.JSONArray
 import org.json.JSONObject

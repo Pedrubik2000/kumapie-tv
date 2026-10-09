@@ -1,4 +1,4 @@
-package io.github.pedrubik2000.kumapie.mobile.lang
+package io.github.pedrubik2000.kumapie.lang
 
 import android.content.Context
 import io.github.pedrubik2000.kumapie.data.Lang
@@ -73,6 +73,7 @@ data class Headword(val expression: String, val reading: String, val terms: List
 
 /** German and English: words are what the episode's segments say; meanings from the Yomitan dictionaries, recordings from Wiktionary. */
 class Spaced(context: Context, settings: Settings, override val lang: Lang, private val dictionary: Dictionary, private val scope: CoroutineScope,
+             private val spacy: Spacy,
              /** Prefix of this language's marks in Progress ("en:"); German's are bare, as they always were. */
              private val markPrefix: String = "",
              /** German: notes judged by their tags (Core 1000 and mined words by Word, Nicos Weg skipped), as morphs on the PC. */
@@ -93,11 +94,9 @@ class Spaced(context: Context, settings: Settings, override val lang: Lang, priv
         else -> "Sentence"
     }
 
-    /** spaCy through Chaquopy (python/german.py, the same model as morphs on the PC): each field's inflections. */
+    /** spaCy ([spacy], the same model as morphs on the PC): each field's inflections. */
     override fun wordKeys(fields: List<String>): List<Set<String>> {
-        if (!com.chaquo.python.Python.isStarted()) com.chaquo.python.Python.start(com.chaquo.python.android.AndroidPlatform(appContext))
-        val parsed = org.json.JSONArray(com.chaquo.python.Python.getInstance().getModule("german")
-            .callAttr("parse_fields", model.dir.path, org.json.JSONArray(fields).toString()).toString())
+        val parsed = org.json.JSONArray(spacy(model.dir.path, org.json.JSONArray(fields).toString()))
         return (0 until parsed.length()).map { i ->
             val morphs = parsed.getJSONArray(i)
             (0 until morphs.length()).map { morphs.getJSONArray(it).getString(1) }.toSet()
@@ -174,12 +173,18 @@ class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionarie
     }
 }
 
+/**
+ * spaCy, run by the app (Chaquopy works in one module per app): python/german.py's parse_fields(model folder, fields
+ * as a JSON list) -> per field, a JSON list of [lemma, inflection] pairs.
+ */
+typealias Spacy = (modelDir: String, fieldsJson: String) -> String
+
 /** Every language kumapie plays, built once each. */
-class Languages(context: Context, settings: Settings, yomitan: YomitanDictionaries, dictionary: Dictionary) {
+class Languages(context: Context, settings: Settings, yomitan: YomitanDictionaries, dictionary: Dictionary, spacy: Spacy) {
     /** Word audio plays from here (the main thread). */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    val german = Spaced(context, settings, Lang.GERMAN, dictionary, scope, judgeByTags = true)
-    val english = Spaced(context, settings, Lang.ENGLISH, dictionary, scope, markPrefix = "en:")
+    val german = Spaced(context, settings, Lang.GERMAN, dictionary, scope, spacy, judgeByTags = true)
+    val english = Spaced(context, settings, Lang.ENGLISH, dictionary, scope, spacy, markPrefix = "en:")
     val japanese = Japanese(context, settings, yomitan, scope)
     val all: List<Language> = listOf(german, japanese, english)
 

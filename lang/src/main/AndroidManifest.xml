@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Dictionaries, models and recordings are downloaded; downloads run as a foreground job. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- Reading and mining cards in kuma3 Anki (or AnkiDroid): see AnkiCards.kt. -->
+    <uses-permission android:name="io.github.pedrubik2000.kuma3.permission.READ_WRITE_DATABASE" />
+    <uses-permission android:name="com.ichi2.anki.debug.permission.READ_WRITE_DATABASE" />
+    <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE" />
+
+    <queries>
+        <provider android:authorities="io.github.pedrubik2000.kuma3.flashcards" />
+        <provider android:authorities="com.ichi2.anki.debug.flashcards" />
+        <provider android:authorities="com.ichi2.anki.flashcards" />
+    </queries>
+
+    <application>
+        <!-- Mined cards' clip and audio, lent to kuma3 Anki while it copies them into its media folder. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/shared_files" />
+        </provider>
+    </application>
+</manifest>

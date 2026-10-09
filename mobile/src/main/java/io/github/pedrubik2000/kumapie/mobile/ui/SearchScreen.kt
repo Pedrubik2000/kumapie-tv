@@ -32,9 +32,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.Lang
-import io.github.pedrubik2000.kumapie.mobile.lang.Headword
-import io.github.pedrubik2000.kumapie.mobile.lang.Tap
-import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseModel
+import io.github.pedrubik2000.kumapie.lang.Headword
+import io.github.pedrubik2000.kumapie.lang.Tap
+import io.github.pedrubik2000.kumapie.lang.JapaneseModel
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.i18n.tr

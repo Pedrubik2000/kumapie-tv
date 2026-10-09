@@ -1,4 +1,4 @@
-package io.github.pedrubik2000.kumapie.mobile.lang
+package io.github.pedrubik2000.kumapie.lang
 
 import android.app.NotificationChannel
 import io.github.pedrubik2000.kumapie.i18n.tr

@@ -19,7 +19,7 @@ import com.k2fsa.sherpa.onnx.SileroVadModelConfig
 import com.k2fsa.sherpa.onnx.Vad
 import com.k2fsa.sherpa.onnx.VadModelConfig
 import io.github.pedrubik2000.kumapie.data.Settings
-import io.github.pedrubik2000.kumapie.mobile.lang.AssetWorker
+import io.github.pedrubik2000.kumapie.lang.AssetWorker
 import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
 import org.json.JSONObject

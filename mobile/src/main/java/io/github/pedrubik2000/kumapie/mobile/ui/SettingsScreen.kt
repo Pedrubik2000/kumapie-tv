@@ -190,7 +190,7 @@ private fun KnownWordsSection(library: Library, learning: Set<String>) {
  * once), reading its cards again (also done when the app starts) and, for spaced languages, morphs' Recalc.
  */
 @Composable
-private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.mobile.lang.Language, allowed: Boolean, app: String?) {
+private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.Language, allowed: Boolean, app: String?) {
     val known = language.known
     val model = language.model
     val scope = rememberCoroutineScope()
@@ -216,10 +216,10 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.mobile
     }) { Text(if (busy) tr("Reading Anki…") else tr("Read ${language.lang.name} cards now")) }
 
     // morphs' Recalc (the PC's daily `morphs recalc`): first what would change, then Apply. kuma3 Anki only.
-    if (language is io.github.pedrubik2000.kumapie.mobile.lang.Spaced && ready && allowed && app != "com.ichi2.anki") {
-        var plan by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.Recalc.Plan?>(null) }
+    if (language is io.github.pedrubik2000.kumapie.lang.Spaced && ready && allowed && app != "com.ichi2.anki") {
+        var plan by remember { mutableStateOf<io.github.pedrubik2000.kumapie.lang.Recalc.Plan?>(null) }
         var said by remember { mutableStateOf("") }
-        val recalc = remember { io.github.pedrubik2000.kumapie.mobile.lang.Recalc(known) }
+        val recalc = remember { io.github.pedrubik2000.kumapie.lang.Recalc(known) }
         OutlinedButton(enabled = !busy, onClick = {
             busy = true
             said = tr("Working out the order…")
@@ -259,7 +259,7 @@ private fun YomitanSection(library: Library, learning: Set<String> = emptySet())
     var lang by remember { mutableStateOf(langs.firstOrNull() ?: io.github.pedrubik2000.kumapie.data.Lang.GERMAN) }
     var said by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Dict?>(null) }
+    var deleting by remember { mutableStateOf<io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Dict?>(null) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         busy = true
@@ -307,7 +307,7 @@ private fun YomitanSection(library: Library, learning: Set<String> = emptySet())
         }
     }
     OutlinedButton(enabled = !busy, onClick = { pickFolder.launch(null) }) { Text(tr("Import a folder of %s dictionaries", langName)) }
-    if (io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.RECOMMENDED[lang.code] != null) OutlinedButton(enabled = !busy, onClick = {
+    if (io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.RECOMMENDED[lang.code] != null) OutlinedButton(enabled = !busy, onClick = {
         busy = true
         scope.launch { said = dicts.installRecommended(lang) { said = it }.joinToString("\n"); busy = false }
     }) { Text(tr("Download the recommended %s dictionaries", langName)) }
@@ -355,7 +355,7 @@ private fun DictionarySection(library: Library) {
     }) { Text(tr("Speech settings")) }
     Text(tr("Words are read by a person's recording when Wikimedia Commons has one, else by this voice."),
         fontSize = 13.sp, color = Colors.dim)
-    Text(io.github.pedrubik2000.kumapie.mobile.lang.Dictionary.ATTRIBUTION, fontSize = 12.sp, color = Colors.dim)
+    Text(io.github.pedrubik2000.kumapie.lang.Dictionary.ATTRIBUTION, fontSize = 12.sp, color = Colors.dim)
 }
 
 /** A scene on every unlock: the switch, "Display over other apps" (needed to open over the lock screen), the pool. */

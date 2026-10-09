@@ -101,6 +101,7 @@ if (!sherpaAar.exists()) {
 dependencies {
     testImplementation("junit:junit:4.13.2")
     implementation(project(":core"))
+    implementation(project(":lang")) // the language layer (Languages)
     implementation(files(sherpaAar))
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
@@ -111,11 +112,8 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("androidx.media3:media3-session:1.11.1") // condensed listening in the background (listen/Condensed.kt)
-    implementation("androidx.media3:media3-transformer:1.11.1") // scene clips for mined cards
-    implementation("androidx.media3:media3-effect:1.11.1")
-    implementation("androidx.media3:media3-muxer:1.11.1") // WebM clips (lang/WebmMuxer.kt)
+    implementation("androidx.media3:media3-transformer:1.11.1") // audio cut for new episodes (local/ProcessWorker.kt)
     implementation("com.google.mlkit:translate:17.0.3") // German -> English on the device (local/ProcessWorker.kt)
-    implementation("com.worksap.nlp:sudachi:0.8.2") // Japanese words (lang/JapaneseModel.kt); dictionary downloaded
     implementation("androidx.work:work-runtime-ktx:2.11.0")
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")

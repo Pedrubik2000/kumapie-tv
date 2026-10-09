@@ -26,8 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
-import io.github.pedrubik2000.kumapie.mobile.lang.Miner
-import io.github.pedrubik2000.kumapie.mobile.lang.SensePick
+import io.github.pedrubik2000.kumapie.lang.Miner
+import io.github.pedrubik2000.kumapie.lang.SensePick
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
@@ -45,7 +45,7 @@ private data class Choice(val label: String, val gloss: String, val example: Pai
  */
 @Composable
 fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit) {
-    if (library.languages.of(ctl.lang) is io.github.pedrubik2000.kumapie.mobile.lang.Japanese) return JapaneseMineSheet(library, episode, ctl, picker, onDone)
+    if (library.languages.of(ctl.lang) is io.github.pedrubik2000.kumapie.lang.Japanese) return JapaneseMineSheet(library, episode, ctl, picker, onDone)
     val scope = rememberCoroutineScope()
     val scene = ctl.scene
     val line = picker.line
@@ -71,9 +71,9 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             ?.takeIf { it.isNotBlank() }
         val list = mutableListOf<Choice>()
         own?.let { list += Choice("kumapie: $it", it, null) }
-        val all = library.languages.of(ctl.lang).entries(io.github.pedrubik2000.kumapie.mobile.lang.Tap(segment.text, 0, segment.text.length, key, lemma))
+        val all = library.languages.of(ctl.lang).entries(io.github.pedrubik2000.kumapie.lang.Tap(segment.text, 0, segment.text.length, key, lemma))
         // Monolingual dictionaries (wty-de-de, wty-en-en) give the card's monolingual definition, not its meaning.
-        val isMono = { e: io.github.pedrubik2000.kumapie.mobile.lang.DictEntry -> library.yomitan.groupOf(ctl.lang, e.dict) == "Monolingual" }
+        val isMono = { e: io.github.pedrubik2000.kumapie.lang.DictEntry -> library.yomitan.groupOf(ctl.lang, e.dict) == "Monolingual" }
         val entries = all.filterNot(isMono).ifEmpty { all }
         monos = all.filter(isMono).flatMap { e -> e.senses.take(3).map { Choice("${e.word} (${e.pos}): ${it.gloss}", it.gloss, null) } }
             .distinctBy { it.gloss }.take(8)
@@ -155,7 +155,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
     val segment = picker.selected
     val offset = cue.segments.take(picker.seg).sumOf { it.text.length }
     var wordCard by remember { mutableStateOf(segment?.word != null) }
-    var headword by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.Headword?>(null) }
+    var headword by remember { mutableStateOf<io.github.pedrubik2000.kumapie.lang.Headword?>(null) }
     var choices by remember { mutableStateOf<List<Choice>>(emptyList()) }
     var monos by remember { mutableStateOf<List<Choice>>(emptyList()) }
     var monoChosen by remember { mutableIntStateOf(0) }
@@ -168,22 +168,22 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
     LaunchedEffect(segment?.text) {
         if (segment?.word == null) return@LaunchedEffect
         val found = runCatching {
-            library.languages.japanese.lookup(io.github.pedrubik2000.kumapie.mobile.lang.Tap(cue.text, offset, segment.text.length))
+            library.languages.japanese.lookup(io.github.pedrubik2000.kumapie.lang.Tap(cue.text, offset, segment.text.length))
         }.getOrDefault(emptyList()).firstOrNull()
         headword = found
         val glossaries = found?.terms?.flatMap { it.glossaries }.orEmpty()
         fun group(dict: String) = library.yomitan.groupOf(ja, dict)
-        fun meanings(g: io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Glossary) =
-            g.senses.flatMap { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.meanings(it) }.distinct()
-        val isMono = { g: io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("mono", ignoreCase = true) }
-        val isBilingual = { g: io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("bilingual", ignoreCase = true) }
+        fun meanings(g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary) =
+            g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.meanings(it) }.distinct()
+        val isMono = { g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("mono", ignoreCase = true) }
+        val isBilingual = { g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("bilingual", ignoreCase = true) }
         // Meanings from the bilingual group (else every dictionary but monolingual and forms ones).
         val meaningDicts = glossaries.filter(isBilingual).ifEmpty {
             glossaries.filterNot { isMono(it) || group(it.dict).contains("form", ignoreCase = true) || it.dict.contains("form", ignoreCase = true) }
         }
-        fun choice(g: io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries.Glossary, m: String) = Choice("${g.dict.substringBefore(" (").take(24)}: $m", m, null)
+        fun choice(g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary, m: String) = Choice("${g.dict.substringBefore(" (").take(24)}: $m", m, null)
         choices = meaningDicts.flatMap { g ->
-            g.senses.flatMap { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(6).map { choice(g, it) }
+            g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(6).map { choice(g, it) }
         }.distinctBy { it.gloss }.take(40)
         // The meaning that fits the line's English starts chosen, marked.
         SensePick.bestMeaning(choices.map { it.gloss }, SensePick.english(scene, line))?.let { i ->
@@ -193,7 +193,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         // Monolingual definitions: one per dictionary; encyclopedias (Pixiv, Wikipedia…) last, so a 国語 dictionary leads.
         val encyclopedia = Regex("pixiv|wiki|ニコ|百科", RegexOption.IGNORE_CASE)
         monos = glossaries.filter(isMono).sortedBy { if (encyclopedia.containsMatchIn(it.dict)) 1 else 0 }
-            .mapNotNull { g -> g.senses.firstNotNullOfOrNull { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.monolingualDefinition(it) }?.let { choice(g, it) } }
+            .mapNotNull { g -> g.senses.firstNotNullOfOrNull { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.monolingualDefinition(it) }?.let { choice(g, it) } }
             .distinctBy { it.gloss }.take(8)
         looked = true
     }

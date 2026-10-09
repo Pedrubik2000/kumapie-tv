@@ -126,7 +126,7 @@ Handle* h(jlong p) { return reinterpret_cast<Handle*>(p); }
 
 }  // namespace
 
-#define FN(name) Java_io_github_pedrubik2000_kumapie_mobile_lang_Hoshidicts_##name
+#define FN(name) Java_io_github_pedrubik2000_kumapie_lang_Hoshidicts_##name
 
 extern "C" {
 

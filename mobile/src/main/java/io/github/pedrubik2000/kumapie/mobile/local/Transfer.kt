@@ -14,7 +14,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
-import io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries
+import io.github.pedrubik2000.kumapie.lang.YomitanDictionaries
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Builds hoshidicts (bee-san's fork, GPL-3.0) with kumapie's JNI layer for Android arm64 into
-# mobile/src/main/jniLibs/arm64-v8a/libhoshidicts_jni.so (Yomitan dictionaries: lang/Hoshidicts.kt).
+# lang/src/main/jniLibs/arm64-v8a/libhoshidicts_jni.so (Yomitan dictionaries: lang/.../Hoshidicts.kt).
 # Needs the Android NDK and CMake >= 3.22 (run in WSL): ANDROID_NDK_HOME=/path/to/ndk tools/hoshidicts/build.sh [commit]
 set -euo pipefail
 COMMIT=${1:-7ae305f}
 HERE=$(cd "$(dirname "$0")" && pwd)
-OUT=$HERE/../../mobile/src/main/jniLibs/arm64-v8a/libhoshidicts_jni.so
+OUT=$HERE/../../lang/src/main/jniLibs/arm64-v8a/libhoshidicts_jni.so
 TMP=$(mktemp -d)
 git clone -q https://github.com/bee-san/hoshidicts.git "$TMP/src"
 git -C "$TMP/src" checkout -q "$COMMIT"

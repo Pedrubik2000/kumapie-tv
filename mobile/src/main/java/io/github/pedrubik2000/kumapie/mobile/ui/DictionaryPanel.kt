@@ -20,11 +20,11 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.pedrubik2000.kumapie.mobile.lang.DictEntry
-import io.github.pedrubik2000.kumapie.mobile.lang.Headword
-import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup
-import io.github.pedrubik2000.kumapie.mobile.lang.Tap
-import io.github.pedrubik2000.kumapie.mobile.lang.SensePick
+import io.github.pedrubik2000.kumapie.lang.DictEntry
+import io.github.pedrubik2000.kumapie.lang.Headword
+import io.github.pedrubik2000.kumapie.lang.JapaneseLookup
+import io.github.pedrubik2000.kumapie.lang.Tap
+import io.github.pedrubik2000.kumapie.lang.SensePick
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker

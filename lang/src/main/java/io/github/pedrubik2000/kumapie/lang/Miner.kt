@@ -1,4 +1,4 @@
-package io.github.pedrubik2000.kumapie.mobile.lang
+package io.github.pedrubik2000.kumapie.lang
 
 import io.github.pedrubik2000.kumapie.i18n.tr
 import android.content.Context
@@ -243,7 +243,7 @@ class Miner(
      * shows only .webm clips as video), from the downloaded file or the PC's stream.
      */
     @OptIn(UnstableApi::class)
-    internal suspend fun clip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
+    suspend fun clip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
             val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
             val item = MediaItem.Builder().setUri(uri).setClippingConfiguration(
@@ -275,7 +275,7 @@ class Miner(
     }
 
     /** A person's recording (saved or fetched), else the device's voice saying it; null if neither works. */
-    internal suspend fun wordAudio(surface: String, language: Spaced = languages.german): File? {
+    suspend fun wordAudio(surface: String, language: Spaced = languages.german): File? {
         val recording = dictionary.recording(surface, language.lang.code)
         if (recording != null && !recording.startsWith("http")) return File(recording)
         if (recording != null) {
@@ -304,7 +304,7 @@ class Miner(
     }
 
     /** The English of those cues: the scene's English lines that overlap them, else all of them. */
-    internal fun english(scene: Scene, cues: List<Cue>): String {
+    fun english(scene: Scene, cues: List<Cue>): String {
         val start = cues.first().start
         val end = cues.last().end
         val overlapping = scene.english.filter { it.end > start + 0.1 && it.start < end - 0.1 }
@@ -314,7 +314,7 @@ class Miner(
     private fun esc(s: String) = TextUtils.htmlEncode(s)
 
     /** "You and I Are Polar Opposites" -> "you_and_i_are_polar_opposites", the show tag of the PC's cards. */
-    internal fun slug(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "_").trim('_')
+    fun slug(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "_").trim('_')
 
     companion object {
         /**

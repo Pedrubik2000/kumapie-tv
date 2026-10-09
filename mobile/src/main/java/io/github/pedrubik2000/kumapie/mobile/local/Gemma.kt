@@ -9,7 +9,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import io.github.pedrubik2000.kumapie.mobile.lang.AssetWorker
+import io.github.pedrubik2000.kumapie.lang.AssetWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runInterruptible

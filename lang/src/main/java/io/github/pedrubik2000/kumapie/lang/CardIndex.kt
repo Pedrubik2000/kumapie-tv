@@ -16,14 +16,12 @@ class CardIndex {
         this.due = due
     }
 
-    /** Fresh cards (after answering) and kuma3's queue now. */
+    /** Cards read again (after a rating or Undo; none: only the queue) and kuma3's queue now. */
     fun update(fresh: List<AnkiCards.Card>, due: Map<Long, String>?) {
         val byId = fresh.associateBy { it.id }
         byForm = byForm.mapValues { (_, cs) -> cs.map { byId[it.id] ?: it } }
         this.due = due
     }
-
-    fun setDue(due: Map<Long, String>?) { this.due = due }
 
     /**
      * [io.github.pedrubik2000.kumapie.data.Word.card] of a form: "d" an own card is due for review today, "k" studied

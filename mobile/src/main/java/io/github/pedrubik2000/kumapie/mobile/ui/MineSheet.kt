@@ -38,6 +38,48 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 /** One meaning to choose for a word card. */
 private data class Choice(val label: String, val gloss: String, val example: Pair<String, String>?)
 
+/** A word card's meanings (kumapie's own first, then the dictionaries'), the one picked at first, and monolingual definitions. */
+private class WordChoices(val choices: List<Choice>, val chosen: Int, val monos: List<Choice>)
+
+private suspend fun wordChoices(library: Library, ctl: SceneController, line: Int, surface: String, key: String): WordChoices {
+    val scene = ctl.scene
+    val word = ctl.words[key]
+    val def = scene.def(line, key)
+    val lemma = def?.lemma?.takeIf { it.isNotBlank() } ?: word?.lemma?.takeIf { it.isNotBlank() }
+    val own = (def?.english?.takeIf { it.isNotBlank() } ?: (scene.meanings[key] ?: word?.meaning)?.substringAfter(" = "))
+        ?.takeIf { it.isNotBlank() }
+    val list = mutableListOf<Choice>()
+    own?.let { list += Choice("kumapie: $it", it, null) }
+    val all = library.languages.of(ctl.lang).entries(io.github.pedrubik2000.kumapie.lang.Tap(surface, 0, surface.length, key, lemma))
+    // Monolingual dictionaries (wty-de-de, wty-en-en) give the card's monolingual definition, not its meaning.
+    val isMono = { e: io.github.pedrubik2000.kumapie.lang.DictEntry -> library.yomitan.groupOf(ctl.lang, e.dict) == "Monolingual" }
+    val entries = all.filterNot(isMono).ifEmpty { all }
+    val monos = all.filter(isMono).flatMap { e -> e.senses.take(3).map { Choice("${e.word} (${e.pos}): ${it.gloss}", it.gloss, null) } }
+        .distinctBy { it.gloss }.take(8)
+    val fits = SensePick.best(entries, SensePick.english(scene, line))
+    var fitting = -1
+    entries.forEachIndexed { i, e ->
+        e.senses.forEachIndexed { j, s ->
+            if (fits == i to j) fitting = list.size
+            list += Choice("${e.word} (${e.pos}): ${s.gloss}" + if (fits == i to j) tr("  · fits this line") else "", s.gloss,
+                s.examples.firstOrNull())
+        }
+    }
+    return WordChoices(list, if (own == null && fitting >= 0) fitting else 0, monos)
+}
+
+/**
+ * The word card the mine sheet would make with what it picks at first (rating a word without a card of its own makes
+ * it): this line, the scene clip, the word's audio, the meaning that fits the line, the first monolingual definition.
+ */
+internal suspend fun autoWordCard(library: Library, ctl: SceneController, line: Int, surface: String, key: String): Miner.Request? {
+    val c = wordChoices(library, ctl, line, surface, key)
+    val pick = c.choices.getOrNull(c.chosen) ?: return null
+    val def = ctl.scene.def(line, key)
+    val lemma = def?.lemma?.takeIf { it.isNotBlank() } ?: ctl.words[key]?.lemma?.takeIf { it.isNotBlank() }
+    return Miner.Request(ctl.episode, ctl.scene, line, Miner.Word(surface, key, lemma, pick.gloss, pick.example, def, mono = c.monos.firstOrNull()?.gloss))
+}
+
 /**
  * "Add to Anki": the line as a sentence card, or the picked word as a word card with the meaning chosen from
  * kumapie's own meaning and every dictionary sense. Without kumapie's own meaning, the sense that fits the line's
@@ -67,27 +109,10 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
 
     LaunchedEffect(segment?.text, key) {
         if (segment == null || key == null) return@LaunchedEffect
-        val own = (def?.english?.takeIf { it.isNotBlank() } ?: (scene.meanings[key] ?: word?.meaning)?.substringAfter(" = "))
-            ?.takeIf { it.isNotBlank() }
-        val list = mutableListOf<Choice>()
-        own?.let { list += Choice("kumapie: $it", it, null) }
-        val all = library.languages.of(ctl.lang).entries(io.github.pedrubik2000.kumapie.lang.Tap(segment.text, 0, segment.text.length, key, lemma))
-        // Monolingual dictionaries (wty-de-de, wty-en-en) give the card's monolingual definition, not its meaning.
-        val isMono = { e: io.github.pedrubik2000.kumapie.lang.DictEntry -> library.yomitan.groupOf(ctl.lang, e.dict) == "Monolingual" }
-        val entries = all.filterNot(isMono).ifEmpty { all }
-        monos = all.filter(isMono).flatMap { e -> e.senses.take(3).map { Choice("${e.word} (${e.pos}): ${it.gloss}", it.gloss, null) } }
-            .distinctBy { it.gloss }.take(8)
-        val fits = SensePick.best(entries, SensePick.english(scene, line))
-        var fitting = -1
-        entries.forEachIndexed { i, e ->
-            e.senses.forEachIndexed { j, s ->
-                if (fits == i to j) fitting = list.size
-                list += Choice("${e.word} (${e.pos}): ${s.gloss}" + if (fits == i to j) tr("  · fits this line") else "", s.gloss,
-                    s.examples.firstOrNull())
-            }
-        }
-        if (own == null && fitting >= 0) chosen = fitting
-        choices = list
+        val c = wordChoices(library, ctl, line, segment.text, key)
+        monos = c.monos
+        chosen = c.chosen
+        choices = c.choices
     }
 
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()

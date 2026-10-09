@@ -80,6 +80,18 @@ class AnkiCards(private val context: Context) {
         }, null, null)
     }
 
+    /** What kuma3's Undo would undo now ("" nothing; its provider's `kuma3/undo`). */
+    fun undoLabel(pkg: String): String = runCatching {
+        context.contentResolver.query(Uri.parse("content://$pkg.flashcards/kuma3/undo"), null, null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else ""
+        }
+    }.getOrNull().orEmpty()
+
+    /** kuma3's Undo, once. */
+    fun undo(pkg: String) {
+        context.contentResolver.update(Uri.parse("content://$pkg.flashcards/kuma3/undo"), ContentValues(), null, null)
+    }
+
     // ------------------------------------------------------------------ writing (mining)
 
     /** The id of the first note type found by name (e.g. "🐻 German", then "🇩🇪 MvJ"), and its field names. */

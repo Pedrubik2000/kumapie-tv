@@ -23,7 +23,7 @@ class CardIndexTest {
         assertEquals("n", index.state("schlägt")) // learning, even though it's in today's queue
         assertEquals(listOf(20L), index.toAnswer("tante").map { it.id }) // only the due one
         assertEquals(listOf(10L), index.toAnswer("gehen").map { it.id }) // none due: the first (early review)
-        index.setDue(null)
+        index.update(emptyList(), null)
         assertEquals(null, index.state("gehen")) // kuma3's queue unknown: old colours
     }
 }

@@ -107,21 +107,40 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val pkg = lastReading?.pkg ?: return@withContext
         if (System.currentTimeMillis() - dueAt < 60_000) return@withContext
         dueAt = System.currentTimeMillis()
-        cardIndex.setDue(anki.due(pkg))
+        cardIndex.update(emptyList(), anki.due(pkg))
     }
+
+    /** A rating from a word card: the form's state after it, the cards it answered, and kuma3's Undo label right after. */
+    class Rated(val state: String?, val notes: List<Long>, val cards: Int, val undoLabel: String)
 
     /**
      * Rates the form's own cards in kuma3 ([CardIndex.toAnswer]: every due one, else the first) with [ease] (1 Again ..
-     * 4 Easy), [ms] since the word card opened (kuma3 caps it as its reviewer does); answers the form's new state.
+     * 4 Easy), [ms] since the word card opened (kuma3 caps it as its reviewer does).
      */
-    suspend fun rate(form: String, ease: Int, ms: Long): String? = withContext(Dispatchers.IO) {
+    suspend fun rate(form: String, ease: Int, ms: Long): Rated? = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext null
         val answer = cardIndex.toAnswer(form)
-        if (answer.isEmpty()) return@withContext cardIndex.state(form)
         for (c in answer) anki.answer(pkg, c.noteId, c.ord, ease, ms)
-        cardIndex.update(anki.cards(pkg, "nid:" + answer.map { it.noteId }.distinct().joinToString(",")), anki.due(pkg))
+        val notes = answer.map { it.noteId }.distinct()
+        Rated(fresh(pkg, form, notes), notes, answer.size, anki.undoLabel(pkg))
+    }
+
+    /**
+     * Undoes [r] with kuma3's Undo, once per card it answered, only while Undo still names that rating (nothing else
+     * done in kuma3 since); a card the rating made stays, new. Answers the form's state, or null when it couldn't.
+     */
+    suspend fun undo(form: String, r: Rated): String? = withContext(Dispatchers.IO) {
+        val pkg = lastReading?.pkg ?: return@withContext null
+        if (r.undoLabel.isEmpty() || anki.undoLabel(pkg) != r.undoLabel) return@withContext null
+        repeat(r.cards) { if (anki.undoLabel(pkg).isNotEmpty()) anki.undo(pkg) }
+        fresh(pkg, form, r.notes)
+    }
+
+    /** Those notes' cards and kuma3's queue read again: the form's state now. */
+    private fun fresh(pkg: String, form: String, notes: List<Long>): String? {
+        cardIndex.update(anki.cards(pkg, "nid:" + notes.joinToString(",")), anki.due(pkg))
         dueAt = System.currentTimeMillis()
-        cardIndex.state(form)
+        return cardIndex.state(form)
     }
 
     /**

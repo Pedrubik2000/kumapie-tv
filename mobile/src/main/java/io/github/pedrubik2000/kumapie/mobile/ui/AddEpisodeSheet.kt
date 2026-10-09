@@ -78,8 +78,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
     }
     val ready = gemmaReady && when {
         japanese -> JapaneseModel(context).isReady && library.settings.jimakuKey.isNotBlank()
-        parakeet -> library.knownFor(lang.code).model.isReady && parakeetReady
-        else -> library.knownFor(lang.code).model.isReady && sonioxKey
+        parakeet -> library.languages.of(lang).known.model.isReady && parakeetReady
+        else -> library.languages.of(lang).known.model.isReady && sonioxKey
     }
 
     // Scrolls: in landscape the sheet is taller than the screen (the button ended up under the navigation bar).

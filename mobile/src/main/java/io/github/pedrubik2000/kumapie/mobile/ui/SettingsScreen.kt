@@ -159,7 +159,7 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
  */
 @Composable
 private fun KnownWordsSection(library: Library, german: Boolean = true) {
-    val known = library.known
+    val known = library.languages.german.known
     val scope = rememberCoroutineScope()
     val status by known.status.collectAsState()
     val modelState by remember { known.model.state() }.collectAsState(initial = null)
@@ -243,7 +243,7 @@ private fun KnownWordsSection(library: Library, german: Boolean = true) {
 /** Japanese words from 🐻 Japanese (Kaishi): the Sudachi dictionary (downloaded once) and reading Anki for Japanese. */
 @Composable
 private fun JapaneseWordsSection(library: Library) {
-    val known = library.knownJa
+    val known = library.languages.japanese.known
     val scope = rememberCoroutineScope()
     val status by known.status.collectAsState()
     val state by remember { known.japanese.state() }.collectAsState(initial = null)
@@ -524,7 +524,7 @@ private fun FollowedChannels(library: Library) {
 /** English words from 🐻 English (English Core 1000): spaCy's English model (downloaded once) and reading Anki for English. */
 @Composable
 private fun EnglishWordsSection(library: Library) {
-    val known = library.knownEn
+    val known = library.languages.english.known
     val scope = rememberCoroutineScope()
     val status by known.status.collectAsState()
     val state by remember { known.model.state() }.collectAsState(initial = null)

@@ -40,13 +40,13 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 @Composable
 fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) {
     val language = library.languages.of(ctl.lang)
+    fun lemma(key: String?) = key?.let { ctl.words[it]?.lemma }?.takeIf { it.isNotBlank() }
     // A word in the card's definition alone; a subtitle word with its place in the line (Japanese scans from there).
-    val tap = picker.selectedInDef?.let { Tap(it.text, 0, it.text.length, it.word, it.word?.let { k -> ctl.words[k]?.lemma }?.takeIf { l -> l.isNotBlank() }) }
+    val tap = picker.selectedInDef?.let { Tap(it.text, 0, it.text.length, it.word, lemma(it.word)) }
         ?: run {
             val cue = ctl.scene.cues.getOrNull(picker.line) ?: return
             val segment = cue.segments.getOrNull(picker.seg) ?: return
-            Tap(cue.text, cue.segments.take(picker.seg).sumOf { it.text.length }, segment.text.length, segment.word,
-                segment.word?.let { ctl.words[it]?.lemma }?.takeIf { it.isNotBlank() })
+            Tap(cue.text, cue.segments.take(picker.seg).sumOf { it.text.length }, segment.text.length, segment.word, lemma(segment.word))
         }
     val missing = language.missing
     var entries by remember(tap) { mutableStateOf<List<DictEntry>?>(null) }
@@ -60,6 +60,8 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
 
     HorizontalDivider(Modifier.padding(top = 8.dp, bottom = 4.dp), color = Colors.dim.copy(alpha = 0.3f))
     val found = entries.orEmpty()
+    // The entries' sense that fits the line's English (not for a word picked inside a definition).
+    val fits = remember(found) { if (picker.selectedInDef != null) null else SensePick.best(found, SensePick.english(ctl.scene, picker.line)) }
     // Dictionary entries scroll here; the popup's cards scroll inside it (a second scroller fought with it).
     val scroll = if (found.isEmpty()) Modifier else Modifier.heightIn(max = if (headwords.isNullOrEmpty()) 260.dp else 460.dp).verticalScroll(rememberScrollState())
     Column(scroll, verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -70,10 +72,7 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
             hws.isNotEmpty() -> {
                 // "In this line": the sense that fits the line's English, from the entries, else from the bilingual meanings.
                 val fit = remember(hws) {
-                    if (found.isNotEmpty()) {
-                        if (picker.selectedInDef != null) null
-                        else SensePick.best(found, SensePick.english(ctl.scene, picker.line))?.let { (i, j) -> found[i].senses[j].gloss }
-                    } else {
+                    if (found.isNotEmpty()) fits?.let { (i, j) -> found[i].senses[j].gloss } else {
                         val meanings = hws.first().terms.flatMap { it.glossaries }
                             .filter { library.yomitan.groupOf(ctl.lang, it.dict).contains("bilingual", ignoreCase = true) }
                             .flatMap { g -> g.senses.flatMap { JapaneseLookup.bilingualMeanings(it) } }.distinct()
@@ -89,7 +88,6 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
                 color = Colors.dim, fontSize = 14.sp,
             )
             else -> {
-                val fits = remember(found) { if (picker.selectedInDef != null) null else SensePick.best(found, SensePick.english(ctl.scene, picker.line)) }
                 fits?.let { (i, j) ->
                     Text(tr("In this line: %s", found[i].senses[j].gloss), color = Colors.accent, fontSize = 15.sp)
                 }

@@ -30,8 +30,9 @@ import java.io.File
  */
 class KnownWords(val context: Context, private val settings: Settings, val lang: Lang = Lang.GERMAN) {
     private val anki = AnkiCards(context)
-    val model = GermanModel(context, if (lang == Lang.JAPANESE) Lang.GERMAN else lang)
-    val japanese = JapaneseModel(context)
+    /** spaCy (German, English) and Sudachi (Japanese): only this language's is ever built. */
+    val model by lazy { GermanModel(context, lang) }
+    val japanese by lazy { JapaneseModel(context) }
     /** This language's parser is downloaded. */
     val modelReady: Boolean get() = if (lang == Lang.JAPANESE) japanese.isReady else model.isReady
     private val dir = File(context.filesDir, if (lang == Lang.GERMAN) "known" else "known-${lang.code}").apply { mkdirs() }

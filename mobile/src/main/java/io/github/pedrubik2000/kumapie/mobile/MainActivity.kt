@@ -105,9 +105,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     LaunchedEffect(Unit) { // fresh word colours from Anki (cheap after the first time: only new or changed notes are parsed)
         // Only once Anki has been read here by hand: reading wakes AnkiDroid, and an AnkiDroid that was never opened
         // then sets itself up with a new empty collection in /sdcard/AnkiDroid.
-        if (library.known.ready && library.known.model.isReady) library.known.refresh()
-        if (library.knownJa.ready && library.knownJa.modelReady) library.knownJa.refresh()
-        if (library.knownEn.ready && library.knownEn.modelReady) library.knownEn.refresh()
+        library.languages.all.map { it.known }.filter { it.ready && it.modelReady }.forEach { it.refresh() }
         library.syncProgress() // positions, scenes, time and marks from the other devices (through Anki)
     }
     LaunchedEffect(shows, homeLang) { // fresh i+1 scenes for the unlock screen (only when it's on), in Home's language

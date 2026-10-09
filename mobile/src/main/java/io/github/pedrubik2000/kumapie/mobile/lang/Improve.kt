@@ -17,8 +17,8 @@ import java.io.File
  * flags its cards orange, as the PC's skill does.
  */
 class Improve(private val library: Library) {
-    private val anki = AnkiCards(library.known.context)
-    private val cut = File(library.known.context.cacheDir, "mining")
+    private val anki = AnkiCards(library.languages.german.known.context)
+    private val cut = File(library.languages.german.known.context.cacheDir, "mining")
 
     class Struggling(val note: AnkiCards.Note, val cards: List<AnkiCards.Card>, val word: String, val key: String?,
                      val lapses: Int, val stability: Double?) {
@@ -33,8 +33,8 @@ class Improve(private val library: Library) {
 
     /** Word cards (Core 1000, mined words) with 2+ lapses, or under 3 days of stability after 4+ reviews; worst first. */
     suspend fun struggling(): List<Struggling> {
-        library.known.refresh().getOrThrow()
-        val r = library.known.lastReading ?: error(tr("Anki wasn't read."))
+        library.languages.german.known.refresh().getOrThrow()
+        val r = library.languages.german.known.lastReading ?: error(tr("Anki wasn't read."))
         val cards = r.cards.groupBy { it.noteId }
         return r.notes.mapNotNull { n ->
             val word = plain(n.fields["Word"] ?: "").substringBefore("[").trim()
@@ -74,7 +74,7 @@ class Improve(private val library: Library) {
      * edited, the definitions as edited, the word's recording when [recording]; then flags the cards orange.
      */
     suspend fun apply(s: Struggling, c: Candidate?, sentence: String, bilingual: String, monolingual: String, recording: Boolean, progress: (String) -> Unit): String {
-        val pkg = library.known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
+        val pkg = library.languages.german.known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
         val fields = LinkedHashMap(s.note.fields)
         if (c != null) {
             progress(tr("Cutting the scene…"))

@@ -249,7 +249,7 @@ internal fun ScenePlayer(
         if (ctl.lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) {
             prewarmPopup(context)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                runCatching { library.knownJa.japanese.parse(listOf("準備")) }
+                runCatching { library.languages.japanese.model.parse(listOf("準備")) }
             }
         }
     }

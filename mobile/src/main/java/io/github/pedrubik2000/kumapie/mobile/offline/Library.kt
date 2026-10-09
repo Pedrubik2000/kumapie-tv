@@ -9,8 +9,7 @@ import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.lang.Dictionary
-import io.github.pedrubik2000.kumapie.mobile.lang.Voice
-import io.github.pedrubik2000.kumapie.mobile.lang.KnownWords
+import io.github.pedrubik2000.kumapie.mobile.lang.Language
 import io.github.pedrubik2000.kumapie.mobile.lang.Languages
 import io.github.pedrubik2000.kumapie.mobile.lang.Miner
 import io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries
@@ -46,19 +45,10 @@ class Library(context: Context, val settings: Settings) {
     }
     /** What each language does its own way: lookups, word audio, known words. */
     val languages = Languages(context, settings, yomitan, dictionary)
-    /** Word colours from the device's own Anki (kuma3-anki), once read; until then the PC's. */
-    val known get() = languages.german.known
-    val knownJa get() = languages.japanese.known
-    val knownEn get() = languages.english.known
-    fun knownFor(lang: String) = languages.of(lang).known
-    /** The known-words list a word marked in a [lang] episode belongs to: kana or kanji in it means Japanese. */
-    private fun knownOfWord(word: String, lang: String) = if (JAPANESE_TEXT.containsMatchIn(word)) knownJa else knownFor(lang)
     /** The device's German voice, for words without a recording. */
     val voice get() = languages.german.voice
-    /** The device's voice in a language ([io.github.pedrubik2000.kumapie.data.Lang.code]): words without a recording. */
-    fun voiceOf(lang: String): Voice = languages.of(lang).voice
     /** Cards mined into kuma3 Anki. */
-    val miner by lazy { Miner(context, known, knownJa, dictionary, { voice }, { languages.japanese.voice }, languages.japanese.audio, knownEn) }
+    val miner by lazy { Miner(context, languages.german.known, languages.japanese.known, dictionary, { voice }, { languages.japanese.voice }, languages.japanese.audio, languages.english.known) }
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
     /** Episodes made on this device (YouTube links processed here), listed first. */
@@ -68,21 +58,17 @@ class Library(context: Context, val settings: Settings) {
         // Once: positions of episodes made here, from before progress was kept in Anki.
         if (!settings.prefs.getBoolean("progress_migrated", false)) {
             settings.prefs.all.filterKeys { it.startsWith("resume_") }.forEach { (k, v) -> p.record(k.removePrefix("resume_"), (v as Float).toDouble(), emptyList(), 0.0) }
-            (known.markedWords + knownJa.markedWords).forEach { p.mark(it, true) }
-            knownEn.markedWords.forEach { p.mark(EN_MARK + it, true) }
+            languages.all.forEach { l -> l.known.markedWords.forEach { p.mark(l.markKey(it), true) } }
             settings.prefs.edit().putBoolean("progress_migrated", true).apply()
         }
     }
 
     /** Sends this device's progress to Anki and reads the others' (when Anki was read here once). */
     suspend fun syncProgress() {
-        if (!known.ready) return
+        if (!languages.german.known.ready) return
         progress.sync(runCatching { api }.getOrNull())
-        val (en, rest) = progress.merged.marked.partition { it.startsWith(EN_MARK) }
-        val (ja, other) = rest.partition { JAPANESE_TEXT.containsMatchIn(it) }
-        known.useMarked(other.toSet())
-        knownJa.useMarked(ja.toSet())
-        knownEn.useMarked(en.map { it.removePrefix(EN_MARK) }.toSet())
+        val marked = progress.merged.marked
+        languages.all.forEach { l -> l.known.useMarked(marked.mapNotNull(l::wordOfMark).toSet()) }
     }
 
     private var syncSoon: kotlinx.coroutines.Job? = null
@@ -122,7 +108,7 @@ class Library(context: Context, val settings: Settings) {
         val api = api
         if (LocalEpisodes.isLocal(id)) {
             val json = withContext(Dispatchers.IO) { local.json(id).readText() }
-            val detail = withSeen(api.parseEpisode(json).let { knownFor(it.lang).apply(it) })
+            val detail = withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.apply(it) })
             return detail.copy(video = Uri.fromFile(local.video(id)).toString(), resume = progress.merged.pos[id])
         }
         val downloaded = downloads.isComplete(id)
@@ -135,7 +121,7 @@ class Library(context: Context, val settings: Settings) {
             if (fresh != null && downloaded) downloads.episodeJson(id).writeText(fresh) // fresher word colours offline
             fresh ?: if (downloaded) downloads.episodeJson(id).readText() else null
         } ?: throw IOException(tr("The PC doesn't answer and this episode isn't downloaded."))
-        val detail = withSeen(api.parseEpisode(json).let { knownFor(it.lang).apply(it) })
+        val detail = withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.apply(it) })
         return detail.copy(
             video = if (downloaded) Uri.fromFile(downloads.video(id)).toString() else detail.video,
             scenes = if (!downloaded || !detail.novel) detail.scenes else detail.scenes.map { s ->
@@ -192,7 +178,7 @@ class Library(context: Context, val settings: Settings) {
     fun poster(showId: String, url: String): Any = downloads.poster(showId).takeIf { it.exists() } ?: url
 
     /** The player's backend; [lang] is the episode's language, so its marks go to that language's list. */
-    fun backend(lang: String = "de"): Backend = OfflineBackend(api, downloads, pending, { knownOfWord(it, lang) }, dictionary, { voiceOf(lang).speak(it) }, { surface, url ->
+    fun backend(lang: String = "de"): Backend = OfflineBackend(api, downloads, pending, { languages.ofWord(it, lang) }, dictionary, { languages.of(lang).voice.speak(it) }, { surface, url ->
         background.launch { dictionary.keepRecording(surface, url, lang) }
     }, lang, progress, ::syncLater)
 }
@@ -202,8 +188,8 @@ private class OfflineBackend(
     private val api: Api,
     private val downloads: Downloads,
     private val pending: Pending,
-    /** The known-words list of a word marked in this episode's language. */
-    private val knownOf: (String) -> KnownWords,
+    /** The language of a word marked in this episode. */
+    private val languageOf: (String) -> Language,
     private val dictionary: Dictionary,
     private val say: (String) -> Unit,
     private val keepRecording: (String, String) -> Unit,
@@ -228,9 +214,9 @@ private class OfflineBackend(
 
     override suspend fun markKnown(word: String, known: Boolean): String {
         // Kept on the device too, so the colour is right offline and once the PC is no longer asked.
-        val list = knownOf(word)
-        // English marks are kept apart in Progress (German ones keep their old bare keys, Japanese is told by script).
-        progress.mark(if (list.lang.code == "en") EN_MARK + word else word, known)
+        val language = languageOf(word)
+        val list = language.known
+        progress.mark(language.markKey(word), known)
         syncLater()
         val here = if (list.ready) list.mark(word, known) else null
         if (list.lang.code != "de") return here ?: if (known) "k" else "u" // the PC only knows German
@@ -260,8 +246,3 @@ private class OfflineBackend(
             ?: api.definitionAudio(scene, line, word)
 }
 
-/** Progress key prefix of an English mark. */
-private const val EN_MARK = "en:"
-
-/** Hiragana, katakana or kanji: a Japanese word. */
-private val JAPANESE_TEXT = Regex("[぀-ヿ㐀-鿿]")

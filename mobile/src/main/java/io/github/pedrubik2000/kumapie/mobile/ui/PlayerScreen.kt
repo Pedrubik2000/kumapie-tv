@@ -335,6 +335,7 @@ internal fun ScenePlayer(
             val dictionaries = remember { library.yomitan.of(ctl.lang).any { d -> d.enabled && d.terms > 0 } }
             MeaningCard(ctl, picker, it, maxWidth = 460.dp, onTapDef = picker::tapInDef, ownMeaning = !dictionaries, footer = {
                 DictionaryPanel(library, ctl, picker)
+                RatingRow(library, ctl, picker)
                 CardButtons(ctl, picker, onMine = { mining = true })
             })
         }
@@ -485,4 +486,32 @@ private fun OptionRow(label: String, on: Boolean, toggle: () -> Unit) {
         Text(label, modifier = Modifier.weight(1f))
         Switch(checked = on, onCheckedChange = { toggle() })
     }
+}
+
+/**
+ * Again / Hard / Good / Easy for the word's own kuma3 card (kumapie_anki_review_plan.md): one rating answers every card
+ * of the form kuma3 shows today, else its first (an early review); time = word card open -> button. Words without a
+ * card of their own get none yet (making one comes with step 3).
+ */
+@Composable
+private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Library, ctl: SceneController, picker: WordPicker) {
+    val key = (picker.selectedInDef ?: picker.selected)?.word ?: return
+    val card = ctl.words[key]?.card
+    if (card == null || card == "u") return
+    val known = library.languages.of(ctl.lang).known
+    val opened = remember(key) { System.currentTimeMillis() }
+    var answered by remember(key) { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf("Again" to Colors.unknown, "Hard" to Colors.learning, "Good" to Colors.due, "Easy" to Colors.accent).forEachIndexed { i, (label, color) ->
+            androidx.compose.material3.OutlinedButton(enabled = answered == null, onClick = {
+                answered = label
+                scope.launch {
+                    val state = known.rate(key, i + 1, System.currentTimeMillis() - opened)
+                    ctl.words[key]?.let { w -> ctl.words[key] = w.copy(card = state) }
+                }
+            }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)) { Text(tr(label), color = color, fontSize = 14.sp) }
+        }
+    }
+    answered?.let { Text(tr("Answered: %s", tr(it)), color = Colors.dim, fontSize = 13.sp) }
 }

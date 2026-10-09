@@ -139,9 +139,10 @@ private fun segmentAt(l: TextLayoutResult, p: Offset, def: LineDef): Int? {
 /** The German definition, its words coloured like the subtitles (red new, orange learning), [selected] highlighted. */
 private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: Int): AnnotatedString = buildAnnotatedString {
     def.target.forEachIndexed { i, seg ->
-        val color = when (seg.word?.let { words[it]?.status ?: "u" }) {
+        val color = when (seg.word?.let { words[it]?.shown ?: "u" }) {
             "u" -> Colors.unknown
             "l" -> Colors.learning
+            "d" -> Colors.due
             else -> Colors.text
         }
         withStyle(if (i == selected) SpanStyle(color = Color.Black, background = color) else SpanStyle(color = color)) {
@@ -161,6 +162,10 @@ private fun withoutSameWord(meaning: String, selected: String): String {
 
 private fun statusLine(w: Word) = when {
     w.marked -> tr("marked known") to Colors.dim
+    w.card == "d" -> tr("due in Anki") to Colors.due
+    w.card == "k" -> tr("studied in Anki, not due") to Colors.dim
+    w.card == "n" -> tr("new in Anki") to Colors.unknown
+    w.card == "u" -> tr("no card of its own") to Colors.unknown
     w.status == "k" -> (w.stability?.let { tr("known · %s", days(it)) } ?: tr("known")) to Colors.dim
     w.status == "l" -> tr("learning · %s", w.stability?.let(::days) ?: tr("in Anki")) to Colors.learning
     else -> tr("never studied") to Colors.unknown

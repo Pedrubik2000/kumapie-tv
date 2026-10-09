@@ -27,9 +27,9 @@ class AnkiCards(private val context: Context) {
 
     data class Note(val id: Long, val fields: Map<String, String>, val tags: Set<String>)
 
-    /** [due]: a new card's position (what morphs' recalc orders). */
+    /** [due]: a new card's position (what morphs' recalc orders). [type]: 0 new, 1 learning, 2 review, 3 relearning. */
     data class Card(val id: Long, val noteId: Long, val reviewed: Boolean, val stability: Double?, val due: Long,
-                    val reps: Int = 0, val lapses: Int = 0, val ord: Int = 0)
+                    val reps: Int = 0, val lapses: Int = 0, val ord: Int = 0, val type: Int = 0)
 
     /** Notes found by an Anki search (`"note:🐻 German"`), with their fields by name. */
     fun notes(pkg: String, search: String): List<Note> {
@@ -54,10 +54,30 @@ class AnkiCards(private val context: Context) {
             search, null, null)?.use { c ->
             while (c.moveToNext()) {
                 out += Card(c.getLong(0), c.getLong(1), c.getInt(2) != 0, if (c.isNull(3)) null else c.getDouble(3), c.getLong(4),
-                    c.getInt(5), c.getInt(6), c.getInt(7))
+                    c.getInt(5), c.getInt(6), c.getInt(7), c.getInt(2))
             }
         }
         return out
+    }
+
+    /**
+     * The cards kuma3 would show today (its provider's `kuma3/due`: the deck list's queue, RWKV-Instant aware): card id ->
+     * "new" | "learn" | "review". Null when this Anki doesn't have it (older kuma3, AnkiDroid).
+     */
+    fun due(pkg: String): Map<Long, String>? = runCatching {
+        context.contentResolver.query(Uri.parse("content://$pkg.flashcards/kuma3/due"), null, null, null, null)?.use { c ->
+            HashMap<Long, String>().apply { while (c.moveToNext()) put(c.getLong(0), c.getString(1)) }
+        }
+    }.getOrNull()
+
+    /** Answers a card as kuma3's reviewer does (FSRS-7, RWKV and the review log see it); [ease] 1 Again .. 4 Easy. */
+    fun answer(pkg: String, noteId: Long, ord: Int, ease: Int, ms: Long) {
+        context.contentResolver.update(Uri.parse("content://$pkg.flashcards/schedule"), ContentValues().apply {
+            put("note_id", noteId)
+            put("ord", ord)
+            put("answer_ease", ease)
+            put("time_taken", ms)
+        }, null, null)
     }
 
     // ------------------------------------------------------------------ writing (mining)

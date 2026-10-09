@@ -293,7 +293,16 @@ data class Word(
     val stability: Double? = null,
     val lookups: Int = 0,
     val marked: Boolean = false,
-)
+    /**
+     * The word's own Anki card, when the phone knows it (kumapie_anki_review_plan.md): "d" due by kuma3's queue
+     * (green), "k" studied and not due (white), "n" new or still learning (red), "u" no card of its own (red).
+     * The subtitles and the word card colour by it; scene levels still go by [status].
+     */
+    val card: String? = null,
+) {
+    /** The colour to draw: [card]'s when known ("n" draws like "u"), else [status]. */
+    val shown: String get() = when (card) { null -> status; "n" -> "u"; else -> card }
+}
 
 fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
 

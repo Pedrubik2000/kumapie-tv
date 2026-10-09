@@ -13,6 +13,8 @@ object Colors {
     // red = never studied (the only ones a scene's level counts). Same colours as the phone feed.
     val learning = Color(0xFFFFAA4D)
     val unknown = Color(0xFFFF6B6B)
+    // A word whose own Anki card kuma3 would show today (Word.card "d"): rate it from the word card.
+    val due = Color(0xFF7CC47F)
     // Level badges: i+0 green, i+1 yellow, i+2 and up red.
     val levelZero = Color(0xFF7CC47F)
     val levelOne = Color(0xFFE6C463)

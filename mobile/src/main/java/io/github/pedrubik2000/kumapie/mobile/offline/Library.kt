@@ -110,7 +110,7 @@ class Library(context: Context, val settings: Settings) {
         val api = api
         if (LocalEpisodes.isLocal(id)) {
             val json = withContext(Dispatchers.IO) { local.json(id).readText() }
-            val detail = withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.apply(it) })
+            val detail = withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.run { refreshDue(); apply(it) } })
             return detail.copy(video = Uri.fromFile(local.video(id)).toString(), resume = progress.merged.pos[id])
         }
         val downloaded = downloads.isComplete(id)
@@ -123,7 +123,7 @@ class Library(context: Context, val settings: Settings) {
             if (fresh != null && downloaded) downloads.episodeJson(id).writeText(fresh) // fresher word colours offline
             fresh ?: if (downloaded) downloads.episodeJson(id).readText() else null
         } ?: throw IOException(tr("The PC doesn't answer and this episode isn't downloaded."))
-        val detail = withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.apply(it) })
+        val detail = withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.run { refreshDue(); apply(it) } })
         return detail.copy(
             video = if (downloaded) Uri.fromFile(downloads.video(id)).toString() else detail.video,
             scenes = if (!downloaded || !detail.novel) detail.scenes else detail.scenes.map { s ->

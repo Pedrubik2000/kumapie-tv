@@ -87,6 +87,32 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     val ready: Boolean get() = snapshot != null
 
+    /** This language's word cards by form and kuma3's queue today: [EpisodeDetail] words' [io.github.pedrubik2000.kumapie.data.Word.card]. */
+    val cardIndex = CardIndex()
+    @Volatile private var dueAt = 0L
+
+    /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
+    suspend fun refreshDue() = withContext(Dispatchers.IO) {
+        val pkg = lastReading?.pkg ?: return@withContext
+        if (System.currentTimeMillis() - dueAt < 60_000) return@withContext
+        dueAt = System.currentTimeMillis()
+        cardIndex.setDue(anki.due(pkg))
+    }
+
+    /**
+     * Rates the form's own cards in kuma3 ([CardIndex.toAnswer]: every due one, else the first) with [ease] (1 Again ..
+     * 4 Easy), [ms] since the word card opened (kuma3 caps it as its reviewer does); answers the form's new state.
+     */
+    suspend fun rate(form: String, ease: Int, ms: Long): String? = withContext(Dispatchers.IO) {
+        val pkg = lastReading?.pkg ?: return@withContext null
+        val answer = cardIndex.toAnswer(form)
+        if (answer.isEmpty()) return@withContext cardIndex.state(form)
+        for (c in answer) anki.answer(pkg, c.noteId, c.ord, ease, ms)
+        cardIndex.update(anki.cards(pkg, "nid:" + answer.map { it.noteId }.distinct().joinToString(",")), anki.due(pkg))
+        dueAt = System.currentTimeMillis()
+        cardIndex.state(form)
+    }
+
     /**
      * The episode's word colours and scene levels from the device's own known words, replacing the PC's, once Anki
      * has been read here. Words the PC marked known (`m`) stay known, as on the PC.
@@ -96,7 +122,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val pcMarked = episode.words.filterValues { it.marked }.keys
         if (!marked.containsAll(pcMarked)) setMarked(marked + pcMarked)
         val words = episode.words.mapValues { (key, w) ->
-            w.copy(status = status(key) ?: "u", stability = snap.words[key]?.best, marked = key in marked)
+            w.copy(status = status(key) ?: "u", stability = snap.words[key]?.best, marked = key in marked, card = cardIndex.state(key))
         }
         val scenes = episode.scenes.map { s ->
             if (!s.target) s else s.copy(level = s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }.toSet()
@@ -163,6 +189,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
                     }
                 }
                 lastReading = Reading(pkg, notes, cards, morphs.mapValues { it.value.toList() }, defMorphs.mapValues { it.value.toList() })
+                // Word cards by form, for the colours and ratings (German, English; Japanese: plan step 4).
+                if (language is Spaced) cardIndex.build(notes, cards, anki.due(pkg)).also { dueAt = System.currentTimeMillis() }
                 val snap = Snapshot(words, System.currentTimeMillis(), pkg, notes.size, cards.size)
                 save(snap)
                 snapshot = snap

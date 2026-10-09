@@ -45,10 +45,8 @@ class Library(context: Context, val settings: Settings) {
     }
     /** What each language does its own way: lookups, word audio, known words. */
     val languages = Languages(context, settings, yomitan, dictionary)
-    /** The device's German voice, for words without a recording. */
-    val voice get() = languages.german.voice
     /** Cards mined into kuma3 Anki. */
-    val miner by lazy { Miner(context, languages.german.known, languages.japanese.known, dictionary, { voice }, { languages.japanese.voice }, languages.japanese.audio, languages.english.known) }
+    val miner by lazy { Miner(context, languages, dictionary) }
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
     /** Episodes made on this device (YouTube links processed here), listed first. */

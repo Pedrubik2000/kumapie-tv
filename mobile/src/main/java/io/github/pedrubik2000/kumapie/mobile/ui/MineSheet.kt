@@ -45,7 +45,7 @@ private data class Choice(val label: String, val gloss: String, val example: Pai
  */
 @Composable
 fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit) {
-    if (ctl.lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) return JapaneseMineSheet(library, episode, ctl, picker, onDone)
+    if (library.languages.of(ctl.lang) is io.github.pedrubik2000.kumapie.mobile.lang.Japanese) return JapaneseMineSheet(library, episode, ctl, picker, onDone)
     val scope = rememberCoroutineScope()
     val scene = ctl.scene
     val line = picker.line
@@ -71,7 +71,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             ?.takeIf { it.isNotBlank() }
         val list = mutableListOf<Choice>()
         own?.let { list += Choice("kumapie: $it", it, null) }
-        val all = library.dictionary.lookup(segment.text, key, lemma, lang = ctl.lang)
+        val all = library.languages.of(ctl.lang).entries(io.github.pedrubik2000.kumapie.mobile.lang.Tap(segment.text, 0, segment.text.length, key, lemma))
         // Monolingual dictionaries (wty-de-de, wty-en-en) give the card's monolingual definition, not its meaning.
         val isMono = { e: io.github.pedrubik2000.kumapie.mobile.lang.DictEntry -> library.yomitan.groupOf(ctl.lang, e.dict) == "Monolingual" }
         val entries = all.filterNot(isMono).ifEmpty { all }

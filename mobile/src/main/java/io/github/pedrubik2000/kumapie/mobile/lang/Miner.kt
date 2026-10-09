@@ -1,6 +1,5 @@
 package io.github.pedrubik2000.kumapie.mobile.lang
 
-import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.i18n.tr
 import android.content.Context
 import android.net.Uri
@@ -34,20 +33,15 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * Mines a card from kumapie into kuma3 Anki (deck [DECK]), on the device: a new note of the German note type with
+ * Mines a card from kumapie into kuma3 Anki (the language's Mined deck), on the device: a new note of the language's note type with
  * the line, a video clip of the whole scene (cut here with Media3 Transformer, WebM like the PC's), the English and, for a word
  * card, the word, its audio and the meaning picked, in the same layout as the Core 1000 cards. Mined cards count
  * as known only once reviewed (their words are new until then).
  */
 class Miner(
     private val context: Context,
-    private val known: KnownWords,
-    private val knownJa: KnownWords,
+    private val languages: Languages,
     private val dictionary: Dictionary,
-    private val voice: () -> Voice,
-    private val voiceJa: () -> Voice,
-    private val audioJa: JapaneseAudio? = null,
-    private val knownEn: KnownWords? = null,
 ) {
     private val anki = AnkiCards(context)
     private val dir = File(context.cacheDir, "mining")
@@ -76,10 +70,10 @@ class Miner(
 
     /** Adds the card; answers a line for the user ("Added to Deutsch::Mined"). */
     suspend fun mine(r: Request, progress: (String) -> Unit): String = withContext(Dispatchers.IO) {
-        if (Lang.of(r.episode.lang) == Lang.JAPANESE) return@withContext mineJapanese(r, progress)
-        // German and English cards share the layout (🐻 German / 🐻 English).
-        val lang = Lang.of(r.episode.lang)
-        val known = if (lang == Lang.ENGLISH) knownEn ?: known else known
+        // German and English cards share the layout (🐻 German / 🐻 English); Japanese has Kaishi's.
+        val language = when (val l = languages.of(r.episode.lang)) { is Japanese -> return@withContext mineJapanese(r, l, progress); is Spaced -> l }
+        val lang = language.lang
+        val known = language.known
         val pkg = known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
         if (!known.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
         // A fresh kuma3 (Giovanna, Jackson): the note type comes from kumapie's copy of Pedro's.
@@ -124,7 +118,7 @@ class Miner(
         fields["Context"] = esc("Mined in kumapie: ${r.episode.show} · ${r.episode.title}, scene ${r.scene.index + 1}.")
         val tags = mutableListOf(slug, "kumapie")
         r.word?.let { w ->
-            val audio = wordAudio(w.surface, lang.code)?.let { anki.addMedia(pkg, it, "kumapie-${slug(w.surface)}") }
+            val audio = wordAudio(w.surface, language)?.let { anki.addMedia(pkg, it, "kumapie-${slug(w.surface)}") }
             val written = w.key?.takeIf { ' ' in it } ?: w.surface
             fields["Word"] = esc(written) + (w.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
             if (audio != null) fields["Word Audio"] = "[audio:$audio]"
@@ -149,8 +143,9 @@ class Miner(
      * from the episode, a screenshot, the English, and for a word card `届く[とどく]:0-` (reading, pitch), the meaning
      * picked, a monolingual definition and the device voice saying the word. Into Japanese::Mined.
      */
-    private suspend fun mineJapanese(r: Request, progress: (String) -> Unit): String {
-        val ja = Lang.JAPANESE
+    private suspend fun mineJapanese(r: Request, japanese: Japanese, progress: (String) -> Unit): String {
+        val ja = japanese.lang
+        val knownJa = japanese.known
         val pkg = knownJa.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
         if (!knownJa.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
         val (mid, fieldNames) = anki.noteType(pkg, knownJa.noteTypes) ?: error(tr("The Japanese note type isn't in Anki."))
@@ -185,9 +180,9 @@ class Miner(
             fields[KnownWords.DEF_BI] = esc(w.gloss)
             w.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
             // A person's recording (NHK, Shinmeikai, JapanesePod101, Forvo), else the device voice.
-            val recorded = audioJa?.recording(expression, w.reading.orEmpty())
+            val recorded = japanese.audio.recording(expression, w.reading.orEmpty())
             val wav = File(dir, "word.wav").apply { delete() }
-            val audio = recorded ?: wav.takeIf { voiceJa().toFile(w.reading ?: expression, it) }
+            val audio = recorded ?: wav.takeIf { japanese.voice.toFile(w.reading ?: expression, it) }
             audio?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-ja-${expression}")}]" }
             tags += ja.tag("word")
         } else {
@@ -280,8 +275,8 @@ class Miner(
     }
 
     /** A person's recording (saved or fetched), else the device's voice saying it; null if neither works. */
-    internal suspend fun wordAudio(surface: String, lang: String = "de"): File? {
-        val recording = dictionary.recording(surface, lang)
+    internal suspend fun wordAudio(surface: String, language: Spaced = languages.german): File? {
+        val recording = dictionary.recording(surface, language.lang.code)
         if (recording != null && !recording.startsWith("http")) return File(recording)
         if (recording != null) {
             val out = File(dir, "word.mp3").apply { delete() }
@@ -298,7 +293,7 @@ class Miner(
             if (ok) return out
         }
         val wav = File(dir, "word.wav").apply { delete() }
-        return if (voice().toFile(surface, wav)) wav else null
+        return if (language.voice.toFile(surface, wav)) wav else null
     }
 
     /** The Core 1000 layout of the bilingual definition: "<b>word</b> (lemma)", the meaning, an example. */
@@ -322,8 +317,6 @@ class Miner(
     internal fun slug(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "_").trim('_')
 
     companion object {
-        val DECK = Lang.GERMAN.deck
-
         /**
          * The whole sentence cue [line] is part of: subtitle cues split sentences ("Aber warum…" / "fühle ich mich …" /
          * "ausgelaugt?"), so the scene's cues are joined and cut at sentence ends (. ! ? followed by a capital); "…"

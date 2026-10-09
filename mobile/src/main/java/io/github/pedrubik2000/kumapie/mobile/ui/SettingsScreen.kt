@@ -358,9 +358,9 @@ private fun DictionarySection(library: Library) {
     LaunchedEffect(state) { built = withContext(Dispatchers.IO) { dictionary.built() } }
     var voice by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
-        library.voice // starts the speech engine
+        library.languages.german.voice // starts the speech engine
         kotlinx.coroutines.delay(1500)
-        voice = library.voice.describe()
+        voice = library.languages.german.voice.describe()
     }
 
     Text(tr("Word audio"), color = Colors.accent)

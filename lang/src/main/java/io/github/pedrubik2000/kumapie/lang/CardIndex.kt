@@ -37,9 +37,12 @@ class CardIndex {
         }
     }
 
+    /** The form's own cards. */
+    fun cards(form: String): List<AnkiCards.Card> = byForm[form.lowercase()].orEmpty()
+
     /** What one rating answers: every card of the form kuma3 shows today, else its first card (an early review). */
     fun toAnswer(form: String): List<AnkiCards.Card> {
-        val own = byForm[form.lowercase()].orEmpty()
+        val own = cards(form)
         return own.filter { due?.containsKey(it.id) == true }.ifEmpty { own.take(1) }
     }
 

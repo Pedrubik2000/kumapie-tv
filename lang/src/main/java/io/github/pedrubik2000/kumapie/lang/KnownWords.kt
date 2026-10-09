@@ -122,7 +122,11 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val answer = cardIndex.toAnswer(form)
         for (c in answer) anki.answer(pkg, c.noteId, c.ord, ease, ms)
         val notes = answer.map { it.noteId }.distinct()
-        Rated(fresh(pkg, form, notes), notes, answer.size, anki.undoLabel(pkg))
+        val state = fresh(pkg, form, notes)
+        // kuma3's provider only logs an answer it refused: count the cards whose reviews went up.
+        val after = cardIndex.cards(form).associateBy { it.id }
+        val answered = answer.count { (after[it.id]?.reps ?: 0) > it.reps }
+        if (answered == 0) null else Rated(state, notes, answered, anki.undoLabel(pkg))
     }
 
     /**

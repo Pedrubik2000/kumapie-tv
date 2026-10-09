@@ -530,6 +530,7 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
                     }
                     val done = known.rate(key, i + 1, System.currentTimeMillis() - opened)
                     if (done != null) { ratings[key] = done to tr("Answered: %s", tr(label)); show(done.state); count(done.cards); said = "" }
+                    else said = tr("kuma3 didn't take the rating.")
                     busy = false
                 }
             }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)) { Text(tr(label), color = color, fontSize = 14.sp) }

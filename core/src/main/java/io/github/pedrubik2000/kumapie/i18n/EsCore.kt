@@ -28,6 +28,7 @@ internal val esCore: Map<String, String> = mapOf(
     "Can't undo: something else was done in kuma3 since." to "No se puede deshacer: se hizo otra cosa en kuma3 desde entonces.",
     "Reviewed from episodes today: %d" to "Repasadas hoy desde episodios: %d",
     "Undo" to "Deshacer",
+    "kuma3 didn't take the rating." to "kuma3 no aceptó la respuesta.",
     "under a day" to "menos de un día",
     "1 day" to "1 día",
     "%d days" to "%d días",

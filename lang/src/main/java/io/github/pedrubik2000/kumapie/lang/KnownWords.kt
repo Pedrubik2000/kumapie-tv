@@ -94,21 +94,26 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     val cardIndex = CardIndex()
     @Volatile private var dueAt = 0L
 
-    /** The word cards again without parsing (a card was just mined here): notes, cards and kuma3's queue. */
+    /** The word cards again without parsing (a card was just mined here); kuma3's queue as it was (a new card isn't due). */
     suspend fun reloadCards() = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext
         if (language !is Spaced) return@withContext
-        cardIndex.build(anki.notes(pkg, search), anki.cards(pkg, search), anki.due(pkg))
-        dueAt = System.currentTimeMillis()
+        cardIndex.build(anki.notes(pkg, search), anki.cards(pkg, search), cardIndex.dueWithout(emptySet()))
     }
 
     /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
-    suspend fun refreshDue() = withContext(Dispatchers.IO) {
+    suspend fun refreshDue(force: Boolean = false) = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext
-        if (System.currentTimeMillis() - dueAt < 60_000) return@withContext
-        dueAt = System.currentTimeMillis()
-        cardIndex.update(emptyList(), anki.due(pkg))
+        val started = System.currentTimeMillis()
+        if (!force && started - dueAt < 60_000) return@withContext
+        dueAt = started
+        // A card rated while kuma3 built this queue was answered after it: not due by it.
+        val due = anki.due(pkg)?.minus(answeredAt.filterValues { it >= started }.keys)
+        cardIndex.update(emptyList(), due)
     }
+
+    /** When each card was last rated here (a queue read that started before it doesn't know). */
+    private val answeredAt = java.util.concurrent.ConcurrentHashMap<Long, Long>()
 
     /** A rating from a word card: the form's state after it, the cards it answered, and kuma3's Undo label right after. */
     class Rated(val state: String?, val notes: List<Long>, val cards: Int, val undoLabel: String)
@@ -121,12 +126,17 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val pkg = lastReading?.pkg ?: return@withContext null
         val answer = cardIndex.toAnswer(form)
         for (c in answer) anki.answer(pkg, c.noteId, c.ord, ease, ms)
+        val now = System.currentTimeMillis()
         val notes = answer.map { it.noteId }.distinct()
-        val state = fresh(pkg, form, notes)
+        fresh(pkg, notes)
         // kuma3's provider only logs an answer it refused: count the cards whose reviews went up.
         val after = cardIndex.cards(form).associateBy { it.id }
-        val answered = answer.count { (after[it.id]?.reps ?: 0) > it.reps }
-        if (answered == 0) null else Rated(state, notes, answered, anki.undoLabel(pkg))
+        val answered = answer.filter { (after[it.id]?.reps ?: 0) > it.reps }.map { it.id }.toSet()
+        if (answered.isEmpty()) return@withContext null
+        // Not due now; kuma3's whole queue is read again in the background ([refreshDue] force).
+        answered.forEach { answeredAt[it] = now }
+        cardIndex.update(emptyList(), cardIndex.dueWithout(answered))
+        Rated(cardIndex.state(form), notes, answered.size, anki.undoLabel(pkg))
     }
 
     /**
@@ -137,15 +147,13 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val pkg = lastReading?.pkg ?: return@withContext null
         if (r.undoLabel.isEmpty() || anki.undoLabel(pkg) != r.undoLabel) return@withContext null
         repeat(r.cards) { if (anki.undoLabel(pkg).isNotEmpty()) anki.undo(pkg) }
-        fresh(pkg, form, r.notes)
+        fresh(pkg, r.notes)
+        cardIndex.state(form)
     }
 
-    /** Those notes' cards and kuma3's queue read again: the form's state now. */
-    private fun fresh(pkg: String, form: String, notes: List<Long>): String? {
-        cardIndex.update(anki.cards(pkg, "nid:" + notes.joinToString(",")), anki.due(pkg))
-        dueAt = System.currentTimeMillis()
-        return cardIndex.state(form)
-    }
+    /** Those notes' cards read again (kuma3's queue stays as it was: the background read brings it). */
+    private fun fresh(pkg: String, notes: List<Long>) =
+        cardIndex.update(anki.cards(pkg, "nid:" + notes.joinToString(",")), cardIndex.dueWithout(emptySet()))
 
     /**
      * The episode's word colours and scene levels from the device's own known words, replacing the PC's, once Anki

@@ -209,6 +209,8 @@ internal fun ScenePlayer(
     var mining by remember { mutableStateOf(false) }
     // Each word's last rating from the word card ("Answered: Good", Undo), kept while the episode is open.
     val ratings = remember { androidx.compose.runtime.mutableStateMapOf<String, Pair<io.github.pedrubik2000.kumapie.lang.KnownWords.Rated, String>>() }
+    // kuma3's whole queue read again after a rating, in the background (big collections: seconds); not cancelled with the word card.
+    val queueScope = rememberCoroutineScope()
     var menuUntil by remember { mutableLongStateOf(SystemClock.uptimeMillis() + 3_000) } // a novel's bar
     var flash by remember { mutableStateOf<String?>(null) } // "Replay line" etc., shown briefly in the middle
     var flashAt by remember { mutableLongStateOf(0L) }
@@ -337,7 +339,7 @@ internal fun ScenePlayer(
             val dictionaries = remember { library.yomitan.of(ctl.lang).any { d -> d.enabled && d.terms > 0 } }
             MeaningCard(ctl, picker, it, maxWidth = 460.dp, onTapDef = picker::tapInDef, ownMeaning = !dictionaries, footer = {
                 DictionaryPanel(library, ctl, picker)
-                RatingRow(library, ctl, picker, ratings)
+                RatingRow(library, ctl, picker, ratings, queueScope)
                 CardButtons(ctl, picker, onMine = { mining = true })
             })
         }
@@ -499,7 +501,9 @@ private fun OptionRow(label: String, on: Boolean, toggle: () -> Unit) {
 @Composable
 private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Library, ctl: SceneController, picker: WordPicker,
                       /** Each word's last rating and its "Answered: …" line, kept while the episode is open. */
-                      ratings: MutableMap<String, Pair<io.github.pedrubik2000.kumapie.lang.KnownWords.Rated, String>>) {
+                      ratings: MutableMap<String, Pair<io.github.pedrubik2000.kumapie.lang.KnownWords.Rated, String>>,
+                      /** The player's scope: kuma3's queue is read again there after a rating (it outlives the word card). */
+                      queueScope: kotlinx.coroutines.CoroutineScope) {
     val segment = picker.selectedInDef ?: picker.selected
     val key = segment?.word ?: return
     val card = ctl.words[key]?.card ?: return // an Anki without kuma3/due: no row
@@ -514,6 +518,11 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
     val scope = rememberCoroutineScope()
     fun show(state: String?) = ctl.words[key]?.let { w -> ctl.words[key] = w.copy(card = state) }
     fun count(n: Int) { today = prefs.getInt(day, 0) + n; prefs.edit().putInt(day, today).apply() }
+    // kuma3's queue in the background, then every word of the episode coloured by it (RWKV-Instant may bring a card back).
+    fun requeue() = queueScope.launch {
+        known.refreshDue(force = true)
+        for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> known.cardIndex.state(k).let { s -> if (s != w.card) ctl.words[k] = w.copy(card = s) } }
+    }
 
     val (r, answered) = ratings[key] ?: (null to "")
     if (r == null) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -529,7 +538,7 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
                         known.reloadCards()
                     }
                     val done = known.rate(key, i + 1, System.currentTimeMillis() - opened)
-                    if (done != null) { ratings[key] = done to tr("Answered: %s", tr(label)); show(done.state); count(done.cards); said = "" }
+                    if (done != null) { ratings[key] = done to tr("Answered: %s", tr(label)); show(done.state); count(done.cards); said = ""; requeue() }
                     else said = tr("kuma3 didn't take the rating.")
                     busy = false
                 }
@@ -541,7 +550,7 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
             busy = true
             scope.launch {
                 val state = known.undo(key, r)
-                if (state != null) { show(state); count(-r.cards); ratings.remove(key); said = "" }
+                if (state != null) { show(state); count(-r.cards); ratings.remove(key); said = ""; requeue() }
                 else said = tr("Can't undo: something else was done in kuma3 since.")
                 busy = false
             }

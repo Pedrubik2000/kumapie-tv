@@ -37,6 +37,9 @@ class CardIndex {
         }
     }
 
+    /** kuma3's queue as known now, without [cards] (just rated: not due until the queue is read again). */
+    fun dueWithout(cards: Set<Long>): Map<Long, String>? = due?.minus(cards)
+
     /** The form's own cards. */
     fun cards(form: String): List<AnkiCards.Card> = byForm[form.lowercase()].orEmpty()
 

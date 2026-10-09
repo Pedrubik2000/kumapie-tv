@@ -65,7 +65,7 @@ class Library(context: Context, val settings: Settings) {
 
     /** Sends this device's progress to Anki and reads the others' (when Anki was read here once). */
     suspend fun syncProgress() {
-        if (!languages.german.known.ready) return
+        if (languages.all.none { it.known.ready }) return
         progress.sync(runCatching { api }.getOrNull())
         val marked = progress.merged.marked
         languages.all.forEach { l -> l.known.useMarked(marked.mapNotNull(l::wordOfMark).toSet()) }

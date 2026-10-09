@@ -207,6 +207,8 @@ internal fun ScenePlayer(
     var options by remember { mutableStateOf(false) }
     var sceneList by remember { mutableStateOf(false) }
     var mining by remember { mutableStateOf(false) }
+    // Each word's last rating from the word card ("Answered: Good", Undo), kept while the episode is open.
+    val ratings = remember { androidx.compose.runtime.mutableStateMapOf<String, Pair<io.github.pedrubik2000.kumapie.lang.KnownWords.Rated, String>>() }
     var menuUntil by remember { mutableLongStateOf(SystemClock.uptimeMillis() + 3_000) } // a novel's bar
     var flash by remember { mutableStateOf<String?>(null) } // "Replay line" etc., shown briefly in the middle
     var flashAt by remember { mutableLongStateOf(0L) }
@@ -335,7 +337,7 @@ internal fun ScenePlayer(
             val dictionaries = remember { library.yomitan.of(ctl.lang).any { d -> d.enabled && d.terms > 0 } }
             MeaningCard(ctl, picker, it, maxWidth = 460.dp, onTapDef = picker::tapInDef, ownMeaning = !dictionaries, footer = {
                 DictionaryPanel(library, ctl, picker)
-                RatingRow(library, ctl, picker)
+                RatingRow(library, ctl, picker, ratings)
                 CardButtons(ctl, picker, onMine = { mining = true })
             })
         }
@@ -495,7 +497,9 @@ private fun OptionRow(label: String, on: Boolean, toggle: () -> Unit) {
  * a card it made stays, new) and today's total of cards reviewed from episodes.
  */
 @Composable
-private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Library, ctl: SceneController, picker: WordPicker) {
+private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Library, ctl: SceneController, picker: WordPicker,
+                      /** Each word's last rating and its "Answered: …" line, kept while the episode is open. */
+                      ratings: MutableMap<String, Pair<io.github.pedrubik2000.kumapie.lang.KnownWords.Rated, String>>) {
     val segment = picker.selectedInDef ?: picker.selected
     val key = segment?.word ?: return
     val card = ctl.words[key]?.card ?: return // an Anki without kuma3/due: no row
@@ -504,7 +508,6 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
     val prefs = library.settings.prefs
     val day = "rated_" + io.github.pedrubik2000.kumapie.mobile.offline.Progress.studyDay()
     val opened = remember(key) { System.currentTimeMillis() }
-    var rated by remember(key) { mutableStateOf<io.github.pedrubik2000.kumapie.lang.KnownWords.Rated?>(null) }
     var said by remember(key) { mutableStateOf("") }
     var busy by remember(key) { mutableStateOf(false) }
     var today by remember { mutableStateOf(prefs.getInt(day, 0)) }
@@ -512,7 +515,7 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
     fun show(state: String?) = ctl.words[key]?.let { w -> ctl.words[key] = w.copy(card = state) }
     fun count(n: Int) { today = prefs.getInt(day, 0) + n; prefs.edit().putInt(day, today).apply() }
 
-    val r = rated
+    val (r, answered) = ratings[key] ?: (null to "")
     if (r == null) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf("Again" to Colors.unknown, "Hard" to Colors.learning, "Good" to Colors.due, "Easy" to Colors.accent).forEachIndexed { i, (label, color) ->
             androidx.compose.material3.OutlinedButton(enabled = !busy, onClick = {
@@ -526,23 +529,23 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
                         known.reloadCards()
                     }
                     val done = known.rate(key, i + 1, System.currentTimeMillis() - opened)
-                    if (done != null) { rated = done; show(done.state); count(done.cards); said = tr("Answered: %s", tr(label)) }
+                    if (done != null) { ratings[key] = done to tr("Answered: %s", tr(label)); show(done.state); count(done.cards); said = "" }
                     busy = false
                 }
             }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)) { Text(tr(label), color = color, fontSize = 14.sp) }
         }
     } else Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(said, color = Colors.dim, fontSize = 14.sp)
+        Text(answered, color = Colors.dim, fontSize = 14.sp)
         androidx.compose.material3.TextButton(enabled = !busy, onClick = {
             busy = true
             scope.launch {
                 val state = known.undo(key, r)
-                if (state != null) { show(state); count(-r.cards); rated = null; said = "" }
+                if (state != null) { show(state); count(-r.cards); ratings.remove(key); said = "" }
                 else said = tr("Can't undo: something else was done in kuma3 since.")
                 busy = false
             }
         }) { Text(tr("Undo")) }
     }
-    if (r == null && said.isNotEmpty()) Text(said, color = Colors.dim, fontSize = 13.sp)
+    if (said.isNotEmpty()) Text(said, color = Colors.dim, fontSize = 13.sp)
     if (today > 0) Text(tr("Reviewed from episodes today: %d", today), color = Colors.dim, fontSize = 13.sp)
 }

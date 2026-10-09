@@ -155,7 +155,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
     val segment = picker.selected
     val offset = cue.segments.take(picker.seg).sumOf { it.text.length }
     var wordCard by remember { mutableStateOf(segment?.word != null) }
-    var headword by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.Headword?>(null) }
+    var headword by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.Headword?>(null) }
     var choices by remember { mutableStateOf<List<Choice>>(emptyList()) }
     var monos by remember { mutableStateOf<List<Choice>>(emptyList()) }
     var monoChosen by remember { mutableIntStateOf(0) }
@@ -167,12 +167,9 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
 
     LaunchedEffect(segment?.text) {
         if (segment?.word == null) return@LaunchedEffect
-        val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-            runCatching {
-                io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup(library.knownJa.japanese, library.yomitan)
-                    .lookup(cue.text, offset, segment.text.length)
-            }.getOrDefault(emptyList())
-        }.firstOrNull()
+        val found = runCatching {
+            library.languages.japanese.lookup(io.github.pedrubik2000.kumapie.mobile.lang.Tap(cue.text, offset, segment.text.length))
+        }.getOrDefault(emptyList()).firstOrNull()
         headword = found
         val glossaries = found?.terms?.flatMap { it.glossaries }.orEmpty()
         fun group(dict: String) = library.yomitan.groupOf(ja, dict)

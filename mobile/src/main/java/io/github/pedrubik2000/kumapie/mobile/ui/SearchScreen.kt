@@ -32,7 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.Lang
-import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup
+import io.github.pedrubik2000.kumapie.mobile.lang.Headword
+import io.github.pedrubik2000.kumapie.mobile.lang.Tap
 import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseModel
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
@@ -48,25 +49,25 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(library: Library, onBack: () -> Unit) {
-    val lookup = remember { JapaneseLookup(library.knownJa.japanese, library.yomitan) }
+    val ja = library.languages.japanese
     var text by remember { mutableStateOf(library.settings.prefs.getString("search_text", "") ?: "") }
     var tokens by remember { mutableStateOf<List<JapaneseModel.Token>>(emptyList()) }
     var picked by remember { mutableStateOf<JapaneseModel.Token?>(null) }
-    var headwords by remember { mutableStateOf<List<JapaneseLookup.Headword>?>(null) }
+    var headwords by remember { mutableStateOf<List<Headword>?>(null) }
     var said by remember { mutableStateOf("") }
     BackHandler { onBack() }
 
     LaunchedEffect(text) {
         library.settings.prefs.edit().putString("search_text", text).apply()
-        if (!library.knownJa.modelReady) { said = tr("Download the Japanese dictionary (Sudachi) in Settings first."); return@LaunchedEffect }
-        tokens = runCatching { withContext(Dispatchers.Default) { library.knownJa.japanese.parse(listOf(text.trim())).first() } }.getOrDefault(emptyList())
+        if (!ja.known.modelReady) { said = tr("Download the Japanese dictionary (Sudachi) in Settings first."); return@LaunchedEffect }
+        tokens = runCatching { withContext(Dispatchers.Default) { ja.model.parse(listOf(text.trim())).first() } }.getOrDefault(emptyList())
         if (tokens.size == 1 && tokens[0].isWord) picked = tokens[0]
     }
     LaunchedEffect(picked) {
         val t = picked ?: return@LaunchedEffect
         headwords = null
         val started = System.currentTimeMillis()
-        headwords = withContext(Dispatchers.IO) { runCatching { lookup.lookup(text.trim(), t.begin) }.getOrElse { said = it.message ?: it.toString(); emptyList() } }
+        headwords = runCatching { ja.lookup(Tap(text.trim(), t.begin)) }.getOrElse { said = it.message ?: it.toString(); emptyList() }
         said = tr("%1\$d words · %2\$d ms", headwords?.size ?: 0, System.currentTimeMillis() - started)
     }
 
@@ -80,7 +81,7 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth())
             FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 tokens.forEach { t ->
-                    val status = if (t.isWord) library.knownJa.status(t.base) else "k"
+                    val status = if (t.isWord) ja.known.status(t.base) else "k"
                     val color = when { !t.isWord -> Colors.dim; status == "k" -> Colors.text; status == "l" -> Colors.accent; else -> Colors.unknown }
                     Text(t.surface, fontSize = 24.sp, color = color, modifier = Modifier
                         .background(if (t == picked) Colors.surface else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(4.dp))
@@ -88,7 +89,7 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
                 }
             }
             if (said.isNotEmpty()) Text(said, fontSize = 12.sp, color = Colors.dim)
-            headwords?.let { YomitanPopup(library, Lang.JAPANESE, it, onSpeak = { h -> library.speakJa(h.expression, h.reading) }) }
+            headwords?.let { YomitanPopup(library, Lang.JAPANESE, it, onSpeak = ja::say) }
         }
     }
 }

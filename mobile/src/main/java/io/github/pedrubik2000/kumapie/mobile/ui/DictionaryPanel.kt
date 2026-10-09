@@ -21,6 +21,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.mobile.lang.DictEntry
+import io.github.pedrubik2000.kumapie.mobile.lang.Headword
+import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup
+import io.github.pedrubik2000.kumapie.mobile.lang.Tap
 import io.github.pedrubik2000.kumapie.mobile.lang.SensePick
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.player.SceneController
@@ -36,32 +39,49 @@ import io.github.pedrubik2000.kumapie.i18n.tr
  */
 @Composable
 fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) {
-    if (ctl.lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) return JapanesePanel(library, ctl, picker)
-    val segment = picker.selectedInDef ?: picker.selected ?: return
-    val key = segment.word
-    val lemma = key?.let { ctl.words[it]?.lemma }?.takeIf { it.isNotBlank() }
-    var entries by remember(segment.text, key) { mutableStateOf<List<DictEntry>?>(null) }
-    var all by remember(segment.text, key) { mutableStateOf(false) }
-    // The Yomitan dictionaries' entries as headwords for the popup (one per spelling, in the lookup's order).
-    var headwords by remember(segment.text, key) { mutableStateOf<List<io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.Headword>>(emptyList()) }
-    LaunchedEffect(segment.text, key) {
-        entries = library.dictionary.lookup(segment.text, key, lemma, lang = ctl.lang)
-        headwords = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { library.dictionary.yomitanTerms(segment.text, key, lemma, ctl.lang) }.getOrDefault(emptyList())
-                .groupBy { it.expression }.map { (e, ts) -> io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.Headword(e, "", ts) }
+    val language = library.languages.of(ctl.lang)
+    // A word in the card's definition alone; a subtitle word with its place in the line (Japanese scans from there).
+    val tap = picker.selectedInDef?.let { Tap(it.text, 0, it.text.length, it.word, it.word?.let { k -> ctl.words[k]?.lemma }?.takeIf { l -> l.isNotBlank() }) }
+        ?: run {
+            val cue = ctl.scene.cues.getOrNull(picker.line) ?: return
+            val segment = cue.segments.getOrNull(picker.seg) ?: return
+            Tap(cue.text, cue.segments.take(picker.seg).sumOf { it.text.length }, segment.text.length, segment.word,
+                segment.word?.let { ctl.words[it]?.lemma }?.takeIf { it.isNotBlank() })
         }
+    val missing = language.missing
+    var entries by remember(tap) { mutableStateOf<List<DictEntry>?>(null) }
+    var headwords by remember(tap) { mutableStateOf<List<Headword>?>(null) }
+    var all by remember(tap) { mutableStateOf(false) }
+    LaunchedEffect(tap, missing) {
+        if (missing != null) return@LaunchedEffect
+        entries = language.entries(tap)
+        headwords = runCatching { language.lookup(tap) }.getOrDefault(emptyList())
     }
 
     HorizontalDivider(Modifier.padding(top = 8.dp, bottom = 4.dp), color = Colors.dim.copy(alpha = 0.3f))
-    Column(Modifier.heightIn(max = if (headwords.isNotEmpty()) 460.dp else 260.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        val found = entries
+    val found = entries.orEmpty()
+    // Dictionary entries scroll here; the popup's cards scroll inside it (a second scroller fought with it).
+    val scroll = if (found.isEmpty()) Modifier else Modifier.heightIn(max = if (headwords.isNullOrEmpty()) 260.dp else 460.dp).verticalScroll(rememberScrollState())
+    Column(scroll, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        val hws = headwords
         when {
-            found == null -> Text(tr("Looking it up…"), color = Colors.dim, fontSize = 14.sp)
-            headwords.isNotEmpty() && found.isNotEmpty() -> {
-                val fits = remember(found) { if (picker.selectedInDef != null) null else SensePick.best(found, SensePick.english(ctl.scene, picker.line)) }
-                fits?.let { (i, j) -> Text(tr("In this line: %s", found[i].senses[j].gloss), color = Colors.accent, fontSize = 15.sp) }
-                YomitanPopup(library, ctl.lang, headwords, onSpeak = { if (ctl.lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) library.speakJa(it.expression, it.reading) else library.sayWord(it.expression, ctl.lang.code) }, compact = true)
+            missing != null -> Text(missing, color = Colors.dim, fontSize = 14.sp)
+            hws == null -> Text(tr("Looking it up…"), color = Colors.dim, fontSize = 14.sp)
+            hws.isNotEmpty() -> {
+                // "In this line": the sense that fits the line's English, from the entries, else from the bilingual meanings.
+                val fit = remember(hws) {
+                    if (found.isNotEmpty()) {
+                        if (picker.selectedInDef != null) null
+                        else SensePick.best(found, SensePick.english(ctl.scene, picker.line))?.let { (i, j) -> found[i].senses[j].gloss }
+                    } else {
+                        val meanings = hws.first().terms.flatMap { it.glossaries }
+                            .filter { library.yomitan.groupOf(ctl.lang, it.dict).contains("bilingual", ignoreCase = true) }
+                            .flatMap { g -> g.senses.flatMap { JapaneseLookup.bilingualMeanings(it) } }.distinct()
+                        SensePick.bestMeaning(meanings, SensePick.english(ctl.scene, picker.line))?.let { meanings[it] }
+                    }
+                }
+                fit?.let { Text(tr("In this line: %s", it), color = Colors.accent, fontSize = 15.sp, modifier = Modifier.padding(bottom = 4.dp)) }
+                YomitanPopup(library, ctl.lang, hws, onSpeak = language::say, compact = true)
             }
             found.isEmpty() -> Text(
                 if (library.yomitan.of(ctl.lang).any { it.enabled && it.terms > 0 }) tr("Not in the dictionary.")
@@ -78,40 +98,6 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
                 val more = found.size > shown.size || (!all && shown.any { it.senses.size > 3 })
                 if (more) TextButton(onClick = { all = true }) { Text(tr("All meanings (%d)", found.sumOf { it.senses.size }), fontSize = 14.sp) }
                 if (found.any { it.online }) Text(tr("From Wiktionary online, saved on this device."), color = Colors.dim, fontSize = 12.sp)
-            }
-        }
-    }
-}
-
-/** Japanese episodes: the Yomitan popup for the tapped word, looked up from its place in the line (as Yomitan scans). */
-@Composable
-private fun JapanesePanel(library: Library, ctl: SceneController, picker: WordPicker) {
-    val cue = ctl.scene.cues.getOrNull(picker.line) ?: return
-    val segment = cue.segments.getOrNull(picker.seg) ?: return
-    val offset = cue.segments.take(picker.seg).sumOf { it.text.length }
-    val lookup = remember { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup(library.knownJa.japanese, library.yomitan) }
-    var headwords by remember(cue, picker.seg) { mutableStateOf<List<io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.Headword>?>(null) }
-    LaunchedEffect(cue, picker.seg) {
-        headwords = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-            runCatching { lookup.lookup(cue.text, offset, segment.text.length) }.getOrDefault(emptyList())
-        }
-    }
-    HorizontalDivider(Modifier.padding(top = 8.dp, bottom = 4.dp), color = Colors.dim.copy(alpha = 0.3f))
-    Column { // the cards scroll inside the popup; a second scroller here fought with it
-        when {
-            !library.knownJa.modelReady -> Text(tr("Download the Japanese words dictionary (Sudachi) in Settings first."), color = Colors.dim, fontSize = 14.sp)
-            headwords == null -> Text(tr("Looking it up…"), color = Colors.dim, fontSize = 14.sp)
-            else -> {
-                // "In this line": the bilingual meaning that shares the most words with the line's English.
-                val fit = remember(headwords) {
-                    val meanings = headwords!!.firstOrNull()?.terms?.flatMap { it.glossaries }
-                        ?.filter { library.yomitan.groupOf(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE, it.dict).contains("bilingual", ignoreCase = true) }
-                        ?.flatMap { g -> g.senses.flatMap { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup.bilingualMeanings(it) } }?.distinct().orEmpty()
-                    SensePick.bestMeaning(meanings, SensePick.english(ctl.scene, picker.line))?.let { meanings[it] }
-                }
-                fit?.let { Text(tr("In this line: %s", it), color = Colors.accent, fontSize = 15.sp, modifier = Modifier.padding(bottom = 4.dp)) }
-                YomitanPopup(library, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE, headwords!!,
-                    onSpeak = { library.speakJa(it.expression, it.reading) }, compact = true)
             }
         }
     }

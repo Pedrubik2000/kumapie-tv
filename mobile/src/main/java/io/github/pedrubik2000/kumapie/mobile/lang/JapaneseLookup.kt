@@ -9,12 +9,6 @@ import io.github.pedrubik2000.kumapie.data.Lang
  */
 class JapaneseLookup(private val model: JapaneseModel, private val dicts: YomitanDictionaries) {
 
-    /** One headword: a word with one reading, and every dictionary's entries for it. */
-    data class Headword(val expression: String, val reading: String, val terms: List<YomitanDictionaries.Term>) {
-        val frequencies get() = terms.flatMap { it.frequencies }.distinctBy { it.first }
-        val pitches get() = terms.flatMap { it.pitches }.distinctBy { it.first }
-    }
-
     /** The word under [offset] (a char index in [text]) as Sudachi splits it, or null on punctuation. */
     fun token(text: String, offset: Int): JapaneseModel.Token? =
         model.parse(listOf(text)).first().lastOrNull { it.begin <= offset }?.takeIf { it.isWord }

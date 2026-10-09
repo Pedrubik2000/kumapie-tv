@@ -11,6 +11,7 @@ import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.lang.Dictionary
 import io.github.pedrubik2000.kumapie.mobile.lang.Voice
 import io.github.pedrubik2000.kumapie.mobile.lang.KnownWords
+import io.github.pedrubik2000.kumapie.mobile.lang.Languages
 import io.github.pedrubik2000.kumapie.mobile.lang.Miner
 import io.github.pedrubik2000.kumapie.mobile.lang.YomitanDictionaries
 import io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes
@@ -31,15 +32,6 @@ class Library(context: Context, val settings: Settings) {
     private val appContext = context.applicationContext
     val downloads = Downloads(context)
     val pending = Pending(context)
-    /** Word colours from the device's own Anki (kuma3-anki), once read; until then the PC's. */
-    val known = KnownWords(context, settings)
-    /** The same for Japanese (🐻 Japanese, Sudachi); used by Japanese episodes once they exist (plan step 4). */
-    val knownJa = KnownWords(context, settings, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE)
-    /** English (Pedro's 🐻 English, spaCy English). */
-    val knownEn = KnownWords(context, settings, io.github.pedrubik2000.kumapie.data.Lang.ENGLISH)
-    fun knownFor(lang: String) = when (lang) { knownJa.lang.code -> knownJa; knownEn.lang.code -> knownEn; else -> known }
-    /** The known-words list a word marked in a [lang] episode belongs to: kana or kanji in it means Japanese. */
-    private fun knownOfWord(word: String, lang: String) = if (JAPANESE_TEXT.containsMatchIn(word)) knownJa else knownFor(lang)
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
     val yomitan = YomitanDictionaries.get(context).also {
         // Episodes to and from the PC (the hub), when this device has an owner.
@@ -52,47 +44,21 @@ class Library(context: Context, val settings: Settings) {
         // The word recordings (a few MB a language) come by themselves: nobody has to find the button.
         if (Dictionary.RECORDINGS.any { !d.recordingsFile(it).exists() }) d.download()
     }
+    /** What each language does its own way: lookups, word audio, known words. */
+    val languages = Languages(context, settings, yomitan, dictionary)
+    /** Word colours from the device's own Anki (kuma3-anki), once read; until then the PC's. */
+    val known get() = languages.german.known
+    val knownJa get() = languages.japanese.known
+    val knownEn get() = languages.english.known
+    fun knownFor(lang: String) = languages.of(lang).known
+    /** The known-words list a word marked in a [lang] episode belongs to: kana or kanji in it means Japanese. */
+    private fun knownOfWord(word: String, lang: String) = if (JAPANESE_TEXT.containsMatchIn(word)) knownJa else knownFor(lang)
     /** The device's German voice, for words without a recording. */
-    val voice by lazy { Voice(context) }
-    /** The device's Japanese voice (the Japanese popup's 🔊). */
-    val voiceJa by lazy { Voice(context, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) }
-    /** People's recordings of Japanese words (local collection, else JapanesePod101 online). */
-    val audioJa by lazy { io.github.pedrubik2000.kumapie.mobile.lang.JapaneseAudio(context) }
-    private val audioScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
-    private val voices = java.util.concurrent.ConcurrentHashMap<String, Voice>()
+    val voice get() = languages.german.voice
     /** The device's voice in a language ([io.github.pedrubik2000.kumapie.data.Lang.code]): words without a recording. */
-    fun voiceOf(lang: String): Voice = voices.getOrPut(lang) { Voice(appContext, io.github.pedrubik2000.kumapie.data.Lang.of(lang)) }
-    private var wordPlayer: android.media.MediaPlayer? = null
-
-    /**
-     * Says a German or English word: a person's recording (Wiktionary / Wikimedia Commons, kept for offline) first, the
-     * device voice only without one or when it doesn't play.
-     */
-    fun sayWord(word: String, lang: String) {
-        audioScope.launch {
-            val rec = withContext(Dispatchers.IO) { dictionary.recording(word, lang) }
-            val started = rec != null && runCatching {
-                wordPlayer?.release()
-                wordPlayer = android.media.MediaPlayer().apply {
-                    setOnPreparedListener { it.start() }
-                    setOnCompletionListener { it.release(); if (wordPlayer === it) wordPlayer = null }
-                    setOnErrorListener { _, _, _ -> voiceOf(lang).speak(word); true }
-                    setDataSource(rec)
-                    prepareAsync()
-                }
-            }.isSuccess
-            if (!started) voiceOf(lang).speak(word)
-            else if (rec!!.startsWith("http")) background.launch { dictionary.keepRecording(word, rec, lang) }
-        }
-    }
-
-    /** Says a Japanese word: a person's recording when there is one, else the device voice. */
-    fun speakJa(expression: String, reading: String) {
-        audioScope.launch { if (!audioJa.play(expression, reading)) voiceJa.speak(reading.ifBlank { expression }) }
-    }
+    fun voiceOf(lang: String): Voice = languages.of(lang).voice
     /** Cards mined into kuma3 Anki. */
-    val miner by lazy { Miner(context, known, knownJa, dictionary, { voice }, { voiceJa }, audioJa, knownEn) }
+    val miner by lazy { Miner(context, known, knownJa, dictionary, { voice }, { languages.japanese.voice }, languages.japanese.audio, knownEn) }
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
     /** Episodes made on this device (YouTube links processed here), listed first. */

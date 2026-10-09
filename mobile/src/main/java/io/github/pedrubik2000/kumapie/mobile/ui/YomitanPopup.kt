@@ -44,6 +44,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.mobile.lang.GlossaryHtml
 import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseLookup
+import io.github.pedrubik2000.kumapie.mobile.lang.Headword
+import io.github.pedrubik2000.kumapie.mobile.lang.Tap
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import org.json.JSONObject
@@ -61,7 +63,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
  * in, nothing is rebuilt.
  */
 @Composable
-fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.Headword>, onSpeak: (JapaneseLookup.Headword) -> Unit,
+fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpeak: (Headword) -> Unit,
                  /** In the player's word card: a lower card list. */
                  compact: Boolean = false) {
     if (headwords.isEmpty()) {
@@ -69,13 +71,13 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.He
         return
     }
     // Words looked up from inside a definition (Japanese): a stack, ← goes back.
-    var nested by remember(headwords) { mutableStateOf<List<List<JapaneseLookup.Headword>>>(emptyList()) }
+    var nested by remember(headwords) { mutableStateOf<List<List<Headword>>>(emptyList()) }
     val shown = nested.lastOrNull() ?: headwords
     var selected by remember(shown) { mutableStateOf(0) }
     val hw = shown[selected.coerceIn(0, shown.lastIndex)]
     var group by remember(hw) { mutableStateOf<String?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val lookup = remember { if (lang == Lang.JAPANESE) JapaneseLookup(library.knownJa.japanese, library.yomitan) else null }
+    val language = library.languages.of(lang)
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (shown.size > 1 || nested.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -99,13 +101,10 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.He
         Glossaries(library, lang, hw, group, if (compact) (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp - 300).coerceIn(140, 320) else 520,
             onOpen = { w -> shown.indexOfFirst { it.expression == w }.takeIf { it >= 0 }?.let { selected = it } },
             onTapText = { text, offset ->
-                lookup?.let { l ->
-                    scope.launch {
-                        val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                            runCatching { l.lookup(text, offset) }.getOrDefault(emptyList())
-                        }
-                        if (found.isNotEmpty() && found.first().expression != hw.expression) nested = nested + listOf(found)
-                    }
+                // A tap in a definition (Japanese scans from there; spaced languages find nothing without a picked word).
+                scope.launch {
+                    val found = runCatching { language.lookup(Tap(text, offset)) }.getOrDefault(emptyList())
+                    if (found.isNotEmpty() && found.first().expression != hw.expression) nested = nested + listOf(found)
                 }
             })
     }
@@ -113,7 +112,7 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<JapaneseLookup.He
 
 /** Reading with pitch over the word, the first meanings beside it, 🔊; then frequency and pitch badges. */
 @Composable
-private fun Header(hw: JapaneseLookup.Headword, onSpeak: (JapaneseLookup.Headword) -> Unit) {
+private fun Header(hw: Headword, onSpeak: (Headword) -> Unit) {
     val downsteps = hw.pitches.flatMap { it.second }.distinct()
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column {
@@ -173,7 +172,7 @@ private fun morae(kana: String): List<String> {
 
 /** The headword's cards in the shared WebView; chips hide the other groups; open/closed is remembered. */
 @Composable
-private fun Glossaries(library: Library, lang: Lang, hw: JapaneseLookup.Headword, group: String?, height: Int, onOpen: (String) -> Unit,
+private fun Glossaries(library: Library, lang: Lang, hw: Headword, group: String?, height: Int, onOpen: (String) -> Unit,
                        onTapText: (String, Int) -> Unit = { _, _ -> }) {
     val opener by rememberUpdatedState(onOpen)
     val tapper by rememberUpdatedState(onTapText)

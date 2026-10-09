@@ -66,6 +66,9 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             _status.value = describe()
         }
 
+    /** This language's notes in Anki ("note:🐻 German" OR "note:🇩🇪 MvJ"). */
+    private val search get() = noteTypes.joinToString(" OR ", "(", ")") { "\"note:$it\"" }
+
     /** The Anki note type with the German sentences and Core 1000 words: its new name first, then the old one. */
     val noteTypes = lang.noteTypes
 
@@ -90,6 +93,14 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** This language's word cards by form and kuma3's queue today: [EpisodeDetail] words' [io.github.pedrubik2000.kumapie.data.Word.card]. */
     val cardIndex = CardIndex()
     @Volatile private var dueAt = 0L
+
+    /** The word cards again without parsing (a card was just mined here): notes, cards and kuma3's queue. */
+    suspend fun reloadCards() = withContext(Dispatchers.IO) {
+        val pkg = lastReading?.pkg ?: return@withContext
+        if (language !is Spaced) return@withContext
+        cardIndex.build(anki.notes(pkg, search), anki.cards(pkg, search), anki.due(pkg))
+        dueAt = System.currentTimeMillis()
+    }
 
     /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
     suspend fun refreshDue() = withContext(Dispatchers.IO) {
@@ -160,7 +171,6 @@ class KnownWords(val context: Context, private val settings: Settings, private v
                     else tr("The %s model isn't downloaded yet.", lang.displayName))
                 val started = System.currentTimeMillis()
                 _status.value = tr("Reading Anki…")
-                val search = noteTypes.joinToString(" OR ", "(", ")") { "\"note:$it\"" }
                 val notes = whileAnkiStarts { anki.notes(pkg, search) }
                 // None yet (a new kuma3: the note type comes with the first mined card): no word known yet, every word new.
                 val cards = anki.cards(pkg, search)

@@ -130,7 +130,13 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             } else null)
             scope.launch {
                 runCatching { library.miner.mine(request) { status = it } }
-                    .onSuccess { status = it; done = true }
+                    .onSuccess {
+                        status = it; done = true
+                        // The new card: its word gets its colour and the rating row now.
+                        val known = library.languages.of(ctl.lang).known
+                        known.reloadCards()
+                        key?.let { k -> ctl.words[k]?.let { w -> ctl.words[k] = w.copy(card = known.cardIndex.state(k)) } }
+                    }
                     .onFailure { status = it.message ?: it.toString() }
                 busy = false
             }

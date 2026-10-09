@@ -59,7 +59,7 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
 
     LaunchedEffect(text) {
         library.settings.prefs.edit().putString("search_text", text).apply()
-        if (!ja.known.modelReady) { said = tr("Download the Japanese dictionary (Sudachi) in Settings first."); return@LaunchedEffect }
+        if (!ja.model.isReady) { said = tr("Download the Japanese dictionary (Sudachi) in Settings first."); return@LaunchedEffect }
         tokens = runCatching { withContext(Dispatchers.Default) { ja.model.parse(listOf(text.trim())).first() } }.getOrDefault(emptyList())
         if (tokens.size == 1 && tokens[0].isWord) picked = tokens[0]
     }

@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.mobile.local.Gemma
 import io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker
 import io.github.pedrubik2000.kumapie.data.Lang
-import io.github.pedrubik2000.kumapie.mobile.lang.JapaneseModel
 import io.github.pedrubik2000.kumapie.mobile.local.englishSource
 import io.github.pedrubik2000.kumapie.mobile.local.jimakuKey
 import io.github.pedrubik2000.kumapie.mobile.local.rdToken
@@ -77,9 +76,9 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         }
     }
     val ready = gemmaReady && when {
-        japanese -> JapaneseModel(context).isReady && library.settings.jimakuKey.isNotBlank()
-        parakeet -> library.languages.of(lang).known.model.isReady && parakeetReady
-        else -> library.languages.of(lang).known.model.isReady && sonioxKey
+        japanese -> library.languages.japanese.model.isReady && library.settings.jimakuKey.isNotBlank()
+        parakeet -> library.languages.of(lang).model.isReady && parakeetReady
+        else -> library.languages.of(lang).model.isReady && sonioxKey
     }
 
     // Scrolls: in landscape the sheet is taller than the screen (the button ended up under the navigation bar).

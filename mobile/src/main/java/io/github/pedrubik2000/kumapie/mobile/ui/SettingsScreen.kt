@@ -111,9 +111,7 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                 // Only the languages this device learns (a parent's phone: English).
                 val learning = remember { settings.learning() }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                KnownWordsSection(library, german = "de" in learning)
-                if ("ja" in learning) JapaneseWordsSection(library)
-                if ("en" in learning) EnglishWordsSection(library)
+                KnownWordsSection(library, learning)
                 HorizontalDivider()
                 YomitanSection(library, learning)
 
@@ -154,39 +152,20 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
 }
 
 /**
- * Word colours from the device's own Anki: the German model (downloaded once), permission to read AnkiDroid,
- * the stability that makes a word known, and reading Anki again (it is also read when the app starts).
+ * Word colours from the device's own Anki: permission to read AnkiDroid and the stability that makes a word known
+ * (shared by every language), then each language this device learns ([LanguageWordsSection]).
  */
 @Composable
-private fun KnownWordsSection(library: Library, german: Boolean = true) {
-    val known = library.languages.german.known
-    val scope = rememberCoroutineScope()
-    val status by known.status.collectAsState()
-    val modelState by remember { known.model.state() }.collectAsState(initial = null)
-    var modelReady by remember { mutableStateOf(known.model.isReady) }
-    LaunchedEffect(modelState) { modelReady = known.model.isReady }
+private fun KnownWordsSection(library: Library, learning: Set<String>) {
+    val known = library.languages.german.known // permission and threshold are the same for every language
     val app = remember { known.ankiApp() }
     var allowed by remember { mutableStateOf(app != null && known.hasPermission(app)) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         allowed = granted
     }
     var days by remember { mutableStateOf(known.threshold.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }) }
-    var busy by remember { mutableStateOf(false) }
 
     Text(tr("Word colours from Anki"), color = Colors.accent)
-    Text(status, fontSize = 15.sp)
-
-    // 1. The German model (spaCy, the same as morphs on the PC).
-    if (german) when {
-        modelReady -> Text(tr("German model: ready (de_core_news_lg)."), fontSize = 14.sp, color = Colors.dim)
-        modelState != null -> Text(tr("German model: %s", modelState), fontSize = 14.sp, color = Colors.dim)
-        else -> {
-            Text(tr("The German model (about 550 MB, once) finds each word's form like morphs on the PC."), fontSize = 14.sp, color = Colors.dim)
-            OutlinedButton(onClick = { known.model.download() }) { Text(tr("Download the German model")) }
-        }
-    }
-
-    // 2. Reading AnkiDroid.
     when {
         app == null -> Text(tr("No kuma3 Anki or AnkiDroid on this device."), fontSize = 14.sp, color = Colors.dim)
         !allowed -> OutlinedButton(onClick = { ask.launch(known.permission(app)) }) { Text(tr("Allow reading Anki")) }
@@ -196,21 +175,48 @@ private fun KnownWordsSection(library: Library, german: Boolean = true) {
             else -> app
         }), fontSize = 14.sp, color = Colors.dim)
     }
-
-    // 3. Known from this stability (days) on.
+    // Known from this stability (days) on.
     OutlinedTextField(days, { v ->
         days = v
         v.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }?.let { known.threshold = it }
     }, label = { Text(tr("Known from stability (days)")) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
 
-    if (german && modelReady && allowed) OutlinedButton(enabled = !busy, onClick = {
+    library.languages.all.filter { it.lang.code in learning }.forEach { LanguageWordsSection(it, allowed, app) }
+}
+
+/**
+ * One language's words from Anki: its parser (spaCy, the same as morphs on the PC; Sudachi for Japanese; downloaded
+ * once), reading its cards again (also done when the app starts) and, for spaced languages, morphs' Recalc.
+ */
+@Composable
+private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.mobile.lang.Language, allowed: Boolean, app: String?) {
+    val known = language.known
+    val model = language.model
+    val scope = rememberCoroutineScope()
+    val status by known.status.collectAsState()
+    val state by remember { model.state() }.collectAsState(initial = null)
+    var ready by remember { mutableStateOf(model.isReady) }
+    LaunchedEffect(state) { ready = model.isReady }
+    var busy by remember { mutableStateOf(false) }
+
+    Text(tr("${language.lang.name} words"), color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
+    Text(status, fontSize = 15.sp)
+    when {
+        ready -> Text(tr("%1\$s: ready (%2\$s).", tr(model.label), model.name), fontSize = 14.sp, color = Colors.dim)
+        state != null -> Text("${tr(model.label)}: $state", fontSize = 14.sp, color = Colors.dim)
+        else -> {
+            if (model.about.isNotEmpty()) Text(tr(model.about), fontSize = 14.sp, color = Colors.dim)
+            OutlinedButton(onClick = { model.download() }) { Text(tr(model.downloadText)) }
+        }
+    }
+    if (ready && allowed) OutlinedButton(enabled = !busy, onClick = {
         busy = true
         scope.launch { known.refresh(); busy = false }
-    }) { Text(if (busy) tr("Reading Anki…") else tr("Read Anki now")) }
+    }) { Text(if (busy) tr("Reading Anki…") else tr("Read ${language.lang.name} cards now")) }
 
-    // 4. morphs' Recalc (the PC's daily `morphs recalc`): first what would change, then Apply. kuma3 Anki only.
-    if (german && modelReady && allowed && app != "com.ichi2.anki") {
+    // morphs' Recalc (the PC's daily `morphs recalc`): first what would change, then Apply. kuma3 Anki only.
+    if (language is io.github.pedrubik2000.kumapie.mobile.lang.Spaced && ready && allowed && app != "com.ichi2.anki") {
         var plan by remember { mutableStateOf<io.github.pedrubik2000.kumapie.mobile.lang.Recalc.Plan?>(null) }
         var said by remember { mutableStateOf("") }
         val recalc = remember { io.github.pedrubik2000.kumapie.mobile.lang.Recalc(known) }
@@ -238,35 +244,6 @@ private fun KnownWordsSection(library: Library, german: Boolean = true) {
         Text(tr("Like morphs recalc on the PC: after reviewing, new cards with one unknown word come first. Run it on " +
             "one device only (the PC's morphs and this would undo each other's marked-known words)."), fontSize = 13.sp, color = Colors.dim)
     }
-}
-
-/** Japanese words from 🐻 Japanese (Kaishi): the Sudachi dictionary (downloaded once) and reading Anki for Japanese. */
-@Composable
-private fun JapaneseWordsSection(library: Library) {
-    val known = library.languages.japanese.known
-    val scope = rememberCoroutineScope()
-    val status by known.status.collectAsState()
-    val state by remember { known.japanese.state() }.collectAsState(initial = null)
-    var ready by remember { mutableStateOf(known.modelReady) }
-    LaunchedEffect(state) { ready = known.modelReady }
-    var busy by remember { mutableStateOf(false) }
-    val app = remember { known.ankiApp() }
-
-    Text(tr("Japanese words"), color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
-    Text(status, fontSize = 15.sp)
-    when {
-        ready -> Text(tr("Japanese dictionary: ready (Sudachi core)."), fontSize = 14.sp, color = Colors.dim)
-        state != null -> Text(tr("Japanese dictionary: %s", state), fontSize = 14.sp, color = Colors.dim)
-        else -> {
-            Text(tr("The Japanese dictionary (about 80 MB to download, 200 MB on the device, once) splits Japanese into words."),
-                fontSize = 14.sp, color = Colors.dim)
-            OutlinedButton(onClick = { known.japanese.download() }) { Text(tr("Download the Japanese dictionary")) }
-        }
-    }
-    if (ready && app != null && known.hasPermission(app)) OutlinedButton(enabled = !busy, onClick = {
-        busy = true
-        scope.launch { known.refresh(); busy = false }
-    }) { Text(if (busy) tr("Reading Anki…") else tr("Read Japanese cards now")) }
 }
 
 /**
@@ -521,46 +498,6 @@ private fun FollowedChannels(library: Library) {
     OutlinedButton(onClick = { io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.checkNow(context) }) { Text(tr("Check now")) }
 }
 
-/** English words from 🐻 English (English Core 1000): spaCy's English model (downloaded once) and reading Anki for English. */
-@Composable
-private fun EnglishWordsSection(library: Library) {
-    val known = library.languages.english.known
-    val scope = rememberCoroutineScope()
-    val status by known.status.collectAsState()
-    val state by remember { known.model.state() }.collectAsState(initial = null)
-    var ready by remember { mutableStateOf(known.model.isReady) }
-    LaunchedEffect(state) { ready = known.model.isReady }
-    var busy by remember { mutableStateOf(false) }
-    val app = remember { known.ankiApp() }
-    Text(tr("English words"), color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
-    Text(status, fontSize = 15.sp)
-    when {
-        ready -> Text(tr("English model: ready (%s).", known.model.name), fontSize = 14.sp, color = Colors.dim)
-        state != null -> Text(tr("English model: %s", state), fontSize = 14.sp, color = Colors.dim)
-        else -> OutlinedButton(onClick = { known.model.download() }) { Text(tr("Download the English model (about 40 MB)")) }
-    }
-    if (ready && app != null && known.hasPermission(app)) OutlinedButton(enabled = !busy, onClick = {
-        busy = true
-        scope.launch { known.refresh(); busy = false }
-    }) { Text(if (busy) tr("Reading Anki…") else tr("Read English cards now")) }
-    // Mined English cards: order by unknown words and unlock their English definitions (as for German).
-    if (ready && app != null && app != "com.ichi2.anki" && known.hasPermission(app)) {
-        var said by remember { mutableStateOf("") }
-        val recalc = remember { io.github.pedrubik2000.kumapie.mobile.lang.Recalc(known) }
-        OutlinedButton(enabled = !busy, onClick = {
-            busy = true
-            said = tr("Working out the order…")
-            scope.launch {
-                said = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    val plan = recalc.plan()
-                    plan.describe() + if (plan.empty) "" else "\n" + recalc.apply(plan)
-                } }.getOrElse { it.message ?: it.toString() }
-                busy = false
-            }
-        }) { Text(tr("Order mined English cards and unlock definitions")) }
-        if (said.isNotEmpty()) Text(said, fontSize = 14.sp, color = Colors.dim)
-    }
-}
 
 /** The menus' language: the phone's, English or Spanish. The screen restarts so every text redraws. */
 @Composable

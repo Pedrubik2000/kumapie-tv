@@ -18,16 +18,20 @@ import java.util.zip.ZipInputStream
  * downloaded once from spaCy's GitHub releases into the app's external folder, never part of the APK. A test
  * build can also get it pushed there over adb (`models/de_core_news_lg/` with config.cfg inside).
  */
-class GermanModel(private val context: Context, val lang: io.github.pedrubik2000.kumapie.data.Lang = io.github.pedrubik2000.kumapie.data.Lang.GERMAN) {
+class GermanModel(private val context: Context, val lang: io.github.pedrubik2000.kumapie.data.Lang = io.github.pedrubik2000.kumapie.data.Lang.GERMAN) : Model {
     private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "models")
+    private val english = lang.code == "en"
     /** spaCy model of this language: German de_core_news_lg, English en_core_web_md (spaCy's choice for its size). */
-    val name = if (lang.code == "en") "en_core_web_md" else NAME
+    override val name = if (english) "en_core_web_md" else NAME
+    override val label = if (english) "English model" else "German model"
+    override val about = if (english) "" else "The German model (about 550 MB, once) finds each word's form like morphs on the PC."
+    override val downloadText = if (english) "Download the English model (about 40 MB)" else "Download the German model"
     val url = "https://github.com/explosion/spacy-models/releases/download/$name-$VERSION/$name-$VERSION-py3-none-any.whl"
     val dir = File(base, name)
-    val isReady: Boolean get() = File(dir, "config.cfg").exists()
+    override val isReady: Boolean get() = File(dir, "config.cfg").exists()
     private val work get() = WorkManager.getInstance(context)
 
-    fun download() {
+    override fun download() {
         val request = OneTimeWorkRequestBuilder<ModelWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .setInputData(androidx.work.workDataOf("lang" to lang.code))
@@ -36,7 +40,7 @@ class GermanModel(private val context: Context, val lang: io.github.pedrubik2000
     }
 
     /** Download progress, a failure message, or null when no download is running. */
-    fun state(): Flow<String?> = AssetWorker.state(work, WORK + lang.code.takeIf { it != "de" }.orEmpty())
+    override fun state(): Flow<String?> = AssetWorker.state(work, WORK + lang.code.takeIf { it != "de" }.orEmpty())
 
     companion object {
         const val NAME = "de_core_news_lg"

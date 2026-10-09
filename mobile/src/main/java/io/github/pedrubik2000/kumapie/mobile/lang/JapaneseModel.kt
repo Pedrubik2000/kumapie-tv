@@ -22,20 +22,24 @@ import java.util.zip.ZipInputStream
  * research": Sudachi Java + SudachiDict core, mode B). The dictionary (~200 MB) is downloaded once from the
  * sudachidict-core wheel on PyPI: SudachiDict's own zips are in the older format Sudachi Java 0.8 refuses.
  */
-class JapaneseModel(private val context: Context) {
+class JapaneseModel(private val context: Context) : Model {
     private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "models")
     val dic = File(base, "sudachi-core-$VERSION.dic")
-    val isReady: Boolean get() = dic.exists()
+    override val label = "Japanese dictionary"
+    override val name = "Sudachi core"
+    override val about = "The Japanese dictionary (about 80 MB to download, 200 MB on the device, once) splits Japanese into words."
+    override val downloadText = "Download the Japanese dictionary"
+    override val isReady: Boolean get() = dic.exists()
     private val work get() = WorkManager.getInstance(context)
 
-    fun download() {
+    override fun download() {
         val request = OneTimeWorkRequestBuilder<JapaneseModelWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         work.enqueueUniqueWork(WORK, ExistingWorkPolicy.KEEP, request)
     }
 
-    fun state(): Flow<String?> = AssetWorker.state(work, WORK)
+    override fun state(): Flow<String?> = AssetWorker.state(work, WORK)
 
     /** A word as Sudachi splits it: [base] is its dictionary form (the known-word key), [reading] in katakana. */
     data class Token(val surface: String, val base: String, val reading: String, val pos: String, val begin: Int, val sub: String = "") {

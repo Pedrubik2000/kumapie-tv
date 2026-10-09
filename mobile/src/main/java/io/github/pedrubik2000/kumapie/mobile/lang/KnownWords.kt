@@ -4,8 +4,6 @@ import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.i18n.tr
 import android.content.Context
 import android.util.Log
-import com.chaquo.python.Python
-import com.chaquo.python.android.AndroidPlatform
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import kotlinx.coroutines.Dispatchers
@@ -28,13 +26,11 @@ import java.io.File
  *   **learning** (orange) when it is only on reviewed cards below that; else **unknown** (red).
  * The result is saved, so the app colours words offline and at once on start; [refresh] reads Anki again.
  */
-class KnownWords(val context: Context, private val settings: Settings, val lang: Lang = Lang.GERMAN) {
+class KnownWords(val context: Context, private val settings: Settings, private val language: Language) {
+    val lang: Lang get() = language.lang
     private val anki = AnkiCards(context)
-    /** spaCy (German, English) and Sudachi (Japanese): only this language's is ever built. */
-    val model by lazy { GermanModel(context, lang) }
-    val japanese by lazy { JapaneseModel(context) }
     /** This language's parser is downloaded. */
-    val modelReady: Boolean get() = if (lang == Lang.JAPANESE) japanese.isReady else model.isReady
+    val modelReady: Boolean get() = language.model.isReady
     private val dir = File(context.filesDir, if (lang == Lang.GERMAN) "known" else "known-${lang.code}").apply { mkdirs() }
     private val savedFile = File(dir, "words.json")
     private val parseCache = File(dir, "parses.json")
@@ -145,17 +141,7 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
                 val read = System.currentTimeMillis()
 
                 // The field each note is judged by (as morphs' filters on the PC).
-                val fields = notes.mapNotNull { n ->
-                    // Japanese (Kaishi, mined words): the card's word when it has one, else its sentence.
-                    if (lang != Lang.GERMAN) return@mapNotNull (n.fields["Word"]?.takeIf { it.isNotBlank() } ?: n.fields["Sentence"])
-                        ?.let { n.id to it }
-                    val name = when {
-                        n.hasTag(CORE1000) || n.hasTag(MINED_WORD) -> "Word"
-                        n.hasTag(NICOS_WEG) -> null
-                        else -> "Sentence"
-                    }
-                    n.fields[name]?.let { n.id to it }
-                }.toMap()
+                val fields = notes.mapNotNull { n -> n.fields[language.judgedField(n)]?.let { n.id to it } }.toMap()
                 // Monolingual definitions too (Recalc unlocks them), keyed by -note id in the same parse cache.
                 val defs = notes.mapNotNull { n -> n.fields[DEF_MONO]?.takeIf { it.isNotBlank() }?.let { -n.id to it } }.toMap()
                 _status.value = tr("Parsing %d notes…", fields.size)
@@ -195,8 +181,7 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
     private fun parse(fields: Map<Long, String>): Map<Long, Set<String>> {
         val cache = runCatching { JSONObject(parseCache.readText()) }.getOrDefault(JSONObject())
         val key = { nid: Long -> "$nid" }
-        val hash = { text: String -> (if (lang == Lang.JAPANESE) "sudachi-B-${JapaneseModel.VERSION}" else "${model.name}-${GermanModel.VERSION}") +
-            ":${text.hashCode()}" }
+        val hash = { text: String -> "${language.parserId}:${text.hashCode()}" }
         val out = HashMap<Long, Set<String>>()
         val todo = ArrayList<Long>()
         for ((nid, text) in fields) {
@@ -207,23 +192,9 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
                 todo += nid
             }
         }
-        if (todo.isNotEmpty() && lang == Lang.JAPANESE) {
-            japanese.parse(todo.map { plainJapanese(fields[it]!!) }).forEachIndexed { i, tokens ->
-                val words = tokens.filter { it.isWord }.map { it.base }.toSet()
-                out[todo[i]] = words
-                cache.put(key(todo[i]), JSONObject().put("h", hash(fields[todo[i]]!!)).put("m", JSONArray(words.toList())))
-            }
-        } else if (todo.isNotEmpty()) {
-            if (!Python.isStarted()) Python.start(AndroidPlatform(context))
-            val result = Python.getInstance().getModule("german")
-                .callAttr("parse_fields", model.dir.path, JSONArray(todo.map { fields[it] }).toString()).toString()
-            val parsed = JSONArray(result)
-            todo.forEachIndexed { i, nid ->
-                val morphs = parsed.getJSONArray(i)
-                val inflections = (0 until morphs.length()).map { morphs.getJSONArray(it).getString(1) }.toSet()
-                out[nid] = inflections
-                cache.put(key(nid), JSONObject().put("h", hash(fields[nid]!!)).put("m", JSONArray(inflections.toList())))
-            }
+        if (todo.isNotEmpty()) language.wordKeys(todo.map { fields[it]!! }).forEachIndexed { i, words ->
+            out[todo[i]] = words
+            cache.put(key(todo[i]), JSONObject().put("h", hash(fields[todo[i]]!!)).put("m", JSONArray(words.toList())))
         }
         // Forget notes no longer there.
         cache.keys().asSequence().toList().filter { it.toLong() !in fields }.forEach { cache.remove(it) }
@@ -252,7 +223,6 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
         return read()
     }
 
-    internal fun AnkiCards.Note.hasTag(tag: String) = tags.any { it.equals(tag, true) || it.startsWith("$tag::", true) }
 
     private fun save(snap: Snapshot) {
         val words = JSONObject()
@@ -291,13 +261,6 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
     }
 
     companion object {
-        /**
-         * A Japanese field as plain text: no HTML, no MvJ furigana (" 私[わたし]" -> "私"), no pitch ("私[わたし]:0-" in
-         * Word fields), no spaces.
-         */
-        fun plainJapanese(field: String): String = android.text.Html.fromHtml(field, 0).toString()
-            .replace(Regex("""\[[^\]]*]"""), "").replace(Regex(""":[0-9A-Za-z\-,]*"""), "").replace(Regex("""\s+"""), "")
-
         val CORE1000 = Lang.GERMAN.tag("core1000")
         /** Word cards mined in kumapie ([Miner]): judged by their Word field, like Core 1000. */
         val MINED_WORD = Lang.GERMAN.tag("word")
@@ -311,3 +274,6 @@ class KnownWords(val context: Context, private val settings: Settings, val lang:
         const val KNOWN_MANUALLY = "_card-status::i+0-manually"
     }
 }
+
+/** The note has [tag] or a tag under it ("tag::…"), any case. */
+internal fun AnkiCards.Note.hasTag(tag: String) = tags.any { it.equals(tag, true) || it.startsWith("$tag::", true) }

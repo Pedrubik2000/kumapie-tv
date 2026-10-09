@@ -24,10 +24,14 @@ internal val esSettings: Map<String, String> = mapOf(
     "Check for updates" to "Buscar actualizaciones",
     "Version %s" to "Versión %s",
 
-    // Word colours (German)
+    // Word colours
     "Word colours from Anki" to "Colores de palabras desde Anki",
-    "German model: ready (de_core_news_lg)." to "Modelo de alemán: listo (de_core_news_lg).",
-    "German model: %s" to "Modelo de alemán: %s",
+    "%1\$s: ready (%2\$s)." to "%1\$s: listo (%2\$s).",
+    "German model" to "Modelo de alemán",
+    "English model" to "Modelo de inglés",
+    "Japanese dictionary" to "Diccionario de japonés",
+    "German words" to "Palabras en alemán",
+    "Read German cards now" to "Leer tarjetas de alemán ahora",
     "The German model (about 550 MB, once) finds each word's form like morphs on the PC." to
         "El modelo de alemán (unos 550 MB, una vez) encuentra la forma de cada palabra como morphs en la PC.",
     "Download the German model" to "Descargar el modelo de alemán",
@@ -37,7 +41,6 @@ internal val esSettings: Map<String, String> = mapOf(
     "kuma3 test build" to "kuma3 de prueba",
     "Known from stability (days)" to "Conocida desde estabilidad (días)",
     "Reading Anki…" to "Leyendo Anki…",
-    "Read Anki now" to "Leer Anki ahora",
     "Working out the order…" to "Calculando el orden…",
     "Order new cards (morphs)" to "Ordenar tarjetas nuevas (morphs)",
     "Apply" to "Aplicar",
@@ -48,15 +51,11 @@ internal val esSettings: Map<String, String> = mapOf(
 
     // Japanese / English words
     "Japanese words" to "Palabras en japonés",
-    "Japanese dictionary: ready (Sudachi core)." to "Diccionario de japonés: listo (Sudachi core).",
-    "Japanese dictionary: %s" to "Diccionario de japonés: %s",
     "The Japanese dictionary (about 80 MB to download, 200 MB on the device, once) splits Japanese into words." to
         "El diccionario de japonés (unos 80 MB de descarga, 200 MB en el dispositivo, una vez) divide el japonés en palabras.",
     "Download the Japanese dictionary" to "Descargar el diccionario de japonés",
     "Read Japanese cards now" to "Leer tarjetas de japonés ahora",
     "English words" to "Palabras en inglés",
-    "English model: ready (%s)." to "Modelo de inglés: listo (%s).",
-    "English model: %s" to "Modelo de inglés: %s",
     "Download the English model (about 40 MB)" to "Descargar el modelo de inglés (unos 40 MB)",
     "Read English cards now" to "Leer tarjetas de inglés ahora",
 
@@ -149,7 +148,6 @@ internal val esSettings: Map<String, String> = mapOf(
     "Check now" to "Revisar ahora",
     "I speak" to "Hablo",
     "Meanings and the second subtitle line come in this language." to "Los significados y la segunda línea de subtítulos salen en este idioma.",
-    "Order mined English cards and unlock definitions" to "Ordenar las tarjetas de inglés y desbloquear definiciones",
     "This device belongs to" to "Este dispositivo es de",
     "Episodes made here go to the PC, and the PC's new episodes come here (on Wi-Fi)." to "Los episodios hechos aquí van a la PC, y los nuevos de la PC llegan aquí (con Wi-Fi).",
     "Nobody (no sync)" to "Nadie (sin sincronizar)",

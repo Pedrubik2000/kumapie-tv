@@ -32,6 +32,29 @@ sealed interface Language {
     fun markKey(word: String): String
     /** The word a Progress mark key stands for, or null when the mark is another language's. */
     fun wordOfMark(key: String): String?
+    /** The parser [known] and new episodes split this language with (downloaded once). */
+    val model: Model
+    /** Names the parser and its version in [KnownWords]' parse cache: a new one parses again. */
+    val parserId: String
+    /** The field a note's words are judged by, or null to skip the note. */
+    fun judgedField(note: AnkiCards.Note): String?
+    /** Each field's word keys (the known-word keys), in the same order. */
+    fun wordKeys(fields: List<String>): List<Set<String>>
+}
+
+/** A language's parser: downloaded once, then [isReady]. Its texts are English keys, translated where they are shown. */
+interface Model {
+    /** "German model", "Japanese dictionary". */
+    val label: String
+    /** What is loaded: "de_core_news_lg", "Sudachi core". */
+    val name: String
+    /** One line before the download (size, what it does), or "". */
+    val about: String
+    val downloadText: String
+    val isReady: Boolean
+    fun download()
+    /** Download progress, a failure message, or null when no download is running. */
+    fun state(): kotlinx.coroutines.flow.Flow<String?>
 }
 
 /**
@@ -51,12 +74,35 @@ data class Headword(val expression: String, val reading: String, val terms: List
 /** German and English: words are what the episode's segments say; meanings from the Yomitan dictionaries, recordings from Wiktionary. */
 class Spaced(context: Context, settings: Settings, override val lang: Lang, private val dictionary: Dictionary, private val scope: CoroutineScope,
              /** Prefix of this language's marks in Progress ("en:"); German's are bare, as they always were. */
-             private val markPrefix: String = "") : Language {
+             private val markPrefix: String = "",
+             /** German: notes judged by their tags (Core 1000 and mined words by Word, Nicos Weg skipped), as morphs on the PC. */
+             private val judgeByTags: Boolean = false) : Language {
     private val appContext = context.applicationContext
-    override val known = KnownWords(context, settings, lang)
+    /** spaCy: German de_core_news_lg, English en_core_web_md. */
+    override val model = GermanModel(appContext, lang)
+    override val parserId get() = "${model.name}-${GermanModel.VERSION}"
+    override val known = KnownWords(context, settings, this)
     override val voice by lazy { Voice(appContext, lang) }
     override val missing: String? get() = null
     private var player: android.media.MediaPlayer? = null
+
+    override fun judgedField(note: AnkiCards.Note): String? = when {
+        !judgeByTags -> if (note.fields["Word"].isNullOrBlank()) "Sentence" else "Word"
+        note.hasTag(KnownWords.CORE1000) || note.hasTag(KnownWords.MINED_WORD) -> "Word"
+        note.hasTag(KnownWords.NICOS_WEG) -> null
+        else -> "Sentence"
+    }
+
+    /** spaCy through Chaquopy (python/german.py, the same model as morphs on the PC): each field's inflections. */
+    override fun wordKeys(fields: List<String>): List<Set<String>> {
+        if (!com.chaquo.python.Python.isStarted()) com.chaquo.python.Python.start(com.chaquo.python.android.AndroidPlatform(appContext))
+        val parsed = org.json.JSONArray(com.chaquo.python.Python.getInstance().getModule("german")
+            .callAttr("parse_fields", model.dir.path, org.json.JSONArray(fields).toString()).toString())
+        return (0 until parsed.length()).map { i ->
+            val morphs = parsed.getJSONArray(i)
+            (0 until morphs.length()).map { morphs.getJSONArray(it).getString(1) }.toSet()
+        }
+    }
 
     override suspend fun lookup(tap: Tap): List<Headword> = withContext(Dispatchers.IO) {
         if (tap.word.isBlank()) return@withContext emptyList()
@@ -94,14 +140,26 @@ class Spaced(context: Context, settings: Settings, override val lang: Lang, priv
 class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionaries, private val scope: CoroutineScope) : Language {
     private val appContext = context.applicationContext
     override val lang: Lang = Lang.JAPANESE
-    override val known = KnownWords(context, settings, lang)
     /** Sudachi. */
-    val model: JapaneseModel get() = known.japanese
+    override val model = JapaneseModel(appContext)
+    override val parserId = "sudachi-B-${JapaneseModel.VERSION}"
+    override val known = KnownWords(context, settings, this)
     private val finder by lazy { JapaneseLookup(model, yomitan) }
     override val voice by lazy { Voice(appContext, lang) }
     /** People's recordings of Japanese words (local collection, else JapanesePod101 online). */
     val audio by lazy { JapaneseAudio(appContext) }
-    override val missing: String? get() = if (known.modelReady) null else tr("Download the Japanese words dictionary (Sudachi) in Settings first.")
+    override val missing: String? get() = if (model.isReady) null else tr("Download the Japanese words dictionary (Sudachi) in Settings first.")
+
+    /** Kaishi and mined words: the card's word when it has one, else its sentence. */
+    override fun judgedField(note: AnkiCards.Note): String? = if (note.fields["Word"].isNullOrBlank()) "Sentence" else "Word"
+
+    /** Sudachi's dictionary forms of each field's words. */
+    override fun wordKeys(fields: List<String>): List<Set<String>> =
+        model.parse(fields.map(::plain)).map { tokens -> tokens.filter { it.isWord }.map { it.base }.toSet() }
+
+    /** A Japanese field as plain text: no HTML, no MvJ furigana (" 私[わたし]" -> "私"), no pitch ("私[わたし]:0-" in Word fields), no spaces. */
+    private fun plain(field: String): String = android.text.Html.fromHtml(field, 0).toString()
+        .replace(Regex("""\[[^\]]*]"""), "").replace(Regex(""":[0-9A-Za-z\-,]*"""), "").replace(Regex("""\s+"""), "")
 
     override suspend fun lookup(tap: Tap): List<Headword> =
         withContext(Dispatchers.Default) { finder.lookup(tap.text, tap.offset, tap.length) }
@@ -120,7 +178,7 @@ class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionarie
 class Languages(context: Context, settings: Settings, yomitan: YomitanDictionaries, dictionary: Dictionary) {
     /** Word audio plays from here (the main thread). */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    val german = Spaced(context, settings, Lang.GERMAN, dictionary, scope)
+    val german = Spaced(context, settings, Lang.GERMAN, dictionary, scope, judgeByTags = true)
     val english = Spaced(context, settings, Lang.ENGLISH, dictionary, scope, markPrefix = "en:")
     val japanese = Japanese(context, settings, yomitan, scope)
     val all: List<Language> = listOf(german, japanese, english)

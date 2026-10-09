@@ -2,5 +2,7 @@
 <!-- Files handed to kuma3 Anki when a card is mined (clip, word audio): see lang/AnkiCards.addMedia. -->
 <paths>
     <cache-path name="mining" path="mining/" />
+    <!-- Japanese word recordings (JapaneseAudio). -->
+    <cache-path name="ja-audio" path="ja-audio/" />
     <external-files-path name="recordings" path="dictionary/recordings/" />
 </paths>

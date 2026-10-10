@@ -108,6 +108,9 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         cardIndex.update(emptyList(), anki.due(pkg))
     }
 
+    /** The Anki day of [ms]: days start at 4:00 local time (kuma3's default "next day starts at"). */
+    private fun ankiDay(ms: Long) = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).minusHours(4).toLocalDate()
+
     /** A rating from a word card: the notes and how many cards it answered, and kuma3's Undo label right after. */
     class Rated(val notes: List<Long>, val cards: Int, val undoLabel: String)
 
@@ -117,6 +120,9 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      */
     suspend fun rate(form: String, ease: Int, ms: Long): Rated? = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext null
+        // kuma3's first queue read on a new day (4:00) clears its Undo (rslib clear_queues_if_day_changed): read it before
+        // the first rating of the day, not right after it, or that rating can't be undone.
+        if (ankiDay(dueAt) != ankiDay(System.currentTimeMillis())) refreshDue(force = true)
         val answer = cardIndex.toAnswer(form)
         if (answer.isEmpty()) return@withContext null // no card of its own found (a Word field kumapie can't match)
         for (c in answer) anki.answer(pkg, c.noteId, c.ord, ease, ms)

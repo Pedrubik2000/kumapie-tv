@@ -119,6 +119,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     suspend fun rate(form: String, ease: Int, ms: Long): Rated? = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext null
         val answer = cardIndex.toAnswer(form)
+        if (answer.isEmpty()) return@withContext null // no card of its own found (a Word field kumapie can't match)
         for (c in answer) anki.answer(pkg, c.noteId, c.ord, ease, ms)
         val notes = answer.map { it.noteId }.distinct()
         val fetched = cardsOf(pkg, notes)

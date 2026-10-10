@@ -11,6 +11,7 @@ class CardIndexTest {
     @Test fun states() {
         assertEquals("ist", CardIndex.form("<b>ist</b>[→ sein]"))
         assertEquals("rufe an", CardIndex.form("rufe an"))
+        assertEquals("wenn's", CardIndex.form("Wenn&#39;s[→ wenn]")) // mined words are HTML-escaped
         val index = CardIndex()
         index.build(
             listOf(note(1, "gehen[geht, ging, ist gegangen]"), note(2, "Tante"), note(3, "schlägt[→ schlagen]"), note(4, "")),

@@ -48,8 +48,13 @@ class CardIndex {
     }
 
     companion object {
-        /** A Word field as its form: no HTML, nothing from "[" on ("ist[→ sein]", "haben[hat, hatte, …]"), lowercase. */
-        fun form(field: String): String = field.replace(Regex("<[^>]*>"), "").replace("&nbsp;", " ")
+        /**
+         * A Word field as its form: no HTML tags or entities (mined words are escaped: "Wenn&#39;s"), nothing from "[" on
+         * ("ist[→ sein]", "haben[hat, hatte, …]"), lowercase.
+         */
+        fun form(field: String): String = field.replace(Regex("<[^>]*>"), "")
+            .replace(Regex("&#(\\d+);")) { it.groupValues[1].toInt().toChar().toString() }
+            .replace("&nbsp;", " ").replace("&quot;", "\"").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
             .substringBefore('[').trim().lowercase()
     }
 }

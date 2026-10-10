@@ -25,7 +25,7 @@ internal val esCore: Map<String, String> = mapOf(
     "Easy" to "Fácil",
     "Answered: %s" to "Respondida: %s",
     "No meaning to put on the card." to "No hay significado para la tarjeta.",
-    "Can't undo: something else was done in kuma3 since." to "No se puede deshacer: se hizo otra cosa en kuma3 desde entonces.",
+    "kuma3 didn't undo it (something else was done there since?)." to "kuma3 no lo deshizo (¿se hizo otra cosa allí desde entonces?).",
     "Reviewed from episodes today: %d" to "Repasadas hoy desde episodios: %d",
     "Undo" to "Deshacer",
     "Updating kuma3's queue…" to "Actualizando la cola de kuma3…",

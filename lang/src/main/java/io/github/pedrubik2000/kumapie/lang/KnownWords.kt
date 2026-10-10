@@ -131,21 +131,30 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         // kuma3's provider only logs an answer it refused: count the cards whose reviews went up.
         val reps = fetched.associate { it.id to it.reps }
         val answered = answer.filter { (reps[it.id] ?: 0) > it.reps }.map { it.id }.toSet()
-        // Not due now; kuma3's whole queue is read again in the background ([refreshDue] force), no rating meanwhile.
+        // Not due now; kuma3's queue is read again when the player leaves the scene.
         cardIndex.update(fetched, cardIndex.due?.minus(answered))
-        if (answered.isEmpty()) null else Rated(notes, answered.size, anki.undoLabel(pkg))
+        val label = anki.undoLabel(pkg)
+        Log.i("kumapie", "rate: $form ease $ease, ${answered.size} of ${answer.size} cards answered, kuma3 Undo: '$label'")
+        if (answered.isEmpty()) null else Rated(notes, answered.size, label)
     }
 
     /**
      * Undoes [r] with kuma3's Undo, once per card it answered, only while Undo still names that rating (nothing else
-     * done in kuma3 since); a card the rating made stays, new. False when it couldn't.
+     * done in kuma3 since); a card the rating made stays, new. False when it couldn't, or kuma3 took no review back
+     * (its provider doesn't say: the cards' reviews must go down).
      */
     suspend fun undo(r: Rated): Boolean = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext false
-        if (r.undoLabel.isEmpty() || anki.undoLabel(pkg) != r.undoLabel) return@withContext false
+        val label = anki.undoLabel(pkg)
+        Log.i("kumapie", "undo: kuma3 says '$label', the rating said '${r.undoLabel}', ${r.cards} cards")
+        if (r.undoLabel.isEmpty() || label != r.undoLabel) return@withContext false
+        val before = cardsOf(pkg, r.notes).associate { it.id to it.reps }
         repeat(r.cards) { if (anki.undoLabel(pkg).isNotEmpty()) anki.undo(pkg) }
-        cardIndex.update(cardsOf(pkg, r.notes), cardIndex.due) // the queue comes with the background read
-        true
+        val after = cardsOf(pkg, r.notes)
+        cardIndex.update(after, cardIndex.due) // the queue comes with the player's next read
+        val undone = after.count { it.reps < (before[it.id] ?: 0) }
+        Log.i("kumapie", "undo: $undone of ${r.cards} reviews taken back, kuma3 now says '${anki.undoLabel(pkg)}'")
+        undone > 0
     }
 
     private fun cardsOf(pkg: String, notes: List<Long>) = anki.cards(pkg, "nid:" + notes.joinToString(","))

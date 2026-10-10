@@ -97,7 +97,7 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
                 TextButton(enabled = !busy.value, onClick = {
                     rating {
                         if (known.undo(r)) { count(-r.cards); ratings.remove(f.key); said.remove(f.key) }
-                        else said[f.key] = tr("Can't undo: something else was done in kuma3 since.")
+                        else said[f.key] = tr("kuma3 didn't undo it (something else was done there since?).")
                     }
                 }) { Text(tr("Undo")) }
             }

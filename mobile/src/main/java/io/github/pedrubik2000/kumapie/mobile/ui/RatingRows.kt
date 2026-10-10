@@ -41,8 +41,9 @@ typealias Ratings = MutableMap<String, Pair<KnownWords.Rated, String>>
  * Again / Hard / Good / Easy for each form's own kuma3 cards (kumapie_anki_review_plan.md): one rating answers every
  * card of the form kuma3 shows today, else its first (an early review); time = rows shown -> button. A form without a
  * card of its own gets its card made first ([RateForm.make]), then the rating. Then Undo (kuma3's; a card it made
- * stays, new) and today's total of cards reviewed from episodes. While kuma3's queue is read again after a rating
- * ([busy], in [scope], which outlives the rows) no button works: a rating then would read a queue from before.
+ * stays, new) and today's total of cards reviewed from episodes. kuma3's queue is not read again here: reading it
+ * selects decks, which replaces kuma3's Undo ("Select Deck"); the player reads it when you leave a scene you rated in.
+ * While a rating or the player's read runs ([busy], in [scope], which outlives the rows) no button works.
  */
 @Composable
 fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, forms: List<RateForm>, ratings: Ratings,
@@ -62,8 +63,6 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
         scope.launch {
             try {
                 step()
-                repaint(); tick++
-                known.refreshDue(force = true)
                 repaint(); tick++
             } finally {
                 busy.value = false

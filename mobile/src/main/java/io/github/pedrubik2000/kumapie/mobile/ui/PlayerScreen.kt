@@ -212,6 +212,17 @@ internal fun ScenePlayer(
     // kuma3's whole queue read again after a rating, in the background (big collections: seconds); not cancelled with the word card.
     val queueScope = rememberCoroutineScope()
     val queueBusy = remember { mutableStateOf(false) } // while it runs, no rating (it would read a queue from before)
+    // Leaving a scene you rated in: kuma3's queue read once (RWKV-Instant may bring a card back). Not after each rating:
+    // the read selects decks, which replaces kuma3's Undo, so ratings stay undoable while you're in their scene.
+    LaunchedEffect(ctl.scene.index) {
+        if (ratings.isEmpty()) return@LaunchedEffect
+        ratings.clear()
+        val known = library.languages.of(ctl.lang).known
+        queueBusy.value = true
+        queueScope.launch {
+            try { known.refreshDue(force = true); repaintWords(ctl, known) } finally { queueBusy.value = false }
+        }
+    }
     var menuUntil by remember { mutableLongStateOf(SystemClock.uptimeMillis() + 3_000) } // a novel's bar
     var flash by remember { mutableStateOf<String?>(null) } // "Replay line" etc., shown briefly in the middle
     var flashAt by remember { mutableLongStateOf(0L) }

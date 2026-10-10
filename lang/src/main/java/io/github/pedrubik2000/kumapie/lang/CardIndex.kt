@@ -7,7 +7,8 @@ package io.github.pedrubik2000.kumapie.lang
 class CardIndex {
     @Volatile private var byForm: Map<String, List<AnkiCards.Card>> = emptyMap()
     /** Card id -> "new" | "learn" | "review": kuma3's queue today; null = not known (an Anki without `kuma3/due`). */
-    @Volatile private var due: Map<Long, String>? = null
+    @Volatile var due: Map<Long, String>? = null
+        private set
 
     /** From the notes and cards [KnownWords] read: the word notes' cards by form. */
     fun build(notes: List<AnkiCards.Note>, cards: List<AnkiCards.Card>, due: Map<Long, String>?) {
@@ -36,9 +37,6 @@ class CardIndex {
             else -> "n"
         }
     }
-
-    /** kuma3's queue as known now, without [cards] (just rated: not due until the queue is read again). */
-    fun dueWithout(cards: Set<Long>): Map<Long, String>? = due?.minus(cards)
 
     /** The form's own cards. */
     fun cards(form: String): List<AnkiCards.Card> = byForm[form.lowercase()].orEmpty()

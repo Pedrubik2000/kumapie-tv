@@ -516,18 +516,20 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
     val day = "rated_" + io.github.pedrubik2000.kumapie.mobile.offline.Progress.studyDay()
     val opened = remember(key) { System.currentTimeMillis() }
     var said by remember(key) { mutableStateOf("") }
-    var busy by remember(key) { mutableStateOf(false) }
     var today by remember { mutableStateOf(prefs.getInt(day, 0)) }
-    val scope = rememberCoroutineScope()
-    fun show(state: String?) = ctl.words[key]?.let { w -> ctl.words[key] = w.copy(card = state) }
+    val busy = queueBusy.value
     fun count(n: Int) { today = prefs.getInt(day, 0) + n; prefs.edit().putInt(day, today).apply() }
-    // kuma3's queue in the background, then every word of the episode coloured by it (RWKV-Instant may bring a card back).
-    fun requeue() {
+    // Every word of the episode coloured by the index (cheap: a few hundred words).
+    fun repaint() { for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> known.cardIndex.state(k).let { s -> if (s != w.card) ctl.words[k] = w.copy(card = s) } } }
+    // The whole rating, then kuma3's queue read again (RWKV-Instant may bring a card back): no other rating meanwhile.
+    fun rating(step: suspend () -> Unit) {
         queueBusy.value = true
         queueScope.launch {
             try {
+                step()
+                repaint()
                 known.refreshDue(force = true)
-                for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> known.cardIndex.state(k).let { s -> if (s != w.card) ctl.words[k] = w.copy(card = s) } }
+                repaint()
             } finally {
                 queueBusy.value = false
             }
@@ -537,36 +539,31 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
     val (r, answered) = ratings[key] ?: (null to "")
     if (r == null) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf("Again" to Colors.unknown, "Hard" to Colors.learning, "Good" to Colors.due, "Easy" to Colors.accent).forEachIndexed { i, (label, color) ->
-            androidx.compose.material3.OutlinedButton(enabled = !busy && !queueBusy.value, onClick = {
-                busy = true
-                scope.launch {
+            androidx.compose.material3.OutlinedButton(enabled = !busy, onClick = {
+                rating {
                     if (ctl.words[key]?.card == "u") {
                         val request = autoWordCard(library, ctl, picker.line, segment.text, key)
                         val made = request != null && runCatching { library.miner.mine(request) { said = it } }
                             .onFailure { said = it.message ?: it.toString() }.isSuccess
-                        if (!made) { if (request == null) said = tr("No meaning to put on the card."); busy = false; return@launch }
+                        if (!made) { if (request == null) said = tr("No meaning to put on the card."); return@rating }
                         known.reloadCards()
                     }
                     val done = known.rate(key, i + 1, System.currentTimeMillis() - opened)
-                    if (done != null) { ratings[key] = done to tr("Answered: %s", tr(label)); show(done.state); count(done.cards); said = ""; requeue() }
+                    if (done != null) { ratings[key] = done to tr("Answered: %s", tr(label)); count(done.cards); said = "" }
                     else said = tr("kuma3 didn't take the rating.")
-                    busy = false
                 }
             }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)) { Text(tr(label), color = color, fontSize = 14.sp) }
         }
     } else Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(answered, color = Colors.dim, fontSize = 14.sp)
-        androidx.compose.material3.TextButton(enabled = !busy && !queueBusy.value, onClick = {
-            busy = true
-            scope.launch {
-                val state = known.undo(key, r)
-                if (state != null) { show(state); count(-r.cards); ratings.remove(key); said = ""; requeue() }
+        androidx.compose.material3.TextButton(enabled = !busy, onClick = {
+            rating {
+                if (known.undo(r)) { count(-r.cards); ratings.remove(key); said = "" }
                 else said = tr("Can't undo: something else was done in kuma3 since.")
-                busy = false
             }
         }) { Text(tr("Undo")) }
     }
     if (said.isNotEmpty()) Text(said, color = Colors.dim, fontSize = 13.sp)
-    if (queueBusy.value) Text(tr("Updating kuma3's queue…"), color = Colors.dim, fontSize = 13.sp)
+    if (busy) Text(tr("Updating kuma3's queue…"), color = Colors.dim, fontSize = 13.sp)
     if (today > 0) Text(tr("Reviewed from episodes today: %d", today), color = Colors.dim, fontSize = 13.sp)
 }

@@ -98,7 +98,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     suspend fun reloadCards() = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext
         if (language !is Spaced) return@withContext
-        cardIndex.build(anki.notes(pkg, search), anki.cards(pkg, search), cardIndex.dueWithout(emptySet()))
+        cardIndex.build(anki.notes(pkg, search), anki.cards(pkg, search), cardIndex.due)
     }
 
     /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
@@ -109,43 +109,40 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         cardIndex.update(emptyList(), anki.due(pkg))
     }
 
-    /** A rating from a word card: the form's state after it, the cards it answered, and kuma3's Undo label right after. */
-    class Rated(val state: String?, val notes: List<Long>, val cards: Int, val undoLabel: String)
+    /** A rating from a word card: the notes and how many cards it answered, and kuma3's Undo label right after. */
+    class Rated(val notes: List<Long>, val cards: Int, val undoLabel: String)
 
     /**
      * Rates the form's own cards in kuma3 ([CardIndex.toAnswer]: every due one, else the first) with [ease] (1 Again ..
-     * 4 Easy), [ms] since the word card opened (kuma3 caps it as its reviewer does).
+     * 4 Easy), [ms] since the word card opened (kuma3 caps it as its reviewer does); null when kuma3 took none.
      */
     suspend fun rate(form: String, ease: Int, ms: Long): Rated? = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext null
         val answer = cardIndex.toAnswer(form)
         for (c in answer) anki.answer(pkg, c.noteId, c.ord, ease, ms)
         val notes = answer.map { it.noteId }.distinct()
-        fresh(pkg, notes)
+        val fetched = cardsOf(pkg, notes)
         // kuma3's provider only logs an answer it refused: count the cards whose reviews went up.
-        val after = cardIndex.cards(form).associateBy { it.id }
-        val answered = answer.filter { (after[it.id]?.reps ?: 0) > it.reps }.map { it.id }.toSet()
-        if (answered.isEmpty()) return@withContext null
+        val reps = fetched.associate { it.id to it.reps }
+        val answered = answer.filter { (reps[it.id] ?: 0) > it.reps }.map { it.id }.toSet()
         // Not due now; kuma3's whole queue is read again in the background ([refreshDue] force), no rating meanwhile.
-        cardIndex.update(emptyList(), cardIndex.dueWithout(answered))
-        Rated(cardIndex.state(form), notes, answered.size, anki.undoLabel(pkg))
+        cardIndex.update(fetched, cardIndex.due?.minus(answered))
+        if (answered.isEmpty()) null else Rated(notes, answered.size, anki.undoLabel(pkg))
     }
 
     /**
      * Undoes [r] with kuma3's Undo, once per card it answered, only while Undo still names that rating (nothing else
-     * done in kuma3 since); a card the rating made stays, new. Answers the form's state, or null when it couldn't.
+     * done in kuma3 since); a card the rating made stays, new. False when it couldn't.
      */
-    suspend fun undo(form: String, r: Rated): String? = withContext(Dispatchers.IO) {
-        val pkg = lastReading?.pkg ?: return@withContext null
-        if (r.undoLabel.isEmpty() || anki.undoLabel(pkg) != r.undoLabel) return@withContext null
+    suspend fun undo(r: Rated): Boolean = withContext(Dispatchers.IO) {
+        val pkg = lastReading?.pkg ?: return@withContext false
+        if (r.undoLabel.isEmpty() || anki.undoLabel(pkg) != r.undoLabel) return@withContext false
         repeat(r.cards) { if (anki.undoLabel(pkg).isNotEmpty()) anki.undo(pkg) }
-        fresh(pkg, r.notes)
-        cardIndex.state(form)
+        cardIndex.update(cardsOf(pkg, r.notes), cardIndex.due) // the queue comes with the background read
+        true
     }
 
-    /** Those notes' cards read again (kuma3's queue stays as it was: the background read brings it). */
-    private fun fresh(pkg: String, notes: List<Long>) =
-        cardIndex.update(anki.cards(pkg, "nid:" + notes.joinToString(",")), cardIndex.dueWithout(emptySet()))
+    private fun cardsOf(pkg: String, notes: List<Long>) = anki.cards(pkg, "nid:" + notes.joinToString(","))
 
     /**
      * The episode's word colours and scene levels from the device's own known words, replacing the PC's, once Anki

@@ -526,7 +526,7 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
             library.miner.mine(io.github.pedrubik2000.kumapie.lang.Miner.Request(ctl.episode, ctl.scene, line, w), p)
         }
     } else listOf(RateForm(key, null, if (picker.selectedInDef != null) null else ({ p -> // a word in a definition has no line
-        val request = autoWordCard(library, ctl, line, segment.text, key) ?: error(tr("No meaning to put on the card."))
+        val request = autoWordCard(library, ctl, line, segment.text, key)
         library.miner.mine(request, p)
     })))
     RatingRows(language.known, library.settings.prefs, forms, ratings, queueScope, queueBusy) { repaintWords(ctl, language.known) }

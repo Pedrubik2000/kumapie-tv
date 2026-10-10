@@ -330,7 +330,8 @@ class Miner(
     private fun definition(written: String, w: Word): String {
         val lemma = w.lemma?.takeIf { !it.equals(written, true) }?.let { " (${esc(it)})" } ?: ""
         val example = w.example?.let { "<br>${esc(it.first)} = ${esc(it.second)}" } ?: ""
-        return "<span style=\"font-size:1.4em\"><b>${esc(written)}</b>$lemma</span><br><b>${esc(w.gloss)}</b>$example"
+        val gloss = if (w.gloss.isBlank()) "" else "<br><b>${esc(w.gloss)}</b>" // a card made without a meaning
+        return "<span style=\"font-size:1.4em\"><b>${esc(written)}</b>$lemma</span>$gloss$example"
     }
 
     /** The English of those cues: the scene's English lines that overlap them, else all of them. */

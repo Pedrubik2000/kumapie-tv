@@ -72,12 +72,12 @@ private suspend fun wordChoices(library: Library, ctl: SceneController, line: In
  * The word card the mine sheet would make with what it picks at first (rating a word without a card of its own makes
  * it): this line, the scene clip, the word's audio, the meaning that fits the line, the first monolingual definition.
  */
-internal suspend fun autoWordCard(library: Library, ctl: SceneController, line: Int, surface: String, key: String): Miner.Request? {
+internal suspend fun autoWordCard(library: Library, ctl: SceneController, line: Int, surface: String, key: String): Miner.Request {
     val c = wordChoices(library, ctl, line, surface, key)
-    val pick = c.choices.getOrNull(c.chosen) ?: return null
+    val pick = c.choices.getOrNull(c.chosen) // none: the card is made without a meaning
     val def = ctl.scene.def(line, key)
     val lemma = def?.lemma?.takeIf { it.isNotBlank() } ?: ctl.words[key]?.lemma?.takeIf { it.isNotBlank() }
-    return Miner.Request(ctl.episode, ctl.scene, line, Miner.Word(surface, key, lemma, pick.gloss, pick.example, def, mono = c.monos.firstOrNull()?.gloss))
+    return Miner.Request(ctl.episode, ctl.scene, line, Miner.Word(surface, key, lemma, pick?.gloss.orEmpty(), pick?.example, def, mono = c.monos.firstOrNull()?.gloss))
 }
 
 /**
@@ -113,16 +113,16 @@ private fun japaneseChoices(library: Library, hw: io.github.pedrubik2000.kumapie
 /**
  * A Japanese rating row's card ([io.github.pedrubik2000.kumapie.lang.JapaneseLookup.forms]): the form with its reading,
  * its headword's meaning that fits the line ([english]; null: the first), "form of 気にする" for a conjugated form, pitch
- * only for the headword itself; null when the headword has no meaning.
+ * only for the headword itself; no meaning (and no "form of") when the dictionaries have none.
  */
-internal fun japaneseWord(library: Library, f: io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form, english: String?): Miner.Word? {
-    val hw = f.head ?: return null
+internal fun japaneseWord(library: Library, f: io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form, english: String?): Miner.Word {
+    val hw = f.head
     val c = japaneseChoices(library, hw, english)
-    val pick = c.choices.getOrNull(c.chosen) ?: return null
-    val own = f.written == hw.expression
-    return Miner.Word(f.written, null, f.written, pick.gloss, reading = f.reading,
-        pitch = if (own) hw.pitches.flatMap { it.second }.firstOrNull() else null, mono = c.monos.firstOrNull()?.gloss,
-        formOf = hw.expression.takeIf { !own })
+    val pick = c.choices.getOrNull(c.chosen) // none: the card is made without a meaning
+    val own = f.written == hw?.expression
+    return Miner.Word(f.written, null, f.written, pick?.gloss.orEmpty(), reading = f.reading,
+        pitch = if (own) hw?.pitches?.flatMap { it.second }?.firstOrNull() else null, mono = c.monos.firstOrNull()?.gloss,
+        formOf = hw?.expression?.takeIf { !own })
 }
 
 /** Japanese rows ([io.github.pedrubik2000.kumapie.lang.JapaneseLookup.forms]) as [RateForm]s; [make] adds a missing form's card from its [Miner.Word]. */
@@ -130,7 +130,7 @@ internal fun japaneseRateForms(library: Library, forms: List<io.github.pedrubik2
                                make: suspend (Miner.Word, (String) -> Unit) -> String) = forms.map { f ->
     val kana = io.github.pedrubik2000.kumapie.lang.JapaneseLookup.hiragana(f.written) == f.reading
     RateForm(f.key, f.written + if (kana) "" else " [${f.reading}]") { p ->
-        make(japaneseWord(library, f, english) ?: error(tr("No meaning to put on the card.")), p)
+        make(japaneseWord(library, f, english), p)
     }
 }
 
@@ -206,8 +206,8 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
         }
         // Rate the exact form here too (the word card's row); without a card, the meanings picked above make it.
         if (segment != null && key != null) RatingRows(known, library.settings.prefs, listOf(RateForm(key, null) { p ->
-            val pick = choices.getOrNull(chosen) ?: error(tr("No meaning to put on the card."))
-            library.miner.mine(Miner.Request(episode, scene, line, Miner.Word(segment.text, key, lemma, pick.gloss, pick.example, def,
+            val pick = choices.getOrNull(chosen) // none: the card is made without a meaning
+            library.miner.mine(Miner.Request(episode, scene, line, Miner.Word(segment.text, key, lemma, pick?.gloss.orEmpty(), pick?.example, def,
                 mono = monos.getOrNull(monoChosen)?.gloss)), p)
         }), ratings, queueScope, queueBusy) { repaintWords(ctl, known) }
         Button(enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {

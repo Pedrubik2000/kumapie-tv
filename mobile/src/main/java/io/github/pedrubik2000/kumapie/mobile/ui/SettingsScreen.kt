@@ -45,7 +45,6 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.mobile.BuildConfig
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
-import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
 import io.github.pedrubik2000.kumapie.mobile.local.rdToken
 import io.github.pedrubik2000.kumapie.mobile.local.jimakuKey
 import io.github.pedrubik2000.kumapie.mobile.local.subFrom
@@ -122,9 +121,6 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 NewEpisodesSection(library)
-
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                UnlockSection(library)
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text(tr("On this device"), color = Colors.accent)
@@ -356,45 +352,6 @@ private fun DictionarySection(library: Library) {
     Text(tr("Words are read by a person's recording when Wikimedia Commons has one, else by this voice."),
         fontSize = 13.sp, color = Colors.dim)
     Text(io.github.pedrubik2000.kumapie.lang.Dictionary.ATTRIBUTION, fontSize = 12.sp, color = Colors.dim)
-}
-
-/** A scene on every unlock: the switch, "Display over other apps" (needed to open over the lock screen), the pool. */
-@Composable
-private fun UnlockSection(library: Library) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var on by remember { mutableStateOf(library.settings.unlockScenes) }
-    var overlay by remember { mutableStateOf(android.provider.Settings.canDrawOverlays(context)) }
-    var pool by remember { mutableIntStateOf(io.github.pedrubik2000.kumapie.mobile.unlock.UnlockPool.size(context)) }
-    LaunchedEffect(on) { // switched on with no scenes yet: read the episodes now
-        if (on && pool == 0) {
-            runCatching { library.allEpisodes(library.shows().first) }
-            pool = io.github.pedrubik2000.kumapie.mobile.unlock.UnlockPool.size(context)
-        }
-    }
-    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    LaunchedEffect(lifecycle) { // back from the system settings
-        lifecycle.lifecycle.currentStateFlow.collect { overlay = android.provider.Settings.canDrawOverlays(context) }
-    }
-
-    Text(tr("Unlock"), color = Colors.accent)
-    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-        Text(tr("Show an i+1 scene every time I unlock"), fontSize = 15.sp, modifier = Modifier.weight(1f))
-        androidx.compose.material3.Switch(checked = on, onCheckedChange = {
-            on = it
-            library.settings.unlockScenes = it
-            io.github.pedrubik2000.kumapie.mobile.unlock.UnlockService.sync(context)
-        })
-    }
-    if (on && !overlay) {
-        Text(tr("Allow \"Display over other apps\" so the scene can open when you unlock."), fontSize = 14.sp, color = Colors.dim)
-        OutlinedButton(onClick = {
-            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                android.net.Uri.parse("package:" + context.packageName)))
-        }) { Text(tr("Allow display over other apps")) }
-    }
-    if (on) Text(if (pool > 0) tr("%d i+1 scenes to pick from (refreshed when kumapie opens).", pool)
-        else tr("Reading the episodes for i+1 scenes…"), fontSize = 13.sp, color = Colors.dim)
-    Text(tr("If the separate Unlock Cards app is still on, turn it off so only one opens."), fontSize = 13.sp, color = Colors.dim)
 }
 
 /** New episodes made on the tablet: the Soniox key (kept only in kumapie's private settings) and the English source. */

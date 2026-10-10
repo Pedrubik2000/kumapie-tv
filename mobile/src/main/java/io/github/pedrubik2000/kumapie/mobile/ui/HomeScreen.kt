@@ -105,7 +105,7 @@ fun HomeScreen(
     onDownloads: () -> Unit = {},
     /** An episode of "Continue watching": straight to the player, where it was left. */
     onPlay: (Show, Episode) -> Unit = { s, _ -> onShow(s) },
-    /** The language Home, the feed, i+1 and unlock show ([io.github.pedrubik2000.kumapie.data.Lang.code]). */
+    /** The language Home, the feed and i+1 show ([io.github.pedrubik2000.kumapie.data.Lang.code]). */
     homeLang: String = "de",
     onHomeLang: (String) -> Unit = {},
     /** A link shared to kumapie (YouTube): opens "Add an episode" with it. */

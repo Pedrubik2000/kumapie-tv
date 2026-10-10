@@ -5,10 +5,11 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 /**
  * morphs' Recalc (tools/morphs on the PC: recalc.py and scoring.py; keep them alike) on the device, behind a button:
  * new German cards ordered by their unknown words (i+1 by how common its unknown is, then i+2, ..., i+0 last), the
- * `_card-status` tags (Unlock and the PC read i+1) and the `am-study-morphs` field ("Sentence: <unknowns>"). Also MvJ's
- * definition unlock: a note whose monolingual definition has only known words (the card's own word aside) gets
- * `_mvj::def-is-ready` (the card then shows it unlocked), else `_mvj::def-has-unknowns` and "| Definition: <unknowns>". Words come from [KnownWords] (same spaCy model, same known rules), so the plan matches the
- * PC's. [plan] only reads; [apply] writes just what differs, through kuma3 Anki's provider.
+ * `_card-status` tags and the `am-study-morphs` field ("Sentence: <unknowns>"). Also MvJ's definition unlock: a note
+ * whose monolingual definition has only known words (the card's own word aside) gets `_mvj::def-is-ready` (the card
+ * then shows it unlocked), else `_mvj::def-has-unknowns` and "| Definition: <unknowns>". Words come from [KnownWords]
+ * (same spaCy model); a word is known when marked or its own card is studied ([KnownWords.statusByCard], plan step 5).
+ * [plan] only reads; [apply] writes just what differs, through kuma3 Anki's provider.
  */
 class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCards(known.context)) {
 
@@ -43,8 +44,8 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
         val wantTag = HashMap<Long, String?>()
         for (card in newCards) {
             val morphs = keys[card.noteId]!!
-            val unknowns = morphs.filter { known.status(it) == null }
-            val learning = morphs.any { known.status(it) == "l" }
+            val unknowns = morphs.filter { known.statusByCard(it) == null }
+            val learning = morphs.any { known.statusByCard(it) == "l" }
             val tag = statusTag(unknowns.size, learning, card.noteId in manual)
             wantTag[card.noteId] = tag
             tag?.let { levels[it] = (levels[it] ?: 0) + 1 }
@@ -53,7 +54,7 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
         }
 
         // The definition's words that aren't known yet, the card's own word aside (MvJ's study morphs).
-        val defUnknowns = r.defMorphs.mapValues { (nid, ws) -> ws.filter { it !in keys[nid].orEmpty() && known.status(it) != "k" } }
+        val defUnknowns = r.defMorphs.mapValues { (nid, ws) -> ws.filter { it !in keys[nid].orEmpty() && known.statusByCard(it) != "k" } }
 
         val changes = ArrayList<NoteChange>()
         for (nid in modify + defUnknowns.keys) {
@@ -69,7 +70,7 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
             var fields: List<String>? = null
             val old = note.fields[STUDY_FIELD]
             if ((nid in newNotes || defs != null) && old != null) {
-                val sentence = if (nid in newNotes) keys[nid]!!.filter { known.status(it) == null } else null
+                val sentence = if (nid in newNotes) keys[nid]!!.filter { known.statusByCard(it) == null } else null
                 val new = studyField(old, sentence, defs)
                 if (words(new) != words(old)) fields = note.fields.map { (name, v) -> if (name == STUDY_FIELD) new else v }
             }

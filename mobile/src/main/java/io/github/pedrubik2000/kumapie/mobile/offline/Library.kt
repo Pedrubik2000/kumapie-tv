@@ -14,7 +14,6 @@ import io.github.pedrubik2000.kumapie.lang.Languages
 import io.github.pedrubik2000.kumapie.lang.Miner
 import io.github.pedrubik2000.kumapie.lang.YomitanDictionaries
 import io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes
-import io.github.pedrubik2000.kumapie.mobile.unlock.UnlockPool
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -170,7 +169,7 @@ class Library(context: Context, val settings: Settings) {
             progress(tr("Reading episodes %1\$d of %2\$d…", i + 1, list.size))
             val detail = episodeCache[ep.id] ?: runCatching { episode(ep.id) }.getOrNull()?.also { episodeCache[ep.id] = it }
             detail?.let { show to it }
-        }.also { found -> if (found.isNotEmpty()) UnlockPool.save(appContext, found.map { it.second }) }
+        }
     }
 
     private val episodeCache = java.util.concurrent.ConcurrentHashMap<String, EpisodeDetail>()

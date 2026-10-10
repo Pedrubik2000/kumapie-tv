@@ -90,6 +90,16 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     val ready: Boolean get() = snapshot != null
 
+    /**
+     * [status] by cards (kumapie_anki_review_plan.md step 5, for Recalc's order): "k" when marked known or its own card
+     * is studied (due or not), null otherwise; without kuma3's queue, [status] (stability) as before.
+     */
+    fun statusByCard(word: String): String? = if (word in marked) "k" else when (cardIndex.state(word)) {
+        null -> status(word)
+        "k", "d" -> "k"
+        else -> null
+    }
+
     /** This language's word cards by form and kuma3's queue today: [EpisodeDetail] words' [io.github.pedrubik2000.kumapie.data.Word.card]. */
     val cardIndex = CardIndex()
     @Volatile private var dueAt = 0L
@@ -174,12 +184,12 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             paint(key, w.copy(status = status(key) ?: "u", stability = snap.words[key]?.best, marked = key in marked,
                 forms = written[key]?.associateWith { "" }))
         }
-        val scenes = episode.scenes.map { s ->
-            if (!s.target) s else s.copy(level = s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }.toSet()
-                .count { words[it]?.status == "u" })
-        }
-        return episode.copy(words = words, scenes = scenes)
+        return episode.copy(words = words, scenes = levels(episode.scenes, words))
     }
+
+    /** Each scene's level (i+N) from the words' colours (kumapie_anki_review_plan.md step 5: [levelOf]). */
+    private fun levels(scenes: List<io.github.pedrubik2000.kumapie.data.Scene>, words: Map<String, io.github.pedrubik2000.kumapie.data.Word>) =
+        scenes.map { s -> if (!s.target) s else s.copy(level = io.github.pedrubik2000.kumapie.data.levelOf(s, words)) }
 
     /** Word [w] (episode key [key]) with its card states from [cardIndex] now: its own, and its written forms'. */
     fun paint(key: String, w: io.github.pedrubik2000.kumapie.data.Word) =

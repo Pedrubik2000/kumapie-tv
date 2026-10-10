@@ -183,8 +183,6 @@ internal fun ScenePlayer(
     uprightNow: Boolean = false,
     /** Shifts the subtitles by (seconds), then reloads at (position); null when the episode isn't made here. */
     onShift: ((Double, Double) -> Unit)? = null,
-    /** Subtitles for this player only, not saved (unlock screen: German + English). */
-    subtitles: io.github.pedrubik2000.kumapie.data.Subtitles? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -194,7 +192,7 @@ internal fun ScenePlayer(
             prepare()
         }
     }
-    val ctl = remember { SceneController(episode, player, settings, backend, subtitles) }
+    val ctl = remember { SceneController(episode, player, settings, backend) }
     // A novel's music: its own player, so it goes on while a line waits for the tap.
     val bgm = remember { if (!episode.novel) null else ExoPlayer.Builder(context).build().apply { repeatMode = Player.REPEAT_MODE_ONE; volume = 0.4f } }
     val track = if (bgm == null) null else ctl.scene.bgm
@@ -397,7 +395,7 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
             if (ctl.slow) "0.75x" else null)
         if (modes.isNotEmpty()) Text(modes.joinToString(" · "), color = Colors.dim, fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 8.dp))
-        // One scene alone (feed, unlock): its place in the episode.
+        // One scene alone (feed): its place in the episode.
         // Tap: the list of scenes, to jump to one.
         Text(if (ctl.scenes.size == 1) tr("scene %d", scene.index + 1) else "${scene.index + 1} / ${ctl.scenes.size}",
             color = Colors.text, fontSize = 15.sp, modifier = if (ctl.scenes.size > 1)

@@ -148,7 +148,7 @@ class Progress private constructor(context: Context, private val settings: Setti
     companion object {
         @Volatile private var one: Progress? = null
 
-        /** One per app process (the player, the condensed service and the unlock screen each make a Library). */
+        /** One per app process (the player, and the condensed service each make a Library). */
         fun of(context: Context): Progress = one ?: synchronized(this) {
             one ?: Progress(context.applicationContext, Settings(context.applicationContext)).also { one = it }
         }

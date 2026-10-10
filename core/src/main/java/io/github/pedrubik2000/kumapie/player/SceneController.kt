@@ -36,8 +36,6 @@ class SceneController(
     private val player: Player,
     private val settings: Settings,
     private val api: Backend,
-    /** Subtitles for this player only (the phone's unlock screen): not read from or saved to the settings. */
-    private val subtitlesHere: Subtitles? = null,
 ) {
     val scenes: List<Scene> = episode.scenes
     val lang: Lang = Lang.of(episode.lang)
@@ -69,7 +67,7 @@ class SceneController(
     var slow by mutableStateOf(settings.slow)
         private set
     /** What the subtitles show. Stays as set from scene to scene and is remembered for next time. */
-    var subtitles by mutableStateOf(subtitlesHere ?: settings.subtitles)
+    var subtitles by mutableStateOf(settings.subtitles)
         private set
     /** The episode's language is on screen (blurred or readable). */
     val showTarget: Boolean get() = subtitles == Subtitles.BLURRED || subtitles == Subtitles.TARGET || subtitles == Subtitles.BOTH
@@ -165,10 +163,8 @@ class SceneController(
         showBanner()
     }
 
-    /** Words in the scene never studied (as the server counts, but live: marking a word known lowers it). */
-    fun levelOf(scene: Scene): Int? =
-        if (!scene.target) null
-        else scene.cues.flatMap { c -> c.segments.mapNotNull { it.word } }.toSet().count { (words[it]?.status ?: "u") == "u" }
+    /** The scene's level, live: a rating or marking a word known lowers it ([io.github.pedrubik2000.kumapie.data.levelOf]). */
+    fun levelOf(scene: Scene): Int? = io.github.pedrubik2000.kumapie.data.levelOf(scene, words)
 
     /** Remote ↓: hidden → German blurred → German → German + English → hidden. */
     fun cycleSubtitles() = changeSubtitles(when (subtitles) {
@@ -212,7 +208,7 @@ class SceneController(
 
     fun changeSubtitles(value: Subtitles) {
         subtitles = value
-        if (subtitlesHere == null) settings.subtitles = value
+        settings.subtitles = value
     }
 
     fun showBanner(ms: Long = 3_000) { bannerUntil = SystemClock.uptimeMillis() + ms }

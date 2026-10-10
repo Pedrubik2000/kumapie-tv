@@ -22,7 +22,6 @@ import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
-import io.github.pedrubik2000.kumapie.mobile.unlock.unlockScenes
 import io.github.pedrubik2000.kumapie.mobile.ui.FeedScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.ImproveScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.HomeScreen
@@ -63,7 +62,6 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         enableEdgeToEdge()
         val library = Library(applicationContext, settings)
-        io.github.pedrubik2000.kumapie.mobile.unlock.UnlockService.sync(this) // the unlock listener, if it's on
         // A link shared to kumapie, or a magnet link opened in the browser, opens "Add an episode" with it.
         val shared = intent?.takeIf { it.action == android.content.Intent.ACTION_SEND }?.getStringExtra(android.content.Intent.EXTRA_TEXT)
             ?: intent?.takeIf { it.action == android.content.Intent.ACTION_VIEW }?.dataString
@@ -95,7 +93,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     var update by remember { mutableStateOf<Updater.Release?>(null) }
     // The show list, kept here so the episode list and the player see the same (refreshed) shows.
     var shows by remember { mutableStateOf<List<Show>>(emptyList()) }
-    // Home's language: Home, the feed, the i+1 list and the unlock pool show only its shows.
+    // Home's language: Home, the feed and the i+1 list show only its shows.
     var homeLang by remember { mutableStateOf(settings.prefs.getString("home_lang", "de") ?: "de") }
     val langShows = shows.filter { it.lang == homeLang }
 
@@ -107,9 +105,6 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
         // then sets itself up with a new empty collection in /sdcard/AnkiDroid.
         library.languages.all.map { it.known }.filter { it.ready && it.modelReady }.forEach { it.refresh() }
         library.syncProgress() // positions, scenes, time and marks from the other devices (through Anki)
-    }
-    LaunchedEffect(shows, homeLang) { // fresh i+1 scenes for the unlock screen (only when it's on), in Home's language
-        if (langShows.isNotEmpty() && settings.unlockScenes) library.allEpisodes(langShows)
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
 

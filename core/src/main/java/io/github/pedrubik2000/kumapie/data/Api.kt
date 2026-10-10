@@ -313,6 +313,18 @@ data class Word(
         if (marked) "k" else forms?.get(text)?.takeIf { it.isNotEmpty() }?.let { if (it == "n") "u" else it } ?: shown
 }
 
+/**
+ * A scene's level (i+N), null when it isn't in the target language: its different words drawn red ([Word.shownFor]:
+ * no card of their own or new / learning, not marked known; without card states, never studied). Words with written
+ * forms (Japanese) count by the form written: 届いた and 届く are two.
+ */
+fun levelOf(scene: Scene, words: Map<String, Word>): Int? = if (!scene.target) null else unknownIn(scene.cues, words)
+
+/** The different red words of [cues] ([levelOf]'s count; "Cards that don't stick" orders sentences by it). */
+fun unknownIn(cues: List<Cue>, words: Map<String, Word>): Int = cues.flatMap { it.segments }
+    .mapNotNull { seg -> seg.word?.let { k -> words[k]?.takeIf { it.shownFor(seg.text) == "u" }?.let { w -> if (w.forms != null) seg.text else k } } }
+    .toSet().size
+
 fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
 
 fun JSONObject.optIntOrNull(name: String): Int? = if (isNull(name)) null else optInt(name)

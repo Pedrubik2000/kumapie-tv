@@ -28,7 +28,7 @@ class Improve(private val library: Library) {
         val monolingual: String get() = note.fields[KnownWords.DEF_MONO] ?: ""
     }
 
-    /** [unknown]: words of the sentence never studied (the "i+" of the sentence alone). */
+    /** [unknown]: the sentence's red words (no studied card of their own, not marked known: the "i+" of the sentence alone). */
     class Candidate(val show: Show, val episode: Episode, val detail: EpisodeDetail, val scene: Scene, val sentence: String,
                     val english: String, val unknown: Int, val lineStartMs: Long, val lineEndMs: Long)
 
@@ -62,7 +62,7 @@ class Improve(private val library: Library) {
                 if (line < 0) continue
                 val (sentence, cues) = Miner.sentence(scene, line)
                 if (sentence.trim() == s.sentence.trim()) continue // the card's own sentence
-                val unknown = cues.flatMap { c -> c.segments.mapNotNull { it.word } }.toSet().count { detail.words[it]?.status == "u" }
+                val unknown = io.github.pedrubik2000.kumapie.data.unknownIn(cues, detail.words)
                 out += Candidate(show, episode, detail, scene, sentence, library.miner.english(scene, cues), unknown,
                     ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong(), ((cues.last().end + 0.25) * 1000).toLong())
             }

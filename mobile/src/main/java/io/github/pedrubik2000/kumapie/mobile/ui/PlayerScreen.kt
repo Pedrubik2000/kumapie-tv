@@ -211,6 +211,7 @@ internal fun ScenePlayer(
     val ratings = remember { androidx.compose.runtime.mutableStateMapOf<String, Pair<io.github.pedrubik2000.kumapie.lang.KnownWords.Rated, String>>() }
     // kuma3's whole queue read again after a rating, in the background (big collections: seconds); not cancelled with the word card.
     val queueScope = rememberCoroutineScope()
+    val queueBusy = remember { mutableStateOf(false) } // while it runs, no rating (it would read a queue from before)
     var menuUntil by remember { mutableLongStateOf(SystemClock.uptimeMillis() + 3_000) } // a novel's bar
     var flash by remember { mutableStateOf<String?>(null) } // "Replay line" etc., shown briefly in the middle
     var flashAt by remember { mutableLongStateOf(0L) }
@@ -339,7 +340,7 @@ internal fun ScenePlayer(
             val dictionaries = remember { library.yomitan.of(ctl.lang).any { d -> d.enabled && d.terms > 0 } }
             MeaningCard(ctl, picker, it, maxWidth = 460.dp, onTapDef = picker::tapInDef, ownMeaning = !dictionaries, footer = {
                 DictionaryPanel(library, ctl, picker)
-                RatingRow(library, ctl, picker, ratings, queueScope)
+                RatingRow(library, ctl, picker, ratings, queueScope, queueBusy)
                 CardButtons(ctl, picker, onMine = { mining = true })
             })
         }
@@ -503,7 +504,9 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
                       /** Each word's last rating and its "Answered: …" line, kept while the episode is open. */
                       ratings: MutableMap<String, Pair<io.github.pedrubik2000.kumapie.lang.KnownWords.Rated, String>>,
                       /** The player's scope: kuma3's queue is read again there after a rating (it outlives the word card). */
-                      queueScope: kotlinx.coroutines.CoroutineScope) {
+                      queueScope: kotlinx.coroutines.CoroutineScope,
+                      /** Set while kuma3's queue is read again: the buttons wait (a rating then would read a queue from before it). */
+                      queueBusy: androidx.compose.runtime.MutableState<Boolean>) {
     val segment = picker.selectedInDef ?: picker.selected
     val key = segment?.word ?: return
     val card = ctl.words[key]?.card ?: return // an Anki without kuma3/due: no row
@@ -519,15 +522,22 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
     fun show(state: String?) = ctl.words[key]?.let { w -> ctl.words[key] = w.copy(card = state) }
     fun count(n: Int) { today = prefs.getInt(day, 0) + n; prefs.edit().putInt(day, today).apply() }
     // kuma3's queue in the background, then every word of the episode coloured by it (RWKV-Instant may bring a card back).
-    fun requeue() = queueScope.launch {
-        known.refreshDue(force = true)
-        for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> known.cardIndex.state(k).let { s -> if (s != w.card) ctl.words[k] = w.copy(card = s) } }
+    fun requeue() {
+        queueBusy.value = true
+        queueScope.launch {
+            try {
+                known.refreshDue(force = true)
+                for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> known.cardIndex.state(k).let { s -> if (s != w.card) ctl.words[k] = w.copy(card = s) } }
+            } finally {
+                queueBusy.value = false
+            }
+        }
     }
 
     val (r, answered) = ratings[key] ?: (null to "")
     if (r == null) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf("Again" to Colors.unknown, "Hard" to Colors.learning, "Good" to Colors.due, "Easy" to Colors.accent).forEachIndexed { i, (label, color) ->
-            androidx.compose.material3.OutlinedButton(enabled = !busy, onClick = {
+            androidx.compose.material3.OutlinedButton(enabled = !busy && !queueBusy.value, onClick = {
                 busy = true
                 scope.launch {
                     if (ctl.words[key]?.card == "u") {
@@ -546,7 +556,7 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
         }
     } else Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(answered, color = Colors.dim, fontSize = 14.sp)
-        androidx.compose.material3.TextButton(enabled = !busy, onClick = {
+        androidx.compose.material3.TextButton(enabled = !busy && !queueBusy.value, onClick = {
             busy = true
             scope.launch {
                 val state = known.undo(key, r)
@@ -557,5 +567,6 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
         }) { Text(tr("Undo")) }
     }
     if (said.isNotEmpty()) Text(said, color = Colors.dim, fontSize = 13.sp)
+    if (queueBusy.value) Text(tr("Updating kuma3's queue…"), color = Colors.dim, fontSize = 13.sp)
     if (today > 0) Text(tr("Reviewed from episodes today: %d", today), color = Colors.dim, fontSize = 13.sp)
 }

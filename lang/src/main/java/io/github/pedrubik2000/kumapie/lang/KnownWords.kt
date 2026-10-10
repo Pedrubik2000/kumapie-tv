@@ -104,16 +104,10 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
     suspend fun refreshDue(force: Boolean = false) = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext
-        val started = System.currentTimeMillis()
-        if (!force && started - dueAt < 60_000) return@withContext
-        dueAt = started
-        // A card rated while kuma3 built this queue was answered after it: not due by it.
-        val due = anki.due(pkg)?.minus(answeredAt.filterValues { it >= started }.keys)
-        cardIndex.update(emptyList(), due)
+        if (!force && System.currentTimeMillis() - dueAt < 60_000) return@withContext
+        dueAt = System.currentTimeMillis()
+        cardIndex.update(emptyList(), anki.due(pkg))
     }
-
-    /** When each card was last rated here (a queue read that started before it doesn't know). */
-    private val answeredAt = java.util.concurrent.ConcurrentHashMap<Long, Long>()
 
     /** A rating from a word card: the form's state after it, the cards it answered, and kuma3's Undo label right after. */
     class Rated(val state: String?, val notes: List<Long>, val cards: Int, val undoLabel: String)
@@ -126,15 +120,13 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val pkg = lastReading?.pkg ?: return@withContext null
         val answer = cardIndex.toAnswer(form)
         for (c in answer) anki.answer(pkg, c.noteId, c.ord, ease, ms)
-        val now = System.currentTimeMillis()
         val notes = answer.map { it.noteId }.distinct()
         fresh(pkg, notes)
         // kuma3's provider only logs an answer it refused: count the cards whose reviews went up.
         val after = cardIndex.cards(form).associateBy { it.id }
         val answered = answer.filter { (after[it.id]?.reps ?: 0) > it.reps }.map { it.id }.toSet()
         if (answered.isEmpty()) return@withContext null
-        // Not due now; kuma3's whole queue is read again in the background ([refreshDue] force).
-        answered.forEach { answeredAt[it] = now }
+        // Not due now; kuma3's whole queue is read again in the background ([refreshDue] force), no rating meanwhile.
         cardIndex.update(emptyList(), cardIndex.dueWithout(answered))
         Rated(cardIndex.state(form), notes, answered.size, anki.undoLabel(pkg))
     }

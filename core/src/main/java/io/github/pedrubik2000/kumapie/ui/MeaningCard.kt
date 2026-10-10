@@ -74,7 +74,8 @@ fun MeaningCard(
                 def != null -> DefinitionParts(ctl, picker, segment.text, def, onTapDef)
                 else -> ShortMeaning(ctl, key, segment.text, word)
             }
-            val (status, color) = statusLine(word)
+            // Japanese: the tapped form's own card (届いた), not its dictionary form's (届く), as the subtitle colours it.
+            val (status, color) = statusLine(word.forms?.get(segment.text)?.takeIf { it.isNotEmpty() }?.let { word.copy(card = it) } ?: word)
             Text(status + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
             // The word picked inside the German definition: its own short meaning and status.
             picker.selectedInDef?.word?.let { inner ->

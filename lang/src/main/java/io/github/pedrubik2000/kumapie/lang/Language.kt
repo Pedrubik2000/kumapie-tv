@@ -38,6 +38,8 @@ sealed interface Language {
     val parserId: String
     /** The field a note's words are judged by, or null to skip the note. */
     fun judgedField(note: AnkiCards.Note): String?
+    /** A word note's keys in [KnownWords.cardIndex] (its own cards: [CardIndex.spacedKeys], [CardIndex.japaneseKeys]). */
+    fun cardKeys(note: AnkiCards.Note): List<String>
     /** Each field's word keys (the known-word keys), in the same order. */
     fun wordKeys(fields: List<String>): List<Set<String>>
 }
@@ -86,6 +88,8 @@ class Spaced(context: Context, settings: Settings, override val lang: Lang, priv
     override val voice by lazy { Voice(appContext, lang) }
     override val missing: String? get() = null
     private var player: android.media.MediaPlayer? = null
+
+    override fun cardKeys(note: AnkiCards.Note) = CardIndex.spacedKeys(note)
 
     override fun judgedField(note: AnkiCards.Note): String? = when {
         !judgeByTags -> if (note.fields["Word"].isNullOrBlank()) "Sentence" else "Word"
@@ -151,6 +155,7 @@ class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionarie
 
     /** Kaishi and mined words: the card's word when it has one, else its sentence. */
     override fun judgedField(note: AnkiCards.Note): String? = if (note.fields["Word"].isNullOrBlank()) "Sentence" else "Word"
+    override fun cardKeys(note: AnkiCards.Note) = CardIndex.japaneseKeys(note)
 
     /** Sudachi's dictionary forms of each field's words. */
     override fun wordKeys(fields: List<String>): List<Set<String>> =
@@ -164,6 +169,10 @@ class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionarie
         withContext(Dispatchers.Default) { finder.lookup(tap.text, tap.offset, tap.length) }
 
     override suspend fun entries(tap: Tap): List<DictEntry> = emptyList()
+
+    /** The rows a tap at [offset] in [text] rates ([JapaneseLookup.forms]). */
+    suspend fun forms(text: String, offset: Int): List<JapaneseLookup.Form> =
+        withContext(Dispatchers.Default) { finder.forms(text, offset) }
 
     override fun markKey(word: String) = word
     override fun wordOfMark(key: String) = markWord(key, null)

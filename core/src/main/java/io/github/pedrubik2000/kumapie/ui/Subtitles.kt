@@ -215,7 +215,7 @@ private fun colored(cue: Cue, words: Map<String, Word>, dim: Boolean, selected: 
     buildAnnotatedString {
         val base = if (dim) Colors.dim else Colors.text
         cue.segments.forEachIndexed { i, seg ->
-            val color = when (seg.word?.let { words[it]?.shown ?: "u" }) {
+            val color = when (seg.word?.let { words[it]?.shownFor(seg.text) ?: "u" }) {
                 "u" -> if (dim) Colors.unknown.copy(alpha = 0.7f) else Colors.unknown
                 "l" -> if (dim) Colors.learning.copy(alpha = 0.7f) else Colors.learning
                 "d" -> if (dim) Colors.due.copy(alpha = 0.7f) else Colors.due

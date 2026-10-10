@@ -55,6 +55,10 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
     var picked by remember { mutableStateOf<JapaneseModel.Token?>(null) }
     var headwords by remember { mutableStateOf<List<Headword>?>(null) }
     var said by remember { mutableStateOf("") }
+    var forms by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form>>(emptyList()) }
+    val ratings: Ratings = remember { androidx.compose.runtime.mutableStateMapOf() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val busy = remember { mutableStateOf(false) }
     BackHandler { onBack() }
 
     LaunchedEffect(text) {
@@ -66,9 +70,11 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
     LaunchedEffect(picked) {
         val t = picked ?: return@LaunchedEffect
         headwords = null
+        forms = emptyList()
         val started = System.currentTimeMillis()
         headwords = runCatching { ja.lookup(Tap(text.trim(), t.begin)) }.getOrElse { said = it.message ?: it.toString(); emptyList() }
         said = tr("%1\$d words · %2\$d ms", headwords?.size ?: 0, System.currentTimeMillis() - started)
+        forms = runCatching { ja.forms(text.trim(), t.begin) }.getOrDefault(emptyList())
     }
 
     Scaffold(topBar = {
@@ -89,6 +95,10 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
                 }
             }
             if (said.isNotEmpty()) Text(said, fontSize = 12.sp, color = Colors.dim)
+            // The picked word's rows (as in the word card); a missing form gets a word-only card (word, reading, meaning, audio).
+            if (forms.isNotEmpty()) RatingRows(ja.known, library.settings.prefs, japaneseRateForms(library, forms, null) { w, _ ->
+                library.miner.mineJapaneseWord(w)
+            }, ratings, scope, busy)
             headwords?.let { YomitanPopup(library, Lang.JAPANESE, it, onSpeak = ja::say) }
         }
     }

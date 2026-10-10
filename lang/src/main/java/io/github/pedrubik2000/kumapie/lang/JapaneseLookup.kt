@@ -48,6 +48,37 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         return out.entries.sortedBy { order.indexOf(it.key.first) }.map { (k, v) -> Headword(k.first, k.second, v) }
     }
 
+    /**
+     * What a tap can rate (kumapie_anki_review_plan.md, Japanese): Sudachi's word as written (気), the text Yomitan's
+     * longest match covers (気にしない), that match's headword (気にする); one row per word + reading.
+     */
+    fun forms(text: String, offset: Int): List<Form> {
+        val w = model.words(listOf(text)).first().lastOrNull { it.begin <= offset }?.takeIf { it.isWord } ?: return emptyList()
+        val heads = lookup(text, w.begin, w.surface.length)
+        // Its headword: Sudachi's dictionary form, preferring one with an English meaning for its card (がんばります: 頑張る,
+        // not a monolingual-only 頑張ります).
+        val meant = heads.filter { h -> h.terms.any(::bilingual) }
+        val own = meant.firstOrNull { it.expression == w.base } ?: meant.firstOrNull() ?: heads.firstOrNull { it.expression == w.base } ?: heads.firstOrNull()
+        val out = mutableListOf(Form(w.surface, hiragana(w.reading), own))
+        // The longest match; among same-length ones a bilingual dictionary's (しましょう: する, not Pixiv's しましょう).
+        val scanned = dicts.scan(Lang.JAPANESE, text.substring(w.begin))
+        val longest = scanned.filter { it.first.length == scanned.maxOfOrNull { s -> s.first.length } }
+        val (matched, term) = longest.firstOrNull { bilingual(it.second) } ?: longest.firstOrNull() ?: return out
+        val head = heads.firstOrNull { it.expression == term.expression && readingOf(term).let { r -> r.isEmpty() || r == it.reading } }
+            ?: Headword(term.expression, readingOf(term), listOf(term))
+        out += Form(matched, model.parse(listOf(matched)).first().joinToString("") { hiragana(it.reading) }, head)
+        out += Form(term.expression, head.reading, head)
+        return out.distinctBy { it.key }
+    }
+
+    /** The term has a bilingual dictionary's entry (an English meaning for a card). */
+    private fun bilingual(t: YomitanDictionaries.Term) = t.glossaries.any { dicts.groupOf(Lang.JAPANESE, it.dict).contains("bilingual", ignoreCase = true) }
+
+    /** A form to rate: as written, its reading, and the headword whose meaning its new card gets (null: none found). */
+    data class Form(val written: String, val reading: String, val head: Headword?) {
+        val key get() = CardIndex.japaneseKey(written, reading)
+    }
+
     /** The term's reading in hiragana; "" when it has none or just repeats the spelling (some dictionaries do). */
     private fun readingOf(t: YomitanDictionaries.Term): String =
         if (t.reading.isEmpty() || (t.reading == t.expression && t.expression.any { it.code in 0x4E00..0x9FFF })) "" else hiragana(t.reading)

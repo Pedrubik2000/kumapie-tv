@@ -33,8 +33,8 @@ data class Lang(
 
     companion object {
         val GERMAN = Lang("de", "German", Locale.GERMANY, listOf("🐻 German", "🇩🇪 MvJ"), "Deutsch::Mined", "_de")
-        /** Kaishi 1.5k came in as 🇯🇵 MvJ+; mined cards go next to it under Japanese::. */
-        val JAPANESE = Lang("ja", "Japanese", Locale.JAPAN, listOf("🐻 Japanese", "🇯🇵 MvJ+"), "Japanese::Mined", "_ja")
+        /** Mined cards are 🐻 Japanese (Kaishi 1.5k came in as 🇯🇵 MvJ+), under Japanese::; JPDB 25k is jpdbfreq (its words count too). */
+        val JAPANESE = Lang("ja", "Japanese", Locale.JAPAN, listOf("🐻 Japanese", "🇯🇵 MvJ+", "jpdbfreq (type)"), "Japanese::Mined", "_ja")
         /** Pedro's English (accent work): English Core 1000 came in as 🇺🇸 MvJ; no translation track. */
         val ENGLISH = Lang("en", "English", Locale.US, listOf("🐻 English", "🇺🇸 MvJ"), "English::Mined", "_en")
         val ALL = listOf(GERMAN, JAPANESE, ENGLISH)

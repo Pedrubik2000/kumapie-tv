@@ -97,8 +97,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** The word cards again without parsing (a card was just mined here); kuma3's queue as it was (a new card isn't due). */
     suspend fun reloadCards() = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext
-        if (language !is Spaced) return@withContext
-        cardIndex.build(anki.notes(pkg, search), anki.cards(pkg, search), cardIndex.due)
+        cardIndex.build(anki.notes(pkg, search), anki.cards(pkg, search), cardIndex.due, language::cardKeys)
     }
 
     /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
@@ -153,8 +152,12 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val snap = snapshot ?: return episode
         val pcMarked = episode.words.filterValues { it.marked }.keys
         if (!marked.containsAll(pcMarked)) setMarked(marked + pcMarked)
+        // Japanese words are kept by dictionary form; each way the episode writes one is coloured by its own card.
+        val written = if (language !is Japanese) emptyMap() else episode.scenes.asSequence().flatMap { it.cues }.flatMap { it.segments }
+            .filter { it.word != null }.groupBy({ it.word!! }, { it.text })
         val words = episode.words.mapValues { (key, w) ->
-            w.copy(status = status(key) ?: "u", stability = snap.words[key]?.best, marked = key in marked, card = cardIndex.state(key))
+            paint(key, w.copy(status = status(key) ?: "u", stability = snap.words[key]?.best, marked = key in marked,
+                forms = written[key]?.associateWith { "" }))
         }
         val scenes = episode.scenes.map { s ->
             if (!s.target) s else s.copy(level = s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }.toSet()
@@ -162,6 +165,10 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         }
         return episode.copy(words = words, scenes = scenes)
     }
+
+    /** Word [w] (episode key [key]) with its card states from [cardIndex] now: its own, and its written forms'. */
+    fun paint(key: String, w: io.github.pedrubik2000.kumapie.data.Word) =
+        w.copy(card = cardIndex.state(key), forms = w.forms?.mapValues { (form, _) -> cardIndex.state(form) ?: "" })
 
     /** A word marked known in the app (or unmarked); answers its status now. */
     fun mark(word: String, known: Boolean): String {
@@ -220,8 +227,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
                     }
                 }
                 lastReading = Reading(pkg, notes, cards, morphs.mapValues { it.value.toList() }, defMorphs.mapValues { it.value.toList() })
-                // Word cards by form, for the colours and ratings (German, English; Japanese: plan step 4).
-                if (language is Spaced) cardIndex.build(notes, cards, anki.due(pkg)).also { dueAt = System.currentTimeMillis() }
+                // Word cards by form, for the colours and ratings.
+                cardIndex.build(notes, cards, anki.due(pkg), language::cardKeys).also { dueAt = System.currentTimeMillis() }
                 val snap = Snapshot(words, System.currentTimeMillis(), pkg, notes.size, cards.size)
                 save(snap)
                 snapshot = snap

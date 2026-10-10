@@ -66,6 +66,8 @@ class Miner(
         val reading: String? = null,
         val pitch: Int? = null,
         val mono: String? = null,
+        /** Japanese: the headword this form is a form of (気にしない -> 気にする), said in Notes. */
+        val formOf: String? = null,
     )
 
     /** Adds the card; answers a line for the user ("Added to Deutsch::Mined"). */
@@ -163,27 +165,17 @@ class Miner(
         val fields = HashMap<String, String>()
         fields["Sentence Audio"] = "[audio:${anki.addMedia(pkg, lineAudio, "${slug}_$startMs-$endMs")}]"
         shot?.let { fields["Image"] = "<img src=\"${anki.addMedia(pkg, it, "${slug}_$startMs")}\">" }
-        fields["Notes"] = esc(english(r.scene, listOf(cue)))
+        fields["Notes"] = esc(english(r.scene, listOf(cue))) + (r.word?.formOf?.let { "<br>" + esc("form of $it") } ?: "")
         fields["Context"] = esc("Mined in kumapie: ${r.episode.show} · ${r.episode.title}, scene ${r.scene.index + 1}.")
         val text = cue.text.trim()
         val tags = mutableListOf(slug, "kumapie")
         val w = r.word
         if (w != null) {
-            val expression = w.lemma ?: w.surface
-            val kanji = expression.any { it.code in 0x3400..0x9FFF }
-            val reading = w.reading?.takeIf { kanji && it.isNotBlank() }
-            fields["Word"] = esc(expression) + (reading?.let { "[${esc(it)}]" } ?: "") + (w.pitch?.let { ":$it-" } ?: "")
+            val (expression, reading) = japaneseWord(fields, w, japanese, pkg)
             // The word in the line in bold; its reading too when it is written as in the dictionary (Kaishi: 私[わたし]).
             val at = text.indexOf(w.surface)
             fields["Sentence"] = if (at < 0) esc(text) else esc(text.substring(0, at)) + "<b>" + esc(w.surface) +
                 (if (w.surface == expression && reading != null) "[${esc(reading)}]" else "") + "</b>" + esc(text.substring(at + w.surface.length))
-            fields[KnownWords.DEF_BI] = esc(w.gloss)
-            w.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
-            // A person's recording (NHK, Shinmeikai, JapanesePod101, Forvo), else the device voice.
-            val recorded = japanese.audio.recording(expression, w.reading.orEmpty())
-            val wav = File(dir, "word.wav").apply { delete() }
-            val audio = recorded ?: wav.takeIf { japanese.voice.toFile(w.reading ?: expression, it) }
-            audio?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-ja-${expression}")}]" }
             tags += ja.tag("word")
         } else {
             fields["Sentence"] = esc(text)
@@ -195,6 +187,44 @@ class Miner(
         lineAudio.delete()
         shot?.delete()
         return tr("Added to %s", ja.deck) + (w?.let { ": ${it.lemma ?: it.surface}" } ?: "")
+    }
+
+    /**
+     * A 🐻 Japanese word card from the Japanese dictionary screen: word, reading, meaning, word audio; no sentence or
+     * clip (the card's front is the Word). Into Japanese::Mined.
+     */
+    suspend fun mineJapaneseWord(w: Word): String = withContext(Dispatchers.IO) {
+        val japanese = languages.japanese
+        val pkg = japanese.known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
+        if (!japanese.known.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
+        val (mid, fieldNames) = anki.noteType(pkg, japanese.known.noteTypes) ?: error(tr("The Japanese note type isn't in Anki."))
+        if (KnownWords.DEF_BI !in fieldNames) error(tr("The Japanese note type has no field %s.", KnownWords.DEF_BI))
+        dir.mkdirs()
+        val fields = HashMap<String, String>()
+        japaneseWord(fields, w, japanese, pkg)
+        w.formOf?.let { fields["Notes"] = esc("form of $it") }
+        fields["Context"] = esc("Mined in kumapie's Japanese dictionary.")
+        val ja = japanese.lang
+        anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, listOf("kumapie", ja.tag("word")), anki.deck(pkg, ja.deck))
+        tr("Added to %s", ja.deck) + ": ${w.lemma ?: w.surface}"
+    }
+
+    /**
+     * A Japanese word card's Word (`届く[とどく]:0-`: reading when it has kanji, pitch), meanings and word audio (a person's
+     * recording: NHK, Shinmeikai, JapanesePod101, Forvo; else the device voice). Answers the word and the reading shown.
+     */
+    private suspend fun japaneseWord(fields: HashMap<String, String>, w: Word, japanese: Japanese, pkg: String): Pair<String, String?> {
+        val expression = w.lemma ?: w.surface
+        val kanji = expression.any { it.code in 0x3400..0x9FFF }
+        val reading = w.reading?.takeIf { kanji && it.isNotBlank() }
+        fields["Word"] = esc(expression) + (reading?.let { "[${esc(it)}]" } ?: "") + (w.pitch?.let { ":$it-" } ?: "")
+        fields[KnownWords.DEF_BI] = esc(w.gloss)
+        w.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
+        val recorded = japanese.audio.recording(expression, w.reading.orEmpty())
+        val wav = File(dir, "word.wav").apply { delete() }
+        val audio = recorded ?: wav.takeIf { japanese.voice.toFile(w.reading ?: expression, it) }
+        audio?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-ja-${expression}")}]" }
+        return expression to reading
     }
 
     /** [startMs]..[endMs] of the episode's audio alone, as AAC in .m4a. */

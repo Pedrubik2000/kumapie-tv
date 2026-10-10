@@ -81,13 +81,69 @@ internal suspend fun autoWordCard(library: Library, ctl: SceneController, line: 
 }
 
 /**
+ * A Japanese headword's meanings: from the bilingual dictionaries (else every one but monolingual and forms ones), the
+ * one that fits [english] (the line's English, when there is a line) chosen and marked; and monolingual definitions,
+ * one per dictionary, encyclopedias (Pixiv, Wikipedia…) last so a 国語 dictionary leads.
+ */
+private fun japaneseChoices(library: Library, hw: io.github.pedrubik2000.kumapie.lang.Headword?, english: String?): WordChoices {
+    val ja = io.github.pedrubik2000.kumapie.data.Lang.JAPANESE
+    val glossaries = hw?.terms?.flatMap { it.glossaries }.orEmpty()
+    fun group(dict: String) = library.yomitan.groupOf(ja, dict)
+    val isMono = { g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("mono", ignoreCase = true) }
+    val isBilingual = { g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("bilingual", ignoreCase = true) }
+    val meaningDicts = glossaries.filter(isBilingual).ifEmpty {
+        glossaries.filterNot { isMono(it) || group(it.dict).contains("form", ignoreCase = true) || it.dict.contains("form", ignoreCase = true) }
+    }
+    fun choice(g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary, m: String) = Choice("${g.dict.substringBefore(" (").take(24)}: $m", m, null)
+    var choices = meaningDicts.flatMap { g ->
+        g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(6).map { choice(g, it) }
+    }.distinctBy { it.gloss }.take(40)
+    var chosen = 0
+    english?.let { SensePick.bestMeaning(choices.map { c -> c.gloss }, it) }?.let { i ->
+        choices = choices.mapIndexed { k, c -> if (k == i) c.copy(label = c.label + tr("  · fits this line")) else c }
+        chosen = i
+    }
+    val encyclopedia = Regex("pixiv|wiki|ニコ|百科", RegexOption.IGNORE_CASE)
+    val monos = glossaries.filter(isMono).sortedBy { if (encyclopedia.containsMatchIn(it.dict)) 1 else 0 }
+        .mapNotNull { g -> g.senses.firstNotNullOfOrNull { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.monolingualDefinition(it) }?.let { choice(g, it) } }
+        .distinctBy { it.gloss }.take(8)
+    return WordChoices(choices, chosen, monos)
+}
+
+/**
+ * A Japanese rating row's card ([io.github.pedrubik2000.kumapie.lang.JapaneseLookup.forms]): the form with its reading,
+ * its headword's meaning that fits the line ([english]; null: the first), "form of 気にする" for a conjugated form, pitch
+ * only for the headword itself; null when the headword has no meaning.
+ */
+internal fun japaneseWord(library: Library, f: io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form, english: String?): Miner.Word? {
+    val hw = f.head ?: return null
+    val c = japaneseChoices(library, hw, english)
+    val pick = c.choices.getOrNull(c.chosen) ?: return null
+    val own = f.written == hw.expression
+    return Miner.Word(f.written, null, f.written, pick.gloss, reading = f.reading,
+        pitch = if (own) hw.pitches.flatMap { it.second }.firstOrNull() else null, mono = c.monos.firstOrNull()?.gloss,
+        formOf = hw.expression.takeIf { !own })
+}
+
+/** Japanese rows ([io.github.pedrubik2000.kumapie.lang.JapaneseLookup.forms]) as [RateForm]s; [make] adds a missing form's card from its [Miner.Word]. */
+internal fun japaneseRateForms(library: Library, forms: List<io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form>, english: String?,
+                               make: suspend (Miner.Word, (String) -> Unit) -> String) = forms.map { f ->
+    val kana = io.github.pedrubik2000.kumapie.lang.JapaneseLookup.hiragana(f.written) == f.reading
+    RateForm(f.key, f.written + if (kana) "" else " [${f.reading}]") { p ->
+        make(japaneseWord(library, f, english) ?: error(tr("No meaning to put on the card.")), p)
+    }
+}
+
+/**
  * "Add to Anki": the line as a sentence card, or the picked word as a word card with the meaning chosen from
  * kumapie's own meaning and every dictionary sense. Without kumapie's own meaning, the sense that fits the line's
  * English ([SensePick]) starts chosen. Adds to kuma3 Anki's Deutsch::Mined ([Miner]).
  */
 @Composable
-fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit) {
-    if (library.languages.of(ctl.lang) is io.github.pedrubik2000.kumapie.lang.Japanese) return JapaneseMineSheet(library, episode, ctl, picker, onDone)
+fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit,
+              /** The player's ratings, queue scope and busy flag ([RatingRows]): Undo works in the word card too. */
+              ratings: Ratings, queueScope: kotlinx.coroutines.CoroutineScope, queueBusy: androidx.compose.runtime.MutableState<Boolean>) {
+    if (library.languages.of(ctl.lang) is io.github.pedrubik2000.kumapie.lang.Japanese) return JapaneseMineSheet(library, episode, ctl, picker, onDone, ratings, queueScope, queueBusy)
     val scope = rememberCoroutineScope()
     val scene = ctl.scene
     val line = picker.line
@@ -106,6 +162,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf(false) }
+    val known = library.languages.of(ctl.lang).known
 
     LaunchedEffect(segment?.text, key) {
         if (segment == null || key == null) return@LaunchedEffect
@@ -147,6 +204,12 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
         } else {
             Text(tr("The sentence, a video clip of the whole scene and the English."), color = Colors.dim, fontSize = 14.sp)
         }
+        // Rate the exact form here too (the word card's row); without a card, the meanings picked above make it.
+        if (segment != null && key != null) RatingRows(known, library.settings.prefs, listOf(RateForm(key, null) { p ->
+            val pick = choices.getOrNull(chosen) ?: error(tr("No meaning to put on the card."))
+            library.miner.mine(Miner.Request(episode, scene, line, Miner.Word(segment.text, key, lemma, pick.gloss, pick.example, def,
+                mono = monos.getOrNull(monoChosen)?.gloss)), p)
+        }), ratings, queueScope, queueBusy) { repaintWords(ctl, known) }
         Button(enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
             busy = true
             val pick = choices.getOrNull(chosen)
@@ -158,9 +221,9 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
                     .onSuccess {
                         status = it; done = true
                         // The new card: its word gets its colour and the rating row now.
-                        val known = library.languages.of(ctl.lang).known
+
                         known.reloadCards()
-                        key?.let { k -> ctl.words[k]?.let { w -> ctl.words[k] = w.copy(card = known.cardIndex.state(k)) } }
+                        key?.let { k -> ctl.words[k]?.let { w -> ctl.words[k] = known.paint(k, w) } }
                     }
                     .onFailure { status = it.message ?: it.toString() }
                 busy = false
@@ -177,7 +240,8 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
  * from the monolingual ones (国語 dictionaries before encyclopedias; or none). Into Japanese::Mined.
  */
 @Composable
-private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit) {
+private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit,
+                              ratings: Ratings, queueScope: kotlinx.coroutines.CoroutineScope, queueBusy: androidx.compose.runtime.MutableState<Boolean>) {
     val ja = io.github.pedrubik2000.kumapie.data.Lang.JAPANESE
     val scope = rememberCoroutineScope()
     val scene = ctl.scene
@@ -192,9 +256,11 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
     var monoChosen by remember { mutableIntStateOf(0) }
     var chosen by remember { mutableIntStateOf(0) }
     var looked by remember { mutableStateOf(false) }
+    var forms by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form>>(emptyList()) }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf(false) }
+    val known = library.languages.of(ctl.lang).known
 
     LaunchedEffect(segment?.text) {
         if (segment?.word == null) return@LaunchedEffect
@@ -202,31 +268,12 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
             library.languages.japanese.lookup(io.github.pedrubik2000.kumapie.lang.Tap(cue.text, offset, segment.text.length))
         }.getOrDefault(emptyList()).firstOrNull()
         headword = found
-        val glossaries = found?.terms?.flatMap { it.glossaries }.orEmpty()
-        fun group(dict: String) = library.yomitan.groupOf(ja, dict)
-        fun meanings(g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary) =
-            g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.meanings(it) }.distinct()
-        val isMono = { g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("mono", ignoreCase = true) }
-        val isBilingual = { g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("bilingual", ignoreCase = true) }
-        // Meanings from the bilingual group (else every dictionary but monolingual and forms ones).
-        val meaningDicts = glossaries.filter(isBilingual).ifEmpty {
-            glossaries.filterNot { isMono(it) || group(it.dict).contains("form", ignoreCase = true) || it.dict.contains("form", ignoreCase = true) }
-        }
-        fun choice(g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary, m: String) = Choice("${g.dict.substringBefore(" (").take(24)}: $m", m, null)
-        choices = meaningDicts.flatMap { g ->
-            g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(6).map { choice(g, it) }
-        }.distinctBy { it.gloss }.take(40)
-        // The meaning that fits the line's English starts chosen, marked.
-        SensePick.bestMeaning(choices.map { it.gloss }, SensePick.english(scene, line))?.let { i ->
-            choices = choices.mapIndexed { k, c -> if (k == i) c.copy(label = c.label + tr("  · fits this line")) else c }
-            chosen = i
-        }
-        // Monolingual definitions: one per dictionary; encyclopedias (Pixiv, Wikipedia…) last, so a 国語 dictionary leads.
-        val encyclopedia = Regex("pixiv|wiki|ニコ|百科", RegexOption.IGNORE_CASE)
-        monos = glossaries.filter(isMono).sortedBy { if (encyclopedia.containsMatchIn(it.dict)) 1 else 0 }
-            .mapNotNull { g -> g.senses.firstNotNullOfOrNull { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.monolingualDefinition(it) }?.let { choice(g, it) } }
-            .distinctBy { it.gloss }.take(8)
+        val c = japaneseChoices(library, found, SensePick.english(scene, line))
+        monos = c.monos
+        chosen = c.chosen
+        choices = c.choices
         looked = true
+        forms = runCatching { library.languages.japanese.forms(cue.text, offset) }.getOrDefault(emptyList())
     }
 
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
@@ -262,6 +309,10 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         } else {
             Text(tr("The line, its audio, a screenshot and the English."), color = Colors.dim, fontSize = 14.sp)
         }
+        // Rate each form here too (the word card's rows): a missing one's card is made from its own headword.
+        if (forms.isNotEmpty()) RatingRows(known, library.settings.prefs, japaneseRateForms(library, forms, SensePick.english(scene, line)) { w, p ->
+            library.miner.mine(Miner.Request(episode, scene, line, w), p)
+        }, ratings, queueScope, queueBusy) { repaintWords(ctl, known) }
         Button(enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
             busy = true
             val pick = choices.getOrNull(chosen)
@@ -270,7 +321,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
             else null
             scope.launch {
                 runCatching { library.miner.mine(Miner.Request(episode, scene, line, w)) { status = it } }
-                    .onSuccess { status = it; done = true }
+                    .onSuccess { status = it; done = true; known.reloadCards(); repaintWords(ctl, known) }
                     .onFailure { status = it.message ?: it.toString() }
                 busy = false
             }

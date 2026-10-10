@@ -208,7 +208,7 @@ internal fun ScenePlayer(
     var sceneList by remember { mutableStateOf(false) }
     var mining by remember { mutableStateOf(false) }
     // Each word's last rating from the word card ("Answered: Good", Undo), kept while the episode is open.
-    val ratings = remember { androidx.compose.runtime.mutableStateMapOf<String, Pair<io.github.pedrubik2000.kumapie.lang.KnownWords.Rated, String>>() }
+    val ratings: Ratings = remember { androidx.compose.runtime.mutableStateMapOf() }
     // kuma3's whole queue read again after a rating, in the background (big collections: seconds); not cancelled with the word card.
     val queueScope = rememberCoroutineScope()
     val queueBusy = remember { mutableStateOf(false) } // while it runs, no rating (it would read a queue from before)
@@ -364,7 +364,7 @@ internal fun ScenePlayer(
         }
     }
     if (mining) {
-        ModalBottomSheet(onDismissRequest = { mining = false }) { MineSheet(library, episode, ctl, picker, onDone = { mining = false }) }
+        ModalBottomSheet(onDismissRequest = { mining = false }) { MineSheet(library, episode, ctl, picker, onDone = { mining = false }, ratings, queueScope, queueBusy) }
     }
 }
 
@@ -494,76 +494,29 @@ private fun OptionRow(label: String, on: Boolean, toggle: () -> Unit) {
 }
 
 /**
- * Again / Hard / Good / Easy for the word's own kuma3 card (kumapie_anki_review_plan.md): one rating answers every card
- * of the form kuma3 shows today, else its first (an early review); time = word card open -> button. A word without a
- * card of its own gets its mined card first (what the mine sheet picks at first), then the rating. Then Undo (kuma3's;
- * a card it made stays, new) and today's total of cards reviewed from episodes.
+ * The word card's rating rows ([RatingRows]): German and English one, the exact form (without a card: what the mine
+ * sheet picks at first); Japanese up to three ([io.github.pedrubik2000.kumapie.lang.JapaneseLookup.forms]).
  */
 @Composable
 private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Library, ctl: SceneController, picker: WordPicker,
-                      /** Each word's last rating and its "Answered: …" line, kept while the episode is open. */
-                      ratings: MutableMap<String, Pair<io.github.pedrubik2000.kumapie.lang.KnownWords.Rated, String>>,
-                      /** The player's scope: kuma3's queue is read again there after a rating (it outlives the word card). */
-                      queueScope: kotlinx.coroutines.CoroutineScope,
-                      /** Set while kuma3's queue is read again: the buttons wait (a rating then would read a queue from before it). */
-                      queueBusy: androidx.compose.runtime.MutableState<Boolean>) {
+                      ratings: Ratings, queueScope: kotlinx.coroutines.CoroutineScope, queueBusy: androidx.compose.runtime.MutableState<Boolean>) {
     val segment = picker.selectedInDef ?: picker.selected
     val key = segment?.word ?: return
-    val card = ctl.words[key]?.card ?: return // an Anki without kuma3/due: no row
-    if (card == "u" && picker.selectedInDef != null) return // a word in a definition has no line to make its card from
-    val known = library.languages.of(ctl.lang).known
-    val prefs = library.settings.prefs
-    val day = "rated_" + io.github.pedrubik2000.kumapie.mobile.offline.Progress.studyDay()
-    val opened = remember(key) { System.currentTimeMillis() }
-    var said by remember(key) { mutableStateOf("") }
-    var today by remember { mutableStateOf(prefs.getInt(day, 0)) }
-    val busy = queueBusy.value
-    fun count(n: Int) { today = prefs.getInt(day, 0) + n; prefs.edit().putInt(day, today).apply() }
-    // Every word of the episode coloured by the index (cheap: a few hundred words).
-    fun repaint() { for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> known.cardIndex.state(k).let { s -> if (s != w.card) ctl.words[k] = w.copy(card = s) } } }
-    // The whole rating, then kuma3's queue read again (RWKV-Instant may bring a card back): no other rating meanwhile.
-    fun rating(step: suspend () -> Unit) {
-        queueBusy.value = true
-        queueScope.launch {
-            try {
-                step()
-                repaint()
-                known.refreshDue(force = true)
-                repaint()
-            } finally {
-                queueBusy.value = false
-            }
+    val language = library.languages.of(ctl.lang)
+    val line = picker.line
+    val forms = if (language is io.github.pedrubik2000.kumapie.lang.Japanese) {
+        val cue = ctl.scene.cues.getOrNull(line)
+        val offset = cue?.segments?.take(picker.seg)?.sumOf { it.text.length } ?: 0
+        val found by androidx.compose.runtime.produceState(emptyList<io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form>(), cue?.text, offset) {
+            value = if (cue == null || picker.selectedInDef != null) emptyList() else runCatching { language.forms(cue.text, offset) }
+                .onFailure { android.util.Log.w("kumapie", "word card forms: $it") }.getOrDefault(emptyList())
         }
-    }
-
-    val (r, answered) = ratings[key] ?: (null to "")
-    if (r == null) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf("Again" to Colors.unknown, "Hard" to Colors.learning, "Good" to Colors.due, "Easy" to Colors.accent).forEachIndexed { i, (label, color) ->
-            androidx.compose.material3.OutlinedButton(enabled = !busy, onClick = {
-                rating {
-                    if (ctl.words[key]?.card == "u") {
-                        val request = autoWordCard(library, ctl, picker.line, segment.text, key)
-                        val made = request != null && runCatching { library.miner.mine(request) { said = it } }
-                            .onFailure { said = it.message ?: it.toString() }.isSuccess
-                        if (!made) { if (request == null) said = tr("No meaning to put on the card."); return@rating }
-                        known.reloadCards()
-                    }
-                    val done = known.rate(key, i + 1, System.currentTimeMillis() - opened)
-                    if (done != null) { ratings[key] = done to tr("Answered: %s", tr(label)); count(done.cards); said = "" }
-                    else said = tr("kuma3 didn't take the rating.")
-                }
-            }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)) { Text(tr(label), color = color, fontSize = 14.sp) }
+        japaneseRateForms(library, found, io.github.pedrubik2000.kumapie.lang.SensePick.english(ctl.scene, line)) { w, p ->
+            library.miner.mine(io.github.pedrubik2000.kumapie.lang.Miner.Request(ctl.episode, ctl.scene, line, w), p)
         }
-    } else Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(answered, color = Colors.dim, fontSize = 14.sp)
-        androidx.compose.material3.TextButton(enabled = !busy, onClick = {
-            rating {
-                if (known.undo(r)) { count(-r.cards); ratings.remove(key); said = "" }
-                else said = tr("Can't undo: something else was done in kuma3 since.")
-            }
-        }) { Text(tr("Undo")) }
-    }
-    if (said.isNotEmpty()) Text(said, color = Colors.dim, fontSize = 13.sp)
-    if (busy) Text(tr("Updating kuma3's queue…"), color = Colors.dim, fontSize = 13.sp)
-    if (today > 0) Text(tr("Reviewed from episodes today: %d", today), color = Colors.dim, fontSize = 13.sp)
+    } else listOf(RateForm(key, null, if (picker.selectedInDef != null) null else ({ p -> // a word in a definition has no line
+        val request = autoWordCard(library, ctl, line, segment.text, key) ?: error(tr("No meaning to put on the card."))
+        library.miner.mine(request, p)
+    })))
+    RatingRows(language.known, library.settings.prefs, forms, ratings, queueScope, queueBusy) { repaintWords(ctl, language.known) }
 }

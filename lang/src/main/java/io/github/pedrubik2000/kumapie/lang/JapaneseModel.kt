@@ -47,10 +47,13 @@ class JapaneseModel(private val context: Context) : Model {
         val isWord: Boolean get() = pos != "補助記号" && pos != "空白"
     }
 
-    /** Each text's tokens (mode B), in order. Loads the dictionary on first use (~1 s, ~250 MB). */
-    fun parse(texts: List<String>): List<List<Token>> {
+    /**
+     * Each text's tokens (mode B), in order. Loads the dictionary on first use (~1 s, ~250 MB). One at a time: Sudachi's
+     * tokenizer isn't thread-safe (the word card's lookup and its rating rows parse at once: NPE in its lattice).
+     */
+    fun parse(texts: List<String>): List<List<Token>> = synchronized(Companion) {
         val tok = tokenizer()
-        return texts.map { text ->
+        texts.map { text ->
             tok.tokenize(Tokenizer.SplitMode.B, text).map {
                 Token(it.surface(), it.dictionaryForm(), it.readingForm(), it.partOfSpeech()[0], it.begin(), it.partOfSpeech()[1])
             }

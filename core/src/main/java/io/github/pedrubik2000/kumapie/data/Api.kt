@@ -299,9 +299,17 @@ data class Word(
      * The subtitles and the word card colour by it; scene levels still go by [status].
      */
     val card: String? = null,
+    /**
+     * Japanese: each way the episode writes this word (届いた, 届かない for 届く) -> its own card's state as in [card],
+     * "" while kuma3's queue isn't known. The subtitles colour each by its own card ([shownFor]).
+     */
+    val forms: Map<String, String>? = null,
 ) {
     /** The colour to draw: [card]'s when known ("n" draws like "u"), else [status]. */
     val shown: String get() = when (card) { null -> status; "n" -> "u"; else -> card }
+
+    /** The colour of the word written as [text] in a subtitle: its own form's card (Japanese), else [shown]. */
+    fun shownFor(text: String): String = forms?.get(text)?.takeIf { it.isNotEmpty() }?.let { if (it == "n") "u" else it } ?: shown
 }
 
 fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }

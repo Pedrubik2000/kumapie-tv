@@ -167,9 +167,16 @@ class Library(context: Context, val settings: Settings) {
         val list = shows.flatMap { s -> s.episodes.map { s to it } }
         return list.mapIndexedNotNull { i, (show, ep) ->
             progress(tr("Reading episodes %1\$d of %2\$d…", i + 1, list.size))
-            val detail = episodeCache[ep.id] ?: runCatching { episode(ep.id) }.getOrNull()?.also { episodeCache[ep.id] = it }
+            val detail = episodeCache[ep.id]?.let(::withSeen) ?: runCatching { episode(ep.id) }.getOrNull()?.also { episodeCache[ep.id] = it }
             detail?.let { show to it }
         }
+    }
+
+    /** Counts an episode as watched (seen before kumapie, or elsewhere): all its scenes become seen, on every device. */
+    suspend fun markWatched(id: String) {
+        val detail = episodeCache[id] ?: episode(id)
+        progress.record(id, null, detail.scenes.map { it.id }, 0.0)
+        syncLater()
     }
 
     private val episodeCache = java.util.concurrent.ConcurrentHashMap<String, EpisodeDetail>()

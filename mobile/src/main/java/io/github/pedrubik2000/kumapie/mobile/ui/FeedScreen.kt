@@ -47,6 +47,8 @@ private data class FeedItem(val show: Show, val episode: EpisodeDetail, val scen
 private object FeedKept {
     var lang: String? = null
     var levels: Set<Int>? = null
+    /** Scenes seen when it was built: watching more makes a new feed. */
+    var seen = -1
     var items: List<FeedItem>? = null
     var page = 0
 }
@@ -62,22 +64,27 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
     FullScreen(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT)
     val settings = library.settings
     var levels by remember { mutableStateOf(settings.feedLevels.ifEmpty { setOf(1) }) }
-    var items by remember { mutableStateOf(FeedKept.items.takeIf { FeedKept.levels == levels && FeedKept.lang == lang }) }
+    val seenNow = remember { library.progress.merged.seen.size }
+    fun kept() = FeedKept.levels == levels && FeedKept.lang == lang && FeedKept.seen == seenNow
+    var items by remember { mutableStateOf(FeedKept.items.takeIf { kept() }) }
     var loading by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(false) }
 
     LaunchedEffect(levels) {
-        if (items != null && FeedKept.levels == levels && FeedKept.lang == lang) return@LaunchedEffect
+        if (items != null && kept()) return@LaunchedEffect
         items = null
+        // No spoilers: only scenes already watched to the end (reels are short clips, nothing to spoil).
         val found = library.allEpisodes(shows) { loading = it }.flatMap { (show, ep) ->
-            ep.scenes.filter { it.target && it.level != null && it.level!!.coerceAtMost(2) in levels }.map { FeedItem(show, ep, it) }
+            ep.scenes.filter { it.target && it.level != null && it.level!!.coerceAtMost(2) in levels && (it.seen || show.kind == "reels") }
+                .map { FeedItem(show, ep, it) }
         }.shuffled()
         FeedKept.lang = lang
         FeedKept.levels = levels
+        FeedKept.seen = seenNow
         FeedKept.items = found
         FeedKept.page = 0
         items = found
-        loading = if (found.isEmpty()) tr("No scenes at these levels.") else ""
+        loading = if (found.isEmpty()) tr("No scenes yet: the feed only shows scenes you've already watched, so nothing is spoiled.") else ""
     }
 
     // Feed watching sends lookups and "mark known" as usual, but no progress: an episode resumes where it was left.

@@ -201,7 +201,10 @@ data class Episode(
     val easy: Int,
     /** Seconds into the episode where it was left, or null. */
     val resume: Double?,
-)
+) {
+    /** Every scene seen to its end (on any device), or marked watched: no spoilers left in it. */
+    val watched: Boolean get() = scenes > 0 && seen >= scenes
+}
 
 /** Watch time (seconds) per study day ("2026-10-04", days start at 4 am) and what was done. */
 data class Stats(

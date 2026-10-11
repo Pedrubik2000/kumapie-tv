@@ -1,6 +1,8 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color
@@ -33,6 +35,8 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -53,11 +57,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.launch
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.DownloadState
@@ -77,8 +83,10 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     val states by library.downloads.states().collectAsState(initial = emptyMap())
     var deleting by remember { mutableStateOf<Episode?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
+    var reload by remember { mutableStateOf(0) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
-    LaunchedEffect(Unit) { // fresh progress after watching
+    LaunchedEffect(reload) { // fresh progress after watching
         runCatching { library.shows() }.onSuccess { (shows, off) ->
             offline = off
             shows.firstOrNull { it.id == initial.id }?.let { show = it }
@@ -99,6 +107,13 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
         EpisodeRow(library, ep, states[ep.id] ?: DownloadState.None, playable(ep), offline, wide,
             onPlay = { onPlay(ep) }, onDownload = { library.downloads.start(show, ep) },
             onCancel = { library.downloads.cancel(ep.id) }, onDelete = { deleting = ep },
+            onMarkWatched = {
+                scope.launch {
+                    runCatching { library.markWatched(ep.id) }
+                        .onSuccess { reload++ }
+                        .onFailure { android.widget.Toast.makeText(context, it.message ?: it.toString(), android.widget.Toast.LENGTH_LONG).show() }
+                }
+            },
             onListen = {
                 val art = library.thumb(ep.id, ep.thumb).let { if (it is java.io.File) android.net.Uri.fromFile(it).toString() else it.toString() }
                 io.github.pedrubik2000.kumapie.mobile.listen.CondensedService.play(context, ep.id, art)
@@ -198,18 +213,27 @@ private fun ShowHeader(library: Library, show: Show, next: Episode?, wide: Boole
     }
 }
 
+/** Long press: "Mark as watched" (seen elsewhere), so the feed may use its scenes and its picture is no longer blurred. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EpisodeRow(library: Library, ep: Episode, state: DownloadState, playable: Boolean, offline: Boolean, wide: Boolean,
-                       onPlay: () -> Unit, onDownload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit, onListen: () -> Unit) {
+                       onPlay: () -> Unit, onDownload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit, onListen: () -> Unit,
+                       onMarkWatched: () -> Unit) {
     val onDevice = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) // made here
+    var menu by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().clickable(enabled = playable, onClick = onPlay)
+        Modifier.fillMaxWidth().combinedClickable(enabled = playable, onClick = onPlay, onLongClick = { if (!ep.watched) menu = true })
             .alpha(if (playable) 1f else 0.4f).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(if (wide) 160.dp else 120.dp)) {
+            val hide = library.settings.blurUnwatched && !ep.watched
             AsyncImage(library.thumb(ep.id, ep.thumb), null, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)))
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
+                    .then(if (hide) Modifier.blur(16.dp) else Modifier))
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(text = { Text(tr("Mark as watched")) }, onClick = { menu = false; onMarkWatched() })
+            }
             val resume = ep.resume
             if (resume != null && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(),
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(6.dp))

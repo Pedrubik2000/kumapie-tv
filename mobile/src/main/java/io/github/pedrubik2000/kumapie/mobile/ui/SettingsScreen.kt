@@ -120,6 +120,13 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                 }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                var blur by remember { mutableStateOf(settings.blurUnwatched) }
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(tr("Blur pictures of episodes I haven't watched (no spoilers)"), fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.Switch(blur, { blur = it; settings.blurUnwatched = it })
+                }
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 NewEpisodesSection(library)
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))

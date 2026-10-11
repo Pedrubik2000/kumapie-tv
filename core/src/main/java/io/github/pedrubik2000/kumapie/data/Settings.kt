@@ -64,6 +64,11 @@ class Settings(context: Context) {
         set(value) = prefs.edit().putBoolean("upright_player", value).apply()
 
     /** The feed's scene levels: 0 = i+0, 1 = i+1, 2 = i+2 and up. */
+    /** Episode pictures stay blurred until the episode is watched (they can give the story away). */
+    var blurUnwatched: Boolean
+        get() = prefs.getBoolean("blur_unwatched", true)
+        set(value) = prefs.edit().putBoolean("blur_unwatched", value).apply()
+
     var feedLevels: Set<Int>
         get() = prefs.getString("feed_levels", "1")!!.split(',').mapNotNull { it.toIntOrNull() }.toSet()
         set(value) = prefs.edit().putString("feed_levels", value.sorted().joinToString(",")).apply()

@@ -17,7 +17,6 @@ internal val esHome: Map<String, String> = mapOf(
     "Anime" to "Anime",
     "Shows" to "Series",
     "Movies" to "Películas",
-    "Reels" to "Reels",
     "Novels" to "Novelas",
     "Can't reach the PC" to "No se puede conectar con la PC",
     "Try again" to "Reintentar",
@@ -68,7 +67,9 @@ internal val esHome: Map<String, String> = mapOf(
     "No i+1 scenes (episodes that can't be reached offline are skipped)." to "No hay escenas i+1 (se omiten los episodios que no se pueden abrir sin conexión).",
     "Shuffle" to "Mezclar",
     // Feed
-    "No scenes at these levels." to "No hay escenas en estos niveles.",
+    "Mark as watched" to "Marcar como visto",
+    "Blur pictures of episodes I haven't watched (no spoilers)" to "Difuminar las imágenes de episodios que no he visto (sin spoilers)",
+    "No scenes yet: the feed only shows scenes you've already watched, so nothing is spoiled." to "Aún no hay escenas: el feed solo muestra escenas que ya viste, para no arruinarte nada.",
     "Feed levels" to "Niveles del feed",
     "Scenes in the feed" to "Escenas en el feed",
     "i+2 and up" to "i+2 y más",

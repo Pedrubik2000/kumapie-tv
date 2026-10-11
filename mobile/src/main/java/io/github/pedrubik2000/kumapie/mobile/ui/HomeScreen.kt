@@ -73,8 +73,8 @@ import io.github.pedrubik2000.kumapie.mobile.offline.DownloadState
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 
-/** Home's categories, in this order (the PC's library folders, and reels for YouTube shorts made here). */
-private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "reels" to "Reels", "novels" to "Novels")
+/** Home's categories, in this order (the PC's library folders). Reels (YouTube shorts made here) are feed-only. */
+private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "novels" to "Novels")
 
 /**
  * The languages this device learns: the ones its shows are in (saved each time Home gets the list), so a parent's phone
@@ -232,11 +232,11 @@ private fun HomeBar(offline: Boolean, onAdd: (() -> Unit)? = null, onRefresh: ()
 private fun Rows(library: Library, shows: List<Show>, states: Map<String, DownloadState>, wide: Boolean,
                  onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit) {
     val width = if (wide) 150.dp else 118.dp
-    val going = shows.flatMap { s -> s.episodes.map { s to it } }.filter { (_, e) ->
+    val going = shows.filter { it.kind != "reels" }.flatMap { s -> s.episodes.map { s to it } }.filter { (_, e) ->
         val at = e.resume ?: 0.0
         e.duration > 0 && at > 20 && at < e.duration * 0.95
     }
-    val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
+    val other = shows.filter { s -> s.kind != "reels" && KINDS.none { it.first == s.kind } }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         if (going.isNotEmpty()) item(key = "going") {
             ShelfRow(tr("Continue watching")) {

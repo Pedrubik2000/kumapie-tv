@@ -53,9 +53,9 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("slow", false)
         set(value) = prefs.edit().putBoolean("slow", value).apply()
 
-    /** What the subtitles show; kept from scene to scene and between episodes. */
+    /** What the subtitles show; kept from scene to scene and between episodes. A new install starts with both lines (user, 2026-10-11). */
     var subtitles: Subtitles
-        get() = runCatching { Subtitles.valueOf(prefs.getString("subtitles", null)!!.replace("GERMAN", "TARGET")) }.getOrDefault(Subtitles.HIDDEN)
+        get() = runCatching { Subtitles.valueOf(prefs.getString("subtitles", null)!!.replace("GERMAN", "TARGET")) }.getOrDefault(Subtitles.BOTH)
         set(value) = prefs.edit().putString("subtitles", value.name).apply()
 
     /** Phone/tablet: play episodes upright, one scene per page (swipe up), instead of landscape. */

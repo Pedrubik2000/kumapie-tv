@@ -147,7 +147,7 @@ class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionarie
     override val lang: Lang = Lang.JAPANESE
     /** Sudachi. */
     override val model = JapaneseModel(appContext)
-    override val parserId = "sudachi-B-${JapaneseModel.VERSION}"
+    override val parserId get() = "sudachi-B-${JapaneseModel.VERSION}" + if (model.splitterReady) "+${JitenSplitter.ID}" else ""
     override val known = KnownWords(context, settings, this)
     private val finder by lazy { JapaneseLookup(model, yomitan) }
     override val voice by lazy { Voice(appContext, lang) }
@@ -167,9 +167,18 @@ class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionarie
             ?.let { it.pos == "感動詞" || it.sub == "固有名詞" } ?: false
     }
 
-    /** Sudachi's dictionary forms of each field's words. */
-    override fun wordKeys(fields: List<String>): List<Set<String>> =
-        model.parse(fields.map(::plain)).map { tokens -> tokens.filter { it.isWord }.map { it.base }.toSet() }
+    /**
+     * Each field's word keys: Sudachi's dictionary forms of its pieces (the keys episodes had before Jiten), and the
+     * episodes' own keys ([JapaneseModel.words]: Jiten's words once its splitter is here), so a 黒板消し card makes
+     * both 黒板消し and 黒板 known.
+     */
+    override fun wordKeys(fields: List<String>): List<Set<String>> {
+        val texts = fields.map(::plain)
+        val words = if (model.splitterReady) model.words(texts) else null
+        return model.parse(texts).mapIndexed { i, tokens ->
+            (tokens + words?.get(i).orEmpty()).filter { it.isWord }.map { it.base }.toSet()
+        }
+    }
 
     /** A Japanese field as plain text: no HTML, no MvJ furigana (" 私[わたし]" -> "私"), no pitch ("私[わたし]:0-" in Word fields), no spaces. */
     private fun plain(field: String): String = android.text.Html.fromHtml(field, 0).toString()

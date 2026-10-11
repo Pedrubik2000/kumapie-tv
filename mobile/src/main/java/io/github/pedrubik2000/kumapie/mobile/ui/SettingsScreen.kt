@@ -199,8 +199,13 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
     Text(tr("${language.lang.name} words"), color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
     Text(status, fontSize = 15.sp)
     when {
-        ready -> Text(tr("%1\$s: ready (%2\$s).", tr(model.label), model.name), fontSize = 14.sp, color = Colors.dim)
         state != null -> Text("${tr(model.label)}: $state", fontSize = 14.sp, color = Colors.dim)
+        ready -> {
+            Text(tr("%1\$s: ready (%2\$s).", tr(model.label), model.name), fontSize = 14.sp, color = Colors.dim)
+            // Jiten's word splitter (item 26b): two more files from the PC, optional.
+            if (model is io.github.pedrubik2000.kumapie.lang.JapaneseModel && !model.splitterReady)
+                OutlinedButton(onClick = { model.download() }) { Text(tr("Download Jiten's word splitter from the PC")) }
+        }
         else -> {
             if (model.about.isNotEmpty()) Text(tr(model.about), fontSize = 14.sp, color = Colors.dim)
             OutlinedButton(onClick = { model.download() }) { Text(tr(model.downloadText)) }

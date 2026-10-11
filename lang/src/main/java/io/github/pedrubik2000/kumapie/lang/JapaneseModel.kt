@@ -16,20 +16,26 @@ import kotlinx.coroutines.flow.Flow
 import java.io.File
 import java.io.IOException
 import java.util.zip.ZipInputStream
+import org.json.JSONObject
 
 /**
  * Japanese words for known-word colours and i+1, like spaCy for German (kumapie_languages_plan.md "Japanese parser
  * research": Sudachi Java + SudachiDict core, mode B). The dictionary (~200 MB) is downloaded once from the
  * sudachidict-core wheel on PyPI: SudachiDict's own zips are in the older format Sudachi Java 0.8 refuses.
+ * Jiten's splitter ([JitenSplitter], item 26b) needs two more files from the device's PC (dojo-feed /api/models/):
+ * optional, [words] uses it once they are here and Sudachi + [join] until then.
  */
 class JapaneseModel(private val context: Context) : Model {
     private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "models")
     val dic = File(base, "sudachi-core-$VERSION.dic")
     override val label = "Japanese dictionary"
-    override val name = "Sudachi core"
+    override val name get() = if (splitterReady) "Sudachi core + Jiten" else "Sudachi core"
     override val about = "The Japanese dictionary (about 80 MB to download, 200 MB on the device, once) splits Japanese into words."
     override val downloadText = "Download the Japanese dictionary"
     override val isReady: Boolean get() = dic.exists()
+    /** Jiten's word database and Sudachi user dictionary ([JitenSplitter]). */
+    val splitterFiles = SPLITTER_FILES.map { File(base, it) }
+    val splitterReady: Boolean get() = isReady && splitterFiles.all { it.exists() }
     private val work get() = WorkManager.getInstance(context)
 
     override fun download() {
@@ -53,15 +59,16 @@ class JapaneseModel(private val context: Context) : Model {
      */
     fun parse(texts: List<String>): List<List<Token>> = synchronized(Companion) {
         val tok = tokenizer()
-        texts.map { text ->
-            tok.tokenize(Tokenizer.SplitMode.B, text).map {
-                Token(it.surface(), it.dictionaryForm(), it.readingForm(), it.partOfSpeech()[0], it.begin(), it.partOfSpeech()[1])
-            }
-        }
+        texts.map { tokens(tok, it) }
     }
 
     /** Each text's words as a learner sees them ([join]): 届いた (届く), できない (できる), でも, 防御力. */
-    fun words(texts: List<String>): List<List<Token>> = parse(texts).map(::join)
+    fun words(texts: List<String>): List<List<Token>> = splitter()?.let { s -> texts.map(s::split) } ?: parse(texts).map(::join)
+
+    /** Jiten's splitter once its files are here (one per process: ~95 MB), else null. */
+    fun splitter(): JitenSplitter? = if (!splitterReady) null else synchronized(Companion) {
+        jiten ?: JitenSplitter(splitterFiles[0], dic, splitterFiles[1]).also { jiten = it }
+    }
 
     private fun tokenizer(): Tokenizer = synchronized(Companion) {
         loaded?.takeIf { it.first == dic.path }?.second ?: run {
@@ -75,6 +82,11 @@ class JapaneseModel(private val context: Context) : Model {
         private val HEADS = setOf("動詞", "形容詞")
         private val HONORIFIC = setOf("さん", "ちゃん", "くん", "君", "様", "さま", "たち", "達", "殿", "氏")
         private val CONNECTIVE = setOf("て", "で", "ちゃ", "じゃ")
+
+        /** Sudachi's mode-B tokens of [text]. */
+        fun tokens(tok: Tokenizer, text: String): List<Token> = tok.tokenize(Tokenizer.SplitMode.B, text).map {
+            Token(it.surface(), it.dictionaryForm(), it.readingForm(), it.partOfSpeech()[0], it.begin(), it.partOfSpeech()[1])
+        }
 
         /**
          * Sudachi's mode-B pieces joined into learner words (prototype and checks: C:\dojo\work\ja-parser\chunks.py):
@@ -130,6 +142,9 @@ class JapaneseModel(private val context: Context) : Model {
             "sudachidict_core-$VERSION-py3-none-any.whl"
         private const val WORK = "japanese-model"
         @Volatile private var loaded: Pair<String, Tokenizer>? = null
+        @Volatile private var jiten: JitenSplitter? = null
+        /** On the PC: state\dicts, served by dojo-feed's GET /api/models/<file>. */
+        val SPLITTER_FILES = listOf("jiten-lexicon.tsv.gz", "jiten_user_core.dic")
     }
 }
 
@@ -140,7 +155,42 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
     override val notificationId = 994
 
     override suspend fun run() {
-        if (model.isReady) return
+        if (!model.isReady) sudachi()
+        splitterFiles()
+        resplitLocal()
+    }
+
+    /** Jiten's files from the device's PC; none when no PC is set up (Sudachi alone splits then). */
+    private suspend fun splitterFiles() {
+        val server = io.github.pedrubik2000.kumapie.data.Settings(applicationContext).server
+        if (server.isEmpty()) return
+        for (f in model.splitterFiles) {
+            if (f.exists()) continue
+            val part = File(f.path + ".part")
+            fetch("$server/api/models/${f.name}", part)
+            if (!part.renameTo(f)) throw IOException(tr("couldn't move the dictionary into place"))
+        }
+    }
+
+    /**
+     * Japanese episodes made on this device (local/<id>/episode.json) split before Jiten's splitter: split again once
+     * ([resplitEpisode]; stamped, so never twice).
+     */
+    private suspend fun resplitLocal() {
+        val splitter = model.splitter() ?: return
+        val local = File(applicationContext.getExternalFilesDir(null) ?: applicationContext.filesDir, "local")
+        val files = local.listFiles().orEmpty().map { File(it, "episode.json") }.filter { it.exists() }
+        for ((i, f) in files.withIndex()) {
+            val json = runCatching { JSONObject(f.readText()) }.getOrNull() ?: continue
+            if (json.optString("lang") != "ja" || json.optString("splitter") == JitenSplitter.ID) continue
+            report(tr("Splitting episodes again: %1\$d of %2\$d", i + 1, files.size), 0.99f)
+            val tmp = File(f.path + ".tmp")
+            tmp.writeText(resplitEpisode(json, splitter).toString())
+            if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+        }
+    }
+
+    private suspend fun sudachi() {
         val base = model.dic.parentFile!!.apply { mkdirs() }
         val wheel = File(base, "sudachidict-core.whl.part")
         fetch(JapaneseModel.URL, wheel)

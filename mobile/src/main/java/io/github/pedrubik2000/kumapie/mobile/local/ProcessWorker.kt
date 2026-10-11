@@ -51,6 +51,7 @@ import com.google.mlkit.nl.translate.TranslatorOptions
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.lang.GermanModel
 import io.github.pedrubik2000.kumapie.lang.JapaneseModel
+import io.github.pedrubik2000.kumapie.lang.JitenSplitter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -315,16 +316,20 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             }
         }
 
-        // 5. Scenes and words (Japanese words from Sudachi here, German ones from spaCy in Python).
+        // 5. Scenes and words (Japanese words from Jiten's splitter or Sudachi here, German ones from spaCy in Python).
         report(tr("Finding scenes and words…"), 0.9f)
+        val jaModel = JapaneseModel(applicationContext)
+        val jiten = japanese && jaModel.splitterReady
         val parsed = if (!japanese) "" else {
             val texts = JSONArray(cues).let { a -> (0 until a.length()).map { a.getJSONArray(it).getString(2) } }
-            JSONArray(JapaneseModel(applicationContext).words(texts).map { tokens ->
+            JSONArray(jaModel.words(texts).map { tokens ->
                 JSONArray(tokens.map { t -> JSONArray().put(t.surface).put(t.begin).put(if (t.isWord) t.base else JSONObject.NULL).put(JSONObject.NULL) })
             }).toString()
         }
         val episode = py.getModule("newepisode").callAttr("build", model.dir.path, id, show, title, duration,
             video.path, cues, englishCues, lang.code, parsed).toString()
+            // Split by Jiten already: the re-split after the splitter's download (JapaneseModelWorker) leaves it alone.
+            .let { if (jiten) JSONObject(it).put("splitter", JitenSplitter.ID).toString() else it }
         local.json(id).writeText(episode)
         audio.delete() // kept until here, so a retry after a failure needs no new download or conversion
         dl.deleteRecursively()

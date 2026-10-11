@@ -9,9 +9,9 @@ import io.github.pedrubik2000.kumapie.data.Lang
  */
 class JapaneseLookup(private val model: JapaneseModel, private val dicts: YomitanDictionaries) {
 
-    /** The word under [offset] (a char index in [text]) as Sudachi splits it, or null on punctuation. */
+    /** The word under [offset] (a char index in [text]) as the episode splits it ([JapaneseModel.words]), or null on punctuation. */
     fun token(text: String, offset: Int): JapaneseModel.Token? =
-        model.parse(listOf(text)).first().lastOrNull { it.begin <= offset }?.takeIf { it.isWord }
+        model.words(listOf(text)).first().lastOrNull { it.begin <= offset }?.takeIf { it.isWord }
 
     /**
      * The headwords for a tap at [offset] in [text], longest match first ([length], the player's word, is kept for the

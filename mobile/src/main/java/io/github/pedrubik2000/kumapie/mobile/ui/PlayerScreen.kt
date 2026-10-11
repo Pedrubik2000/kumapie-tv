@@ -258,12 +258,12 @@ internal fun ScenePlayer(
     }
     var now by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = SystemClock.uptimeMillis(); delay(250) } }
-    // Japanese: the dictionary popup's WebView and Sudachi ready before the first tap.
+    // Japanese: the dictionary popup's WebView and Sudachi (and Jiten's splitter, a few seconds) ready before the first tap.
     LaunchedEffect(Unit) {
         if (ctl.lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) {
             prewarmPopup(context)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                runCatching { library.languages.japanese.model.parse(listOf("準備")) }
+                runCatching { library.languages.japanese.model.words(listOf("準備")) }
             }
         }
     }

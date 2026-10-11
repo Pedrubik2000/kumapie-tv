@@ -153,8 +153,10 @@ private fun Shelf(title: String, content: androidx.compose.foundation.lazy.LazyL
 private fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, onClick: () -> Unit) {
     Column(Modifier.width(160.dp)) {
         Card(onClick = onClick, modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
-            NeutralPoster(title, Modifier.fillMaxSize()) // shows where there's no poster (never an episode frame)
-            AsyncImage(model = image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize()) { // a Card lays out as a column: the box puts the image over the neutral poster
+                NeutralPoster(title, Modifier.fillMaxSize()) // shows where there's no poster (never an episode frame)
+                AsyncImage(model = image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
         }
         Text(title, color = Colors.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 16.dp))

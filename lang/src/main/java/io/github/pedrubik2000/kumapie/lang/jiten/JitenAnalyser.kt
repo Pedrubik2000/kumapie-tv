@@ -212,14 +212,24 @@ class MorphologicalAnalyser(
         if (hasNoJapaneseChars(text)) return words
         for (line in text.split('\n')) {
             if (line.isEmpty()) continue
-            var bar = trailingKanaProlongedMark(line)
-            // The fork adds the ー-less word to the lattice beside the normal paths: keep whichever path costs less
-            // (mode C costs; mode B splits drop them), so dictionary words with ー (やべー) still win.
-            if (bar >= 0 && pathCost(tok, line) < pathCost(tok, line.removeRange(bar, bar + 1))) bar = -1
-            val first = words.size
-            for (sentence in tok.tokenizeSentences(mode, if (bar < 0) line else line.removeRange(bar, bar + 1)))
-                for (m in sentence) words.add(WordInfo.fromSudachi(m, -1, -1))
-            if (bar >= 0) words.subList(first, words.size).lastOrNull { it.text.isNotBlank() }?.let { it.text += "ー" }
+            var bars = trailingKanaProlongedMarks(line)
+            var stripped = line
+            if (bars.isNotEmpty()) {
+                stripped = line.filterIndexed { i, _ -> i !in bars }
+                // The fork adds the ー-less words to the lattice beside the normal paths: keep whichever path costs
+                // less (mode C costs; mode B splits drop them), so dictionary words with ー (やべー) still win.
+                if (pathCost(tok, line) < pathCost(tok, stripped)) { bars = emptyList(); stripped = line }
+            }
+            // Each dropped ー goes back on the token that ends where it stood (positions in the stripped line).
+            val ends = bars.mapIndexed { k, p -> p - k }.toHashSet()
+            var pos = 0
+            for (sentence in tok.tokenizeSentences(mode, stripped))
+                for (m in sentence) {
+                    val w = WordInfo.fromSudachi(m, -1, -1)
+                    pos += w.text.length
+                    if (pos in ends) w.text += "ー"
+                    words.add(w)
+                }
         }
         return words
     }
@@ -303,18 +313,20 @@ class MorphologicalAnalyser(
         /**
          * Jiten's private sudachi.rs fork has a TrailingKanaProlongedPlugin (its sudachi_lib exports it; the source isn't
          * public). Jiten.Tests: "Trailing ー after hiragana/kanji: lattice-level lookup finds the word without ー,
-         * original surface preserved" (わかるー, すごいー, 休憩ー come out whole). Here the line's trailing ー after
-         * hiragana or kanji is left out of Sudachi's input and put back on the last token's surface. (An input text
-         * plugin can't drop it in Sudachi Java: tokenizeSentences then reads the dropped ー as a sentence of its own.)
-         * Returns that ー's index, or -1.
+         * original surface preserved" (わかるー, すごいー, 休憩ー come out whole). Here a ー after hiragana or kanji
+         * that ends a word (line end, space or punctuation next: そっかー、) is left out of Sudachi's input and put back
+         * on the token before it. (An input text plugin can't drop it in Sudachi Java: tokenizeSentences then reads the
+         * dropped ー as a sentence of its own.) Returns those ー's indices.
          */
-        internal fun trailingKanaProlongedMark(line: String): Int {
-            var end = line.length
-            while (end > 0 && line[end - 1].isWhitespace()) end--
-            if (end < 2 || line[end - 1] != 'ー') return -1
-            val prev = line[end - 2]
-            return if (prev in 'ぁ'..'ゖ' || prev in '一'..'龯' || prev == '々') end - 1 else -1
+        internal fun trailingKanaProlongedMarks(line: String): List<Int> = (1 until line.length).filter { i ->
+            val prev = line[i - 1]
+            val next = line.getOrNull(i + 1)
+            line[i] == 'ー' && (prev in 'ぁ'..'ゖ' || prev in '一'..'龯' || prev == '々') && (next == null || !isWordChar(next))
         }
+
+        /** Kana (incl. ー), kanji, 々 and full-width letters or digits: what a ー can stretch into. */
+        private fun isWordChar(c: Char) = c in '぀'..'ヿ' || c in '一'..'龯' || c == '々' ||
+            c in 'Ａ'..'Ｚ' || c in 'ａ'..'ｚ' || c in '０'..'９'
 
         /** Returns the same instance when nothing is removed. */
         internal fun filterAllowedChars(input: String): String =

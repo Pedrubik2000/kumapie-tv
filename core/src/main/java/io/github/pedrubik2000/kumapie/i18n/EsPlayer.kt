@@ -24,7 +24,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Scenes I haven't seen: play straight through (no pauses, nothing skipped)" to
         "Escenas que no he visto: de corrido (sin pausas, sin saltar nada)",
     "Slow (0.75x)" to "Lento (0.75x)",
-    "Upright: scene by scene, swipe up" to "Vertical: escena por escena, desliza hacia arriba",
+    "Upright: scene by scene, swipe left" to "Vertical: escena por escena, desliza a la izquierda",
     "Subtitle timing" to "Sincronía de subtítulos",
     " (moved %+.1f s so far)" to " (movidos %+.1f s hasta ahora)",
     "− shows the subtitles earlier, + later. Every line of the episode moves." to

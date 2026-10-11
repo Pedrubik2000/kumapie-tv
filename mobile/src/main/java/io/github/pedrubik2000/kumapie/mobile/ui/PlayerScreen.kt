@@ -9,7 +9,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,7 +99,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 @Composable
 fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double? = null, onBack: () -> Unit) {
     var upright by remember { mutableStateOf(library.settings.upright) }
-    // Upright: the same player (one video for the episode), held upright, swipe up/down for the scenes.
+    // Upright: the same player (one video for the episode), held upright, swipe left/right for the scenes.
     key(upright) { FullScreen(if (upright) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) }
     var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -315,19 +314,15 @@ internal fun ScenePlayer(
                         onLongPress = if (!episode.novel) null else ({ menuUntil = SystemClock.uptimeMillis() + 4_000 }),
                     )
                 }
-                .pointerInput(uprightNow) {
-                    // Landscape: swipe left = next scene. Upright: swipe up = next. Same player, the video seeks.
+                .pointerInput(Unit) {
+                    // Swipe left = next scene, right = previous, upright too (user, 2026-10-11). The video seeks.
                     var d = 0f
                     val end = {
                         val min = 60.dp.toPx()
                         if (d < -min) { picker.close(); ctl.nextScene() }
                         if (d > min) { picker.close(); ctl.previousScene() }
                     }
-                    if (uprightNow) {
-                        detectVerticalDragGestures(onDragStart = { d = 0f }, onDragEnd = end) { _, amount -> d += amount }
-                    } else {
-                        detectHorizontalDragGestures(onDragStart = { d = 0f }, onDragEnd = end) { _, amount -> d += amount }
-                    }
+                    detectHorizontalDragGestures(onDragStart = { d = 0f }, onDragEnd = end) { _, amount -> d += amount }
                 },
         )
 
@@ -471,7 +466,7 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         OptionRow(tr("Pause at the end of each scene"), ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
         OptionRow(tr("Scenes I haven't seen: play straight through (no pauses, nothing skipped)"), ctl.newStraight, ctl::toggleNewStraight)
         OptionRow(tr("Slow (0.75x)"), ctl.slow, ctl::toggleSlow)
-        if (onUpright != null) OptionRow(tr("Upright: scene by scene, swipe up"), uprightNow, onUpright)
+        if (onUpright != null) OptionRow(tr("Upright: scene by scene, swipe left"), uprightNow, onUpright)
         if (onShift != null) {
             Text(tr("Subtitle timing") + (shifted?.takeIf { it != 0.0 }?.let { tr(" (moved %+.1f s so far)").format(java.util.Locale.ROOT, it) } ?: ""),
                 color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))

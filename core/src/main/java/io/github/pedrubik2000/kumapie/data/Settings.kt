@@ -58,7 +58,7 @@ class Settings(context: Context) {
         get() = runCatching { Subtitles.valueOf(prefs.getString("subtitles", null)!!.replace("GERMAN", "TARGET")) }.getOrDefault(Subtitles.BOTH)
         set(value) = prefs.edit().putString("subtitles", value.name).apply()
 
-    /** Phone/tablet: play episodes upright, one scene per page (swipe up), instead of landscape. */
+    /** Phone/tablet: play episodes upright, one scene per page (swipe left), instead of landscape. */
     var upright: Boolean
         get() = prefs.getBoolean("upright_player", false)
         set(value) = prefs.edit().putBoolean("upright_player", value).apply()

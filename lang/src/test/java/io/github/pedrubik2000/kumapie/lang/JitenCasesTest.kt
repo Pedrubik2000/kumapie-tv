@@ -12,7 +12,8 @@ import java.nio.file.Paths
 /**
  * kumapie's Japanese words against Jiten's 1 434 gold segmentations (kumapie_plan.md item 26b; Jiten is Apache-2.0,
  * github.com/Sirush/Jiten, its cases partly from ichiran). A measurement, not a pass/fail test: it runs only when
- * KUMAPIE_JITEN_CASES (cases.json from C:\dojo\work\jiten-port\extract_cases.py) and KUMAPIE_SUDACHI_DIC are set,
+ * KUMAPIE_JITEN_CASES (cases.json from C:\dojo\work\jiten-port\extract_cases.py) and KUMAPIE_SUDACHI_DIC are set
+ * (KUMAPIE_SUDACHI_USER: a user dictionary, e.g. Jiten's user_dic.dic),
  * prints the pass rate and writes the failures next to the cases (failures.txt).
  *   gradlew :lang:testDebugUnitTest --tests '*JitenCasesTest*'
  */
@@ -21,7 +22,9 @@ class JitenCasesTest {
         val cases = System.getenv("KUMAPIE_JITEN_CASES")?.let(::File)
         val dic = System.getenv("KUMAPIE_SUDACHI_DIC")
         assumeTrue(cases != null && cases.exists() && dic != null)
-        val tok = DictionaryFactory().create(Config.defaultConfig().systemDictionary(Paths.get(dic))).create()
+        val config = Config.defaultConfig().systemDictionary(Paths.get(dic))
+        System.getenv("KUMAPIE_SUDACHI_USER")?.takeIf { it.isNotBlank() }?.let { config.addUserDictionary(Paths.get(it)) }
+        val tok = DictionaryFactory().create(config).create()
         val all = JSONArray(cases!!.readText())
         val failures = StringBuilder()
         var passed = 0
@@ -37,7 +40,7 @@ class JitenCasesTest {
             else failures.append(text).append("\n  want: ").append(want.joinToString(" | "))
                 .append("\n  got:  ").append(got.joinToString(" | ")).append("\n")
         }
-        File(cases.parentFile, "failures.txt").writeText(failures.toString())
+        File(cases.parentFile, System.getenv("KUMAPIE_JITEN_OUT") ?: "failures.txt").writeText(failures.toString())
         println("JITEN CASES: $passed / ${all.length()} passed (${100 * passed / all.length()}%)")
     }
 }

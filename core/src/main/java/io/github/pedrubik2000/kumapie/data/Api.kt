@@ -146,6 +146,13 @@ class Api(private val base: String, private val person: String = "") : Backend {
         post("/api/tv/known_words", JSONObject().put("person", person).put("lang", lang).put("words", org.json.JSONArray(words)).toString())
     }
 
+    /** What this person's devices count as seen ({scene: episode}) and their "Mark as not watched" times ({episode:
+     *  epoch s}): the TV blurs and counts by them too. */
+    suspend fun deviceSeen(seen: Map<String, String>, unwatched: Map<String, Long>) {
+        post("/api/tv/device_seen", JSONObject().put("person", person).put("seen", JSONObject(seen))
+            .put("unwatched", JSONObject(unwatched)).toString())
+    }
+
     /** A line's German definition read aloud. */
     override fun definitionAudio(scene: String, line: Int, word: String): String =
         url("/api/tts?d=" + java.net.URLEncoder.encode("$scene|$line|$word", "UTF-8"))

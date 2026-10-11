@@ -33,11 +33,13 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Episode
+import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
+import androidx.compose.ui.draw.blur
 
 /** A show's poster and its episodes. Focus starts on the episode watched last (or the first one). */
 @Composable
-fun ShowScreen(api: Api, initial: Show, onEpisode: (Show, Episode) -> Unit) {
+fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Episode) -> Unit) {
     var show by remember { mutableStateOf(initial) }
     LaunchedEffect(initial.id) { // fresh progress after coming back from the player
         runCatching { api.shows() }.getOrNull()?.firstOrNull { it.id == initial.id }?.let { show = it }
@@ -56,7 +58,7 @@ fun ShowScreen(api: Api, initial: Show, onEpisode: (Show, Episode) -> Unit) {
         LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(20.dp),
             contentPadding = PaddingValues(horizontal = 40.dp, vertical = 16.dp)) { // room for the focused card's 10%
             itemsIndexed(episodes, key = { _, e -> e.id }) { i, ep ->
-                EpisodeCard(ep, onClick = { onEpisode(show, ep) },
+                EpisodeCard(ep, blur = settings.blurUnwatched && !ep.watched, onClick = { onEpisode(show, ep) },
                     modifier = if (i == start) Modifier.focusRequester(focus) else Modifier)
             }
         }
@@ -67,11 +69,13 @@ fun ShowScreen(api: Api, initial: Show, onEpisode: (Show, Episode) -> Unit) {
 }
 
 @Composable
-private fun EpisodeCard(ep: Episode, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun EpisodeCard(ep: Episode, blur: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(onClick = onClick, modifier = modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(model = ep.thumb, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.width(200.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)))
+                // No spoilers: an episode's picture stays blurred until it is watched (as on the phone).
+                modifier = Modifier.width(200.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
+                    .then(if (blur) Modifier.blur(16.dp) else Modifier))
             Column(Modifier.padding(start = 20.dp).weight(1f)) {
                 Text(ep.title, fontSize = 20.sp, color = Colors.text)
                 Text((if (ep.easy > 0) tr("%1\$d min · %2\$d scenes · %3\$d easy today", minutes(ep.duration), ep.scenes, ep.easy)

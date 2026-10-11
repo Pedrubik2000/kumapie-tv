@@ -78,6 +78,11 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                     Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")))
                 }
             }
+            Text(tr("No spoilers"), fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            var blur by remember { mutableStateOf(settings.blurUnwatched) }
+            Button(onClick = { blur = !blur; settings.blurUnwatched = blur }) {
+                Text(tr("Blur episodes I haven't watched: %s", if (blur) tr("on") else tr("off")))
+            }
             Text(tr("Updates"), fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = {

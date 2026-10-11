@@ -88,6 +88,8 @@ internal val esTv: Map<String, String> = mapOf(
     "Couldn't check: %s" to "No se pudo buscar: %s",
     "Check for updates" to "Buscar actualizaciones",
     "Version %s" to "Versión %s",
+    "No spoilers" to "Sin spoilers",
+    "Blur episodes I haven't watched: %s" to "Difuminar los episodios que no he visto: %s",
     "%1\$d / %2\$d scenes" to "%1\$d / %2\$d escenas",
     "Options" to "Opciones",
     "At the end of a scene: %s" to "Al final de una escena: %s",

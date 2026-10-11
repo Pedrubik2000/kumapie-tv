@@ -95,7 +95,7 @@ fun App(settings: Settings) {
                     onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
                     onProfiles = { profile = null })
                 Screen.Stats -> StatsScreen(api, onSettings = { stack.add(Screen.Settings) })
-                is Screen.ShowEpisodes -> ShowScreen(api, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
+                is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
                 is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,
                     onClose = { stack.removeAt(stack.lastIndex) })
                 Screen.Buttons -> ButtonsScreen(settings)

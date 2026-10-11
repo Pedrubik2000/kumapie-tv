@@ -111,6 +111,15 @@ class Progress private constructor(context: Context, private val settings: Setti
             others = o
             othersFile.writeText(o.toString())
             merged = merge()
+            // The PC (and so the TV) learns what counts as seen here: it blurs and counts episodes by it (item 14).
+            if (api != null) {
+                val sent = merged.seen.hashCode() * 31 + merged.unwatched.hashCode()
+                if (settings.prefs.getInt("device_seen_sent", 0) != sent) {
+                    runCatching { api.deviceSeen(merged.seen, merged.unwatched) }
+                        .onSuccess { settings.prefs.edit().putInt("device_seen_sent", sent).apply() }
+                        .onFailure { Log.w("kumapie", "device seen not sent: $it") }
+                }
+            }
         }.onFailure { Log.w("kumapie", "progress sync: $it") }
     }
 

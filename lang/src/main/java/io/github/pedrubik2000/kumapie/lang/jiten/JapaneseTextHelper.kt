@@ -60,3 +60,9 @@ object JapaneseTextHelper {
     /** ASCII/full-width digit, kanji digit 一〜九, place marker 十百千万億兆 or zero 〇零. */
     fun isNumeralChar(c: Char) = c in '0'..'9' || c in '０'..'９' || c in "一二三四五六七八九十百千万億兆〇零"
 }
+
+/** Jiten.Core/Utils/StringExtensions.cs IsAsciiOrFullWidthLetter: checks the first char only (throws on ""). */
+internal fun String.isAsciiOrFullWidthLetter(): Boolean {
+    val c = this[0]
+    return c in 'a'..'z' || c in 'A'..'Z' || c in 'ａ'..'ｚ' || c in 'Ａ'..'Ｚ'
+}

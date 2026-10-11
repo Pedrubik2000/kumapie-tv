@@ -7,6 +7,7 @@ import com.worksap.nlp.sudachi.Dictionary
 import com.worksap.nlp.sudachi.DictionaryFactory
 import com.worksap.nlp.sudachi.PathAnchor
 import com.worksap.nlp.sudachi.Tokenizer
+import com.worksap.nlp.sudachi.dictionary.Grammar
 import java.nio.file.Path
 
 /**
@@ -211,13 +212,36 @@ class MorphologicalAnalyser(
         if (hasNoJapaneseChars(text)) return words
         for (line in text.split('\n')) {
             if (line.isEmpty()) continue
-            for (sentence in tok.tokenizeSentences(mode, line))
+            var bar = trailingKanaProlongedMark(line)
+            // The fork adds the ー-less word to the lattice beside the normal paths: keep whichever path costs less
+            // (mode C costs; mode B splits drop them), so dictionary words with ー (やべー) still win.
+            if (bar >= 0 && pathCost(tok, line) < pathCost(tok, line.removeRange(bar, bar + 1))) bar = -1
+            val first = words.size
+            for (sentence in tok.tokenizeSentences(mode, if (bar < 0) line else line.removeRange(bar, bar + 1)))
                 for (m in sentence) words.add(WordInfo.fromSudachi(m, -1, -1))
+            if (bar >= 0) words.subList(first, words.size).lastOrNull { it.text.isNotBlank() }?.let { it.text += "ー" }
         }
         return words
     }
 
+    /** Best-path cost (to EOS) of each sentence, summed. Sudachi Java hides it: read by reflection (lang keeps Sudachi). */
+    private fun pathCost(tok: Tokenizer, line: String): Int {
+        val grammar = TokenizerGrammar.get(tok) as Grammar
+        var total = 0
+        for (sentence in tok.tokenizeSentences(Tokenizer.SplitMode.C, line)) {
+            val last = (MorphemePath.get(sentence) as List<*>).lastOrNull() ?: continue
+            total += NodeTotalCost.getInt(last) + grammar.getConnectCost(NodeRightId.getShort(last), grammar.eosParameter[0])
+        }
+        return total
+    }
+
     internal companion object {
+        private fun field(cls: String, name: String) = Class.forName("com.worksap.nlp.sudachi.$cls").getDeclaredField(name).apply { isAccessible = true }
+        private val TokenizerGrammar by lazy { field("JapaneseTokenizer", "grammar") }
+        private val MorphemePath by lazy { field("MorphemeList", "path") }
+        private val NodeTotalCost by lazy { field("LatticeNodeImpl", "totalCost") }
+        private val NodeRightId by lazy { field("LatticeNodeImpl", "rightId") }
+
         /** Hiragana (offset 0x3040) -> the vowel a following ー stands for; '\u0000' for anything else. */
         val KanaVowelMap: CharArray = CharArray(0x100).apply {
             for (c in "おこそとのほもよろをごぞどぼぽょ") this[c.code - 0x3040] = 'う'
@@ -274,6 +298,22 @@ class MorphologicalAnalyser(
         private fun hasNoJapaneseChars(text: String): Boolean = text.none { c ->
             c.code in 0x3040..0x309F || c.code in 0x30A0..0x30FF || c.code in 0x4E00..0x9FAF ||
                 c.code in 0xFF21..0xFF3A || c.code in 0xFF41..0xFF5A
+        }
+
+        /**
+         * Jiten's private sudachi.rs fork has a TrailingKanaProlongedPlugin (its sudachi_lib exports it; the source isn't
+         * public). Jiten.Tests: "Trailing ー after hiragana/kanji: lattice-level lookup finds the word without ー,
+         * original surface preserved" (わかるー, すごいー, 休憩ー come out whole). Here the line's trailing ー after
+         * hiragana or kanji is left out of Sudachi's input and put back on the last token's surface. (An input text
+         * plugin can't drop it in Sudachi Java: tokenizeSentences then reads the dropped ー as a sentence of its own.)
+         * Returns that ー's index, or -1.
+         */
+        internal fun trailingKanaProlongedMark(line: String): Int {
+            var end = line.length
+            while (end > 0 && line[end - 1].isWhitespace()) end--
+            if (end < 2 || line[end - 1] != 'ー') return -1
+            val prev = line[end - 2]
+            return if (prev in 'ぁ'..'ゖ' || prev in '一'..'龯' || prev == '々') end - 1 else -1
         }
 
         /** Returns the same instance when nothing is removed. */

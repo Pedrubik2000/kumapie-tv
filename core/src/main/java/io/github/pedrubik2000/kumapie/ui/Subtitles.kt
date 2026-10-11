@@ -226,6 +226,7 @@ private fun colored(cue: Cue, words: Map<String, Word>, dim: Boolean, selected: 
             val color = when (seg.word?.let { words[it]?.shownFor(seg.text) ?: "u" }) {
                 "u", "l" -> if (dim) Colors.unknown.copy(alpha = 0.7f) else Colors.unknown
                 "d" -> if (dim) Colors.due.copy(alpha = 0.7f) else Colors.due
+                "b" -> if (dim) Colors.mined.copy(alpha = 0.7f) else Colors.mined
                 else -> base
             }
             val style = if (i == selected) SpanStyle(color = Color.Black, background = color) else SpanStyle(color = color)

@@ -143,6 +143,7 @@ private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: 
         val color = when (seg.word?.let { words[it]?.shown ?: "u" }) {
             "u", "l" -> Colors.unknown
             "d" -> Colors.due
+            "b" -> Colors.mined
             else -> Colors.text
         }
         withStyle(if (i == selected) SpanStyle(color = Color.Black, background = color) else SpanStyle(color = color)) {
@@ -167,7 +168,8 @@ private fun statusLine(w: Word) = when {
     w.marked -> tr("marked known") to Colors.dim
     w.card == "d" -> tr("due in Anki") to Colors.due
     w.card == "k" -> tr("studied in Anki, not due") to Colors.dim
-    w.card == "n" -> tr("new in Anki") to Colors.unknown
+    w.card == "b" -> tr("new in Anki") to Colors.mined
+    w.card == "n" -> tr("learning in Anki") to Colors.unknown
     w.card == "u" -> tr("no card of its own") to Colors.unknown
     w.status == "k" -> (w.stability?.let { tr("known · %s", days(it)) } ?: tr("known")) to Colors.dim
     w.status == "l" -> tr("new in Anki") to Colors.unknown

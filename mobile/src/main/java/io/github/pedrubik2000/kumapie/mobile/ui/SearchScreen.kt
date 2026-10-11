@@ -89,7 +89,7 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 tokens.forEach { t ->
                     val color = if (!t.isWord) Colors.dim else when (ja.known.shown(t.base)) {
-                        "k" -> Colors.text; "d" -> Colors.due; else -> Colors.unknown
+                        "k" -> Colors.text; "d" -> Colors.due; "b" -> Colors.mined; else -> Colors.unknown
                     }
                     Text(t.surface, fontSize = 24.sp, color = color, modifier = Modifier
                         .background(if (t == picked) Colors.surface else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(4.dp))

@@ -14,14 +14,15 @@ class CardIndexTest {
         assertEquals("wenn's", CardIndex.form("Wenn&#39;s[→ wenn]")) // mined words are HTML-escaped
         val index = CardIndex()
         index.build(
-            listOf(note(1, "gehen[geht, ging, ist gegangen]"), note(2, "Tante"), note(3, "schlägt[→ schlagen]"), note(4, "")),
-            listOf(card(10, 1, 2), card(20, 2, 2), card(21, 2, 2, ord = 1), card(30, 3, 1), card(40, 4, 2)),
-            due = mapOf(20L to "review", 30L to "learn"),
+            listOf(note(1, "gehen[geht, ging, ist gegangen]"), note(2, "Tante"), note(3, "schlägt[→ schlagen]"), note(4, ""), note(5, "Hausnummer")),
+            listOf(card(10, 1, 2), card(20, 2, 2), card(21, 2, 2, ord = 1), card(30, 3, 1), card(40, 4, 2), card(50, 5, 0)),
+            due = mapOf(20L to "review", 30L to "learn", 50L to "new"),
         )
         assertEquals("k", index.state("gehen")) // studied, not due
         assertEquals("u", index.state("gehst")) // the exact form only: gehen's card doesn't count
         assertEquals("d", index.state("Tante")) // one of its cards is due
         assertEquals("n", index.state("schlägt")) // learning, even though it's in today's queue
+        assertEquals("b", index.state("Hausnummer")) // mined, never reviewed: blue
         assertEquals(listOf(20L), index.toAnswer("tante").map { it.id }) // only the due one
         assertEquals(listOf(10L), index.toAnswer("gehen").map { it.id }) // none due: the first (early review)
         index.update(emptyList(), null)
@@ -49,7 +50,7 @@ class CardIndexTest {
         index.build(listOf(AnkiCards.Note(1, mapOf("Word" to "上手[じょうず]"), emptySet()), AnkiCards.Note(2, mapOf("Word" to "上手[うわて]"), emptySet())),
             listOf(card(10, 1, 2), card(20, 2, 0)), due = mapOf(10L to "review"), keys = CardIndex::japaneseKeys)
         assertEquals("d", index.state("上手\tじょうず"))
-        assertEquals("n", index.state("上手\tうわて")) // another word: same spelling, other reading
+        assertEquals("b", index.state("上手\tうわて")) // another word: same spelling, other reading (a new card)
         assertEquals(listOf(20L), index.toAnswer("上手\tうわて").map { it.id })
         assertEquals("d", index.state("上手")) // the subtitle colour: any reading
         assertEquals("u", index.state(CardIndex.japaneseKey("上手い", "うまい")))

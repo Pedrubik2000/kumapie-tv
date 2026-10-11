@@ -74,7 +74,7 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
         val state = remember(tick, f.key) { known.cardIndex.state(f.key) }
         if (state != null && (state != "u" || f.make != null)) Column(Modifier.padding(top = 6.dp)) {
             f.label?.let {
-                Text(it, fontSize = 15.sp, color = when (state) { "d" -> Colors.due; "k" -> Colors.text; else -> Colors.unknown })
+                Text(it, fontSize = 15.sp, color = when (state) { "d" -> Colors.due; "k" -> Colors.text; "b" -> Colors.mined; else -> Colors.unknown })
             }
             val (r, answered) = ratings[f.key] ?: (null to "")
             if (r == null) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

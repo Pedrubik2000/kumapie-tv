@@ -322,7 +322,7 @@ data class Word(
     val marked: Boolean = false,
     /**
      * The word's own Anki card, when the phone knows it (kumapie_anki_review_plan.md): "d" due by kuma3's queue
-     * (green), "k" studied and not due (white), "n" new or still learning (red), "u" no card of its own (red).
+     * (green), "k" studied and not due (white), "b" mined, never reviewed (blue), "n" still learning (red), "u" no card of its own (red).
      * The subtitles and the word card colour by it; scene levels still go by [status].
      */
     val card: String? = null,
@@ -349,7 +349,7 @@ fun levelOf(scene: Scene, words: Map<String, Word>): Int? = if (!scene.target) n
 
 /** The different red words of [cues] ([levelOf]'s count; "Cards that don't stick" orders sentences by it). */
 fun unknownIn(cues: List<Cue>, words: Map<String, Word>): Int = cues.flatMap { it.segments }
-    .mapNotNull { seg -> seg.word?.let { k -> words[k]?.takeIf { it.shownFor(seg.text) == "u" }?.let { w -> if (w.forms != null) seg.text else k } } }
+    .mapNotNull { seg -> seg.word?.let { k -> words[k]?.takeIf { it.shownFor(seg.text).let { s -> s == "u" || s == "b" } }?.let { w -> if (w.forms != null) seg.text else k } } }
     .toSet().size
 
 fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }

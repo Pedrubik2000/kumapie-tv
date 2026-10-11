@@ -17,6 +17,7 @@ internal val esCore: Map<String, String> = mapOf(
     "due in Anki" to "toca repasarla en Anki",
     "studied in Anki, not due" to "estudiada en Anki, no toca hoy",
     "new in Anki" to "nueva en Anki",
+    "learning in Anki" to "aprendiendo en Anki",
     "no card of its own" to "sin tarjeta propia",
     "Again" to "Otra vez",
     "Hard" to "Difícil",

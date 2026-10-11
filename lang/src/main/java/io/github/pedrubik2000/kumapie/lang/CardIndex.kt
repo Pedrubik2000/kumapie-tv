@@ -28,7 +28,8 @@ class CardIndex {
 
     /**
      * [io.github.pedrubik2000.kumapie.data.Word.card] of a form: "d" an own card is due for review today, "k" studied
-     * and not due, "n" new or still learning, "u" no card of its own; null when kuma3's queue isn't known.
+     * and not due, "b" mined and never reviewed (blue, user 2026-10-11), "n" still learning, "u" no card of its own;
+     * null when kuma3's queue isn't known.
      */
     fun state(form: String): String? {
         val due = due ?: return null
@@ -36,6 +37,7 @@ class CardIndex {
         return when {
             own.any { due[it.id] == "review" } -> "d"
             own.any { it.type == 2 } -> "k"
+            own.all { it.type == 0 } -> "b"
             else -> "n"
         }
     }

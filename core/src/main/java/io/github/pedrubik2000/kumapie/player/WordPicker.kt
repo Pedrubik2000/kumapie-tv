@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 
 /**
  * The word picker: a cursor on the words of the paused scene. It lands only on words that are red (never
- * studied) or orange (learning), unless the scene has none; then on every word. Moving is silent and shows
+ * studied), unless the scene has none; then on every word. Moving is silent and shows
  * nothing but the highlight; the card opens only on request:
  *
  * OK opens the selected word's card, plays the word and counts a lookup. While the card is open, OK plays
@@ -55,14 +55,14 @@ class WordPicker(
     /** The word picked inside the definition (only while [inDef]). */
     val selectedInDef: Segment? get() = if (inDef) definition?.target?.getOrNull(defSeg) else null
 
-    /** Pauses and puts the cursor on the first red word of the line being said (else orange, else any). */
+    /** Pauses and puts the cursor on the first red word of the line being said (else any). */
     fun open(): Boolean {
         val spots = spots()
         if (spots.isEmpty()) return false
         ctl.pause()
         val cueIndex = ctl.scene.cues.indexOf(ctl.currentCue()).coerceAtLeast(0)
         val inLine = spots.filter { it.line == cueIndex }
-        val start = inLine.firstOrNull { status(it) == "u" } ?: inLine.firstOrNull { status(it) == "l" }
+        val start = inLine.firstOrNull { status(it) == "u" }
             ?: spots.firstOrNull { it.line >= cueIndex } ?: spots.first()
         isOpen = true
         land(start)

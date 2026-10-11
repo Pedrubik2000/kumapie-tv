@@ -61,8 +61,8 @@ internal val esOther: Map<String, String> = mapOf(
     "just now" to "justo ahora",
     "%d min ago" to "hace %d min",
     "%d h ago" to "hace %d h",
-    "%1\$d known, %2\$d learning, %3\$d new (%4\$d notes, read %5\$s)." to
-        "%1\$d conocidas, %2\$d aprendiendo, %3\$d nuevas (%4\$d notas, leído %5\$s).",
+    "%1\$d known, %2\$d new (%3\$d notes, read %4\$s)." to
+        "%1\$d conocidas, %2\$d nuevas (%3\$d notas, leído %4\$s).",
     // Recalc
     "%1\$d new cards at i+1, %2\$d at i+2 or more, %3\$d at i+0 (of %4\$d new). %5\$d of %6\$d monolingual definitions unlocked. " to
         "%1\$d tarjetas nuevas en i+1, %2\$d en i+2 o más, %3\$d en i+0 (de %4\$d nuevas). %5\$d de %6\$d definiciones monolingües desbloqueadas. ",

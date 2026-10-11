@@ -74,7 +74,8 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
         val started = System.currentTimeMillis()
         headwords = runCatching { ja.lookup(Tap(text.trim(), t.begin)) }.getOrElse { said = it.message ?: it.toString(); emptyList() }
         said = tr("%1\$d words · %2\$d ms", headwords?.size ?: 0, System.currentTimeMillis() - started)
-        forms = runCatching { ja.forms(text.trim(), t.begin) }.getOrDefault(emptyList())
+        forms = runCatching { ja.forms(text.trim(), t.begin) }
+            .onFailure { android.util.Log.w("kumapie", "search forms: $it") }.getOrDefault(emptyList())
     }
 
     Scaffold(topBar = {
@@ -87,8 +88,9 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth())
             FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 tokens.forEach { t ->
-                    val status = if (t.isWord) ja.known.status(t.base) else "k"
-                    val color = when { !t.isWord -> Colors.dim; status == "k" -> Colors.text; status == "l" -> Colors.accent; else -> Colors.unknown }
+                    val color = if (!t.isWord) Colors.dim else when (ja.known.shown(t.base)) {
+                        "k" -> Colors.text; "d" -> Colors.due; else -> Colors.unknown
+                    }
                     Text(t.surface, fontSize = 24.sp, color = color, modifier = Modifier
                         .background(if (t == picked) Colors.surface else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(4.dp))
                         .clickable(enabled = t.isWord) { picked = t }.padding(horizontal = 2.dp))

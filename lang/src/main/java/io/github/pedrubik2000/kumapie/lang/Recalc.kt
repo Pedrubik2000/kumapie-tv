@@ -45,8 +45,7 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
         for (card in newCards) {
             val morphs = keys[card.noteId]!!
             val unknowns = morphs.filter { known.statusByCard(it) == null }
-            val learning = morphs.any { known.statusByCard(it) == "l" }
-            val tag = statusTag(unknowns.size, learning, card.noteId in manual)
+            val tag = statusTag(unknowns.size, card.noteId in manual)
             wantTag[card.noteId] = tag
             tag?.let { levels[it] = (levels[it] ?: 0) + 1 }
             val due = score(unknowns, morphs.size, rank)
@@ -128,9 +127,9 @@ class Recalc(private val known: KnownWords, private val anki: AnkiCards = AnkiCa
         }
 
         /** The one status tag a new card's note should have (AnkiMorphs' rules). */
-        fun statusTag(unknowns: Int, learning: Boolean, manual: Boolean): String? = when {
+        fun statusTag(unknowns: Int, manual: Boolean): String? = when {
             manual -> null
-            unknowns == 0 -> if (learning) null else KNOWN
+            unknowns == 0 -> KNOWN
             unknowns == 1 -> READY
             else -> NOT_READY
         }

@@ -50,7 +50,7 @@ private const val ENGLISH_SCALE = 0.72f
  * While playing: the line being said. Paused: every line of the scene (the current one bright), then the
  * English as one block. The largest size that fits is used: a third of the screen while playing, two thirds
  * while paused (the video is stopped then), the smallest size if nothing fits.
- * Unknown words red, learning words orange.
+ * Unknown words red, due words green.
  *
  * With the word picker open: every line of the scene, German readable (whatever the subtitle mode), the
  * picker's line bright and its word highlighted; [onAnchor] gets that word's place on screen.
@@ -216,8 +216,7 @@ private fun colored(cue: Cue, words: Map<String, Word>, dim: Boolean, selected: 
         val base = if (dim) Colors.dim else Colors.text
         cue.segments.forEachIndexed { i, seg ->
             val color = when (seg.word?.let { words[it]?.shownFor(seg.text) ?: "u" }) {
-                "u" -> if (dim) Colors.unknown.copy(alpha = 0.7f) else Colors.unknown
-                "l" -> if (dim) Colors.learning.copy(alpha = 0.7f) else Colors.learning
+                "u", "l" -> if (dim) Colors.unknown.copy(alpha = 0.7f) else Colors.unknown
                 "d" -> if (dim) Colors.due.copy(alpha = 0.7f) else Colors.due
                 else -> base
             }

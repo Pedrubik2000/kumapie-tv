@@ -12,7 +12,6 @@ internal val esCore: Map<String, String> = mapOf(
     "marked known" to "marcada como conocida",
     "known" to "conocida",
     "known · %s" to "conocida · %s",
-    "learning · %s" to "aprendiendo · %s",
     "in Anki" to "en Anki",
     "never studied" to "nunca estudiada",
     "due in Anki" to "toca repasarla en Anki",

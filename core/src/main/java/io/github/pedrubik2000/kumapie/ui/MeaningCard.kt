@@ -137,12 +137,11 @@ private fun segmentAt(l: TextLayoutResult, p: Offset, def: LineDef): Int? {
     return null
 }
 
-/** The German definition, its words coloured like the subtitles (red new, orange learning), [selected] highlighted. */
+/** The German definition, its words coloured like the subtitles (red new, green due), [selected] highlighted. */
 private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: Int): AnnotatedString = buildAnnotatedString {
     def.target.forEachIndexed { i, seg ->
         val color = when (seg.word?.let { words[it]?.shown ?: "u" }) {
-            "u" -> Colors.unknown
-            "l" -> Colors.learning
+            "u", "l" -> Colors.unknown
             "d" -> Colors.due
             else -> Colors.text
         }
@@ -168,7 +167,7 @@ private fun statusLine(w: Word) = when {
     w.card == "n" -> tr("new in Anki") to Colors.unknown
     w.card == "u" -> tr("no card of its own") to Colors.unknown
     w.status == "k" -> (w.stability?.let { tr("known · %s", days(it)) } ?: tr("known")) to Colors.dim
-    w.status == "l" -> tr("learning · %s", w.stability?.let(::days) ?: tr("in Anki")) to Colors.learning
+    w.status == "l" -> tr("new in Anki") to Colors.unknown
     else -> tr("never studied") to Colors.unknown
 }
 

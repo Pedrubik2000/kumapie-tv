@@ -23,7 +23,7 @@ import java.io.File
  *   notes' by Sudachi ([JapaneseModel]), keyed by dictionary form;
  * - a word is **known** (white) when one of its reviewed cards has FSRS stability >= the threshold (Settings,
  *   7 days by default), its note is tagged known-manually, or it was marked known in the app;
- *   **learning** (orange) when it is only on reviewed cards below that; else **unknown** (red).
+ *   else **unknown** (red; no orange "learning", user 2026-10-11).
  * The result is saved, so the app colours words offline and at once on start; [refresh] reads Anki again.
  */
 class KnownWords(val context: Context, private val settings: Settings, private val language: Language) {
@@ -77,13 +77,12 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     fun permission(pkg: String) = anki.permission(pkg)
     fun hasPermission(pkg: String) = anki.hasPermission(pkg)
 
-    /** "k" known, "l" learning, null unknown - or null for everything when Anki was never read. */
+    /** "k" known, null unknown - or null for everything when Anki was never read. */
     fun status(inflection: String): String? {
         if (inflection in marked) return "k"
         val f = snapshot?.words?.get(inflection) ?: return null
         return when {
             f.manual || (f.best != null && f.best >= threshold) -> "k"
-            f.reviewed -> "l"
             else -> null
         }
     }
@@ -98,6 +97,13 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         null -> status(word)
         "k", "d" -> "k"
         else -> null
+    }
+
+    /** The colour to draw [word] in, as the player does ([io.github.pedrubik2000.kumapie.data.Word.shown]): "k" white, "d" green, "u" red. */
+    fun shown(word: String): String = if (word in marked) "k" else when (val c = cardIndex.state(word)) {
+        null -> status(word) ?: "u"
+        "n" -> "u"
+        else -> c
     }
 
     /** This language's word cards by form and kuma3's queue today: [EpisodeDetail] words' [io.github.pedrubik2000.kumapie.data.Word.card]. */
@@ -339,16 +345,15 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     private fun describe(): String {
         val snap = snapshot ?: return if (lang == Lang.GERMAN) tr("Colours come from the PC until Anki is read here.") else tr("Anki not read yet.")
         var known = 0
-        var learning = 0
-        for (w in snap.words.keys) when (status(w)) { "k" -> known++; "l" -> learning++ }
+        for (w in snap.words.keys) if (status(w) == "k") known++
         val ago = (System.currentTimeMillis() - snap.time) / 60_000
         val whenText = when {
             ago < 1 -> tr("just now")
             ago < 120 -> tr("%d min ago", ago)
             else -> tr("%d h ago", ago / 60)
         }
-        return tr("%1\$d known, %2\$d learning, %3\$d new (%4\$d notes, read %5\$s).", known, learning,
-            snap.words.size - known - learning, snap.notes, whenText)
+        return tr("%1\$d known, %2\$d new (%3\$d notes, read %4\$s).", known,
+            snap.words.size - known, snap.notes, whenText)
     }
 
     companion object {

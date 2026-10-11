@@ -28,9 +28,11 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             // The dictionary form first (教えて -> 教える, not the noun 教え); then the word as written.
             // Sudachi's reading of the written word picks among same spellings (行く いく / ゆく).
             val surfaceReading = hiragana(tok.reading)
-            val base = dicts.query(ja, tok.base)
+            val bySudachi = { t: YomitanDictionaries.Term -> if (readingOf(t).let { r -> r.isEmpty() || r == surfaceReading }) 0 else 1 }
+            // A word as written in its dictionary form: Sudachi's reading first here too (先生 せんせい, not Pixiv's あにめせんせい).
+            val base = dicts.query(ja, tok.base).let { if (tok.surface == tok.base) it.sortedBy(bySudachi) else it }
             val asWritten = if (tok.surface != tok.base) dicts.query(ja, tok.surface) else emptyList()
-            found += base + asWritten.sortedBy { if (readingOf(it).let { r -> r.isEmpty() || r == surfaceReading }) 0 else 1 }
+            found += base + asWritten.sortedBy(bySudachi)
         }
         // The scan's longer phrases (本当に, 本当にありがとう) and other spellings; not pieces shorter than the word (本).
         found += scanned.filter { (matched, _) -> tok == null || matched.length >= tok.surface.length }.map { it.second }

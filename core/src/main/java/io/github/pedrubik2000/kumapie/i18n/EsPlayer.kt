@@ -49,6 +49,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Add" to "Añadir",
     "Not in your Japanese dictionaries: a sentence card is still possible." to
         "No está en tus diccionarios de japonés: aún puedes hacer una tarjeta de frase.",
+    "Not in your dictionaries: the card gets no meaning." to "No está en tus diccionarios: la tarjeta no lleva significado.",
     "Monolingual definition" to "Definición monolingüe",
     "None" to "Ninguna",
     "The line, its audio, a screenshot and the %s." to "La línea, su audio, una captura y el %s.",

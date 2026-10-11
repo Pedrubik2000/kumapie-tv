@@ -156,6 +156,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
 
     var wordCard by remember { mutableStateOf(segment?.word != null) }
     var choices by remember { mutableStateOf<List<Choice>>(emptyList()) }
+    var looked by remember { mutableStateOf(false) }
     var chosen by remember { mutableIntStateOf(0) }
     var monos by remember { mutableStateOf<List<Choice>>(emptyList()) }
     var monoChosen by remember { mutableIntStateOf(0) }
@@ -170,6 +171,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
         monos = c.monos
         chosen = c.chosen
         choices = c.choices
+        looked = true
     }
 
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
@@ -182,7 +184,9 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
                 label = { Text(tr("Word card: %s", segment.text)) })
         }
         if (wordCard) {
-            if (choices.isEmpty()) Text(tr("Looking up meanings…"), color = Colors.dim, fontSize = 14.sp)
+            // No dictionary has it (a new phone has none yet): the word card is made without a meaning.
+            if (!looked) Text(tr("Looking up meanings…"), color = Colors.dim, fontSize = 14.sp)
+            else if (choices.isEmpty()) Text(tr("Not in your dictionaries: the card gets no meaning."), color = Colors.dim, fontSize = 14.sp)
             choices.forEachIndexed { i, c ->
                 Row(Modifier.fillMaxWidth().clickable { chosen = i }, verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = chosen == i, onClick = { chosen = i })
@@ -210,11 +214,11 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             library.miner.mine(Miner.Request(episode, scene, line, Miner.Word(segment.text, key, lemma, pick?.gloss.orEmpty(), pick?.example, def,
                 mono = monos.getOrNull(monoChosen)?.gloss)), p)
         }), ratings, queueScope, queueBusy) { repaintWords(ctl, known) }
-        Button(enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
+        Button(enabled = !busy && !done && (!wordCard || looked), onClick = {
             busy = true
             val pick = choices.getOrNull(chosen)
-            val request = Miner.Request(episode, scene, line, if (wordCard && segment != null && pick != null) {
-                Miner.Word(segment.text, key, lemma, pick.gloss, pick.example, def, mono = monos.getOrNull(monoChosen)?.gloss)
+            val request = Miner.Request(episode, scene, line, if (wordCard && segment != null) {
+                Miner.Word(segment.text, key, lemma, pick?.gloss.orEmpty(), pick?.example, def, mono = monos.getOrNull(monoChosen)?.gloss)
             } else null)
             scope.launch {
                 runCatching { library.miner.mine(request) { status = it } }

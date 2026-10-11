@@ -194,6 +194,13 @@ class AnkiCards(private val context: Context) {
             put("question_format", t.getString("qfmt"))
             put("answer_format", t.getString("afmt"))
         }, null, null)
+        // The fonts its CSS loads (`assets/notetypes/media/`), else the card shows "Failed to load '_inter.woff2'".
+        context.assets.list("notetypes/media").orEmpty().filter { it.endsWith(".woff2") }.forEach { name ->
+            runCatching {
+                val tmp = File(File(context.cacheDir, "mining").apply { mkdirs() }, name).apply { outputStream().use { o -> context.assets.open("notetypes/media/$name").use { it.copyTo(o) } } }
+                addMedia(pkg, tmp, name).also { tmp.delete() }
+            }.onFailure { android.util.Log.w("kumapie", "note type font $name: $it") }
+        }
         return mid to fields
     }
 

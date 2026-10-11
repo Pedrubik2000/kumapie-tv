@@ -81,7 +81,7 @@ fun MeaningCard(
             picker.selectedInDef?.word?.let { inner ->
                 val w = ctl.words[inner] ?: Word("u", "")
                 val (s, c) = statusLine(w)
-                Text("${picker.selectedInDef?.text}: " + (w.meaning.substringAfter(" = ").ifBlank { tr("no meaning yet") }) + "  ·  $s",
+                Text("${picker.selectedInDef?.text}: " + (noEquals(w.meaning.substringAfter(" = ")).ifBlank { tr("no meaning yet") }) + "  ·  $s",
                     color = c, fontSize = 16.sp, modifier = Modifier.padding(top = 6.dp))
             }
             footer?.invoke()
@@ -102,9 +102,9 @@ private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: S
     }
     if (germanKnown) {
         Text(german, fontSize = 20.sp, onTextLayout = { layout = it }, modifier = Modifier.padding(top = 4.dp).then(tappable))
-        Text(def.english, color = Colors.dim, fontSize = 17.sp)
+        Text(noEquals(def.english), color = Colors.dim, fontSize = 17.sp)
     } else {
-        Text(def.english, color = Colors.text, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(noEquals(def.english), color = Colors.text, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
         Text(german, fontSize = 17.sp, onTextLayout = { layout = it }, modifier = tappable)
     }
     if (def.grammar.isNotBlank()) Text(def.grammar, color = Colors.dim, fontSize = 15.sp, modifier = Modifier.padding(top = 2.dp))
@@ -152,13 +152,16 @@ private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: 
 }
 
 /**
- * "echt = really" under a highlighted "echt" says the word twice: show "really". The "word =" part stays when
- * it differs from the selected word (a split verb: "sehen aus = to look" while "sehen" is selected).
+ * "echt = really" under a highlighted "echt" says the word twice: show "really". The "word" part stays when
+ * it differs from the selected word (a split verb: "sehen aus: to look" while "sehen" is selected).
+ * No "=" on screen (user, 2026-10-11): the stored "word = gloss" shows as "word: gloss".
  */
 private fun withoutSameWord(meaning: String, selected: String): String {
     val head = meaning.substringBefore(" = ", missingDelimiterValue = "")
-    return if (head.isNotEmpty() && head.equals(selected, ignoreCase = true)) meaning.substringAfter(" = ") else meaning
+    return if (head.isNotEmpty() && head.equals(selected, ignoreCase = true)) noEquals(meaning.substringAfter(" = ")) else noEquals(meaning)
 }
+
+private fun noEquals(text: String) = text.replace(" = ", ": ")
 
 private fun statusLine(w: Word) = when {
     w.marked -> tr("marked known") to Colors.dim

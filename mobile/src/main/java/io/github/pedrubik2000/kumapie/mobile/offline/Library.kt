@@ -100,7 +100,9 @@ class Library(context: Context, val settings: Settings) {
         val pcOwn = pc.map { s -> s.copy(episodes = s.episodes.filterNot { LocalEpisodes.isLocal(it.id) }) }.filter { it.episodes.isNotEmpty() }
         val m = progress.merged
         return (mine + pcOwn).map { s ->
-            s.copy(episodes = s.episodes.map { e -> e.copy(resume = m.pos[e.id] ?: e.resume, seen = maxOf(e.seen, m.seenIn(e.id))) })
+            // A "not watched" mark: the PC's own count is from before it, only the merged scenes count.
+            s.copy(episodes = s.episodes.map { e -> e.copy(resume = m.pos[e.id] ?: e.resume,
+                seen = if (e.id in m.unwatched) m.seenIn(e.id) else maxOf(e.seen, m.seenIn(e.id))) })
         } to offline
     }
 
@@ -134,8 +136,9 @@ class Library(context: Context, val settings: Settings) {
 
     /** Scenes watched to the end on any device. */
     private fun withSeen(d: EpisodeDetail): EpisodeDetail {
-        val seen = progress.merged.seen
-        return d.copy(scenes = d.scenes.map { if (it.seen || it.id !in seen) it else it.copy(seen = true) })
+        val m = progress.merged
+        if (d.id in m.unwatched) return d.copy(scenes = d.scenes.map { it.copy(seen = it.id in m.seen) })
+        return d.copy(scenes = d.scenes.map { if (it.seen || it.id !in m.seen) it else it.copy(seen = true) })
     }
 
     /**
@@ -176,6 +179,13 @@ class Library(context: Context, val settings: Settings) {
     suspend fun markWatched(id: String) {
         val detail = episodeCache[id] ?: episode(id)
         progress.record(id, null, detail.scenes.map { it.id }, 0.0)
+        syncLater()
+    }
+
+    /** Undoes [markWatched] or a real watch: no scene of it counts as seen any more, and it starts from the beginning. */
+    suspend fun markUnwatched(id: String) {
+        progress.unwatch(id)
+        pending.add(Pending.progress(id, 0.0, emptyList(), 0.0)) // the TV starts it from the beginning too
         syncLater()
     }
 

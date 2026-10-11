@@ -44,6 +44,8 @@ class Progress private constructor(context: Context, private val settings: Setti
         val lookups: Map<String, Int>,
         val marked: Set<String>,
         val gloss: Map<String, String>,
+        /** Episode -> when it was marked not watched (seconds): scenes seen before that don't count. */
+        val unwatched: Map<String, Long> = emptyMap(),
     ) {
         fun seenIn(episode: String) = seen.count { it.value == episode }
     }
@@ -64,6 +66,16 @@ class Progress private constructor(context: Context, private val settings: Setti
     fun lookup(word: String): Int {
         change { it.getJSONObject("lookups").let { l -> l.put(word, l.optInt(word) + 1) } }
         return merged.lookups[word] ?: 1
+    }
+
+    /**
+     * "Mark as not watched": the episode's scenes seen until now stop counting on every device (they keep their own
+     * notes, so this is a time, not a deletion) and it starts from the beginning. Seeing a scene again counts again.
+     */
+    fun unwatch(episode: String) = change {
+        val now = now()
+        (it.optJSONObject("unwatched") ?: JSONObject().also { u -> it.put("unwatched", u) }).put(episode, now)
+        it.getJSONObject("pos").put(episode, JSONArray().put(0.0).put(now))
     }
 
     fun mark(word: String, known: Boolean) = change { it.getJSONObject("marked").put(word, JSONArray().put(known).put(now())) }
@@ -120,6 +132,8 @@ class Progress private constructor(context: Context, private val settings: Setti
         val parts = listOf(data) + others.keys().asSequence().mapNotNull { others.optJSONObject(it) }.toList()
         val pos = HashMap<String, Pair<Double, Long>>()
         val seen = HashMap<String, String>()
+        val seenLast = HashMap<String, Long>() // scene -> latest time seen, on any device
+        val unwatched = HashMap<String, Long>()
         val watch = HashMap<String, Double>()
         val lookups = HashMap<String, Int>()
         val marked = HashMap<String, Pair<Boolean, Long>>()
@@ -131,7 +145,14 @@ class Progress private constructor(context: Context, private val settings: Setti
                     if ((pos[k]?.second ?: -1) <= a.optLong(1)) pos[k] = a.getDouble(0) to a.optLong(1)
                 }
             }
-            p.optJSONObject("seen")?.let { o -> for (k in o.keys()) seen[k] = o.getJSONArray(k).getString(0) }
+            p.optJSONObject("seen")?.let { o ->
+                for (k in o.keys()) {
+                    val a = o.getJSONArray(k)
+                    seen[k] = a.getString(0)
+                    seenLast[k] = maxOf(seenLast[k] ?: 0, a.optLong(2))
+                }
+            }
+            p.optJSONObject("unwatched")?.let { o -> for (k in o.keys()) unwatched[k] = maxOf(unwatched[k] ?: 0, o.getLong(k)) }
             p.optJSONObject("watch")?.let { o -> for (k in o.keys()) watch[k] = (watch[k] ?: 0.0) + o.getDouble(k) }
             p.optJSONObject("lookups")?.let { o -> for (k in o.keys()) lookups[k] = (lookups[k] ?: 0) + o.getInt(k) }
             p.optJSONObject("marked")?.let { o ->
@@ -142,7 +163,7 @@ class Progress private constructor(context: Context, private val settings: Setti
             }
             p.optJSONObject("gloss")?.let { o -> for (k in o.keys()) gloss[k] = o.getString(k) }
         }
-        return View(pos.mapValues { it.value.first }, seen, watch, lookups, marked.filterValues { it.first }.keys, gloss)
+        return View(pos.mapValues { it.value.first }, stillSeen(seen, seenLast, unwatched), watch, lookups, marked.filterValues { it.first }.keys, gloss, unwatched)
     }
 
     companion object {
@@ -160,6 +181,10 @@ class Progress private constructor(context: Context, private val settings: Setti
             .put("lookups", JSONObject()).put("marked", JSONObject())
 
         private fun now() = System.currentTimeMillis() / 1000
+
+        /** Scenes (-> episode) that still count: seen on some device after their episode's last "not watched" mark. */
+        fun stillSeen(seen: Map<String, String>, seenLast: Map<String, Long>, unwatched: Map<String, Long>): Map<String, String> =
+            seen.filter { (scene, ep) -> (seenLast[scene] ?: 0) > (unwatched[ep] ?: -1) }
 
         /** The study day (it starts at 4 am, like the PC's and Anki's). */
         fun studyDay(): String = LocalDateTime.now().minusHours(4).toLocalDate().toString()

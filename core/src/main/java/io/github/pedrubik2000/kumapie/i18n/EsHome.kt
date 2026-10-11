@@ -68,6 +68,7 @@ internal val esHome: Map<String, String> = mapOf(
     "Shuffle" to "Mezclar",
     // Feed
     "Mark as watched" to "Marcar como visto",
+    "Mark as not watched" to "Marcar como no visto",
     "Blur pictures of episodes I haven't watched (no spoilers)" to "Difuminar las imágenes de episodios que no he visto (sin spoilers)",
     "No scenes yet: the feed only shows scenes you've already watched, so nothing is spoiled." to "Aún no hay escenas: el feed solo muestra escenas que ya viste, para no arruinarte nada.",
     "Feed levels" to "Niveles del feed",

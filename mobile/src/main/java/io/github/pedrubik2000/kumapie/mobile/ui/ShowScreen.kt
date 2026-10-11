@@ -97,7 +97,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
         states[ep.id] == DownloadState.Done
     // Play: the episode left partway, else the first not watched to the end, else the first.
     val next = show.episodes.filter(::playable).let { eps ->
-        eps.firstOrNull { e -> (e.resume ?: 0.0).let { it > 20 && it < e.duration * 0.95 } }
+        eps.firstOrNull { e -> !e.watched && (e.resume ?: 0.0).let { it > 20 && it < e.duration * 0.95 } }
             ?: eps.firstOrNull { it.seen < it.scenes } ?: eps.firstOrNull()
     }
     val header = @Composable { modifier: Modifier ->
@@ -107,9 +107,9 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
         EpisodeRow(library, ep, states[ep.id] ?: DownloadState.None, playable(ep), offline, wide,
             onPlay = { onPlay(ep) }, onDownload = { library.downloads.start(show, ep) },
             onCancel = { library.downloads.cancel(ep.id) }, onDelete = { deleting = ep },
-            onMarkWatched = {
+            onMarkWatched = { watched ->
                 scope.launch {
-                    runCatching { library.markWatched(ep.id) }
+                    runCatching { if (watched) library.markWatched(ep.id) else library.markUnwatched(ep.id) }
                         .onSuccess { reload++ }
                         .onFailure { android.widget.Toast.makeText(context, it.message ?: it.toString(), android.widget.Toast.LENGTH_LONG).show() }
                 }
@@ -213,16 +213,19 @@ private fun ShowHeader(library: Library, show: Show, next: Episode?, wide: Boole
     }
 }
 
-/** Long press: "Mark as watched" (seen elsewhere), so the feed may use its scenes and its picture is no longer blurred. */
+/**
+ * Long press: "Mark as watched" (seen elsewhere: the feed may use its scenes, its picture is no longer blurred) and
+ * "Mark as not watched" (back to unseen, from the beginning).
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EpisodeRow(library: Library, ep: Episode, state: DownloadState, playable: Boolean, offline: Boolean, wide: Boolean,
                        onPlay: () -> Unit, onDownload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit, onListen: () -> Unit,
-                       onMarkWatched: () -> Unit) {
+                       onMarkWatched: (Boolean) -> Unit) {
     val onDevice = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) // made here
     var menu by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().combinedClickable(enabled = playable, onClick = onPlay, onLongClick = { if (!ep.watched) menu = true })
+        Modifier.fillMaxWidth().combinedClickable(enabled = playable, onClick = onPlay, onLongClick = { menu = true })
             .alpha(if (playable) 1f else 0.4f).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -232,10 +235,11 @@ private fun EpisodeRow(library: Library, ep: Episode, state: DownloadState, play
                 modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
                     .then(if (hide) Modifier.blur(16.dp) else Modifier))
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text(tr("Mark as watched")) }, onClick = { menu = false; onMarkWatched() })
+                if (!ep.watched) DropdownMenuItem(text = { Text(tr("Mark as watched")) }, onClick = { menu = false; onMarkWatched(true) })
+                if (ep.seen > 0 || (ep.resume ?: 0.0) > 0) DropdownMenuItem(text = { Text(tr("Mark as not watched")) }, onClick = { menu = false; onMarkWatched(false) })
             }
             val resume = ep.resume
-            if (resume != null && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(),
+            if (resume != null && resume > 0 && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(),
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(6.dp))
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {

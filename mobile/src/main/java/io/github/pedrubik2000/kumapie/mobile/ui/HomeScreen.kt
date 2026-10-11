@@ -234,7 +234,8 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
     val width = if (wide) 150.dp else 118.dp
     val going = shows.filter { it.kind != "reels" }.flatMap { s -> s.episodes.map { s to it } }.filter { (_, e) ->
         val at = e.resume ?: 0.0
-        e.duration > 0 && at > 20 && at < e.duration * 0.95
+        // Marked watched (or every scene seen): nothing left to continue.
+        !e.watched && e.duration > 0 && at > 20 && at < e.duration * 0.95
     }
     val other = shows.filter { s -> s.kind != "reels" && KINDS.none { it.first == s.kind } }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {

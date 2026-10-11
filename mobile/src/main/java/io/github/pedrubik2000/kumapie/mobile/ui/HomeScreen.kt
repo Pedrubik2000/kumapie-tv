@@ -72,6 +72,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.mobile.offline.DownloadState
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.ui.NeutralPoster
 
 /** Home's categories, in this order (the PC's library folders). Reels (YouTube shorts made here) are feed-only. */
 private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "novels" to "Novels")
@@ -274,8 +275,9 @@ private fun ShelfRow(title: String, items: androidx.compose.foundation.lazy.Lazy
 private fun Poster(image: Any, title: String, sub: String, width: Dp, progress: Float? = null, onClick: () -> Unit) {
     Column(Modifier.width(width).clickable(onClick = onClick)) {
         Box {
-            AsyncImage(image, title, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(10.dp)))
+            val art = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(10.dp))
+            NeutralPoster(title, art, fontSize = 15.sp) // shows where there's no poster (never an episode frame)
+            AsyncImage(image, title, contentScale = ContentScale.Crop, modifier = art)
             if (progress != null) ProgressBar(progress, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp))
         }
         Text(title, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))

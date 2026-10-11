@@ -49,7 +49,7 @@ class Downloads(private val context: Context) {
     fun thumb(id: String) = File(dir(id), "thumb.jpg")
     /** A novel's music track ([url] = the scene's bgm), kept as bgm/<name>.ogg beside the video. */
     fun bgm(id: String, url: String) = File(dir(id), "bgm/" + url.substringAfterLast('/'))
-    fun poster(showId: String) = File(base, "posters/$showId.jpg")
+    fun poster(showId: String) = File(base, "posters2/$showId.jpg") // posters/ held episode frames (spoilers) until 2026-10-11
     fun isComplete(id: String) = File(dir(id), "done").exists()
     fun markComplete(id: String) = File(dir(id), "done").writeText("ok")
 
@@ -86,6 +86,7 @@ class Downloads(private val context: Context) {
         episodes.deleteRecursively()
         audio.deleteRecursively()
         File(base, "posters").deleteRecursively()
+        File(base, "posters2").deleteRecursively()
     }
 
     fun bytesUsed(): Long =

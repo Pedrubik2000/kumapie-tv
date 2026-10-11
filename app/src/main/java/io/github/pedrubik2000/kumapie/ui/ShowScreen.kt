@@ -2,6 +2,7 @@ package io.github.pedrubik2000.kumapie.ui
 
 import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -51,8 +52,11 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
 
     Row(Modifier.fillMaxSize().padding(start = 48.dp, top = 32.dp, bottom = 32.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.width(260.dp)) {
-            AsyncImage(model = show.poster, contentDescription = show.title, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp)))
+            Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp))) {
+                NeutralPoster(show.title, Modifier.fillMaxSize(), fontSize = 22.sp)
+                AsyncImage(model = show.poster, contentDescription = show.title, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize())
+            }
             Text(show.title, fontSize = 24.sp, color = Colors.text, modifier = Modifier.padding(top = 16.dp))
         }
         LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(20.dp),

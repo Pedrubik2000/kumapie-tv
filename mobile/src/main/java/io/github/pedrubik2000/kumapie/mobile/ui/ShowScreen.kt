@@ -69,6 +69,7 @@ import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.mobile.offline.DownloadState
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.ui.NeutralPoster
 import io.github.pedrubik2000.kumapie.i18n.tr
 
 /**
@@ -176,15 +177,15 @@ private fun DownloadButton(state: DownloadState, enabled: Boolean, onStart: () -
     }
 }
 
-/** The show's picture (a frame on a phone, the poster on a tablet) fading into the page, title, info and Play. */
+/** The show's poster (never an episode frame: no spoilers) fading into the page, title, info and Play. */
 @Composable
 private fun ShowHeader(library: Library, show: Show, next: Episode?, wide: Boolean, onBack: () -> Unit,
                        onPlay: (Episode) -> Unit, modifier: Modifier) {
-    val image: Any = if (wide) library.poster(show.id, show.poster)
-        else show.episodes.firstOrNull()?.let { library.thumb(it.id, it.thumb) } ?: library.poster(show.id, show.poster)
+    val image: Any = library.poster(show.id, show.poster)
     Box(modifier) {
-        AsyncImage(image, null, contentScale = ContentScale.Crop,
-            modifier = if (wide) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 10f))
+        val art = if (wide) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 10f)
+        NeutralPoster(show.title, art, showTitle = false) // the header writes the title itself
+        AsyncImage(image, null, contentScale = ContentScale.Crop, modifier = art)
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(
             0f to Color.Transparent, 0.45f to Colors.background.copy(alpha = 0.35f), 1f to Colors.background)))
         IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(8.dp)

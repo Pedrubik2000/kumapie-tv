@@ -88,13 +88,16 @@ class LocalEpisodes(context: Context) {
 
     private fun save(list: List<Entry>) = index.writeText(JSONArray(list.map(::toJson)).toString())
 
+    /** A show's own poster (its metadata's), `local/shows/<key>/poster.jpg`; never an episode frame (spoilers). */
+    fun showPoster(show: String) = File(base, "shows/" + show.hashCode().toUInt().toString(16) + "/poster.jpg")
+
     /** The local episodes as shows for the home screen ("local-show-<name>"). */
     fun shows(): List<Show> = entries().groupBy { it.show }.map { (show, all) ->
         // Numbered episodes in order (a season arrives in any order); the rest as added.
         val eps = all.sortedWith(compareBy({ it.season ?: 0 }, { it.number ?: Int.MAX_VALUE }))
         val first = eps.first()
         Show(id = "local-show-" + show.hashCode().toUInt().toString(16), title = show, kind = first.kind.ifEmpty { "youtube" }, lang = first.lang,
-            poster = Uri.fromFile(thumb(first.id)).toString(),
+            poster = showPoster(show).takeIf { it.exists() }?.let { Uri.fromFile(it).toString() } ?: "", // none: neutral
             episodes = eps.map { e ->
                 Episode(id = e.id, title = e.title, season = e.season, number = e.number, duration = e.duration,
                     thumb = Uri.fromFile(thumb(e.id)).toString(), scenes = maxOf(e.scenes, 0), seen = 0, easy = 0, resume = null)

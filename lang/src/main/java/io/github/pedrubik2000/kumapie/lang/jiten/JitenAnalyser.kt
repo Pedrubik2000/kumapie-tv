@@ -7,6 +7,7 @@ import com.worksap.nlp.sudachi.Dictionary
 import com.worksap.nlp.sudachi.DictionaryFactory
 import com.worksap.nlp.sudachi.PathAnchor
 import com.worksap.nlp.sudachi.Tokenizer
+import com.worksap.nlp.sudachi.dictionary.Grammar
 import java.nio.file.Path
 
 /**
@@ -211,13 +212,46 @@ class MorphologicalAnalyser(
         if (hasNoJapaneseChars(text)) return words
         for (line in text.split('\n')) {
             if (line.isEmpty()) continue
-            for (sentence in tok.tokenizeSentences(mode, line))
-                for (m in sentence) words.add(WordInfo.fromSudachi(m, -1, -1))
+            var bars = trailingKanaProlongedMarks(line)
+            var stripped = line
+            if (bars.isNotEmpty()) {
+                stripped = line.filterIndexed { i, _ -> i !in bars }
+                // The fork adds the ー-less words to the lattice beside the normal paths: keep whichever path costs
+                // less (mode C costs; mode B splits drop them), so dictionary words with ー (やべー) still win.
+                if (pathCost(tok, line) < pathCost(tok, stripped)) { bars = emptyList(); stripped = line }
+            }
+            // Each dropped ー goes back on the token that ends where it stood (positions in the stripped line).
+            val ends = bars.mapIndexed { k, p -> p - k }.toHashSet()
+            var pos = 0
+            for (sentence in tok.tokenizeSentences(mode, stripped))
+                for (m in sentence) {
+                    val w = WordInfo.fromSudachi(m, -1, -1)
+                    pos += w.text.length
+                    if (pos in ends) w.text += "ー"
+                    words.add(w)
+                }
         }
         return words
     }
 
+    /** Best-path cost (to EOS) of each sentence, summed. Sudachi Java hides it: read by reflection (lang keeps Sudachi). */
+    private fun pathCost(tok: Tokenizer, line: String): Int {
+        val grammar = TokenizerGrammar.get(tok) as Grammar
+        var total = 0
+        for (sentence in tok.tokenizeSentences(Tokenizer.SplitMode.C, line)) {
+            val last = (MorphemePath.get(sentence) as List<*>).lastOrNull() ?: continue
+            total += NodeTotalCost.getInt(last) + grammar.getConnectCost(NodeRightId.getShort(last), grammar.eosParameter[0])
+        }
+        return total
+    }
+
     internal companion object {
+        private fun field(cls: String, name: String) = Class.forName("com.worksap.nlp.sudachi.$cls").getDeclaredField(name).apply { isAccessible = true }
+        private val TokenizerGrammar by lazy { field("JapaneseTokenizer", "grammar") }
+        private val MorphemePath by lazy { field("MorphemeList", "path") }
+        private val NodeTotalCost by lazy { field("LatticeNodeImpl", "totalCost") }
+        private val NodeRightId by lazy { field("LatticeNodeImpl", "rightId") }
+
         /** Hiragana (offset 0x3040) -> the vowel a following ー stands for; '\u0000' for anything else. */
         val KanaVowelMap: CharArray = CharArray(0x100).apply {
             for (c in "おこそとのほもよろをごぞどぼぽょ") this[c.code - 0x3040] = 'う'
@@ -275,6 +309,24 @@ class MorphologicalAnalyser(
             c.code in 0x3040..0x309F || c.code in 0x30A0..0x30FF || c.code in 0x4E00..0x9FAF ||
                 c.code in 0xFF21..0xFF3A || c.code in 0xFF41..0xFF5A
         }
+
+        /**
+         * Jiten's private sudachi.rs fork has a TrailingKanaProlongedPlugin (its sudachi_lib exports it; the source isn't
+         * public). Jiten.Tests: "Trailing ー after hiragana/kanji: lattice-level lookup finds the word without ー,
+         * original surface preserved" (わかるー, すごいー, 休憩ー come out whole). Here a ー after hiragana or kanji
+         * that ends a word (line end, space or punctuation next: そっかー、) is left out of Sudachi's input and put back
+         * on the token before it. (An input text plugin can't drop it in Sudachi Java: tokenizeSentences then reads the
+         * dropped ー as a sentence of its own.) Returns those ー's indices.
+         */
+        internal fun trailingKanaProlongedMarks(line: String): List<Int> = (1 until line.length).filter { i ->
+            val prev = line[i - 1]
+            val next = line.getOrNull(i + 1)
+            line[i] == 'ー' && (prev in 'ぁ'..'ゖ' || prev in '一'..'龯' || prev == '々') && (next == null || !isWordChar(next))
+        }
+
+        /** Kana (incl. ー), kanji, 々 and full-width letters or digits: what a ー can stretch into. */
+        private fun isWordChar(c: Char) = c in '぀'..'ヿ' || c in '一'..'龯' || c == '々' ||
+            c in 'Ａ'..'Ｚ' || c in 'ａ'..'ｚ' || c in '０'..'９'
 
         /** Returns the same instance when nothing is removed. */
         internal fun filterAllowedChars(input: String): String =

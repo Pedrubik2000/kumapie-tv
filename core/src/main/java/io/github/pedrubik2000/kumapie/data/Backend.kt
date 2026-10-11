@@ -15,7 +15,7 @@ interface Backend {
     suspend fun markKnown(word: String, known: Boolean): String
 
     /** The word read aloud: a URL or a local file path the media player can open, or "tts:<text>" for [speak]. */
-    fun wordAudio(surface: String): String
+    fun wordAudio(surface: String, lang: String = "de"): String  // lang: the episode's, for the voice ([Lang.code])
 
     /** Says [text] with the device's own voice: for "tts:" audio, and when a URL can't be played (offline). */
     fun speak(text: String) {}

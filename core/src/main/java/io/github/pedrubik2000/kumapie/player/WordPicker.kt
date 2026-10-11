@@ -111,7 +111,7 @@ class WordPicker(
             return
         }
         lastOk = now
-        (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text), it.text) }
+        (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text, ctl.lang.code), it.text) }
     }
 
     // ------------------------------------------------------------ touch (phone and tablet)
@@ -131,11 +131,11 @@ class WordPicker(
         if (segment.word == null) return
         inDef = true
         defSeg = seg
-        audio.play(api.wordAudio(segment.text), segment.text)
+        audio.play(api.wordAudio(segment.text, ctl.lang.code), segment.text)
     }
 
     /** The selected word read aloud again. */
-    fun hearWord() { (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text), it.text) } }
+    fun hearWord() { (selectedInDef ?: selected)?.let { audio.play(api.wordAudio(it.text, ctl.lang.code), it.text) } }
 
     /** The selected word's German definition read aloud. */
     fun hearDefinition() {
@@ -210,7 +210,7 @@ class WordPicker(
         val segment = selected ?: return
         cardOpen = true
         lastOk = 0L
-        audio.play(api.wordAudio(segment.text), segment.text)
+        audio.play(api.wordAudio(segment.text, ctl.lang.code), segment.text)
         val word = segment.word ?: return
         val scene = ctl.scene.id
         scope.launch {

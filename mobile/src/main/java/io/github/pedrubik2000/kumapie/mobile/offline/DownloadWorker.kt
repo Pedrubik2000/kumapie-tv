@@ -68,7 +68,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val defs = episode.scenes.flatMap { s ->
             s.defs.keys.map { k -> Triple(s.id, k.substringBefore('|').toInt(), k.substringAfter('|')) }
         }
-        val jobs = words.map { w -> api.wordAudio(w) to downloads.wordFile(w) } +
+        val jobs = words.map { w -> api.wordAudio(w, episode.lang) to downloads.wordFile(w) } +
             defs.map { (scene, line, word) -> api.definitionAudio(scene, line, word) to downloads.definitionFile(scene, line, word) }
         var failed = 0
         jobs.forEachIndexed { i, (url, file) ->

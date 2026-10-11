@@ -269,7 +269,7 @@ private class OfflineBackend(
      * a computer voice only without one: the PC's that a download brought, else the device's. Offline, a recording not
      * saved yet fails to play and the player says the word with the device voice.
      */
-    override fun wordAudio(surface: String): String {
+    override fun wordAudio(surface: String, lang: String): String {
         dictionary.recording(surface, lang)?.let { recording ->
             if (recording.startsWith("http")) keepRecording(surface, recording)
             return recording

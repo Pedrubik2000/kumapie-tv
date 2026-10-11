@@ -151,7 +151,8 @@ class Api(private val base: String, private val person: String = "") : Backend {
         url("/api/tts?d=" + java.net.URLEncoder.encode("$scene|$line|$word", "UTF-8"))
 
     /** The word read aloud (the server makes and caches it). */
-    override fun wordAudio(surface: String): String = url("/api/tts?w=" + java.net.URLEncoder.encode(surface.lowercase(), "UTF-8"))
+    override fun wordAudio(surface: String, lang: String): String =
+        url("/api/tts?w=" + java.net.URLEncoder.encode(surface.lowercase(), "UTF-8") + "&lang=$lang")
 
     private suspend fun post(path: String, body: String): String = withContext(Dispatchers.IO) {
         val conn = URL(url(path)).openConnection() as HttpURLConnection

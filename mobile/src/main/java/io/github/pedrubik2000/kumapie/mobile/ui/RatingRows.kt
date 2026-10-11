@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.KnownWords
+import io.github.pedrubik2000.kumapie.lang.Miner
+import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.offline.Progress
 import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.CoroutineScope
@@ -34,8 +36,22 @@ import kotlinx.coroutines.launch
  */
 class RateForm(val key: String, val label: String?, val make: (suspend (progress: (String) -> Unit) -> String)?)
 
-/** A rating and its "Answered: …" line, per form key. */
-typealias Ratings = MutableMap<String, Pair<KnownWords.Rated, String>>
+/**
+ * A rating, its "Answered: …" line, and where it was made ([at]: the player's line, null elsewhere). The rated word's
+ * own card takes that scene when you leave it ([recontext], kumapie_plan.md 37b).
+ */
+class Rating(val rated: KnownWords.Rated, val label: String, val at: Miner.Request?)
+
+/** The ratings per form key. */
+typealias Ratings = MutableMap<String, Rating>
+
+/** Leaving a scene (or the player) you rated words in: each rated word's own card takes the scene it was rated in. */
+suspend fun recontext(library: Library, ratings: Collection<Rating>) {
+    for (r in ratings) {
+        val at = r.at ?: continue
+        runCatching { library.miner.recontext(r.rated.notes, at) }.onFailure { android.util.Log.w("kumapie", "recontext: $it") }
+    }
+}
 
 /**
  * Again / Hard / Good / Easy for each form's own kuma3 cards (kumapie_anki_review_plan.md): one rating answers every
@@ -48,6 +64,8 @@ typealias Ratings = MutableMap<String, Pair<KnownWords.Rated, String>>
 @Composable
 fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, forms: List<RateForm>, ratings: Ratings,
                scope: CoroutineScope, busy: MutableState<Boolean>,
+               /** The player's line ([Rating.at]); null in the dictionary screen. */
+               at: Miner.Request? = null,
                /** Called after the index changed (the player recolours its words). */
                repaint: () -> Unit = {}) {
     if (known.cardIndex.due == null) return // an Anki without kuma3/due: no rows
@@ -76,7 +94,8 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
             f.label?.let {
                 Text(it, fontSize = 15.sp, color = when (state) { "d" -> Colors.due; "k" -> Colors.text; "b" -> Colors.mined; else -> Colors.unknown })
             }
-            val (r, answered) = ratings[f.key] ?: (null to "")
+            val r = ratings[f.key]?.rated
+            val answered = ratings[f.key]?.label.orEmpty()
             if (r == null) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("Again" to Colors.unknown, "Hard" to Colors.learning, "Good" to Colors.due, "Easy" to Colors.accent).forEachIndexed { i, (label, color) ->
                     OutlinedButton(enabled = !busy.value, contentPadding = PaddingValues(horizontal = 10.dp), onClick = {
@@ -87,7 +106,7 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
                                 known.reloadCards()
                             }
                             val done = known.rate(f.key, i + 1, System.currentTimeMillis() - opened)
-                            if (done != null) { ratings[f.key] = done to tr("Answered: %s", tr(label)); count(done.cards); said.remove(f.key) }
+                            if (done != null) { ratings[f.key] = Rating(done, tr("Answered: %s", tr(label)), at); count(done.cards); said.remove(f.key) }
                             else said[f.key] = tr("kuma3 didn't take the rating.")
                         }
                     }) { Text(tr(label), color = color, fontSize = 14.sp) }

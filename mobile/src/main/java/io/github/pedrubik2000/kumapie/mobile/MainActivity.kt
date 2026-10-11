@@ -70,9 +70,12 @@ class MainActivity : ComponentActivity() {
             ?: intent?.takeIf { it.action == android.content.Intent.ACTION_PROCESS_TEXT }?.getCharSequenceExtra(android.content.Intent.EXTRA_PROCESS_TEXT)?.toString()
         search?.let { settings.prefs.edit().putString("search_text", it).apply() }
         // A card to improve (Anki XP's "Improve this card first": `--el improve_note <note id>`): opens "Cards that don't stick" on it.
+        // Or any card of the Home language's Mined deck by its word: `--es improve_word helfen`.
         val improve = intent?.getLongExtra("improve_note", 0L) ?: 0L
         if (improve != 0L) settings.prefs.edit().putLong("improve_note", improve).apply()
-        setContent { MobileTheme { App(library, shared, openSearch = search != null, openImprove = improve != 0L) } }
+        val improveWord = intent?.getStringExtra("improve_word")
+        improveWord?.let { settings.prefs.edit().putString("improve_word", it).apply() }
+        setContent { MobileTheme { App(library, shared, openSearch = search != null, openImprove = improve != 0L || improveWord != null) } }
     }
 
     /** A server address sent while the app is already open: save it and start over with it. */
@@ -97,6 +100,9 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     var homeLang by remember { mutableStateOf(settings.prefs.getString("home_lang", "de") ?: "de") }
     val langShows = shows.filter { it.lang == homeLang }
 
+    LaunchedEffect(Unit) { // opened straight on another screen (an intent): Home, which loads the shows, isn't shown
+        if (stack.last() != Screen.Home) runCatching { library.shows().first }.onSuccess { shows = it }
+    }
     LaunchedEffect(Unit) { // once per start; debug builds have their own app id, so they don't self-update
         if (!BuildConfig.DEBUG) update = runCatching { Updater.newer() }.getOrNull()
     }
@@ -140,7 +146,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server },
                 onUpdate = { update = it }, onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.Improve -> ImproveScreen(library, langShows, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
+            Screen.Improve -> ImproveScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Stats -> StatsScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Search -> io.github.pedrubik2000.kumapie.mobile.ui.SearchScreen(library, onBack = { stack.removeAt(stack.lastIndex) })

@@ -82,43 +82,8 @@ class Miner(
         // A fresh kuma3 (Giovanna, Jackson): the note type comes from kumapie's copy of Pedro's.
         val (mid, fieldNames) = anki.noteType(pkg, known.noteTypes) ?: anki.addBundledNoteType(pkg, lang)
             ?: error(tr("The %s note type isn't in Anki.", lang.displayName))
-        val (sentence, cues) = sentence(r.scene, r.line)
         val slug = slug(r.episode.show)
-        dir.mkdirs()
-
-        val fields = HashMap<String, String>()
-        // A note type with Video (🐻 German, the parents' 🐻 English): the line's audio, then a clip of the scene, so the
-        // front plays word audio -> sentence audio -> video. Older 🐻 English (Core 1000 layout): line audio + screenshot.
-        val video = "Video" in fieldNames
-        val clipFile = File(dir, if (video) "clip.webm" else "line.m4a").apply { delete() }
-        val lineFile = File(dir, "line.m4a")
-        val startMs = ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
-        val endMs = ((cues.last().end + 0.25) * 1000).toLong()
-        val shot: File?
-        if (video) {
-            progress(tr("Cutting the line's audio…"))
-            lineFile.delete()
-            audioClip(r.episode.video, startMs, endMs, lineFile)
-            progress(tr("Cutting the scene…"))
-            val start = (r.scene.start * 1000).toLong()
-            val end = (r.scene.end * 1000).toLong()
-            clip(r.episode.video, start, end, clipFile)
-            progress(tr("Adding to Anki…"))
-            fields["Video"] = "[audio:${anki.addMedia(pkg, lineFile, "${slug}_$startMs-$endMs")}]" +
-                "[audio:${anki.addMedia(pkg, clipFile, "${slug}_$start-$end")}]"
-            lineFile.delete()
-            shot = null
-        } else {
-            progress(tr("Cutting the line's audio…"))
-            audioClip(r.episode.video, startMs, endMs, clipFile)
-            shot = screenshot(r.episode.video, (startMs + endMs) / 2)
-            progress(tr("Adding to Anki…"))
-            fields["Sentence Audio"] = "[audio:${anki.addMedia(pkg, clipFile, "${slug}_$startMs-$endMs")}]"
-            shot?.let { fields["Image"] = "<img src=\"${anki.addMedia(pkg, it, "${slug}_$startMs")}\">" }
-        }
-        fields["Sentence"] = esc(sentence)
-        fields["Notes"] = esc(english(r.scene, cues))
-        fields["Context"] = esc("Mined in kumapie: ${r.episode.show} · ${r.episode.title}, scene ${r.scene.index + 1}.")
+        val fields = sceneFields(r, pkg, fieldNames, "Mined", progress = progress)
         val tags = mutableListOf(slug, "kumapie")
         r.word?.let { w ->
             val audio = wordAudio(w.surface, language)?.let { anki.addMedia(pkg, it, "kumapie-${slug(w.surface)}") }
@@ -136,8 +101,6 @@ class Miner(
         if (missing.isNotEmpty()) error(tr("The note type has no field %s.", missing.joinToString()))
         val deck = anki.deck(pkg, lang.deck)
         anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, deck)
-        clipFile.delete()
-        shot?.delete()
         tr("Added to %s", lang.deck) + (r.word?.let { ": ${it.surface}" } ?: "")
     }
 
@@ -152,42 +115,65 @@ class Miner(
         val pkg = knownJa.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
         if (!knownJa.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
         val (mid, fieldNames) = anki.noteType(pkg, knownJa.noteTypes) ?: error(tr("The Japanese note type isn't in Anki."))
-        val cue = r.scene.cues[r.line]
         val slug = slug(r.episode.show)
-        dir.mkdirs()
-        val startMs = ((cue.start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
-        val endMs = ((cue.end + 0.25) * 1000).toLong()
-
-        progress(tr("Cutting the line's audio…"))
-        val lineAudio = File(dir, "line.m4a").apply { delete() }
-        audioClip(r.episode.video, startMs, endMs, lineAudio)
-        val shot = screenshot(r.episode.video, (startMs + endMs) / 2)
-        progress(tr("Adding to Anki…"))
+        val tags = mutableListOf(slug, "kumapie", ja.tag(if (r.word != null) "word" else "sentence"))
         val fields = HashMap<String, String>()
-        fields["Sentence Audio"] = "[audio:${anki.addMedia(pkg, lineAudio, "${slug}_$startMs-$endMs")}]"
-        shot?.let { fields["Image"] = "<img src=\"${anki.addMedia(pkg, it, "${slug}_$startMs")}\">" }
-        fields["Notes"] = esc(english(r.scene, listOf(cue))) + (r.word?.formOf?.let { "<br>" + esc("form of $it") } ?: "")
-        fields["Context"] = esc("Mined in kumapie: ${r.episode.show} · ${r.episode.title}, scene ${r.scene.index + 1}.")
-        val text = cue.text.trim()
-        val tags = mutableListOf(slug, "kumapie")
         val w = r.word
-        if (w != null) {
-            val (expression, reading) = japaneseWord(fields, w, japanese, pkg)
-            // The word in the line in bold; its reading too when it is written as in the dictionary (Kaishi: 私[わたし]).
-            val at = text.indexOf(w.surface)
-            fields["Sentence"] = if (at < 0) esc(text) else esc(text.substring(0, at)) + "<b>" + esc(w.surface) +
-                (if (w.surface == expression && reading != null) "[${esc(reading)}]" else "") + "</b>" + esc(text.substring(at + w.surface.length))
-            tags += ja.tag("word")
-        } else {
-            fields["Sentence"] = esc(text)
-            tags += ja.tag("sentence")
-        }
+        // The word's own fields first: the sentence shows its reading in bold when written as in the dictionary (Kaishi: 私[わたし]).
+        val reading = w?.let { japaneseWord(fields, it, japanese, pkg) }?.let { (expression, reading) -> reading?.takeIf { w.surface == expression } }
+        fields += sceneFields(r, pkg, fieldNames, "Mined", reading, progress)
+        w?.formOf?.let { fields["Notes"] = fields["Notes"].orEmpty() + "<br>" + esc("form of $it") }
         val missing = listOf("Sentence", "Sentence Audio", KnownWords.DEF_BI).filter { it !in fieldNames }
         if (missing.isNotEmpty()) error(tr("The Japanese note type has no field %s.", missing.joinToString()))
         anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, anki.deck(pkg, ja.deck))
-        lineAudio.delete()
-        shot?.delete()
         return tr("Added to %s", ja.deck) + (w?.let { ": ${it.lemma ?: it.surface}" } ?: "")
+    }
+
+    /**
+     * The scene part of a card from [r]'s line, as mining writes it (Improve's Save and a rating's new scene too):
+     * with a `Video` field (🐻 German, the parents' 🐻 English) the sentence's audio then a clip of the whole scene,
+     * else the line's audio and a picture (🐻 Japanese, older 🐻 English); `Sentence` (Japanese: the line, [r]'s word in
+     * bold, with [reading] when given; else the whole sentence, the template bolds the word), `Notes` (the English),
+     * `Context` ("[how] in kumapie: show · episode, scene N."). The media go into kuma3 [pkg].
+     */
+    suspend fun sceneFields(r: Request, pkg: String, fieldNames: Collection<String>, how: String, reading: String? = null,
+                            progress: (String) -> Unit = {}): HashMap<String, String> = withContext(Dispatchers.IO) {
+        val japanese = languages.of(r.episode.lang) is Japanese
+        val (sentence, cues) = if (japanese) r.scene.cues[r.line].text.trim() to listOf(r.scene.cues[r.line]) else sentence(r.scene, r.line)
+        val slug = slug(r.episode.show)
+        dir.mkdirs()
+        val fields = HashMap<String, String>()
+        val startMs = ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
+        val endMs = ((cues.last().end + 0.25) * 1000).toLong()
+        progress(tr("Cutting the line's audio…"))
+        val lineFile = File(dir, "line.m4a").apply { delete() }
+        audioClip(r.episode.video, startMs, endMs, lineFile)
+        val line = anki.addMedia(pkg, lineFile, "${slug}_$startMs-$endMs")
+        lineFile.delete()
+        if ("Video" in fieldNames) {
+            // The front plays word audio -> sentence audio -> video.
+            progress(tr("Cutting the scene…"))
+            val clipFile = File(dir, "clip.webm").apply { delete() }
+            val start = (r.scene.start * 1000).toLong()
+            val end = (r.scene.end * 1000).toLong()
+            clip(r.episode.video, start, end, clipFile)
+            fields["Video"] = "[audio:$line][audio:${anki.addMedia(pkg, clipFile, "${slug}_$start-$end")}]"
+            clipFile.delete()
+        } else {
+            fields["Sentence Audio"] = "[audio:$line]"
+            screenshot(r.episode.video, (startMs + endMs) / 2)?.let {
+                fields["Image"] = "<img src=\"${anki.addMedia(pkg, it, "${slug}_$startMs")}\">"
+                it.delete()
+            }
+        }
+        progress(tr("Adding to Anki…"))
+        val surface = r.word?.surface
+        val at = if (japanese && surface != null) sentence.indexOf(surface) else -1
+        fields["Sentence"] = if (at < 0) esc(sentence) else esc(sentence.substring(0, at)) + "<b>" + esc(surface!!) +
+            (reading?.let { "[${esc(it)}]" } ?: "") + "</b>" + esc(sentence.substring(at + surface.length))
+        fields["Notes"] = esc(english(r.scene, cues))
+        fields["Context"] = esc("$how in kumapie: ${r.episode.show} · ${r.episode.title}, scene ${r.scene.index + 1}.")
+        fields
     }
 
     /**
@@ -309,25 +295,56 @@ class Miner(
 
     /** A person's recording (saved or fetched), else the device's voice saying it; null if neither works. */
     suspend fun wordAudio(surface: String, language: Spaced = languages.german): File? {
-        val recording = dictionary.recording(surface, language.lang.code)
-        if (recording != null && !recording.startsWith("http")) return File(recording)
-        if (recording != null) {
-            val out = File(dir, "word.mp3").apply { delete() }
-            val ok = runCatching {
-                val conn = URL(recording).openConnection() as HttpURLConnection
-                conn.setRequestProperty("User-Agent", AssetWorker.USER_AGENT)
-                try {
-                    if (conn.responseCode != 200) error("HTTP ${conn.responseCode}")
-                    conn.inputStream.use { input -> out.outputStream().use { input.copyTo(it) } }
-                } finally {
-                    conn.disconnect()
-                }
-            }.isSuccess
-            if (ok) return out
-        }
+        recording(surface, language)?.let { return it }
         val wav = File(dir, "word.wav").apply { delete() }
         return if (language.voice.toFile(surface, wav)) wav else null
     }
+
+    /** A person's recording of [surface] (saved, or fetched now), else null. */
+    suspend fun recording(surface: String, language: Spaced): File? = withContext(Dispatchers.IO) {
+        val recording = dictionary.recording(surface, language.lang.code) ?: return@withContext null
+        if (!recording.startsWith("http")) return@withContext File(recording)
+        dir.mkdirs()
+        val out = File(dir, "word.mp3").apply { delete() }
+        val ok = runCatching {
+            val conn = URL(recording).openConnection() as HttpURLConnection
+            conn.setRequestProperty("User-Agent", AssetWorker.USER_AGENT)
+            try {
+                if (conn.responseCode != 200) error("HTTP ${conn.responseCode}")
+                conn.inputStream.use { input -> out.outputStream().use { input.copyTo(it) } }
+            } finally {
+                conn.disconnect()
+            }
+        }.isSuccess
+        if (ok) out else null
+    }
+
+    /**
+     * A rating's new scene (kumapie_plan.md 37b): each of [notes] (the rated word's own Mined cards) takes [r]'s line
+     * ([sceneFields], "Rated in kumapie"), unless it has that sentence already. Word, definitions, word audio, tags and
+     * scheduling stay; no flag; a Japanese "form of …" note stays. Answers how many notes changed.
+     */
+    suspend fun recontext(notes: List<Long>, r: Request): Int = withContext(Dispatchers.IO) {
+        val known = languages.of(r.episode.lang).known
+        val pkg = known.ankiApp() ?: return@withContext 0
+        val japanese = languages.of(r.episode.lang) is Japanese
+        val text = plain(if (japanese) r.scene.cues[r.line].text else sentence(r.scene, r.line).first)
+        val stale = anki.notes(pkg, "nid:" + notes.joinToString(",")).filter { plain(it.fields["Sentence"].orEmpty()) != text }
+        if (stale.isEmpty()) return@withContext 0
+        val scene = sceneFields(r, pkg, stale.first().fields.keys, "Rated")
+        for (n in stale) {
+            val fields = LinkedHashMap(n.fields)
+            scene.forEach { (k, v) -> if (k in fields) fields[k] = v }
+            Regex("<br>form of .*$").find(n.fields["Notes"].orEmpty())?.let { fields["Notes"] = fields["Notes"] + it.value }
+            anki.updateNote(pkg, n.id, n.tags, fields.values.toList())
+        }
+        Log.i("kumapie", "recontext: ${stale.size} of ${notes.size} notes now at ${r.episode.title} scene ${r.scene.index + 1}")
+        stale.size
+    }
+
+    /** A field's text without HTML, MvJ furigana or spaces (to compare sentences). */
+    private fun plain(field: String) = android.text.Html.fromHtml(field, 0).toString()
+        .replace(Regex("""\[[^\]]*]"""), "").replace(Regex("""\s+"""), "")
 
     /** The Core 1000 layout of the bilingual definition: "<b>word</b> (lemma)", the meaning, an example. */
     private fun definition(written: String, w: Word): String {

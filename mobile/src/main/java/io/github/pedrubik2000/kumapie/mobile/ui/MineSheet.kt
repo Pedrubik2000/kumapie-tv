@@ -213,7 +213,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             val pick = choices.getOrNull(chosen) // none: the card is made without a meaning
             library.miner.mine(Miner.Request(episode, scene, line, Miner.Word(segment.text, key, lemma, pick?.gloss.orEmpty(), pick?.example, def,
                 mono = monos.getOrNull(monoChosen)?.gloss)), p)
-        }), ratings, queueScope, queueBusy) { repaintWords(ctl, known) }
+        }), ratings, queueScope, queueBusy, Miner.Request(episode, scene, line, Miner.Word(segment.text, key, null, ""))) { repaintWords(ctl, known) }
         Button(enabled = !busy && !done && (!wordCard || looked), onClick = {
             busy = true
             val pick = choices.getOrNull(chosen)
@@ -323,7 +323,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         // Rate each form here too (the word card's rows): a missing one's card is made from its own headword.
         if (forms.isNotEmpty()) RatingRows(known, library.settings.prefs, japaneseRateForms(library, forms, SensePick.english(scene, line)) { w, p ->
             library.miner.mine(Miner.Request(episode, scene, line, w), p)
-        }, ratings, queueScope, queueBusy) { repaintWords(ctl, known) }
+        }, ratings, queueScope, queueBusy, segment?.let { Miner.Request(episode, scene, line, Miner.Word(it.text, it.word, null, "")) }) { repaintWords(ctl, known) }
         Button(enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
             busy = true
             val pick = choices.getOrNull(chosen)

@@ -215,11 +215,13 @@ internal fun ScenePlayer(
     // the read selects decks, which replaces kuma3's Undo, so ratings stay undoable while you're in their scene.
     LaunchedEffect(ctl.scene.index) {
         if (ratings.isEmpty()) return@LaunchedEffect
+        val rated = ratings.values.toList()
         ratings.clear()
         val known = library.languages.of(ctl.lang).known
         queueBusy.value = true
         queueScope.launch {
-            try { known.refreshDue(force = true); repaintWords(ctl, known) } finally { queueBusy.value = false }
+            // The rated cards take their new scene first (kumapie_plan.md 37b): their Undo is over now.
+            try { recontext(library, rated); known.refreshDue(force = true); repaintWords(ctl, known) } finally { queueBusy.value = false }
         }
     }
     var menuUntil by remember { mutableLongStateOf(SystemClock.uptimeMillis() + 3_000) } // a novel's bar
@@ -234,6 +236,10 @@ internal fun ScenePlayer(
             picker.release()
             player.release()
             bgm?.release()
+            // Leaving the player with ratings in this scene: their cards take it (kumapie_plan.md 37b), after the screen is gone.
+            val rated = ratings.values.toList()
+            // ponytail: fire-and-forget scope; if the app is killed within those seconds the card keeps its old scene.
+            if (rated.isNotEmpty()) kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { recontext(library, rated) }
         }
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -525,5 +531,8 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
         val request = autoWordCard(library, ctl, line, segment.text, key)
         library.miner.mine(request, p)
     })))
-    RatingRows(language.known, library.settings.prefs, forms, ratings, queueScope, queueBusy) { repaintWords(ctl, language.known) }
+    // A word in a definition has no line: its rating doesn't move its card to this scene.
+    val at = if (picker.selectedInDef != null) null else io.github.pedrubik2000.kumapie.lang.Miner.Request(ctl.episode, ctl.scene, line,
+        io.github.pedrubik2000.kumapie.lang.Miner.Word(segment.text, key, null, ""))
+    RatingRows(language.known, library.settings.prefs, forms, ratings, queueScope, queueBusy, at) { repaintWords(ctl, language.known) }
 }

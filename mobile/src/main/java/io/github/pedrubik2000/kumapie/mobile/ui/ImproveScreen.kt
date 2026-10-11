@@ -49,6 +49,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** What the screen was showing, kept while a scene plays (back from the player lands here again). */
 private object ImproveKept {
+    var lang = ""
     var cards: List<Improve.Struggling>? = null
     var card: Improve.Struggling? = null
     var candidates: List<Improve.Candidate>? = null
@@ -65,14 +66,14 @@ private object ImproveKept {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, Double) -> Unit, onBack: () -> Unit) {
-    val improve = remember { Improve(library) }
+fun ImproveScreen(library: Library, shows: List<Show>, lang: String, onPlay: (Show, Episode, Double) -> Unit, onBack: () -> Unit) {
+    val improve = remember(lang) { Improve(library, lang) }
     val scope = rememberCoroutineScope()
-    // A note sent by Anki XP (MainActivity's improve_note): read it once and start fresh on that card.
-    val wanted = remember {
-        library.settings.prefs.getLong("improve_note", 0L).also { if (it != 0L) library.settings.prefs.edit().remove("improve_note").apply() }
-    }
-    val kept = wanted == 0L
+    // A card asked for (MainActivity's improve_note from Anki XP, or improve_word): read once, start fresh on that card.
+    val prefs = library.settings.prefs
+    val wanted = remember { prefs.getLong("improve_note", 0L).also { if (it != 0L) prefs.edit().remove("improve_note").apply() } }
+    val wantedWord = remember { prefs.getString("improve_word", null).also { if (it != null) prefs.edit().remove("improve_word").apply() } }
+    val kept = wanted == 0L && wantedWord == null && ImproveKept.lang == lang
     var cards by remember { mutableStateOf(if (kept) ImproveKept.cards else null) }
     var card by remember { mutableStateOf(if (kept) ImproveKept.card else null) }
     var candidates by remember { mutableStateOf(if (kept) ImproveKept.candidates else null) }
@@ -84,7 +85,7 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
     var said by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     fun keep() {
-        ImproveKept.cards = cards; ImproveKept.card = card; ImproveKept.candidates = candidates; ImproveKept.chosen = chosen
+        ImproveKept.lang = lang; ImproveKept.cards = cards; ImproveKept.card = card; ImproveKept.candidates = candidates; ImproveKept.chosen = chosen
         ImproveKept.sentence = sentence; ImproveKept.bilingual = bilingual; ImproveKept.monolingual = monolingual; ImproveKept.recording = recording
     }
     fun leave() { ImproveKept.cards = null; ImproveKept.card = null; onBack() }
@@ -95,19 +96,27 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
         runCatching { withContext(Dispatchers.IO) { improve.struggling() } }
             .onSuccess {
                 cards = it; said = if (it.isEmpty()) tr("No cards are struggling right now.") else ""
-                if (wanted != 0L) it.firstOrNull { s -> s.note.id == wanted }?.let { s -> card = s }
+                // The card asked for, struggling or not.
+                val asked = withContext(Dispatchers.IO) {
+                    runCatching { if (wanted != 0L) improve.forNote(wanted) else wantedWord?.let { w -> improve.forWord(w) } }.getOrNull()
+                }
+                if (asked != null) card = asked
+                else if (wanted != 0L || wantedWord != null) said = tr("That card isn't in %s.", lang.let { io.github.pedrubik2000.kumapie.data.Lang.of(it).deck })
             }
             .onFailure { said = it.message ?: it.toString() }
     }
-    LaunchedEffect(card) {
+    // Opened from an intent, the shows may arrive after the card: search again once they're there.
+    var searchedIn by remember { mutableStateOf(-1) }
+    LaunchedEffect(card, shows.size) {
         val c = card ?: return@LaunchedEffect
-        if (candidates != null) return@LaunchedEffect
-        sentence = c.sentence; bilingual = c.bilingual; monolingual = c.monolingual; chosen = null
+        if (candidates != null && (searchedIn == shows.size || searchedIn == -1 && kept)) return@LaunchedEffect
+        if (candidates == null) { sentence = c.sentence; bilingual = c.bilingual; monolingual = c.monolingual; chosen = null }
+        searchedIn = shows.size
         candidates = withContext(Dispatchers.IO) { runCatching { improve.candidates(c, shows) { said = it } }.getOrDefault(emptyList()) }
         said = ""
     }
     val hasRecording by androidx.compose.runtime.produceState(false, card) {
-        value = card?.let { s -> withContext(Dispatchers.IO) { runCatching { library.dictionary.recording(s.word) != null }.getOrDefault(false) } } ?: false
+        value = card?.let { s -> withContext(Dispatchers.IO) { improve.recording(s) != null } } ?: false
     }
     BackHandler { if (card != null) { card = null; candidates = null; said = "" } else leave() }
 
@@ -139,7 +148,7 @@ fun ImproveScreen(library: Library, shows: List<Show>, onPlay: (Show, Episode, D
                     OutlinedTextField(monolingual, { monolingual = it }, label = { Text(tr("Definition (monolingual)")) },
                         modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp))
                     if (hasRecording) Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(tr("Use a person's recording of \"%s\" (Wiktionary)", c.word), modifier = Modifier.weight(1f))
+                        Text(tr("Use a person's recording of \"%s\"", c.word), modifier = Modifier.weight(1f))
                         Switch(recording, { recording = it })
                     }
                     Button(enabled = !busy, onClick = {

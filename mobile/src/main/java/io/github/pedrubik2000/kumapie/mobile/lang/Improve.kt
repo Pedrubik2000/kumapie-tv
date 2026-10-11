@@ -12,96 +12,115 @@ import io.github.pedrubik2000.kumapie.lang.*
 import java.io.File
 
 /**
- * The PC's /improve-card without Claude: finds the German word cards that don't stick (lapses, or low stability after
- * several reviews) and offers other scenes with the exact word form from every episode (i+0 first, then shorter), the
- * word's recording, and the current definition to edit. Applying changes the note in place (scheduling untouched) and
- * flags its cards orange, as the PC's skill does.
+ * The PC's /improve-card without Claude, for the Home language ([lang]: German, Japanese, English): finds the word cards
+ * of its Mined deck that don't stick (lapses, or low stability after several reviews), or any one card asked for
+ * ([forNote], [forWord]), and offers other scenes with the word from every episode (i+0 first, then shorter), a
+ * person's recording of it, and the current definitions to edit. Applying changes the note in place (scheduling
+ * untouched) and flags its cards orange, as the PC's skill does.
  */
-class Improve(private val library: Library) {
-    private val anki = AnkiCards(library.languages.german.known.context)
-    private val cut = File(library.languages.german.known.context.cacheDir, "mining")
+class Improve(private val library: Library, lang: String) {
+    private val language = library.languages.of(lang)
+    private val known = language.known
+    private val anki = AnkiCards(known.context)
+    private val japanese = language as? Japanese
 
-    class Struggling(val note: AnkiCards.Note, val cards: List<AnkiCards.Card>, val word: String, val key: String?,
-                     val lapses: Int, val stability: Double?) {
-        val sentence: String get() = plain(note.fields["Sentence"] ?: "")
+    class Struggling(val note: AnkiCards.Note, val cards: List<AnkiCards.Card>, val word: String, val reading: String?,
+                     val key: String?, val lapses: Int, val stability: Double?) {
+        val sentence: String get() = plain(note.fields["Sentence"] ?: "").replace(Regex("""\[[^\]]*]"""), "")
         val bilingual: String get() = note.fields[KnownWords.DEF_BI] ?: ""
         val monolingual: String get() = note.fields[KnownWords.DEF_MONO] ?: ""
     }
 
-    /** [unknown]: the sentence's red words (no studied card of their own, not marked known: the "i+" of the sentence alone). */
-    class Candidate(val show: Show, val episode: Episode, val detail: EpisodeDetail, val scene: Scene, val sentence: String,
-                    val english: String, val unknown: Int, val lineStartMs: Long, val lineEndMs: Long)
+    /**
+     * [unknown]: the sentence's red words (no studied card of their own, not marked known: the "i+" of the sentence
+     * alone). [line]: the cue the word is in; [surface]: the word as written there.
+     */
+    class Candidate(val show: Show, val episode: Episode, val detail: EpisodeDetail, val scene: Scene, val line: Int,
+                    val surface: String, val sentence: String, val english: String, val unknown: Int)
 
-    /** Word cards (Core 1000, mined words) with 2+ lapses, or under 3 days of stability after 4+ reviews; worst first. */
-    suspend fun struggling(): List<Struggling> {
-        library.languages.german.known.refresh().getOrThrow()
-        val r = library.languages.german.known.lastReading ?: error(tr("Anki wasn't read."))
+    /** Word cards with 2+ lapses, or under 3 days of stability after 4+ reviews; worst first. */
+    suspend fun struggling(): List<Struggling> = all().filter { s ->
+        val reviewed = s.cards.filter { it.reviewed }
+        reviewed.isNotEmpty() && (s.lapses >= 2 || (reviewed.maxOf { it.reps } >= 4 && s.stability != null && s.stability < 3))
+    }.sortedWith(compareBy({ -it.lapses }, { it.stability ?: 0.0 }))
+
+    /** Any word card of the Mined deck by note id (Anki XP's "Improve this card first"), struggling or not. */
+    suspend fun forNote(id: Long): Struggling? = all().firstOrNull { it.note.id == id }
+
+    /** Any word card of the Mined deck by its word (`am start … --es improve_word helfen`), struggling or not. */
+    suspend fun forWord(word: String): Struggling? = all().firstOrNull { it.word == word || it.key == word }
+
+    /** Every word card of the language's Mined deck, as read from kuma3 now. */
+    private suspend fun all(): List<Struggling> {
+        known.refresh().getOrThrow()
+        val r = known.lastReading ?: error(tr("Anki wasn't read."))
         val cards = r.cards.groupBy { it.noteId }
         return r.notes.mapNotNull { n ->
-            val word = plain(n.fields["Word"] ?: "").substringBefore("[").trim()
+            // German "Komm[→ kommen]", Japanese "届く[とどく]:0-" or "すごい:2-".
+            val field = plain(n.fields["Word"] ?: "")
+            val word = field.substringBefore("[").substringBefore(":").trim()
             if (word.isEmpty()) return@mapNotNull null
+            val reading = if (japanese != null) field.substringAfter("[", "").substringBefore("]").takeIf { it.isNotEmpty() } else null
             val reviewed = cards[n.id].orEmpty().filter { it.reviewed }
-            if (reviewed.isEmpty()) return@mapNotNull null
-            val lapses = reviewed.maxOf { it.lapses }
-            val stability = reviewed.mapNotNull { it.stability }.minOrNull()
-            val shaky = reviewed.maxOf { it.reps } >= 4 && stability != null && stability < 3
-            if (lapses < 2 && !shaky) return@mapNotNull null
-            Struggling(n, cards[n.id].orEmpty(), word, r.morphs[n.id]?.firstOrNull(), lapses, stability)
-        }.sortedWith(compareBy({ -it.lapses }, { it.stability ?: 0.0 }))
+            // Japanese episodes key words by their dictionary form, as the Word field has it.
+            val key = if (japanese != null) word else r.morphs[n.id]?.firstOrNull()
+            Struggling(n, cards[n.id].orEmpty(), word, reading, key, reviewed.maxOfOrNull { it.lapses } ?: 0,
+                reviewed.mapNotNull { it.stability }.minOrNull())
+        }
     }
 
-    /** Sentences with the card's exact form (its morph key) in every episode: i+0 first, then i+1…, then shorter. */
+    /** Lines with the card's word (its key) in every episode: i+0 first, then i+1…, then shorter. */
     suspend fun candidates(s: Struggling, shows: List<Show>, progress: (String) -> Unit): List<Candidate> {
         val key = s.key ?: return emptyList()
         val out = ArrayList<Candidate>()
-        for ((show, detail) in library.allEpisodes(shows, progress)) {
+        val episodes = library.allEpisodes(shows, progress)
+        android.util.Log.i("kumapie", "improve: ${s.word} key '$key', ${episodes.size} episodes of ${shows.size} shows")
+        for ((show, detail) in episodes) {
             val episode = show.episodes.firstOrNull { it.id == detail.id } ?: continue
             for (scene in detail.scenes) {
                 if (!scene.target) continue
                 val line = scene.cues.indexOfFirst { c -> c.segments.any { it.word == key } }
                 if (line < 0) continue
-                val (sentence, cues) = Miner.sentence(scene, line)
+                val surface = scene.cues[line].segments.first { it.word == key }.text
+                val (sentence, cues) = if (japanese != null) scene.cues[line].text.trim() to listOf(scene.cues[line]) else Miner.sentence(scene, line)
                 if (sentence.trim() == s.sentence.trim()) continue // the card's own sentence
                 val unknown = io.github.pedrubik2000.kumapie.data.unknownIn(cues, detail.words)
-                out += Candidate(show, episode, detail, scene, sentence, library.miner.english(scene, cues), unknown,
-                    ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong(), ((cues.last().end + 0.25) * 1000).toLong())
+                out += Candidate(show, episode, detail, scene, line, surface, sentence, library.miner.english(scene, cues), unknown)
             }
         }
         return out.sortedWith(compareBy({ it.unknown }, { it.sentence.length }))
     }
 
+    /** A person's recording of the card's word (Wiktionary, or NHK/JapanesePod101/Forvo for Japanese), else null. */
+    suspend fun recording(s: Struggling): File? = runCatching {
+        japanese?.audio?.recording(s.word, s.reading.orEmpty()) ?: (language as? Spaced)?.let { library.miner.recording(s.word, it) }
+    }.getOrNull()
+
     /**
-     * Writes the choices into the note: the new scene ([c], with its clip, English and context) and its [sentence] as
-     * edited, the definitions as edited, the word's recording when [recording]; then flags the cards orange.
+     * Writes the choices into the note: the new scene ([c]: its audio, clip or picture, English and context, as mining
+     * writes them) and its [sentence] as edited, the definitions as edited, the word's recording when [recording];
+     * then flags the cards orange.
      */
     suspend fun apply(s: Struggling, c: Candidate?, sentence: String, bilingual: String, monolingual: String, recording: Boolean, progress: (String) -> Unit): String {
-        val pkg = library.languages.german.known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
+        val pkg = known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
         val fields = LinkedHashMap(s.note.fields)
         if (c != null) {
-            progress(tr("Cutting the scene…"))
-            cut.mkdirs()
-            val slug = library.miner.slug(c.detail.show)
-            // Like a mined card: the line's audio, then the scene's clip (word audio -> sentence audio -> video).
-            val line = File(cut, "line.m4a").apply { delete() }
-            library.miner.audioClip(c.detail.video, c.lineStartMs, c.lineEndMs, line)
-            val lineAudio = anki.addMedia(pkg, line, "${slug}_${c.lineStartMs}-${c.lineEndMs}")
-            line.delete()
-            val file = File(cut, "clip.webm").apply { delete() }
-            val start = (c.scene.start * 1000).toLong()
-            val end = (c.scene.end * 1000).toLong()
-            library.miner.clip(c.detail.video, start, end, file)
-            val clip = anki.addMedia(pkg, file, "${slug}_$start-$end")
-            file.delete()
-            fields["Video"] = "[audio:$lineAudio][audio:$clip]"
-            fields["Notes"] = esc(c.english)
-            fields["Context"] = esc("Improved in kumapie: ${c.detail.show} · ${c.detail.title}, scene ${c.scene.index + 1}.")
+            val r = Miner.Request(c.detail, c.scene, c.line, Miner.Word(c.surface, s.key, s.word, ""))
+            library.miner.sceneFields(r, pkg, fields.keys, "Improved", progress = progress).forEach { (k, v) -> if (k in fields) fields[k] = v }
         }
-        if (sentence.trim() != s.sentence.trim()) fields["Sentence"] = esc(sentence.trim())
+        // A sentence typed by hand (Japanese: the word in bold again).
+        val shown = c?.sentence ?: s.sentence
+        if (sentence.trim() != shown.trim()) {
+            val text = sentence.trim()
+            val at = if (japanese != null) text.indexOf(c?.surface ?: s.word) else -1
+            fields["Sentence"] = if (at < 0) esc(text) else (c?.surface ?: s.word).let { w ->
+                esc(text.substring(0, at)) + "<b>" + esc(w) + "</b>" + esc(text.substring(at + w.length)) }
+        }
         if (bilingual != s.bilingual) fields[KnownWords.DEF_BI] = bilingual
         if (monolingual != s.monolingual) fields[KnownWords.DEF_MONO] = monolingual
         if (recording) {
             progress(tr("Getting the recording…"))
-            library.miner.wordAudio(s.word)?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-${library.miner.slug(s.word)}")}]" }
+            recording(s)?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-${library.miner.slug(s.word)}")}]" }
         }
         progress(tr("Saving…"))
         if (fields != s.note.fields) anki.updateNote(pkg, s.note.id, s.note.tags, fields.values.toList())

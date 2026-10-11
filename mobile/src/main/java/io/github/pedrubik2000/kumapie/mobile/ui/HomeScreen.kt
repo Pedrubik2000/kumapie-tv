@@ -147,7 +147,7 @@ fun HomeScreen(
     // Cards that don't stick (German Core 1000) only in German; the Japanese dictionary only in Japanese.
     val extra = listOfNotNull(
         Dest(Icons.Default.BarChart, tr("Stats"), onStats),
-        Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove).takeIf { homeLang == "de" },
+        Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove),
         Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch).takeIf { homeLang == "ja" },
         Dest(Icons.Default.Settings, tr("Settings"), onSettings),
     )

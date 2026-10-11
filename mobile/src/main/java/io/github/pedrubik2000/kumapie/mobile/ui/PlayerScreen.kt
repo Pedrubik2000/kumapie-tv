@@ -167,9 +167,9 @@ internal fun FullScreen(orientation: Int) {
 
 /**
  * Touch: tap the video = play/pause (at a scene end: next scene); swipe left/right = next/previous scene;
- * double-tap the left half = replay the line, the right half = replay the scene. Subtitles: a tap moves to the
- * next mode (hidden → blurred → German → German + English → hidden; while hidden, tap the bottom of the
- * screen); once German is readable a tap on a word opens its card. ⋮ = options.
+ * double-tap the left half = replay the line, the right half = replay the scene. Subtitles: a tap on them is a tap on
+ * the video (the mode is set only in ⋮ › Subtitles, user 2026-10-11); blurred ones are readable while paused, and
+ * a tap on a readable word opens its card. ⋮ = options.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -292,20 +292,21 @@ internal fun ScenePlayer(
             if (dim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
         }
 
+        // A tap on the video or on the subtitles: closes the word card, else play/pause.
+        val videoTap = {
+            when {
+                picker.isOpen -> picker.close()
+                // A novel: a tap is always the next line, cutting the voice, like the game.
+                episode.novel -> if (ctl.index < ctl.scenes.lastIndex) ctl.nextScene()
+                else -> ctl.togglePlay()
+            }
+        }
         // The gestures on the video. Subtitles and the card sit above and take their own taps.
         Box(
             Modifier.fillMaxSize()
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onTap = { p ->
-                            when {
-                                picker.isOpen -> picker.close()
-                                ctl.subtitles == SubtitleMode.HIDDEN && p.y > size.height * 0.65f -> ctl.cycleSubtitles()
-                                // A novel: a tap is always the next line, cutting the voice, like the game.
-                                episode.novel -> if (ctl.index < ctl.scenes.lastIndex) ctl.nextScene()
-                                else -> ctl.togglePlay()
-                            }
-                        },
+                        onTap = { videoTap() },
                         // Not in a novel: fast taps through narration would replay instead (and wait for a second tap).
                         onDoubleTap = if (episode.novel) null else ({ p ->
                             picker.close()
@@ -343,7 +344,7 @@ internal fun ScenePlayer(
         Subtitles(ctl, picker, onAnchor = { anchor = it }, onTap = { tap ->
             when (tap) {
                 is SubtitleTap.Word -> picker.tap(tap.line, tap.seg)
-                SubtitleTap.Box -> if (picker.isOpen) picker.close() else ctl.cycleSubtitles()
+                SubtitleTap.Box -> videoTap()
             }
         })
         if (picker.isOpen && picker.cardOpen) anchor?.let {
@@ -489,7 +490,7 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         }
         Text(
             tr("Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
-                "right: the scene · tap the subtitles: next mode (hidden: tap the bottom of the screen) · " +
+                "right: the scene · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
                 "tap a word: its meaning, then tap the words of the German definition too."),
             color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
         )

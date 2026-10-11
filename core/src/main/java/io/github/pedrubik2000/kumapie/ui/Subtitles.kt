@@ -123,7 +123,8 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     val range by rememberUpdatedState(selectedRange)
     val ranges by rememberUpdatedState(wordRanges.toList())
     val tapHandler by rememberUpdatedState(onTap)
-    val blurred by rememberUpdatedState(ctl.blurTarget && !picking)
+    // Blurred only while it plays: paused (by you, at a scene's end or start) it is readable (user, 2026-10-11).
+    val blurred by rememberUpdatedState(ctl.blurTarget && !paused)
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val padH = 28.dp

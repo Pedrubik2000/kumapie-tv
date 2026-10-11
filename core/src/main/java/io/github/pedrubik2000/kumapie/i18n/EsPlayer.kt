@@ -31,11 +31,11 @@ internal val esPlayer: Map<String, String> = mapOf(
         "− muestra los subtítulos antes, + después. Se mueven todas las líneas del episodio.",
     "Subtitles" to "Subtítulos",
     "Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
-        "right: the scene · tap the subtitles: next mode (hidden: tap the bottom of the screen) · " +
+        "right: the scene · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
         "tap a word: its meaning, then tap the words of the German definition too." to
         "Toca el número de escena arriba: todas las escenas, para saltar a una · toca el video: reproducir / pausa · " +
         "desliza ← →: escena siguiente / anterior · doble toque a la izquierda: repetir la línea, a la derecha: la escena · " +
-        "toca los subtítulos: siguiente modo (ocultos: toca la parte de abajo de la pantalla) · " +
+        "toca los subtítulos: reproducir / pausa (el modo se elige aquí; los borrosos se leen en pausa) · " +
         "toca una palabra: su significado, y luego toca también las palabras de la definición en alemán.",
     // Add to Anki (MineSheet)
     "  · fits this line" to "  · encaja en esta línea",

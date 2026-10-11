@@ -281,9 +281,18 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             val fitted = File(dir, "subtitles." + raw.extension.lowercase())
             // The video's own English subtitles (timed to it) are the best reference; else the speech in the audio.
             val reference = inside("en")?.let { JSONArray(py.getModule("jimaku").callAttr("cues", it.path, "en").toString()) }
-            synced = SubSync(applicationContext).sync(audio, raw, fitted, reference)
+            val sub = SubSync(applicationContext)
+            synced = sub.sync(audio, raw, fitted, reference)
+            val fittedCues = jm.callAttr("cues", fitted.path).toString()
+            // alass gives no score: is the result right? (item 30) A shift found = what the player's Subtitle timing should move.
+            val check = JSONArray(fittedCues).let { c -> SyncCheck.check((0 until c.length()).map { i -> c.getJSONArray(i).let { it.getDouble(0) to it.getDouble(1) } }, sub.reference, sub.speech) }
+            synced += when {
+                check.ok -> tr(" · in sync")
+                kotlin.math.abs(check.shift) > SyncCheck.LIMIT -> tr(" · check the timing: try %s in the player's Subtitle timing", "%+.1f s".format(java.util.Locale.ROOT, check.shift))
+                else -> tr(" · check the timing at %s", SyncCheck.parts(check.off))
+            }
             File(dir, "subtitles.txt").writeText("${pick.getString("name")}\nsynced: $synced\n") // for a manual fix later
-            jm.callAttr("cues", fitted.path).toString()
+            fittedCues
         } else {
             val kept = File(dir, "transcript.json")
             if (!kept.exists()) { key; needSpeechModel() }

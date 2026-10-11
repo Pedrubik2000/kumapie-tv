@@ -23,6 +23,12 @@ class SubSync(private val context: Context) {
     private val vad: File get() = File(parakeet.dir, "silero_vad.onnx").takeIf { it.exists() }
         ?: File(context.getExternalFilesDir(null) ?: context.filesDir, "models/silero_vad.onnx")
 
+    /** What the last [sync] fitted the lines to, (start, end) in seconds, for [SyncCheck]; [speech]: VAD speech. */
+    var reference: List<Pair<Double, Double>> = emptyList()
+        private set
+    var speech = false
+        private set
+
     /**
      * [subs] (.srt / .ass / .ssa / .vtt) → [out] (same format) fitted to [audio]; answers "+1.84 s" / "2 parts: …".
      * [reference]: cues [[start, end, text]] already timed to this video (its own English subtitles): fitted to those
@@ -30,6 +36,8 @@ class SubSync(private val context: Context) {
      */
     suspend fun sync(audio: File, subs: File, out: File, reference: JSONArray? = null): String = withContext(Dispatchers.IO) {
         if (reference != null && reference.length() > 0) {
+            this@SubSync.reference = (0 until reference.length()).map { i -> reference.getJSONArray(i).let { it.getDouble(0) to it.getDouble(1) } }
+            speech = false
             val ref = File(context.cacheDir, "sync-reference.srt")
             ref.writeText((0 until reference.length()).joinToString("\n") { i ->
                 val c = reference.getJSONArray(i)
@@ -51,7 +59,13 @@ class SubSync(private val context: Context) {
             part.renameTo(model)
         }
         val spans = ArrayList<String>()
-        parakeet.speech(audio, model) { start, pcm, _ -> spans += "${spans.size + 1}\n${ts(start / 16000.0)} --> ${ts((start + pcm.size) / 16000.0)}\n.\n" }
+        val heard = ArrayList<Pair<Double, Double>>()
+        parakeet.speech(audio, model) { start, pcm, _ ->
+            heard += start / 16000.0 to (start + pcm.size) / 16000.0
+            spans += "${spans.size + 1}\n${ts(start / 16000.0)} --> ${ts((start + pcm.size) / 16000.0)}\n.\n"
+        }
+        this@SubSync.reference = heard
+        speech = true
         val ref = File(context.cacheDir, "sync-reference.srt")
         ref.writeText(spans.joinToString("\n"))
         try {

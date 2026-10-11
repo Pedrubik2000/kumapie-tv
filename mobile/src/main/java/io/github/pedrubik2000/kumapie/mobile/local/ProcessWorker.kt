@@ -331,7 +331,9 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val kind = type?.takeIf { !isYouTube(url) } ?: LocalEpisodes.category(url, lang.code, number)
         local.add(LocalEpisodes.Entry(id, show, title, duration, url, season, number, lang = lang.code, kind = kind))
         // The show's metadata, once per show: the Add sheet's pick, else the AniList entry Jimaku found (item 20).
-        (match ?: anilistId?.let { "anilist:$it" })?.takeIf { local.meta(local.showId(show)) == null }?.let { m ->
+        // YouTube: the channel's picture and name, found from this video.
+        (match ?: anilistId?.let { "anilist:$it" } ?: "youtube:$url".takeIf { isYouTube(url) })
+            ?.takeIf { local.meta(local.showId(show)) == null }?.let { m ->
             runCatching {
                 ShowMeta(applicationContext).apply(local.showId(show), kind, m.substringBefore(':'), m.substringAfter(':'),
                     listOf(Lang.speaker, lang.code, "en"))

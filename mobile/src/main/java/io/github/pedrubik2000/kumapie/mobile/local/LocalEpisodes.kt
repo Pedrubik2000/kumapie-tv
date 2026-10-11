@@ -109,7 +109,8 @@ class LocalEpisodes(context: Context) {
         // Numbered episodes in order (a season arrives in any order); the rest as added.
         val eps = all.sortedWith(compareBy({ it.season ?: 0 }, { it.number ?: Int.MAX_VALUE }))
         val first = eps.first()
-        Show(id = showId(show), title = meta?.let { ShowMeta.title(it, io.github.pedrubik2000.kumapie.data.Lang.speaker) } ?: show, kind = first.kind.ifEmpty { "youtube" }, lang = first.lang,
+        Show(id = showId(show), title = meta?.takeIf { first.kind in setOf("anime", "shows", "movies") } // a channel keeps its own name
+                ?.let { ShowMeta.title(it, io.github.pedrubik2000.kumapie.data.Lang.speaker) } ?: show, kind = first.kind.ifEmpty { "youtube" }, lang = first.lang,
             poster = showPoster(show).takeIf { it.exists() }?.let { Uri.fromFile(it).toString() } ?: "", // none: neutral
             episodes = eps.map { e ->
                 Episode(id = e.id, title = e.title, season = e.season, number = e.number, duration = e.duration,

@@ -288,7 +288,7 @@ private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, sta
 internal fun MatchDialog(library: Library, startKind: String, startQuery: String, title: String,
                          onPick: suspend (String, org.json.JSONObject) -> Unit, onDismiss: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val kinds = listOf("anime" to tr("Anime"), "shows" to tr("Shows"), "movies" to tr("Movies"))
+    val kinds = listOf("anime" to tr("Anime"), "shows" to tr("Shows"), "movies" to tr("Movies"), "novels" to tr("Novels"))
     var kind by remember { mutableStateOf(startKind.takeIf { k -> kinds.any { it.first == k } } ?: "shows") }
     var query by remember { mutableStateOf(startQuery) }
     var found by remember { mutableStateOf<List<org.json.JSONObject>?>(null) }

@@ -30,7 +30,9 @@ class Library(context: Context, val settings: Settings) {
     private val appContext = context.applicationContext
     val downloads = Downloads(context)
     /** Device-made shows' metadata (items 20-21). */
-    val showMeta by lazy { io.github.pedrubik2000.kumapie.mobile.local.ShowMeta(appContext) }
+    val showMeta by lazy { io.github.pedrubik2000.kumapie.mobile.local.ShowMeta(appContext).also { m ->
+        Thread { runCatching { m.fillYouTube() } }.start() // once per start: YouTube shows without their channel's picture
+    } }
     val pending = Pending(context)
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
     val yomitan = YomitanDictionaries.get(context).also {
@@ -107,6 +109,7 @@ class Library(context: Context, val settings: Settings) {
 
     /** The shows, and whether they came from the saved copy (offline). */
     suspend fun shows(): Pair<List<Show>, Boolean> {
+        showMeta // starts the YouTube pictures fill once
         val api = api
         val mine = withContext(Dispatchers.IO) { local.shows() }
         val (pc, offline) = runCatching {

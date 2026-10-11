@@ -82,6 +82,23 @@ def _mal_episodes(mal_id):
     return out
 
 
+def _kitsu_episodes(site, ext_id):
+    """{"1-N": title} from Kitsu; [site] "anilist/anime" / "myanimelist/anime" finds the Kitsu entry by that id."""
+    kid = ext_id
+    if site:
+        r = _get(f"https://kitsu.app/api/edge/mappings?filter[externalSite]={site}&filter[externalId]={ext_id}&include=item")
+        kid = next((i["id"] for i in r.get("included", []) if i["type"] == "anime"), None)
+        if not kid:
+            return {}
+    out, url = {}, f"https://kitsu.app/api/edge/anime/{kid}/episodes?page[limit]=20&sort=number"
+    while url and len(out) < 500:
+        r = _get(url)
+        out.update({f"1-{e['attributes']['number']}": e["attributes"]["canonicalTitle"] for e in r["data"]
+                    if e["attributes"].get("number") and e["attributes"].get("canonicalTitle")})
+        url = r.get("links", {}).get("next")
+    return out
+
+
 def _anime_details(source, id_):
     if source == "anilist":
         m = _anilist(f"query($i:Int){{Media(id:$i,type:ANIME){{{_ANILIST_FIELDS} streamingEpisodes{{title}}}}}}",
@@ -92,20 +109,29 @@ def _anime_details(source, id_):
                     for g in re.findall(r"^Episode (\d+) - (.+)$", e.get("title") or "")}
         out = {"title": {"en": t["english"] or t["romaji"], "ja": t["native"]}, "original": t["romaji"],
                "year": m["seasonYear"], "poster": m["coverImage"]["extraLarge"],
-               "description": {"en": _text(m["description"])}, "mal": m["idMal"], "streamed": streamed}
+               "description": {"en": _text(m["description"])}, "mal": m["idMal"], "streamed": streamed,
+               "kitsu": ("anilist/anime", m["id"])}
     elif source == "mal":
         m = _get(f"https://api.jikan.moe/v4/anime/{id_}")["data"]
         out = {"title": {"en": m["title_english"] or m["title"], "ja": m["title_japanese"]}, "original": m["title"],
                "year": m["year"], "poster": m["images"]["jpg"]["large_image_url"],
-               "description": {"en": _text(m["synopsis"])}, "mal": m["mal_id"]}
+               "description": {"en": _text(m["synopsis"])}, "mal": m["mal_id"],
+               "kitsu": ("myanimelist/anime", m["mal_id"])}
     else:
         a = _get(f"https://kitsu.app/api/edge/anime/{id_}")["data"]["attributes"]
         out = {"title": {"en": a["titles"].get("en") or a["canonicalTitle"], "ja": a["titles"].get("ja_jp")},
                "original": a["titles"].get("en_jp") or a["canonicalTitle"],
                "year": int((a["startDate"] or "0")[:4]) or None, "poster": (a["posterImage"] or {}).get("large"),
-               "description": {"en": _text(a["synopsis"])}, "mal": None}
-    # AniList's own list first (one request, already made); Jikan (slow, sometimes unreachable) only without it.
+               "description": {"en": _text(a["synopsis"])}, "mal": None, "kitsu": ("", id_)}
+    # Episode titles: AniList's streaming list (already fetched), else Kitsu's episodes (found by the AniList/MAL id;
+    # AniList has none for many shows, e.g. You and I Are Polar Opposites), else Jikan (slow, sometimes unreachable).
     out["episodes"] = out.pop("streamed", None) or {}
+    site, ext = out.pop("kitsu")
+    if not out["episodes"]:
+        try:
+            out["episodes"] = _kitsu_episodes(site, ext)
+        except Exception:
+            pass
     if not out["episodes"] and out["mal"]:
         try:
             out["episodes"] = _mal_episodes(out["mal"])
@@ -184,11 +210,52 @@ def _movie_details(id_, langs):
             "description": {l: v["value"] for l, v in e.get("descriptions", {}).items()}, "episodes": {}}
 
 
+# ------------------------------------------------------------------ visual novels: VNDB (no key)
+
+def _vn_search(q, year):
+    r = _get("https://api.vndb.org/kana/vn", {"filters": ["search", "=", q], "fields": "title, released, image.url",
+                                               "results": 10, "sort": "searchrank"})
+    return [{"source": "vndb", "id": v["id"], "title": v["title"], "year": int((v.get("released") or "0")[:4] or 0) or None,
+             "poster": (v.get("image") or {}).get("url")} for v in r["results"]]
+
+
+def _vn_details(id_):
+    v = _get("https://api.vndb.org/kana/vn", {"filters": ["id", "=", id_],
+                                              "fields": "title, alttitle, released, image.url, description, titles.lang, titles.title"})["results"][0]
+    titles = {t["lang"]: t["title"] for t in v.get("titles", [])}
+    desc = re.sub(r"\[url=[^]]*\]|\[/url\]", "", v.get("description") or "")  # VNDB's own markup
+    return {"title": {"en": titles.get("en") or v["title"], "ja": titles.get("ja") or v.get("alttitle")}, "original": v["title"],
+            "year": int((v.get("released") or "0")[:4] or 0) or None, "poster": (v.get("image") or {}).get("url"),
+            "description": {"en": _text(desc)}, "episodes": {}}
+
+
+# ------------------------------------------------------------------ YouTube: the channel and its picture (no key)
+
+def _youtube(video_url):
+    """A video's channel: name, page and picture (oEmbed + the channel page's og:image)."""
+    o = _get("https://www.youtube.com/oembed?format=json&url=" + urllib.parse.quote(video_url))
+    page = o["author_url"]
+    req = urllib.request.Request(page, headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "en"})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        html_ = r.read().decode("utf-8", "replace")
+    pic = re.search(r'<meta property="og:image" content="([^"]+)"', html_)
+    about = re.search(r'<meta property="og:description" content="([^"]*)"', html_)
+    return {"title": {"en": o["author_name"]}, "original": o["author_name"], "year": None,
+            "poster": html.unescape(pic[1]) if pic else None,
+            "description": {"en": html.unescape(about[1]) if about else ""}, "episodes": {}, "page": page}
+
+
+def _youtube_search(video_url, year):
+    d = _youtube(video_url)
+    return [{"source": "youtube", "id": video_url, "title": d["original"], "year": None, "poster": d["poster"]}]
+
+
 # ------------------------------------------------------------------ public
 
 def search(kind, query, year=None):
     """Candidates for [query] (a show name, a file name's guess), best first; a [year] match moves up."""
-    find = {"anime": _anime_search, "shows": _show_search, "movies": _movie_search}[kind]
+    find = {"anime": _anime_search, "shows": _show_search, "movies": _movie_search, "novels": _vn_search,
+            "youtube": _youtube_search}[kind]  # youtube: [query] is one of the channel's video links
     found = find(query.strip(), year)
     if year:
         found.sort(key=lambda c: c["year"] != year)  # stable: same order otherwise
@@ -202,6 +269,10 @@ def details(source, id_, langs=("en",)):
         d = _anime_details(source, id_)
     elif source == "tvmaze":
         d = _show_details(id_)
+    elif source == "vndb":
+        d = _vn_details(id_)
+    elif source == "youtube":  # [id_]: a video of the channel
+        d = _youtube(id_)
     elif source == "wikidata":
         d = _movie_details(id_, langs)
     else:
@@ -224,4 +295,14 @@ if __name__ == "__main__":
     assert m and m[0]["year"] == 2026, m[:3]
     d = details(m[0]["source"], m[0]["id"], ("en", "de", "es"))
     print("movie:", d["title"].get("de"), d["year"], d["poster"], "|", d["description"])
+    v = search("novels", "Higurashi no Naku Koro ni")
+    assert v and v[0]["source"] == "vndb", v[:2]
+    d = details("vndb", v[0]["id"])
+    print("novel:", d["title"], d["year"], d["poster"], "|", d["description"]["en"][:60])
+    y = details("youtube", "https://www.youtube.com/watch?v=jNQXAC9IVRw")
+    assert y["poster"] and y["title"]["en"] == "jawed", y
+    print("youtube:", y["title"], y["poster"][:60])
+    k = details("anilist", "184951")
+    assert k["episodes"].get("1-2") == "First Date!", list(k["episodes"].items())[:3]
+    print("You and I:", len(k["episodes"]), "episode titles")
     print("ok")

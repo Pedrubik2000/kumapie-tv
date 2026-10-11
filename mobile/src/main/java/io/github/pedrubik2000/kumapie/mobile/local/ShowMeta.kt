@@ -46,6 +46,15 @@ class ShowMeta(private val context: Context) {
         local.setKind(showId, kind)
     }
 
+    /** YouTube shows made before 2026-10-11 have no picture yet: their channel's, found from one of their videos. */
+    fun fillYouTube() {
+        for ((show, all) in local.entries().groupBy { it.show }) {
+            val e = all.first()
+            if ((e.kind == "youtube" || e.kind == "reels") && e.source.startsWith("http") && local.meta(local.showId(show)) == null)
+                runCatching { apply(local.showId(show), e.kind, "youtube", e.source, listOf("en")) }
+        }
+    }
+
     companion object {
         /** The title in [lang] (the person's), else English, else the original. */
         fun title(meta: JSONObject, lang: String): String? = meta.optJSONObject("title")?.let { t ->

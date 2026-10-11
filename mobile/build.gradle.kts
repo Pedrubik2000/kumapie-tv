@@ -48,6 +48,15 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
+        // Quick test builds: the release app id and key, so they install over the real app and keep its data, but
+        // without R8 and the release lint (~80 s -> seconds). Never published: releases and their last check use
+        // `release`, since some bugs only show after shrinking.
+        create("dev") {
+            initWith(getByName("release"))
+            isMinifyEnabled = false
+            isShrinkResources = false
+            matchingFallbacks += "release"
+        }
     }
 
     compileOptions {
@@ -118,3 +127,6 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
 }
+
+// The release lint check (lintVital, ~22 s) is for what gets published; dev builds skip it.
+tasks.configureEach { if (name.startsWith("lintVital") && name.endsWith("Dev")) enabled = false }

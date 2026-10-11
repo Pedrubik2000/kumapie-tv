@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -86,6 +87,8 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     val context = androidx.compose.ui.platform.LocalContext.current
     var reload by remember { mutableStateOf(0) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var fixing by remember { mutableStateOf(false) }
+    val meta = remember(show.id, reload) { library.showMeta.of(show.id) }
 
     LaunchedEffect(reload) { // fresh progress after watching
         runCatching { library.shows() }.onSuccess { (shows, off) ->
@@ -102,10 +105,12 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
             ?: eps.firstOrNull { it.seen < it.scenes } ?: eps.firstOrNull()
     }
     val header = @Composable { modifier: Modifier ->
-        ShowHeader(library, show, next, wide, onBack, onPlay, modifier)
+        ShowHeader(library, show, meta, next, wide, onBack, onPlay, modifier,
+            onFix = { fixing = true }.takeIf { show.id.startsWith("local-show-") }) // PC shows: item 23
     }
     val row = @Composable { ep: Episode ->
-        EpisodeRow(library, ep, states[ep.id] ?: DownloadState.None, playable(ep), offline, wide,
+        EpisodeRow(library, ep, io.github.pedrubik2000.kumapie.mobile.local.ShowMeta.episodeTitle(meta, ep.season, ep.number)
+            .takeIf { ep.watched }, states[ep.id] ?: DownloadState.None, playable(ep), offline, wide,
             onPlay = { onPlay(ep) }, onDownload = { library.downloads.start(show, ep) },
             onCancel = { library.downloads.cancel(ep.id) }, onDelete = { deleting = ep },
             onMarkWatched = { watched ->
@@ -131,6 +136,8 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
             items(show.episodes, key = { it.id }) { row(it) }
         }
     }
+
+    if (fixing) FixMatchDialog(library, show, onDone = { fixing = false; reload++ })
 
     deleting?.takeIf { io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(it.id) }?.let { ep ->
         AlertDialog(
@@ -179,8 +186,8 @@ private fun DownloadButton(state: DownloadState, enabled: Boolean, onStart: () -
 
 /** The show's poster (never an episode frame: no spoilers) fading into the page, title, info and Play. */
 @Composable
-private fun ShowHeader(library: Library, show: Show, next: Episode?, wide: Boolean, onBack: () -> Unit,
-                       onPlay: (Episode) -> Unit, modifier: Modifier) {
+private fun ShowHeader(library: Library, show: Show, meta: org.json.JSONObject?, next: Episode?, wide: Boolean, onBack: () -> Unit,
+                       onPlay: (Episode) -> Unit, modifier: Modifier, onFix: (() -> Unit)?) {
     val image: Any = library.poster(show.id, show.poster)
     Box(modifier) {
         val art = if (wide) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 10f)
@@ -192,7 +199,11 @@ private fun ShowHeader(library: Library, show: Show, next: Episode?, wide: Boole
             .background(Color.Black.copy(alpha = 0.4f), CircleShape)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Color.White)
         }
-        Column(Modifier.align(Alignment.BottomStart).let { if (wide) it.navigationBarsPadding() else it }.padding(horizontal = 20.dp, vertical = 16.dp),
+        if (onFix != null) TextButton(onClick = onFix, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp)
+            .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(20.dp))) { Text(tr("Fix match"), color = Color.White) }
+        // Top padding: a long title must not run under the back button.
+        Column(Modifier.align(Alignment.BottomStart).let { if (wide) it.navigationBarsPadding() else it }.statusBarsPadding()
+            .padding(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(show.title, fontSize = if (wide) 30.sp else 24.sp, lineHeight = if (wide) 36.sp else 30.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
             val n = show.episodes.size
@@ -202,6 +213,11 @@ private fun ShowHeader(library: Library, show: Show, next: Episode?, wide: Boole
             Text(listOfNotNull(if (n == 1) tr("1 episode") else tr("%d episodes", n), minutes(total).takeIf { total > 0 },
                 tr("%1\$d of %2\$d scenes seen", seen, scenes).takeIf { seen > 0 }).joinToString(" · "),
                 fontSize = 14.sp, color = Colors.dim)
+            meta?.let { io.github.pedrubik2000.kumapie.mobile.local.ShowMeta.description(it, io.github.pedrubik2000.kumapie.data.Lang.speaker) }?.let { text ->
+                var all by remember { mutableStateOf(false) }
+                Text(text, fontSize = 14.sp, maxLines = if (all) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable { all = !all })
+            }
             if (next != null) {
                 val partway = (next.resume ?: 0.0).let { it > 20 && it < next.duration * 0.95 }
                 Button(onClick = { onPlay(next) }) {
@@ -220,7 +236,7 @@ private fun ShowHeader(library: Library, show: Show, next: Episode?, wide: Boole
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun EpisodeRow(library: Library, ep: Episode, state: DownloadState, playable: Boolean, offline: Boolean, wide: Boolean,
+private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, state: DownloadState, playable: Boolean, offline: Boolean, wide: Boolean,
                        onPlay: () -> Unit, onDownload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit, onListen: () -> Unit,
                        onMarkWatched: (Boolean) -> Unit) {
     val onDevice = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) // made here
@@ -244,7 +260,7 @@ private fun EpisodeRow(library: Library, ep: Episode, state: DownloadState, play
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(6.dp))
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(ep.title, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(watchedTitle?.let { "${ep.title} · $it" } ?: ep.title, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(if (onDevice) tr("%s · on this device", minutes(ep.duration)) else tr("%1\$s · %2\$d of %3\$d scenes easy", minutes(ep.duration), ep.easy, ep.scenes) +
                 if (ep.seen > 0) tr(" · %d seen", ep.seen) else "", fontSize = 12.sp, color = Colors.dim)
         }
@@ -253,4 +269,75 @@ private fun EpisodeRow(library: Library, ep: Episode, state: DownloadState, play
         if (onDevice) IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, tr("Delete")) }
         else DownloadButton(state, enabled = !offline || state == DownloadState.Done, onStart = onDownload, onCancel = onCancel, onDelete = onDelete)
     }
+}
+
+/**
+ * "Fix match" (item 21): the show's type and a title search over AniList / TVmaze / Wikidata (python/meta.py); a pick
+ * saves its poster, description and episode titles for the show. Needs internet.
+ */
+@Composable
+private fun FixMatchDialog(library: Library, show: Show, onDone: () -> Unit) {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val kinds = listOf("anime" to tr("Anime"), "shows" to tr("Shows"), "movies" to tr("Movies"))
+    var kind by remember { mutableStateOf(show.kind.takeIf { k -> kinds.any { it.first == k } } ?: "shows") }
+    var query by remember { mutableStateOf(show.title) }
+    var found by remember { mutableStateOf<List<org.json.JSONObject>?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    fun find() {
+        busy = true; error = null
+        scope.launch {
+            runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { library.showMeta.search(kind, query) } }
+                .onSuccess { found = it }.onFailure { error = tr("Couldn't search (internet?): %s", it.message ?: "") }
+            busy = false
+        }
+    }
+    fun pick(c: org.json.JSONObject) {
+        busy = true
+        scope.launch {
+            runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    library.showMeta.apply(show.id, kind, c.getString("source"), c.getString("id"),
+                        listOf(io.github.pedrubik2000.kumapie.data.Lang.speaker, show.lang, "en"))
+                }
+            }.onSuccess { onDone() }.onFailure { error = it.message ?: it.toString(); busy = false }
+        }
+    }
+    LaunchedEffect(Unit) { find() }
+    AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text(tr("Fix match")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    kinds.forEach { (k, label) ->
+                        androidx.compose.material3.FilterChip(selected = kind == k, label = { Text(label) },
+                            onClick = { kind = k; find() })
+                    }
+                }
+                androidx.compose.material3.OutlinedTextField(query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = { TextButton(onClick = ::find, enabled = !busy) { Text(tr("Search")) } })
+                error?.let { Text(it, color = Colors.unknown, fontSize = 13.sp) }
+                if (busy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(found.orEmpty()) { c ->
+                        Row(Modifier.fillMaxWidth().clickable(enabled = !busy) { pick(c) }.padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.width(48.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(4.dp))) {
+                                NeutralPoster(c.optString("title"), Modifier.fillMaxSize(), fontSize = 8.sp)
+                                AsyncImage(c.optString("poster").ifBlank { null }, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            }
+                            Column(Modifier.padding(start = 12.dp)) {
+                                Text(c.optString("title"), fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(listOfNotNull(c.optInt("year").takeIf { it > 0 }?.toString(), c.optString("source"))
+                                    .joinToString(" · "), fontSize = 12.sp, color = Colors.dim)
+                            }
+                        }
+                    }
+                    if (found?.isEmpty() == true) item { Text(tr("No match found"), color = Colors.dim) }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDone) { Text(tr("Close")) } },
+    )
 }

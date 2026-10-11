@@ -92,4 +92,9 @@ internal val esHome: Map<String, String> = mapOf(
     "Close" to "Cerrar",
     "Delete from this device?" to "¿Borrar de este dispositivo?",
     "%s stays on the PC and your other devices, and won't download here again." to "%s se queda en la PC y en tus otros dispositivos, y no se volverá a descargar aquí.",
+    // "Fix match" (show metadata)
+    "Fix match" to "Corregir",
+    "Search" to "Buscar",
+    "No match found" to "Sin resultados",
+    "Couldn't search (internet?): %s" to "No se pudo buscar (¿internet?): %s",
 )

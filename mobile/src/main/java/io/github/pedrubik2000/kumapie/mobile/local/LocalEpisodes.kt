@@ -88,15 +88,28 @@ class LocalEpisodes(context: Context) {
 
     private fun save(list: List<Entry>) = index.writeText(JSONArray(list.map(::toJson)).toString())
 
-    /** A show's own poster (its metadata's), `local/shows/<key>/poster.jpg`; never an episode frame (spoilers). */
-    fun showPoster(show: String) = File(base, "shows/" + show.hashCode().toUInt().toString(16) + "/poster.jpg")
+    /** The show's Home category ("Fix match" picked another type). */
+    @Synchronized
+    fun setKind(showId: String, kind: String) =
+        save(entries().map { if (showId(it.show) == showId && kind.isNotEmpty()) it.copy(kind = kind) else it })
+
+    fun showId(show: String) = "local-show-" + show.hashCode().toUInt().toString(16)
+
+    /** A show's metadata folder (ShowMeta): `local/shows/<key>/` with meta.json and poster.jpg. */
+    fun showDir(showId: String) = File(base, "shows/" + showId.removePrefix("local-show-"))
+
+    /** A show's own poster (its metadata's); never an episode frame (spoilers). */
+    fun showPoster(show: String) = File(showDir(showId(show)), "poster.jpg")
+
+    fun meta(showId: String): org.json.JSONObject? = runCatching { org.json.JSONObject(File(showDir(showId), "meta.json").readText()) }.getOrNull()
 
     /** The local episodes as shows for the home screen ("local-show-<name>"). */
     fun shows(): List<Show> = entries().groupBy { it.show }.map { (show, all) ->
+        val meta = meta(showId(show)) // a match ("Fix match", the Add sheet): its title in the person's language
         // Numbered episodes in order (a season arrives in any order); the rest as added.
         val eps = all.sortedWith(compareBy({ it.season ?: 0 }, { it.number ?: Int.MAX_VALUE }))
         val first = eps.first()
-        Show(id = "local-show-" + show.hashCode().toUInt().toString(16), title = show, kind = first.kind.ifEmpty { "youtube" }, lang = first.lang,
+        Show(id = showId(show), title = meta?.let { ShowMeta.title(it, io.github.pedrubik2000.kumapie.data.Lang.speaker) } ?: show, kind = first.kind.ifEmpty { "youtube" }, lang = first.lang,
             poster = showPoster(show).takeIf { it.exists() }?.let { Uri.fromFile(it).toString() } ?: "", // none: neutral
             episodes = eps.map { e ->
                 Episode(id = e.id, title = e.title, season = e.season, number = e.number, duration = e.duration,

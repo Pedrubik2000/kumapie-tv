@@ -29,6 +29,8 @@ import java.io.IOException
 class Library(context: Context, val settings: Settings) {
     private val appContext = context.applicationContext
     val downloads = Downloads(context)
+    /** Device-made shows' metadata (items 20-21). */
+    val showMeta by lazy { io.github.pedrubik2000.kumapie.mobile.local.ShowMeta(appContext) }
     val pending = Pending(context)
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
     val yomitan = YomitanDictionaries.get(context).also {

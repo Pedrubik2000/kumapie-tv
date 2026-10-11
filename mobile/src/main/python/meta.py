@@ -104,12 +104,13 @@ def _anime_details(source, id_):
                "original": a["titles"].get("en_jp") or a["canonicalTitle"],
                "year": int((a["startDate"] or "0")[:4]) or None, "poster": (a["posterImage"] or {}).get("large"),
                "description": {"en": _text(a["synopsis"])}, "mal": None}
-    try:
-        out["episodes"] = _mal_episodes(out["mal"]) if out["mal"] else {}
-    except Exception:
-        out["episodes"] = {}
-    out["episodes"] = out["episodes"] or out.get("streamed", {})
-    out.pop("streamed", None)
+    # AniList's own list first (one request, already made); Jikan (slow, sometimes unreachable) only without it.
+    out["episodes"] = out.pop("streamed", None) or {}
+    if not out["episodes"] and out["mal"]:
+        try:
+            out["episodes"] = _mal_episodes(out["mal"])
+        except Exception:
+            pass
     del out["mal"]
     return out
 
@@ -195,6 +196,8 @@ def search(kind, query, year=None):
 
 
 def details(source, id_, langs=("en",)):
+    if isinstance(langs, str):  # "en,de" from Kotlin
+        langs = langs.split(",")
     if source in ("anilist", "mal", "kitsu"):
         d = _anime_details(source, id_)
     elif source == "tvmaze":

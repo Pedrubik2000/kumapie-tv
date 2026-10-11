@@ -14,31 +14,31 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         model.parse(listOf(text)).first().lastOrNull { it.begin <= offset }?.takeIf { it.isWord }
 
     /**
-     * The headwords for a tap at [offset] in [text]. [length]: the tapped word's length in the player (a joined word like
-     * 届いた or すいません): what the scan finds for exactly that word comes first, as in Yomitan.
+     * The headwords for a tap at [offset] in [text], longest match first ([length], the player's word, is kept for the
+     * callers; the order no longer depends on it).
      */
     fun lookup(text: String, offset: Int, length: Int = 0): List<Headword> {
         val ja = Lang.JAPANESE
         val tok = token(text, offset)
         val found = ArrayList<YomitanDictionaries.Term>()
         val from = tok?.begin ?: offset
+        // hoshidicts already orders the scan like Yomitan (and Hachidori, same engine): longest match first, then fewer
+        // text changes and conjugation steps, an exact spelling, the frequency lists, the dictionary's score (user,
+        // 2026-10-11: the longest first, then frequency). 黒板消し comes before 黒板 even when Sudachi split it.
         val scanned = dicts.scan(ja, text.substring(from.coerceIn(0, text.length)))
-        if (length > 0) found += scanned.filter { (matched, _) -> matched.length == length }.map { it.second }
-        if (tok != null) {
-            // The dictionary form first (教えて -> 教える, not the noun 教え); then the word as written.
-            // Sudachi's reading of the written word picks among same spellings (行く いく / ゆく).
-            val surfaceReading = hiragana(tok.reading)
-            val bySudachi = { t: YomitanDictionaries.Term -> if (readingOf(t).let { r -> r.isEmpty() || r == surfaceReading }) 0 else 1 }
-            // A word as written in its dictionary form: Sudachi's reading first here too (先生 せんせい, not Pixiv's あにめせんせい).
-            val base = dicts.query(ja, tok.base).let { if (tok.surface == tok.base) it.sortedBy(bySudachi) else it }
-            val asWritten = if (tok.surface != tok.base) dicts.query(ja, tok.surface) else emptyList()
-            found += base + asWritten.sortedBy(bySudachi)
-        }
-        // The scan's longer phrases (本当に, 本当にありがとう) and other spellings; not pieces shorter than the word (本).
-        val wordLength = maxOf(tok?.surface?.length ?: 0, length) // the player's joined word (超加速), else Sudachi's token
-        found += scanned.filter { (matched, _) -> matched.length >= wordLength }.map { it.second }
-        // A word the player joined (超加速) that no dictionary has: its pieces last (超 "super" stays readable), never first.
-        if (length > 0) found += scanned.filter { (matched, _) -> matched.length < length }.map { it.second }
+        // Only change: among matches of the same length, Sudachi's dictionary form first (行って: 行く, not 行う), with
+        // its reading when the word isn't conjugated (先生 せんせい, not Pixiv's あにめせんせい).
+        val sudachi = tok?.takeIf { it.surface == it.base }?.let { hiragana(it.reading) }
+        val bySudachi = { t: YomitanDictionaries.Term ->
+            when {
+                tok == null || t.expression != tok.base -> 2
+                sudachi != null && readingOf(t).let { r -> r.isNotEmpty() && r != sudachi } -> 1
+                else -> 0
+            } }
+        found += scanned.sortedWith(compareBy({ -it.first.length }, { bySudachi(it.second) })).map { it.second }
+        // The dictionary form or the word as written when the scan didn't reach them (they come after).
+        if (tok != null) found += (dicts.query(ja, tok.base) + if (tok.surface != tok.base) dicts.query(ja, tok.surface) else emptyList())
+            .sortedBy(bySudachi)
         val unique = found.distinct()
         found.clear(); found += unique
         // One headword per word and reading (hiragana); entries without a reading join the first with that spelling.
@@ -48,7 +48,7 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             val key = out.keys.firstOrNull { it.first == t.expression } ?: (t.expression to "")
             out.getOrPut(key) { ArrayList() } += t
         }
-        // Back in the order they were found (Sudachi's word first).
+        // Back in the order they were found (the longest match first).
         val order = found.map { it.expression }.distinct()
         return out.entries.sortedBy { order.indexOf(it.key.first) }.map { (k, v) -> Headword(k.first, k.second, v) }
     }

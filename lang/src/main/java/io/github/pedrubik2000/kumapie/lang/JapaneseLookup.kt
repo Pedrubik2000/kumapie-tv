@@ -35,7 +35,10 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             found += base + asWritten.sortedBy(bySudachi)
         }
         // The scan's longer phrases (本当に, 本当にありがとう) and other spellings; not pieces shorter than the word (本).
-        found += scanned.filter { (matched, _) -> tok == null || matched.length >= tok.surface.length }.map { it.second }
+        val wordLength = maxOf(tok?.surface?.length ?: 0, length) // the player's joined word (超加速), else Sudachi's token
+        found += scanned.filter { (matched, _) -> matched.length >= wordLength }.map { it.second }
+        // A word the player joined (超加速) that no dictionary has: its pieces last (超 "super" stays readable), never first.
+        if (length > 0) found += scanned.filter { (matched, _) -> matched.length < length }.map { it.second }
         val unique = found.distinct()
         found.clear(); found += unique
         // One headword per word and reading (hiragana); entries without a reading join the first with that spelling.
@@ -57,14 +60,18 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
     fun forms(text: String, offset: Int): List<Form> {
         val w = model.words(listOf(text)).first().lastOrNull { it.begin <= offset }?.takeIf { it.isWord } ?: return emptyList()
         val heads = lookup(text, w.begin, w.surface.length)
-        // Its headword: Sudachi's dictionary form, preferring one with an English meaning for its card (がんばります: 頑張る,
-        // not a monolingual-only 頑張ります).
-        val meant = heads.filter { h -> h.terms.any(::bilingual) }
-        val own = meant.firstOrNull { it.expression == w.base } ?: meant.firstOrNull() ?: heads.firstOrNull { it.expression == w.base } ?: heads.firstOrNull()
-        val out = mutableListOf(Form(w.surface, hiragana(w.reading), own))
-        // The longest match; among same-length ones a bilingual dictionary's (しましょう: する, not Pixiv's しましょう).
         val scanned = dicts.scan(Lang.JAPANESE, text.substring(w.begin))
-        val longest = scanned.filter { it.first.length == scanned.maxOfOrNull { s -> s.first.length } }
+        // Its headword covers the whole word (item 26): its dictionary form or spelling, or a scan match at least as long.
+        // A shorter piece never is (ホント is not ホン "book", カスミ not カス): no headword then, the card gets no meaning.
+        val whole = scanned.filter { it.first.length >= w.surface.length }.map { it.second.expression }.toSet() + w.base + w.surface
+        val covering = heads.filter { it.expression in whole }
+        // Among those, preferring one with an English meaning for its card (がんばります: 頑張る, not a monolingual-only 頑張ります).
+        val meant = covering.filter { h -> h.terms.any(::bilingual) }
+        val own = meant.firstOrNull { it.expression == w.base } ?: meant.firstOrNull() ?: covering.firstOrNull { it.expression == w.base } ?: covering.firstOrNull()
+        val out = mutableListOf(Form(w.surface, hiragana(w.reading), own))
+        // The longest match, only when it covers the word (気にしない from 気); among same-length ones a bilingual
+        // dictionary's (しましょう: する, not Pixiv's しましょう). A shorter piece is no row (user, 2026-10-11).
+        val longest = scanned.filter { it.first.length == scanned.maxOfOrNull { s -> s.first.length } && it.first.length >= w.surface.length }
         val (matched, term) = longest.firstOrNull { bilingual(it.second) } ?: longest.firstOrNull() ?: return out
         val head = heads.firstOrNull { it.expression == term.expression && readingOf(term).let { r -> r.isEmpty() || r == it.reading } }
             ?: Headword(term.expression, readingOf(term), listOf(term))

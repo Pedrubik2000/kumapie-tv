@@ -266,18 +266,22 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
     var done by remember { mutableStateOf(false) }
     val known = library.languages.of(ctl.lang).known
 
+    // The word card's headwords are the rating rows' (item 25): the word's own first (がんばります: 頑張る), then the
+    // longer match's (気にしない: 気にする). Not the lookup's first headword, which can be a monolingual-only form.
+    val heads = forms.mapNotNull { it.head }.distinctBy { it.expression to it.reading }
     LaunchedEffect(segment?.text) {
         if (segment?.word == null) return@LaunchedEffect
-        val found = runCatching {
-            library.languages.japanese.lookup(io.github.pedrubik2000.kumapie.lang.Tap(cue.text, offset, segment.text.length))
-        }.getOrDefault(emptyList()).firstOrNull()
-        headword = found
-        val c = japaneseChoices(library, found, SensePick.english(scene, line))
+        forms = runCatching { library.languages.japanese.forms(cue.text, offset) }.getOrDefault(emptyList())
+        headword = forms.mapNotNull { it.head }.firstOrNull()
+        if (headword == null) looked = true // no headword covers the word: a card without a meaning, or a sentence card
+    }
+    LaunchedEffect(headword) {
+        val hw = headword ?: return@LaunchedEffect
+        val c = japaneseChoices(library, hw, SensePick.english(scene, line))
         monos = c.monos
         chosen = c.chosen
         choices = c.choices
         looked = true
-        forms = runCatching { library.languages.japanese.forms(cue.text, offset) }.getOrDefault(emptyList())
     }
 
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
@@ -287,8 +291,11 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         val hw = headword
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text(tr("Sentence card")) })
-            if (segment?.word != null) FilterChip(selected = wordCard, onClick = { wordCard = true },
-                label = { Text(tr("Word card: %s", hw?.let { it.expression + if (it.reading.isNotBlank() && it.reading != it.expression) " [${it.reading}]" else "" } ?: segment.text)) })
+            // One chip per headword the rows have (気 and 気にする), else the word as written.
+            if (segment?.word != null) (heads.ifEmpty { listOf(null) }).forEach { h ->
+                FilterChip(selected = wordCard && (h == null || hw == h), onClick = { wordCard = true; if (h != null && hw != h) { headword = h; looked = false } },
+                    label = { Text(tr("Word card: %s", h?.let { it.expression + if (it.reading.isNotBlank() && it.reading != it.expression) " [${it.reading}]" else "" } ?: segment.text)) })
+            }
         }
         if (wordCard) {
             when {

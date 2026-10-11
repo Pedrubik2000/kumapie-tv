@@ -22,6 +22,7 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303") // Android's org.json is a stub in plain JVM tests
     api(project(":core"))
     implementation("androidx.core:core:1.18.0") // FileProvider (mined cards' media)
     implementation("androidx.media3:media3-transformer:1.11.1") // scene clips for mined cards

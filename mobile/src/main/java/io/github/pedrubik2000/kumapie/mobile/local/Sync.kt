@@ -65,12 +65,28 @@ class Sync(private val context: Context) {
             runCatching { upload(base, e); add(onPc, e.id); done += "↑ ${e.title}" }
                 .onFailure { Log.w("kumapie", "sync up ${e.id}: $it") }
         }
+        // Subtitles moved here (player > Subtitle timing) on an episode the PC has: its new episode.json.
+        for (e in local.entries()) {
+            if (e.id !in have || !local.retimed(e.id).exists()) continue
+            runCatching { retime(base, e.id); local.retimed(e.id).delete(); done += "↑ ${e.title} (" + tr("subtitle timing") + ")" }
+                .onFailure { Log.w("kumapie", "sync retime ${e.id}: $it") }
+        }
         val list = JSONArray(String(open("$base").inputStream.use { it.readBytes() }))
         val here = local.entries().map { it.id }.toSet()
         val skip = read(never)
         for (i in 0 until list.length()) {
             val e = list.getJSONObject(i)
             val id = e.getString("id")
+            // Moved on another device: only the episode.json again (the video is the same).
+            val shifted = e.optDouble("shifted", 0.0)
+            if (id in here && !local.retimed(id).exists() && kotlin.math.abs(shifted - local.shifted(id)) > 0.005) {
+                runCatching {
+                    val episode = JSONObject(String(open("$base/$id/episode.json").inputStream.use { it.readBytes() }))
+                    local.json(id).writeText(episode.put("video", local.video(id).path).toString())
+                    local.setShifted(id, shifted)
+                    done += "↓ ${e.getString("title")} (" + tr("subtitle timing") + ")"
+                }.onFailure { Log.w("kumapie", "sync timing $id: $it") }
+            }
             if (id in here || id in skip) continue
             runCatching { download(base, e); add(onPc, id); done += "↓ ${e.getString("title")}" }
                 .onFailure { Log.w("kumapie", "sync down $id: $it") }
@@ -112,6 +128,15 @@ class Sync(private val context: Context) {
         c.setRequestProperty("Content-Type", "application/json")
         c.outputStream.use { it.write(meta.toString().toByteArray()) }
         if (c.responseCode != 200) throw IOException("upload done: HTTP ${c.responseCode}")
+    }
+
+    private fun retime(base: String, id: String) {
+        val body = JSONObject().put("shifted", local.shifted(id)).put("episode", JSONObject(local.json(id).readText()))
+        val c = open("$base/$id/episode", "POST")
+        c.doOutput = true
+        c.setRequestProperty("Content-Type", "application/json")
+        c.outputStream.use { it.write(body.toString().toByteArray()) }
+        if (c.responseCode != 200) throw IOException("retime: HTTP ${c.responseCode}")
     }
 
     private fun download(base: String, e: JSONObject) {

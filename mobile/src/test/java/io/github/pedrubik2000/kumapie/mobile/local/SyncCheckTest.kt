@@ -32,6 +32,13 @@ class SyncCheckTest {
         assertFalse(r.ok)
     }
 
+    @Test fun tooLittleReference() {
+        // The VAD heard only a fifth of the first three minutes' speech: no verdict there, even if some shift fits it.
+        val thin = speech.filterIndexed { i, s -> s.first >= 180 || i % 5 == 0 }
+        val r = SyncCheck.check(lines.map { if (it.first < 180) it.first + 1.5 to it.second + 1.5 else it }, thin, speech = false)
+        assertTrue(r.off.isEmpty())
+    }
+
     @Test fun nothingToCheck() {
         assertTrue(SyncCheck.check(emptyList(), speech, speech = true).ok)
         assertEquals(0.0, SyncCheck.score(lines, emptyList()), 0.0)

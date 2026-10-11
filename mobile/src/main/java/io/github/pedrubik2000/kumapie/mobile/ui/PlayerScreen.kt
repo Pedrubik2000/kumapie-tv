@@ -106,6 +106,7 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     val scopeShift = rememberCoroutineScope()
+    val context = LocalContext.current
     LaunchedEffect(attempt) {
         error = null
         runCatching { library.episode(episode.id) }.onSuccess { detail = if (startAt != null) it.copy(resume = startAt + 0.05) else it }.onFailure { error = it.message ?: it.toString() }
@@ -130,6 +131,7 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
                     // Subtitle timing (episodes made here): moves every line, then reloads the episode where it was.
                     onShift = if (!io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(d.id)) null else ({ secs, at ->
                         library.local.shift(d.id, secs)
+                        io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.now(context) // the new timing to the PC
                         detail = null
                         scopeShift.launch {
                             runCatching { library.episode(episode.id) }.onSuccess { detail = it.copy(resume = at) }

@@ -291,7 +291,9 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 kotlin.math.abs(check.shift) > SyncCheck.LIMIT -> tr(" · check the timing: try %s in the player's Subtitle timing", "%+.1f s".format(java.util.Locale.ROOT, check.shift))
                 else -> tr(" · check the timing at %s", SyncCheck.parts(check.off))
             }
-            File(dir, "subtitles.txt").writeText("${pick.getString("name")}\nsynced: $synced\n") // for a manual fix later
+            File(dir, "subtitles.txt").writeText("${pick.getString("name")}\nsynced: $synced\n" + // for a manual fix later
+                "check (${if (sub.speech) "speech" else "English"}): whole ${"%+.1f".format(java.util.Locale.ROOT, check.shift)} s\n${check.details}")
+            File(dir, "sync-reference.tsv").writeText(sub.reference.joinToString("") { "${it.first}\t${it.second}\n" })
             fittedCues
         } else {
             val kept = File(dir, "transcript.json")

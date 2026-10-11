@@ -72,11 +72,16 @@ class LocalEpisodes(context: Context) {
             for (k in 0 until en.length()) en.getJSONArray(k).let { e -> e.put(0, moved(e.getDouble(0))).put(1, moved(e.getDouble(1))) }
         }
         json(id).writeText(o.toString())
-        val note = File(dir(id), "shift.txt")
-        val total = (note.takeIf { it.exists() }?.readText()?.toDoubleOrNull() ?: 0.0) + seconds
-        note.writeText("%.2f".format(java.util.Locale.ROOT, total))
+        val total = shifted(id) + seconds
+        setShifted(id, total)
+        retimed(id).writeText("") // Sync sends the new timing to the PC and the other devices
         return total
     }
+
+    fun setShifted(id: String, total: Double) = File(dir(id), "shift.txt").writeText("%.2f".format(java.util.Locale.ROOT, total))
+
+    /** There when the subtitles were moved here and the PC doesn't have it yet. */
+    fun retimed(id: String) = File(dir(id), "retime.txt")
 
     fun shifted(id: String): Double = File(dir(id), "shift.txt").takeIf { it.exists() }?.readText()?.toDoubleOrNull() ?: 0.0
 

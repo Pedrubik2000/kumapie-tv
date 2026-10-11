@@ -8,16 +8,19 @@ import kotlin.math.roundToInt
  * time on the reference (the video's English subtitles, or the speech the VAD heard): about 0 = in sync. Also per
  * 3-minute part, for a sync that is wrong in one part only. Calibrated on the PC (kumapie_plan.md item 30,
  * C:\dojo\work\alass\score.py): in sync = 0.0..0.2 s; 2 s off found as 1.8..2.0 s; a window off = over 0.5 s with
- * 2 %+ more line time on the reference; the last window is skipped on speech (the ending song fools the VAD).
+ * 2 %+ more line time on the reference; the last window is skipped on speech (the ending song fools the VAD), and so is
+ * a window with too little reference to judge.
  */
 object SyncCheck {
-    class Result(val shift: Double, val off: List<Pair<Double, Double>>) {
+    class Result(val shift: Double, val off: List<Pair<Double, Double>>, val details: String = "") {
         val ok get() = abs(shift) <= LIMIT && off.isEmpty()
     }
 
     const val LIMIT = 0.5
     private const val WINDOW = 180.0
     private const val MIN_GAIN = 0.02
+    /** A window is judged only when 30 %+ of its line time is on the reference at its best shift (PC: kept all 87 planted). */
+    private const val MIN_ON = 0.30
 
     /** [lines] and [reference] as (start, end) in seconds; [speech]: the reference is VAD speech, not subtitles. */
     fun check(lines: List<Pair<Double, Double>>, reference: List<Pair<Double, Double>>, speech: Boolean): Result {
@@ -26,13 +29,17 @@ object SyncCheck {
         if (sorted.isEmpty() || ref.isEmpty()) return Result(0.0, emptyList())
         val end = sorted.maxOf { it.second }
         val windows = generateSequence(0.0) { it + WINDOW }.takeWhile { it < end }.toList()
+        val details = StringBuilder()
         val off = windows.filterIndexed { i, t -> !(speech && i == windows.lastIndex) }.mapNotNull { t ->
             val w = sorted.filter { it.first >= t && it.first < t + WINDOW }
             if (w.size < 8) return@mapNotNull null
             val (s, gain) = best(w, ref)
-            (t to t + WINDOW).takeIf { abs(s) > LIMIT && gain >= MIN_GAIN }
+            val on = score(w, ref, s)
+            details.append("${clock(t)} n=${w.size} %+.1f s +%.1f%% on %.0f%%\n".format(java.util.Locale.ROOT, s, gain * 100, on * 100))
+            // Too little reference to judge (the phone's VAD heard 18 s of a fight scene's 65 s of speech): skip it.
+            (t to t + WINDOW).takeIf { abs(s) > LIMIT && gain >= MIN_GAIN && on >= MIN_ON }
         }
-        return Result(best(sorted, ref).first, off)
+        return Result(best(sorted, ref).first, off, details.toString())
     }
 
     internal fun merged(spans: List<Pair<Double, Double>>): List<Pair<Double, Double>> {

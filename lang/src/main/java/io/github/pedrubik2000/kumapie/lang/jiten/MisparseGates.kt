@@ -6,8 +6,8 @@ import io.github.pedrubik2000.kumapie.lang.jiten.PartOfSpeech as P
 internal data class MisparseDecision(val isMisparsed: Boolean = false, val gateId: String? = null)
 
 /**
- * C# holds the selected DeckWord (Jiten.Core, not ported); the gates read only its WordId, OriginalText,
- * PartsOfSpeech and Conjugations, so those come in as the selected* fields.
+ * C# holds the selected DeckWord; the gates read only its WordId, OriginalText, PartsOfSpeech and Conjugations, so
+ * those are the selected* fields (the secondary constructor takes the DeckWord, as C# does).
  */
 internal data class MisparseGateContext(
     val token: WordInfo,
@@ -28,7 +28,17 @@ internal data class MisparseGateContext(
     val shardBlobUnattested: Boolean = false,
     val prevDroppedByGate: Boolean = false,
     val nextDroppedByGate: Boolean = false,
-)
+) {
+    /** C#'s shape: the selected DeckWord. */
+    constructor(
+        token: WordInfo, selected: DeckWord, prev: WordInfo?, next: WordInfo?, isUsuallyKana: Boolean,
+        hasKanjiSpelling: Boolean, readingIsIchi: Boolean, isSentenceInitial: Boolean = false, symbolsBefore: String = "",
+        symbolsAfter: String = "", surfaceAttestsListedForm: Boolean = false, surfaceAttestsLiterally: Boolean = false,
+        shardBlobUnattested: Boolean = false, prevDroppedByGate: Boolean = false, nextDroppedByGate: Boolean = false,
+    ) : this(token, selected.wordId, selected.originalText, selected.partsOfSpeech, selected.conjugations, prev, next,
+        isUsuallyKana, hasKanjiSpelling, readingIsIchi, isSentenceInitial, symbolsBefore, symbolsAfter,
+        surfaceAttestsListedForm, surfaceAttestsLiterally, shardBlobUnattested, prevDroppedByGate, nextDroppedByGate)
+}
 
 /** GetWordFlags' tuple; destructures in the same order. */
 internal data class MisparseWordFlags(
@@ -286,8 +296,7 @@ internal object MisparseGates {
         for (f in word.forms) {
             if (f.formType == JmDictFormType.KanjiForm) hasKanji = true
             if (!readingIsIchi && f.formType == JmDictFormType.KanaForm && f.readingIndex == readingIndex &&
-                f.priorities != null &&
-                ("ichi1" in f.priorities || "ichi2" in f.priorities || "jiten" in f.priorities))
+                f.priorities.let { p -> p != null && ("ichi1" in p || "ichi2" in p || "jiten" in p) })
                 readingIsIchi = true
             if (surface != null && f.text == surface) surfaceAttestsForm = true
         }

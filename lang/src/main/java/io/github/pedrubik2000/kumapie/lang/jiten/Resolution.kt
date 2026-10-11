@@ -178,10 +178,21 @@ internal object RederivationHelper {
         return RederiveState(wordInfo, text, textInHiragana, directIds, hiraganaIds, candidateIds, isVerbPath = false)
     }
 
+    /** C#'s BuildCandidatesFromWords: FormCandidateFactory.EnumerateCandidateForms with allowLooseLvmMatch. */
+    fun buildCandidatesFromWords(
+        state: RederiveState,
+        wordCache: Map<Int, JmDictWord>,
+        skipPosFilter: Boolean = false,
+        allowCounterCandidates: Boolean = false,
+    ): List<FormCandidate> = buildCandidatesFromWords(state, wordCache, skipPosFilter, allowCounterCandidates,
+        { word, target, deconjForm, surface ->
+            FormCandidateFactory.enumerateCandidateForms(word, target, allowLooseLvmMatch = true, deconjForm = deconjForm, surface = surface)
+        },
+        { it.isPosIncompatibleDirectSurface = true })
+
     /**
-     * FormCandidateFactory (Scoring) isn't ported here, so its EnumerateCandidateForms comes in as [enumerateCandidateForms]
-     * (word, target hiragana, deconjForm, surface; allowLooseLvmMatch is always true here) and setting a candidate's
-     * IsPosIncompatibleDirectSurface as [markPosIncompatibleDirectSurface].
+     * The generic body: EnumerateCandidateForms comes in as [enumerateCandidateForms] (word, target hiragana, deconjForm,
+     * surface) and setting a candidate's IsPosIncompatibleDirectSurface as [markPosIncompatibleDirectSurface].
      */
     fun <C> buildCandidatesFromWords(
         state: RederiveState,

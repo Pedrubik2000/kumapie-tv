@@ -143,8 +143,8 @@ internal class ScoringRule(
 }
 
 /**
- * C#'s ScoringWindow holds a FormCandidate (Scoring, ported separately); the rules only read its word, form text and
- * deconjugation form, so those are passed directly: `ScoringWindow(c.word, c.form, c.deconjForm, ...)`.
+ * C#'s ScoringWindow holds a FormCandidate; the rules only read its word, form and deconjugation form, so those are the
+ * fields (the secondary constructor takes the FormCandidate, as C# does).
  */
 internal data class ScoringWindow(
     val candidateWord: JmDictWord,
@@ -156,7 +156,12 @@ internal data class ScoringWindow(
     val nextMask: Int,
     val hasNext: Boolean,
     val nextText: String?,
-)
+) {
+    constructor(
+        candidate: FormCandidate, prevMask: Int, hasPrev: Boolean, prevText: String?, nextMask: Int, hasNext: Boolean,
+        nextText: String?,
+    ) : this(candidate.word, candidate.form, candidate.deconjForm, prevMask, hasPrev, prevText, nextMask, hasNext, nextText)
+}
 
 // TransitionRuleEngine.cs
 

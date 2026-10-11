@@ -15,7 +15,8 @@ class JmDictWordForm(
     val readingIndex: Int,
     val text: String,
     val formType: JmDictFormType,
-    val priorities: List<String>?,
+    /** var: PriorityOverrides adds "jiten" when the parser caches the word. */
+    var priorities: List<String>?,
     val infoTags: List<String>?,
     val isNoKanji: Boolean = false,
 ) {
@@ -37,7 +38,8 @@ class JmDictDefinition(
 class JmDictWord(
     val wordId: Int,
     val partsOfSpeech: List<String>,
-    val priorities: List<String>?,
+    /** var: PriorityOverrides adds "jiten" when the parser caches the word. */
+    var priorities: List<String>?,
     val origin: WordOrigin,
     val forms: List<JmDictWordForm>,
     val definitions: List<JmDictDefinition>,

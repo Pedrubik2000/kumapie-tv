@@ -11,7 +11,8 @@ sudachi.rs reads, became `NOOOVBOW`).
 
 The files were **modified**: translated from C# to Kotlin, Jiten's Postgres tables replaced by `JitenLexicon` (built by
 `tools/kumapie/jiten_lexicon.py` from JMdict/JMnedict, EDRDG, CC BY-SA 4.0, and Jiten's frequency list), the
-WanaKana-net calls replaced by a small `WanaKana` object, caches and diagnostics simplified. They are distributed as
+WanaKana-net calls replaced by a small `WanaKana` object, caches and diagnostics simplified, Jiten's ruby reading
+priors, Redis word cache and deck statistics left out. They are distributed as
 part of kumapie under the GPL-3.0, as the Apache-2.0 allows.
 
 `deconjugator.json` comes to Jiten from JL (https://github.com/rampaa/JL, `JL.Core/Resources/deconjugation_rules.json`;

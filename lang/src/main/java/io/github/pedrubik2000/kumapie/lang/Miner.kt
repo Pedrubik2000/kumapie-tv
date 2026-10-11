@@ -10,6 +10,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.Presentation
+import androidx.media3.transformer.AudioEncoderSettings
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
@@ -269,8 +270,9 @@ class Miner(
     }.getOrNull()
 
     /**
-     * The scene from [startMs] to [endMs] as WebM like the PC's clips (VP9 480 p + Opus, ~450 kbps: the card template
-     * shows only .webm clips as video), from the downloaded file or the PC's stream.
+     * The scene from [startMs] to [endMs] as WebM like the PC's clips (~360 kbps: VP9 480 p at 280 kbps with a keyframe
+     * every 10 s, as the default 1 s took ~180 kbps alone, + Opus at 64 kbps; the card template shows only .webm clips
+     * as video), from the downloaded file or the PC's stream.
      */
     @OptIn(UnstableApi::class)
     suspend fun clip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
@@ -287,7 +289,8 @@ class Miner(
                 .setVideoMimeType(if (EncoderUtil.getSupportedEncoders(MimeTypes.VIDEO_VP9).isNotEmpty()) MimeTypes.VIDEO_VP9 else MimeTypes.VIDEO_VP8)
                 .setAudioMimeType(MimeTypes.AUDIO_OPUS)
                 .setEncoderFactory(DefaultEncoderFactory.Builder(context)
-                    .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(400_000).build()).build())
+                    .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(280_000).setiFrameIntervalSeconds(10f).build())
+                    .setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(64_000).build()).build())
                 .addListener(object : Transformer.Listener {
                     override fun onCompleted(composition: Composition, result: ExportResult) {
                         if (cont.isActive) cont.resume(Unit)

@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -77,7 +77,7 @@ fun PlayerScreen(api: Api, settings: Settings, show: Show, episode: Episode, onC
         when {
             error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onClose)
             detail == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 22.sp,
-                modifier = Modifier.align(Alignment.Center))
+                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.Center))
             else -> ScenePlayer(api, settings, detail!!, onClose)
         }
     }
@@ -231,8 +231,9 @@ private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean) {
             .padding(start = 48.dp, end = 48.dp, top = 28.dp, bottom = 56.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("${ctl.episode.show} · ${ctl.episode.title}", color = Colors.text, fontSize = 20.sp)
-        Spacer(Modifier.weight(1f))
+        // One line, cut with "…": a long title must not push the counter and level away (item 13d).
+        Text("${ctl.episode.show} · ${ctl.episode.title}", color = Colors.text, fontSize = 20.sp, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 24.dp))
         val modes = listOfNotNull(
             if (ctl.pauseAtSceneEnd) tr("pauses at scene end") else tr("plays on"),
             if (ctl.slow) "0.75x" else null,

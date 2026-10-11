@@ -82,6 +82,9 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
         FeedKept.levels = levels
         FeedKept.seen = seenNow
         FeedKept.items = found
+        // Which episodes the feed drew from (adb logcat -s kumapie): checks the no-spoiler rule against "N seen".
+        android.util.Log.i("kumapie", "feed: ${found.size} scenes, levels $levels: " +
+            found.groupingBy { "${it.show.title} / ${it.episode.title}" }.eachCount().entries.joinToString { "${it.key} ${it.value}" })
         FeedKept.page = 0
         items = found
         loading = if (found.isEmpty()) tr("No scenes yet: the feed only shows scenes you've already watched, so nothing is spoiled.") else ""

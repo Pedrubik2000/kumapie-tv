@@ -2,6 +2,7 @@ package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -156,7 +157,12 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
             if (germanText.isNotEmpty()) {
                 // Blurred = each word drawn only as its soft coloured shadow. (Modifier.blur blurred the video
                 // under it on phones, where the video is a SurfaceView behind the window.)
-                Text(if (blurred) shadowOnly(germanText, with(density) { 9.dp.toPx() }) else germanText,
+                // 20 dp so nothing can be read (9 dp still could, user 2026-10-11); a wide shadow is faint, so the same
+                // layer is drawn four times to keep the colours strong.
+                val shadow = if (blurred) shadowOnly(germanText, with(density) { 20.dp.toPx() }) else null
+                Box(contentAlignment = Alignment.Center) {
+                if (shadow != null) repeat(3) { Text(shadow, style = germanStyle(size)) }
+                Text(shadow ?: germanText,
                     style = germanStyle(size), color = Colors.text,
                     onTextLayout = { layout = it },
                     modifier = Modifier
@@ -169,6 +175,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
                                 tapHandler?.invoke(word ?: SubtitleTap.Box)
                             }
                         }))
+                }
             }
             if (englishText.isNotEmpty()) {
                 Text(englishText, style = englishStyle(size), color = Colors.dim,

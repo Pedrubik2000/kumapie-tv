@@ -105,6 +105,8 @@ class Sync(private val context: Context) {
         val meta = JSONObject().put("show", e.show).put("title", e.title).put("lang", e.lang)
             .put("translation", Lang.of(e.lang).translation).put("kind", e.kind).put("season", e.season ?: JSONObject.NULL)
             .put("number", e.number ?: JSONObject.NULL).put("duration", e.duration).put("source", e.source)
+            // The show's match on this device (item 23): the PC uses it instead of searching.
+            .put("match", local.meta(local.showId(e.show))?.let { it.optString("source") + ":" + it.optString("id") } ?: JSONObject.NULL)
         val c = open("$url/done", "POST")
         c.doOutput = true
         c.setRequestProperty("Content-Type", "application/json")

@@ -58,6 +58,8 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
                     modifier = Modifier.fillMaxSize())
             }
             Text(show.title, fontSize = 24.sp, color = Colors.text, modifier = Modifier.padding(top = 16.dp))
+            if (show.description.isNotBlank()) Text(show.description, fontSize = 14.sp, color = Colors.dim, maxLines = 9,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         }
         LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(20.dp),
             contentPadding = PaddingValues(horizontal = 40.dp, vertical = 16.dp)) { // room for the focused card's 10%
@@ -81,7 +83,9 @@ private fun EpisodeCard(ep: Episode, blur: Boolean, onClick: () -> Unit, modifie
                 modifier = Modifier.width(200.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
                     .then(if (blur) Modifier.blur(16.dp) else Modifier))
             Column(Modifier.padding(start = 20.dp).weight(1f)) {
-                Text(ep.title, fontSize = 20.sp, color = Colors.text)
+                // The episode's own title only once watched (titles can spoil).
+                Text(if (ep.watched && ep.episodeTitle.isNotBlank()) "${ep.title} · ${ep.episodeTitle}" else ep.title,
+                    fontSize = 20.sp, color = Colors.text)
                 Text((if (ep.easy > 0) tr("%1\$d min · %2\$d scenes · %3\$d easy today", minutes(ep.duration), ep.scenes, ep.easy)
                     else tr("%1\$d min · %2\$d scenes", minutes(ep.duration), ep.scenes)) +
                     if (ep.seen > 0) tr(" · %d seen", ep.seen) else "", fontSize = 14.sp, color = Colors.dim,

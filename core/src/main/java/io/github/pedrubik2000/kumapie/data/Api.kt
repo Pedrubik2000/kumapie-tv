@@ -37,6 +37,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
             Show(
                 id = s.getString("id"), title = s.getString("title"), kind = s.optString("kind"),
                 poster = url(s.getString("poster")), lang = s.optString("lang", "de"),
+                description = s.optString("description"), year = s.optIntOrNull("year"),
                 episodes = s.getJSONArray("episodes").objects().map { e ->
                     Episode(
                         id = e.getString("id"), title = e.getString("title"),
@@ -44,6 +45,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
                         duration = e.optDouble("duration", 0.0), thumb = url(e.getString("thumb")),
                         scenes = e.optInt("scenes"), seen = e.optInt("seen"), easy = e.optInt("easy"),
                         resume = if (e.isNull("resume")) null else e.getDouble("resume"),
+                        episodeTitle = e.optString("episode_title").takeIf { it != "null" }.orEmpty(),
                     )
                 },
             )
@@ -153,6 +155,11 @@ class Api(private val base: String, private val person: String = "") : Backend {
             .put("unwatched", JSONObject(unwatched)).toString())
     }
 
+    /** "Fix match" for a PC show ([show] = its id, the library folder): the PC fetches and keeps the metadata. */
+    suspend fun setMeta(show: String, kind: String, source: String, id: String) {
+        post("/api/tv/meta", JSONObject().put("show", show).put("kind", kind).put("source", source).put("id", id).toString())
+    }
+
     /** A line's German definition read aloud. */
     override fun definitionAudio(scene: String, line: Int, word: String): String =
         url("/api/tts?d=" + java.net.URLEncoder.encode("$scene|$line|$word", "UTF-8"))
@@ -199,7 +206,9 @@ data class ServerInfo(val api: Int, val language: String, val translation: Strin
 
 data class Show(val id: String, val title: String, val kind: String, val poster: String, val episodes: List<Episode>,
                 /** [Lang.code] its episodes are in; the PC's shows are German. */
-                val lang: String = "de")
+                val lang: String = "de",
+                /** From its metadata (items 20-23), in the person's language; "" / null without a match. */
+                val description: String = "", val year: Int? = null)
 
 data class Episode(
     val id: String,
@@ -214,6 +223,8 @@ data class Episode(
     val easy: Int,
     /** Seconds into the episode where it was left, or null. */
     val resume: Double?,
+    /** Its title from the show's metadata; shown only once [watched] (titles can spoil). */
+    val episodeTitle: String = "",
 ) {
     /** Every scene seen to its end (on any device), or marked watched: no spoilers left in it. */
     val watched: Boolean get() = scenes > 0 && seen >= scenes

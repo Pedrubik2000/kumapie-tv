@@ -106,11 +106,11 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     }
     val header = @Composable { modifier: Modifier ->
         ShowHeader(library, show, meta, next, wide, onBack, onPlay, modifier,
-            onFix = { fixing = true }.takeIf { show.id.startsWith("local-show-") }) // PC shows: item 23
+            onFix = { fixing = true }.takeIf { !offline }) // device shows: kept here; PC shows: on the PC
     }
     val row = @Composable { ep: Episode ->
-        EpisodeRow(library, ep, io.github.pedrubik2000.kumapie.mobile.local.ShowMeta.episodeTitle(meta, ep.season, ep.number)
-            .takeIf { ep.watched }, states[ep.id] ?: DownloadState.None, playable(ep), offline, wide,
+        EpisodeRow(library, ep, (io.github.pedrubik2000.kumapie.mobile.local.ShowMeta.episodeTitle(meta, ep.season, ep.number)
+            ?: ep.episodeTitle.ifBlank { null }).takeIf { ep.watched }, states[ep.id] ?: DownloadState.None, playable(ep), offline, wide,
             onPlay = { onPlay(ep) }, onDownload = { library.downloads.start(show, ep) },
             onCancel = { library.downloads.cancel(ep.id) }, onDelete = { deleting = ep },
             onMarkWatched = { watched ->
@@ -140,8 +140,9 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     if (fixing) MatchDialog(library, show.kind, show.title, tr("Fix match"),
         onPick = { kind, c ->
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                library.showMeta.apply(show.id, kind, c.getString("source"), c.getString("id"),
+                if (show.id.startsWith("local-show-")) library.showMeta.apply(show.id, kind, c.getString("source"), c.getString("id"),
                     listOf(io.github.pedrubik2000.kumapie.data.Lang.speaker, show.lang, "en"))
+                else library.api.setMeta(show.id, kind, c.getString("source"), c.getString("id")) // a PC show
             }
         },
         onDismiss = { fixing = false; reload++ })
@@ -220,7 +221,8 @@ private fun ShowHeader(library: Library, show: Show, meta: org.json.JSONObject?,
             Text(listOfNotNull(if (n == 1) tr("1 episode") else tr("%d episodes", n), minutes(total).takeIf { total > 0 },
                 tr("%1\$d of %2\$d scenes seen", seen, scenes).takeIf { seen > 0 }).joinToString(" · "),
                 fontSize = 14.sp, color = Colors.dim)
-            meta?.let { io.github.pedrubik2000.kumapie.mobile.local.ShowMeta.description(it, io.github.pedrubik2000.kumapie.data.Lang.speaker) }?.let { text ->
+            (meta?.let { io.github.pedrubik2000.kumapie.mobile.local.ShowMeta.description(it, io.github.pedrubik2000.kumapie.data.Lang.speaker) }
+                ?: show.description.ifBlank { null })?.let { text ->
                 var all by remember { mutableStateOf(false) }
                 Text(text, fontSize = 14.sp, maxLines = if (all) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.clickable { all = !all })

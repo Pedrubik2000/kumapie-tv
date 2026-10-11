@@ -42,6 +42,8 @@ sealed interface Language {
     fun cardKeys(note: AnkiCards.Note): List<String>
     /** Each field's word keys (the known-word keys), in the same order. */
     fun wordKeys(fields: List<String>): List<Set<String>>
+    /** Known without a card or a mark (Japanese: names and fillers, by Sudachi). */
+    fun autoKnown(word: String): Boolean = false
 }
 
 /** A language's parser: downloaded once, then [isReady]. Its texts are English keys, translated where they are shown. */
@@ -156,6 +158,14 @@ class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionarie
     /** Kaishi and mined words: the card's word when it has one, else its sentence. */
     override fun judgedField(note: AnkiCards.Note): String? = if (note.fields["Word"].isNullOrBlank()) "Sentence" else "Word"
     override fun cardKeys(note: AnkiCards.Note) = CardIndex.japaneseKeys(note)
+
+    private val auto = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    /** Names (固有名詞) and interjections/fillers (感動詞: えっと, ああ) count as known: Sudachi's part of speech of the word alone. */
+    override fun autoKnown(word: String): Boolean = model.isReady && auto.getOrPut(word) {
+        runCatching { model.parse(listOf(word)).first() }.getOrNull()?.singleOrNull()
+            ?.let { it.pos == "感動詞" || it.sub == "固有名詞" } ?: false
+    }
 
     /** Sudachi's dictionary forms of each field's words. */
     override fun wordKeys(fields: List<String>): List<Set<String>> =

@@ -35,6 +35,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     private val savedFile = File(dir, "words.json")
     private val parseCache = File(dir, "parses.json")
     private val markedFile = File(dir, "marked.txt")
+    /** Words imported as known (Jiten's lists for Japanese): known while the word has no card of its own. */
+    private val importedFile = File(dir, "imported.txt")
     private val lock = Mutex()
 
     /** What one inflection's cards say. */
@@ -54,6 +56,20 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         private set
     @Volatile private var marked: Set<String> = runCatching { markedFile.readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet() }
         .getOrDefault(emptySet())
+    @Volatile private var imported: Set<String> = runCatching { importedFile.readLines().filter { it.isNotEmpty() }.toSet() }
+        .getOrDefault(emptySet())
+
+    val importedWords: Set<String> get() = imported
+
+    /** Replaces the imported known words (empty: none). */
+    fun setImported(words: Set<String>) {
+        imported = words
+        runCatching { importedFile.writeText(words.sorted().joinToString("\n")) }
+        _status.value = describe()
+    }
+
+    /** Known without a card of its own: imported, or [Language.autoKnown]. */
+    private fun extraKnown(word: String) = word in imported || language.autoKnown(word)
 
     private val _status = MutableStateFlow(describe())
     /** One line for Settings: what the colours come from now, or what went wrong. */
@@ -77,10 +93,10 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     fun permission(pkg: String) = anki.permission(pkg)
     fun hasPermission(pkg: String) = anki.hasPermission(pkg)
 
-    /** "k" known, null unknown - or null for everything when Anki was never read. */
+    /** "k" known, null unknown. Without a card of its own: known when imported or [Language.autoKnown]. */
     fun status(inflection: String): String? {
         if (inflection in marked) return "k"
-        val f = snapshot?.words?.get(inflection) ?: return null
+        val f = snapshot?.words?.get(inflection) ?: return if (extraKnown(inflection)) "k" else null
         return when {
             f.manual || (f.best != null && f.best >= threshold) -> "k"
             else -> null
@@ -96,6 +112,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     fun statusByCard(word: String): String? = if (word in marked) "k" else when (cardIndex.state(word)) {
         null -> status(word)
         "k", "d" -> "k"
+        "u" -> if (extraKnown(word)) "k" else null
         else -> null
     }
 
@@ -103,7 +120,21 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     fun shown(word: String): String = if (word in marked) "k" else when (val c = cardIndex.state(word)) {
         null -> status(word) ?: "u"
         "n" -> "u"
+        "u" -> if (extraKnown(word)) "k" else "u"
         else -> c
+    }
+
+    /**
+     * What the PC gets (kumapie_plan.md item 6): every word this language shows white or green, sorted. Words known by
+     * part of speech alone ([Language.autoKnown]) can't be listed and aren't in it.
+     */
+    fun knownList(): List<String> {
+        val keys = HashSet<String>()
+        snapshot?.words?.keys?.let(keys::addAll)
+        keys += cardIndex.forms()
+        keys += marked
+        keys += imported
+        return keys.filter { '\t' !in it && statusByCard(it) == "k" }.sorted()
     }
 
     /** This language's word cards by form and kuma3's queue today: [EpisodeDetail] words' [io.github.pedrubik2000.kumapie.data.Word.card]. */
@@ -199,7 +230,9 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     /** Word [w] (episode key [key]) with its card states from [cardIndex] now: its own, and its written forms'. */
     fun paint(key: String, w: io.github.pedrubik2000.kumapie.data.Word) =
-        w.copy(card = cardIndex.state(key), forms = w.forms?.mapValues { (form, _) -> cardIndex.state(form) ?: "" })
+        // No card of its own but imported / a name: no card state, so [status] ("k") draws it white.
+        w.copy(card = cardIndex.state(key)?.takeUnless { it == "u" && extraKnown(key) },
+            forms = w.forms?.mapValues { (form, _) -> cardIndex.state(form)?.takeUnless { it == "u" && extraKnown(key) } ?: "" })
 
     /** A word marked known in the app (or unmarked); answers its status now. */
     fun mark(word: String, known: Boolean): String {
@@ -353,7 +386,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             else -> tr("%d h ago", ago / 60)
         }
         return tr("%1\$d known, %2\$d new (%3\$d notes, read %4\$s).", known,
-            snap.words.size - known, snap.notes, whenText)
+            snap.words.size - known, snap.notes, whenText) +
+            if (imported.isEmpty()) "" else " " + tr("%d imported as known.", imported.size)
     }
 
     companion object {

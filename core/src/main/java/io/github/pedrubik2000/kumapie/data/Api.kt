@@ -141,6 +141,11 @@ class Api(private val base: String, private val person: String = "") : Backend {
     override suspend fun markKnown(word: String, known: Boolean): String =
         JSONObject(post("/api/tv/known", JSONObject().put("word", word).put("known", known).toString())).optString("s", "u")
 
+    /** The words this device shows as known in [lang] (white or green): the PC's feed and TV count by them. */
+    suspend fun knownWords(lang: String, words: List<String>) {
+        post("/api/tv/known_words", JSONObject().put("person", person).put("lang", lang).put("words", org.json.JSONArray(words)).toString())
+    }
+
     /** A line's German definition read aloud. */
     override fun definitionAudio(scene: String, line: Int, word: String): String =
         url("/api/tts?d=" + java.net.URLEncoder.encode("$scene|$line|$word", "UTF-8"))

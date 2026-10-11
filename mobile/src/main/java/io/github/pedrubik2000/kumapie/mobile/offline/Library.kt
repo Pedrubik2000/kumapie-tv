@@ -70,6 +70,27 @@ class Library(context: Context, val settings: Settings) {
         progress.sync(runCatching { api }.getOrNull())
         val marked = progress.merged.marked
         languages.all.forEach { l -> l.known.useMarked(marked.mapNotNull(l::wordOfMark).toSet()) }
+        sendKnownWords()
+    }
+
+    /**
+     * Each language's known words (white or green) to the PC, when they changed since the last send
+     * (kumapie_plan.md item 6). Offline or an error: tried again at the next sync.
+     */
+    private suspend fun sendKnownWords() {
+        val api = runCatching { api }.getOrNull() ?: return
+        for (l in languages.all.filter { it.known.ready }) {
+            val words = withContext(Dispatchers.Default) { l.known.knownList() }
+            val hash = words.hashCode().toString()
+            val key = "known_sent_${l.lang.code}"
+            if (settings.prefs.getString(key, null) == hash) { android.util.Log.i("kumapie", "known words: ${l.lang.code} unchanged"); continue }
+            runCatching { api.knownWords(l.lang.code, words) }
+                .onSuccess {
+                    settings.prefs.edit().putString(key, hash).apply()
+                    android.util.Log.i("kumapie", "known words: ${l.lang.code} ${words.size} sent")
+                }
+                .onFailure { android.util.Log.w("kumapie", "known words: ${l.lang.code} not sent: $it") }
+        }
     }
 
     private var syncSoon: kotlinx.coroutines.Job? = null

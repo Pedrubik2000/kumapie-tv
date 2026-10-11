@@ -40,6 +40,9 @@ class CardIndex {
         }
     }
 
+    /** Every form with a card of its own. */
+    fun forms(): Set<String> = byForm.keys
+
     /** The form's own cards. */
     fun cards(form: String): List<AnkiCards.Card> = byForm[form.lowercase()].orEmpty()
 

@@ -218,6 +218,8 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
         scope.launch { known.refresh(); busy = false }
     }) { Text(if (busy) tr("Reading Anki…") else tr("Read ${language.lang.name} cards now")) }
 
+    if (language is io.github.pedrubik2000.kumapie.lang.Japanese) JitenImport(known)
+
     // morphs' Recalc (the PC's daily `morphs recalc`): first what would change, then Apply. kuma3 Anki only.
     if (language is io.github.pedrubik2000.kumapie.lang.Spaced && ready && allowed && app != "com.ichi2.anki") {
         var plan by remember { mutableStateOf<io.github.pedrubik2000.kumapie.lang.Recalc.Plan?>(null) }
@@ -247,6 +249,52 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
         Text(tr("Like morphs recalc on the PC: after reviewing, new cards with one unknown word come first. Run it on " +
             "one device only (the PC's morphs and this would undo each other's marked-known words)."), fontSize = 13.sp, color = Colors.dim)
     }
+}
+
+/**
+ * Japanese words imported as known from jiten.moe (kumapie_plan.md item 6): its top words by frequency and the
+ * picked word sets. They count as known while the word has no Mined card; names and fillers are known anyway.
+ */
+@Composable
+private fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords) {
+    val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
+    val scope = rememberCoroutineScope()
+    var top by remember { mutableStateOf("10000") }
+    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to (it != "kaishi-15") }.toTypedArray()) }
+    var busy by remember { mutableStateOf(false) }
+    var said by remember { mutableStateOf(known.importedWords.size.takeIf { it > 0 }?.let { tr("%d words imported as known.", it) } ?: "") }
+
+    Text(tr("Known words from jiten.moe"), color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
+    OutlinedTextField(top, { top = it.filter(Char::isDigit) }, label = { Text(tr("Most frequent words")) }, singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+    jiten.SETS.forEach { (slug, name) ->
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            androidx.compose.material3.Checkbox(sets[slug] == true, { sets[slug] = it })
+            Text(tr(name), fontSize = 15.sp)
+        }
+    }
+    androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(enabled = !busy, onClick = {
+            busy = true
+            said = tr("Downloading from jiten.moe…")
+            scope.launch {
+                said = runCatching {
+                    val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        jiten.top(top.toIntOrNull() ?: 0) + sets.filterValues { it }.keys.flatMap(jiten::set)
+                    }
+                    known.setImported(words)
+                    tr("%d words imported as known.", words.size)
+                }.getOrElse { it.message ?: it.toString() }
+                busy = false
+            }
+        }) { Text(tr("Import")) }
+        if (known.importedWords.isNotEmpty()) OutlinedButton(enabled = !busy, onClick = {
+            known.setImported(emptySet()); said = ""
+        }) { Text(tr("Remove imported")) }
+    }
+    if (said.isNotEmpty()) Text(said, fontSize = 14.sp, color = Colors.dim)
+    Text(tr("Known while the word has no card in Japanese Mined. Names and fillers (えっと) count as known anyway."),
+        fontSize = 13.sp, color = Colors.dim)
 }
 
 /**

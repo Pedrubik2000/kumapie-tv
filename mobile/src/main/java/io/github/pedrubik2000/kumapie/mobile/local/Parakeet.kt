@@ -64,7 +64,7 @@ class Parakeet(private val context: Context) {
             // Decoded, cut at pauses and transcribed a piece at a time: a 104-min film decoded whole ran out of memory.
             speech(audio) { start, pcm, done ->
                 val percent = (done * 100).toInt()
-                if (percent != shown) { shown = percent; progress(tr("Transcribing on the tablet: %d%%", percent)) }
+                if (percent != shown) { shown = percent; progress(tr("Transcribing on this device: %d%%", percent)) }
                 val st = rec.createStream()
                 st.acceptWaveform(pcm, 16000)
                 rec.decode(st)

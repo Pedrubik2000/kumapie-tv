@@ -43,15 +43,15 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Sentence card" to "Tarjeta de frase",
     "Word card: %s" to "Tarjeta de palabra: %s",
     "Looking up meanings…" to "Buscando significados…",
-    "The sentence, a video clip of the whole scene and the English." to
-        "La frase, un clip de video de toda la escena y el inglés.",
+    "The sentence, a video clip of the whole scene and the %s." to
+        "La frase, un clip de video de toda la escena y el %s.",
     "Added" to "Añadida",
     "Add" to "Añadir",
     "Not in your Japanese dictionaries: a sentence card is still possible." to
         "No está en tus diccionarios de japonés: aún puedes hacer una tarjeta de frase.",
     "Monolingual definition" to "Definición monolingüe",
     "None" to "Ninguna",
-    "The line, its audio, a screenshot and the English." to "La línea, su audio, una captura y el inglés.",
+    "The line, its audio, a screenshot and the %s." to "La línea, su audio, una captura y el %s.",
     // Dictionary panel, Yomitan popup
     "Looking it up…" to "Buscando…",
     "In this line: %s" to "En esta línea: %s",

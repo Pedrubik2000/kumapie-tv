@@ -24,13 +24,13 @@ internal val esAdd: Map<String, String> = mapOf(
     "Video quality" to "Calidad de video",
     "For YouTube. Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p." to
         "Para YouTube. Más calidad ocupa más espacio (unos 5 / 8 / 15 / 30 MB por minuto); YouTube tiene H.264 hasta 1080p.",
-    "First: Settings > download the translation model (Gemma), or pick another English source." to
-        "Primero: Ajustes > descarga el modelo de traducción (Gemma), o elige otra fuente para el inglés.",
+    "First: Settings > download the translation model (Gemma), or pick another %s source." to
+        "Primero: Ajustes > descarga el modelo de traducción (Gemma), o elige otra fuente para el %s.",
     "First: Settings > the Japanese words dictionary, and your Jimaku API key." to
         "Primero: Ajustes > el diccionario de palabras japonesas y tu clave de API de Jimaku.",
-    "First: Settings > the German model and the speech model (Parakeet)." to
-        "Primero: Ajustes > el modelo de alemán y el modelo de voz (Parakeet).",
-    "First: Settings > the German model, and your Soniox key." to "Primero: Ajustes > el modelo de alemán y tu clave de Soniox.",
+    "First: Settings > the %s model and the speech model (Parakeet)." to
+        "Primero: Ajustes > el modelo de %s y el modelo de voz (Parakeet).",
+    "First: Settings > the %s model, and your Soniox key." to "Primero: Ajustes > el modelo de %s y tu clave de Soniox.",
     "For magnets and Real-Debrid links: Settings > your Real-Debrid token." to
         "Para magnets y enlaces de Real-Debrid: Ajustes > tu token de Real-Debrid.",
     "Make them episodes" to "Convertirlos en episodios",
@@ -38,18 +38,18 @@ internal val esAdd: Map<String, String> = mapOf(
     "Video files…" to "Archivos de video…",
     "Download → Japanese subtitles from Jimaku, fitted to the audio → " to
         "Descarga → subtítulos en japonés de Jimaku, ajustados al audio → ",
-    "no English (Settings)" to "sin inglés (Ajustes)",
-    "English (Gemma on the tablet, about 3 s a line)" to "inglés (Gemma en la tableta, unos 3 s por línea)",
-    "English (the device's translator)" to "inglés (el traductor del dispositivo)",
-    "English (Soniox)" to "inglés (Soniox)",
+    "no %s (Settings)" to "sin %s (Ajustes)",
+    "%s (Gemma on this device, about 3 s a line)" to "%s (Gemma en este dispositivo, unos 3 s por línea)",
+    "%s (the device's translator)" to "%s (el traductor del dispositivo)",
+    "%s (Soniox)" to "%s (Soniox)",
     " → scenes. Show blank: its AniList name. MKV files keep their Japanese audio. Jobs run one after another in the background." to
         " → escenas. Serie vacía: su nombre de AniList. Los archivos MKV conservan su audio en japonés. Las tareas se hacen una tras otra en segundo plano.",
     "Download → " to "Descarga → ",
-    "Parakeet on the tablet (free)" to "Parakeet en la tableta (gratis)",
+    "Parakeet on this device (free)" to "Parakeet en este dispositivo (gratis)",
     "Soniox (paid, about \$0.10 an hour)" to "Soniox (de pago, unos \$0.10 por hora)",
-    " → German subtitles → " to " → subtítulos en alemán → ",
-    " → scenes. A season (magnet) becomes one episode per file; MKV files keep their German audio. Jobs run one after another in the background; each episode appears on the home screen when done." to
-        " → escenas. Una temporada (magnet) se vuelve un episodio por archivo; los archivos MKV conservan su audio en alemán. Las tareas se hacen una tras otra en segundo plano; cada episodio aparece en la pantalla de inicio al terminar.",
+    " → %s subtitles → " to " → subtítulos en %s → ",
+    " → scenes. A season (magnet) becomes one episode per file; MKV files keep their %s audio. Jobs run one after another in the background; each episode appears on the home screen when done." to
+        " → escenas. Una temporada (magnet) se vuelve un episodio por archivo; los archivos MKV conservan su audio en %s. Las tareas se hacen una tras otra en segundo plano; cada episodio aparece en la pantalla de inicio al terminar.",
     // Making an episode (ProcessWorker): Downloads page and notification
     "Starting…" to "Empezando…",
     "Failed: %s" to "Error: %s",
@@ -95,7 +95,7 @@ internal val esAdd: Map<String, String> = mapOf(
     // Parakeet, Gemma, subtitle sync
     "Reading the audio…" to "Leyendo el audio…",
     "Finding speech…" to "Buscando voz…",
-    "Transcribing on the tablet: %d%%" to "Transcribiendo en la tableta: %d%%",
+    "Transcribing on this device: %d%%" to "Transcribiendo en este dispositivo: %d%%",
     "File %1\$d of %2\$d" to "Archivo %1\$d de %2\$d",
     "the speech model (Parakeet)" to "el modelo de voz (Parakeet)",
     "the translation model (Gemma)" to "el modelo de traducción (Gemma)",

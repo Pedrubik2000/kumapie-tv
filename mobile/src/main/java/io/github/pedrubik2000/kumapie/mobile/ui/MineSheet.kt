@@ -202,7 +202,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
                 }
             }
         } else {
-            Text(tr("The sentence, a video clip of the whole scene and the English."), color = Colors.dim, fontSize = 14.sp)
+            Text(tr("The sentence, a video clip of the whole scene and the %s.", translationName()), color = Colors.dim, fontSize = 14.sp)
         }
         // Rate the exact form here too (the word card's row); without a card, the meanings picked above make it.
         if (segment != null && key != null) RatingRows(known, library.settings.prefs, listOf(RateForm(key, null) { p ->
@@ -307,7 +307,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
                 }
             }
         } else {
-            Text(tr("The line, its audio, a screenshot and the English."), color = Colors.dim, fontSize = 14.sp)
+            Text(tr("The line, its audio, a screenshot and the %s.", translationName()), color = Colors.dim, fontSize = 14.sp)
         }
         // Rate each form here too (the word card's rows): a missing one's card is made from its own headword.
         if (forms.isNotEmpty()) RatingRows(known, library.settings.prefs, japaneseRateForms(library, forms, SensePick.english(scene, line)) { w, p ->
@@ -330,3 +330,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         if (done) LaunchedEffect(Unit) { kotlinx.coroutines.delay(1200); onDone() }
     }
 }
+
+/** The person's translation language mid-sentence: "English", or "español" in Spanish menus. */
+private fun translationName(): String = io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationDisplayName
+    .let { if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) it.lowercase() else it }

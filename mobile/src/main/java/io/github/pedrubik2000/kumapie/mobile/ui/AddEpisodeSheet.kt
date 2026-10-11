@@ -38,12 +38,18 @@ import io.github.pedrubik2000.kumapie.ui.Colors
  * the channel / the file name's). Below: every job's progress.
  */
 @Composable
-fun AddEpisodeSheet(library: Library, sharedLink: String?) {
+fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "de") {
     val context = LocalContext.current
     var link by remember { mutableStateOf(sharedLink?.let { Regex("""(https?://|magnet:)\S+""").find(it)?.value } ?: "") }
     var show by remember { mutableStateOf("") }
     var height by remember { mutableStateOf(library.settings.videoHeight) }
-    var lang by remember { mutableStateOf(Lang.GERMAN) }
+    // Only the languages this device learns (a parent's phone: English, no chips); the Home language first.
+    val langs = remember { listOf(Lang.GERMAN, Lang.JAPANESE, Lang.ENGLISH).filter { it.code in library.settings.learning() } }
+    var lang by remember { mutableStateOf(langs.firstOrNull { it.code == homeLang } ?: langs.firstOrNull() ?: Lang.GERMAN) }
+    // Language names mid-sentence: "German", but "alemán" in Spanish.
+    fun named(l: String) = if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) l.lowercase() else l
+    val spoken = named(lang.displayName)
+    val translation = named(lang.translationDisplayName)
     val japanese = lang == Lang.JAPANESE
     val jobs by remember { ProcessWorker.jobs(context) }.collectAsState(initial = emptyList())
     // The job's choices, offered only when they can work (keys and downloads are in Settings); the last ones are remembered.
@@ -86,8 +92,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         .navigationBarsPadding().padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(tr("Add an episode"), color = Colors.accent, fontSize = 18.sp)
-        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(Lang.GERMAN, Lang.JAPANESE, Lang.ENGLISH).forEach { l ->
+        if (langs.size > 1) androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            langs.forEach { l ->
                 androidx.compose.material3.FilterChip(selected = lang == l, label = { Text(l.displayName) }, onClick = { lang = l })
             }
         }
@@ -143,12 +149,12 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         }
         Text(tr("For YouTube. Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p."),
             fontSize = 12.sp, color = Colors.dim)
-        if (!gemmaReady) Text(tr("First: Settings > download the translation model (Gemma), or pick another English source."),
+        if (!gemmaReady) Text(tr("First: Settings > download the translation model (Gemma), or pick another %s source.", translation),
             color = Colors.unknown, fontSize = 14.sp)
         else if (!ready && japanese) Text(tr("First: Settings > the Japanese words dictionary, and your Jimaku API key."),
             color = Colors.unknown, fontSize = 14.sp)
-        else if (!ready) Text(if (parakeet) tr("First: Settings > the German model and the speech model (Parakeet).")
-            else tr("First: Settings > the German model, and your Soniox key."), color = Colors.unknown, fontSize = 14.sp)
+        else if (!ready) Text(if (parakeet) tr("First: Settings > the %s model and the speech model (Parakeet).", spoken)
+            else tr("First: Settings > the %s model, and your Soniox key.", spoken), color = Colors.unknown, fontSize = 14.sp)
         if (needsRd && library.settings.rdToken.isBlank()) Text(tr("For magnets and Real-Debrid links: Settings > your Real-Debrid token."),
             color = Colors.unknown, fontSize = 14.sp)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -167,20 +173,20 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?) {
         }
         val noEnglish = englishNow == "none"
         if (japanese) Text(tr("Download → Japanese subtitles from Jimaku, fitted to the audio → ") + when {
-                noEnglish -> tr("no English (Settings)")
-                gemma -> tr("English (Gemma on the tablet, about 3 s a line)")
-                else -> tr("English (the device's translator)")
+                noEnglish -> tr("no %s (Settings)", translation)
+                gemma -> tr("%s (Gemma on this device, about 3 s a line)", translation)
+                else -> tr("%s (the device's translator)", translation)
             } + tr(" → scenes. Show blank: its " +
             "AniList name. MKV files keep their Japanese audio. Jobs run one after another in the background."),
             color = Colors.dim, fontSize = 13.sp)
-        else Text(tr("Download → ") + (if (parakeet) tr("Parakeet on the tablet (free)") else tr("Soniox (paid, about \$0.10 an hour)")) +
-            tr(" → German subtitles → ") + when {
-                noEnglish -> tr("no English (Settings)")
-                gemma -> tr("English (Gemma on the tablet, about 3 s a line)")
-                englishNow == "soniox" -> tr("English (Soniox)")
-                else -> tr("English (the device's translator)")
-            } + tr(" → scenes. A season (magnet) becomes one episode per file; MKV files keep their German audio. Jobs run " +
-            "one after another in the background; each episode appears on the home screen when done."), color = Colors.dim, fontSize = 13.sp)
+        else Text(tr("Download → ") + (if (parakeet) tr("Parakeet on this device (free)") else tr("Soniox (paid, about \$0.10 an hour)")) +
+            tr(" → %s subtitles → ", spoken) + when {
+                noEnglish -> tr("no %s (Settings)", translation)
+                gemma -> tr("%s (Gemma on this device, about 3 s a line)", translation)
+                englishNow == "soniox" -> tr("%s (Soniox)", translation)
+                else -> tr("%s (the device's translator)", translation)
+            } + tr(" → scenes. A season (magnet) becomes one episode per file; MKV files keep their %s audio. Jobs run " +
+            "one after another in the background; each episode appears on the home screen when done.", spoken), color = Colors.dim, fontSize = 13.sp)
         jobs.forEach { Text(it.stage, fontSize = 14.sp) }
     }
 }

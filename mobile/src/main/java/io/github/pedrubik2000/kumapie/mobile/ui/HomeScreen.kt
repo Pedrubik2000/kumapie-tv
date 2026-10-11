@@ -210,7 +210,7 @@ fun HomeScreen(
     }
     if (adding) {
         ModalBottomSheet(onDismissRequest = { adding = false; attempt++ }) {
-            AddEpisodeSheet(library, sharedLink)
+            AddEpisodeSheet(library, sharedLink, homeLang)
         }
     }
 }

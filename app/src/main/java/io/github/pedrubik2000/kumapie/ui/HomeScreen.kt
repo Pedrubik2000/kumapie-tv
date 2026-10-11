@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
@@ -21,6 +22,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -30,26 +32,61 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Card
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import io.github.pedrubik2000.kumapie.data.Api
+import io.github.pedrubik2000.kumapie.data.Episode
+import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 
-/** The shows as a row of posters. OK opens a show's episodes. */
+/** Home's rows, in this order (the phone's); reels are feed-only, so the TV never lists them. */
+private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "novels" to "Novels")
+
+/**
+ * Asks for the focus until the target is laid out: a lazy list composes its items only when it lays them out, so a
+ * plain requestFocus() right after the first composition throws (item 13c).
+ */
+suspend fun FocusRequester.focusSoon() {
+    repeat(10) {
+        withFrameNanos { }
+        if (runCatching { requestFocus() }.isSuccess) return
+    }
+}
+
+/**
+ * The language switch (only with 2+ languages, saved per profile), then "Continue watching" and one row of posters per
+ * media type. OK on a show opens its episodes; on "Continue watching", the player where it was left.
+ */
 @Composable
-fun HomeScreen(api: Api, who: String, onShow: (Show) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit) {
+fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onShow: (Show) -> Unit,
+               onPlay: (Show, Episode) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit) {
     var shows by remember { mutableStateOf<List<Show>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(attempt) {
         error = null
-        runCatching { api.shows() }.onSuccess { shows = it }.onFailure { error = it.message ?: it.toString() }
+        runCatching { api.shows() }
+            .onSuccess { all -> shows = all.filter { it.kind != "reels" }.map { s -> s.copy(episodes = s.episodes.filter { it.scenes > 0 }) }
+                .filter { it.episodes.isNotEmpty() } } // 0 scenes: nothing to play scene by scene
+            .onFailure { error = it.message ?: it.toString() }
     }
+    val langs = Lang.ALL.map { it.code }.filter { c -> shows.orEmpty().any { it.lang == c } }
+    var picked by remember(profile) { mutableStateOf(settings.prefs.getString("home_lang_$profile", null)) }
+    val lang = picked?.takeIf { it in langs } ?: langs.firstOrNull()
 
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 32.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("kumapie", fontSize = 32.sp, color = Colors.text)
+            Spacer(Modifier.width(32.dp))
+            if (langs.size > 1) langs.forEach { c ->
+                Button(onClick = { picked = c; settings.prefs.edit().putString("home_lang_$profile", c).apply() },
+                    colors = if (c == lang) ButtonDefaults.colors(containerColor = Colors.accent, contentColor = Colors.background)
+                    else ButtonDefaults.colors(),
+                    modifier = Modifier.padding(end = 12.dp)) { Text(Lang.of(c).displayName) }
+            }
             Spacer(Modifier.weight(1f))
             Button(onClick = onProfiles) { Text(who) } // back to "Who's watching?"
             Spacer(Modifier.width(16.dp))
@@ -57,40 +94,72 @@ fun HomeScreen(api: Api, who: String, onShow: (Show) -> Unit, onSettings: () -> 
             Spacer(Modifier.width(16.dp))
             Button(onClick = onSettings) { Text(tr("Settings")) }
         }
-        Spacer(Modifier.padding(12.dp))
+        Spacer(Modifier.padding(8.dp))
         when {
             error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings)
             shows == null -> Text(tr("Loading…"), color = Colors.dim)
-            shows!!.isEmpty() -> Text(tr("No shows on the server yet."), color = Colors.dim)
-            else -> ShowRow(shows!!, onShow)
+            lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim)
+            else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay)
         }
     }
 }
 
+/** "Continue watching" (episodes left partway, as on the phone), then a row per media type. */
 @Composable
-private fun ShowRow(shows: List<Show>, onShow: (Show) -> Unit) {
+private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit) {
+    val going = shows.flatMap { s -> s.episodes.map { s to it } }.filter { (_, e) ->
+        val at = e.resume ?: 0.0
+        !e.watched && e.duration > 0 && at > 20 && at < e.duration * 0.95
+    }
+    val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
+    val rows = KINDS.map { (k, label) -> tr(label) to shows.filter { it.kind == k } } + listOf(tr("Other") to other)
     val first = remember { FocusRequester() }
-    // The focused card grows by 10%: padding keeps it inside the screen and off its title.
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(32.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 24.dp)) {
-        itemsIndexed(shows, key = { _, s -> s.id }) { i, show ->
-            Column(Modifier.width(200.dp)) {
-                Card(
-                    onClick = { onShow(show) },
-                    modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).let { if (i == 0) it.focusRequester(first) else it },
-                ) {
-                    AsyncImage(model = show.poster, contentDescription = show.title,
-                        contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (going.isNotEmpty()) item(key = "going") {
+            Shelf(tr("Continue watching")) {
+                itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
+                    Poster(s.poster, s.title, e.title, ((e.resume ?: 0.0) / e.duration).toFloat(),
+                        if (i == 0) Modifier.focusRequester(first) else Modifier) { onPlay(s, e) }
                 }
-                Text(show.title, color = Colors.text, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 24.dp))
-                val eps = show.episodes.size
-                Text(if (eps == 1) show.kind.replaceFirstChar { it.uppercase() } else tr("%d episodes", eps),
-                    color = Colors.dim, fontSize = 13.sp)
+            }
+        }
+        rows.forEachIndexed { r, (label, list) ->
+            if (list.isNotEmpty()) item(key = "kind-$r") {
+                val top = going.isEmpty() && rows.take(r).all { it.second.isEmpty() }
+                Shelf(label) {
+                    itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
+                        val eps = s.episodes.size
+                        Poster(s.poster, s.title, if (eps == 1) tr(label) else tr("%d episodes", eps), null,
+                            if (top && i == 0) Modifier.focusRequester(first) else Modifier) { onShow(s) }
+                    }
+                }
             }
         }
     }
-    LaunchedEffect(shows) { runCatching { first.requestFocus() } }
+    LaunchedEffect(lang, shows) { first.focusSoon() }
+}
+
+@Composable
+private fun Shelf(title: String, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+    Column {
+        Text(title, color = Colors.text, fontSize = 20.sp, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+        // The focused card grows by 10%: padding keeps it inside the screen and off its title.
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(32.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp), content = content)
+    }
+}
+
+@Composable
+private fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, onClick: () -> Unit) {
+    Column(Modifier.width(160.dp)) {
+        Card(onClick = onClick, modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
+            AsyncImage(model = image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
+        Text(title, color = Colors.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 16.dp))
+        Text(line, color = Colors.dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (progress != null) ProgressBar(progress, Modifier.fillMaxWidth().padding(top = 4.dp))
+    }
 }
 
 @Composable

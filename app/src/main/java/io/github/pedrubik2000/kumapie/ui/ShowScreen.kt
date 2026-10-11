@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,8 +42,10 @@ fun ShowScreen(api: Api, initial: Show, onEpisode: (Show, Episode) -> Unit) {
     LaunchedEffect(initial.id) { // fresh progress after coming back from the player
         runCatching { api.shows() }.getOrNull()?.firstOrNull { it.id == initial.id }?.let { show = it }
     }
-    val start = show.episodes.indexOfLast { it.resume != null }.coerceAtLeast(0)
+    val episodes = show.episodes.filter { it.scenes > 0 } // nothing to play scene by scene (a reel without speech)
+    val start = episodes.indexOfLast { it.resume != null }.coerceAtLeast(0)
     val focus = remember { FocusRequester() }
+    val list = rememberLazyListState()
 
     Row(Modifier.fillMaxSize().padding(start = 48.dp, top = 32.dp, bottom = 32.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.width(260.dp)) {
@@ -50,15 +53,17 @@ fun ShowScreen(api: Api, initial: Show, onEpisode: (Show, Episode) -> Unit) {
                 modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp)))
             Text(show.title, fontSize = 24.sp, color = Colors.text, modifier = Modifier.padding(top = 16.dp))
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(20.dp),
+        LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(20.dp),
             contentPadding = PaddingValues(horizontal = 40.dp, vertical = 16.dp)) { // room for the focused card's 10%
-            itemsIndexed(show.episodes, key = { _, e -> e.id }) { i, ep ->
+            itemsIndexed(episodes, key = { _, e -> e.id }) { i, ep ->
                 EpisodeCard(ep, onClick = { onEpisode(show, ep) },
                     modifier = if (i == start) Modifier.focusRequester(focus) else Modifier)
             }
         }
     }
-    LaunchedEffect(show.id) { runCatching { focus.requestFocus() } }
+    LaunchedEffect(show.id, start) { // the episode must be laid out before it can take the focus
+        if (episodes.isNotEmpty()) { list.scrollToItem(start); focus.focusSoon() }
+    }
 }
 
 @Composable

@@ -89,7 +89,8 @@ fun App(settings: Settings) {
                     profile = it
                 }, onSettings = { stack.add(Screen.Settings) })
             } else when (screen) {
-                Screen.Home -> HomeScreen(api, profile?.name.orEmpty(), onShow = { stack.add(Screen.ShowEpisodes(it)) },
+                Screen.Home -> HomeScreen(api, settings, profile?.id.orEmpty(), profile?.name.orEmpty(),
+                    onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e -> stack.add(Screen.Player(s, e)) },
                     onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
                     onProfiles = { profile = null })
                 Screen.Stats -> StatsScreen(api, onSettings = { stack.add(Screen.Settings) })

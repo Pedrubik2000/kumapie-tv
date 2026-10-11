@@ -106,7 +106,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     val ready: Boolean get() = snapshot != null
 
     /**
-     * [status] by cards (kumapie_anki_review_plan.md step 5, for Recalc's order): "k" when marked known or its own card
+     * [status] by cards (kumapie_anki_review_plan.md step 5): "k" when marked known or its own card
      * is studied (due or not), null otherwise; without kuma3's queue, [status] (stability) as before.
      */
     fun statusByCard(word: String): String? = if (word in marked) "k" else when (cardIndex.state(word)) {
@@ -207,13 +207,13 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     private fun cardsOf(pkg: String, notes: List<Long>) = anki.cards(pkg, "nid:" + notes.joinToString(","))
 
     /**
-     * The episode's word colours and scene levels from the device's own known words, replacing the PC's, once Anki
-     * has been read here. Words the PC marked known (`m`) stay known, as on the PC.
+     * The episode's word colours and scene levels from the device's own known words, replacing the PC's. Words the PC
+     * marked known (`m`) stay known, as on the PC. Before Anki has been read here: [unread].
      */
     fun apply(episode: EpisodeDetail): EpisodeDetail {
-        val snap = snapshot ?: return episode
         val pcMarked = episode.words.filterValues { it.marked }.keys
         if (!marked.containsAll(pcMarked)) setMarked(marked + pcMarked)
+        val snap = snapshot ?: return unread(episode, marked)
         // Japanese words are kept by dictionary form; each way the episode writes one is coloured by its own card.
         val written = if (language !is Japanese) emptyMap() else episode.scenes.asSequence().flatMap { it.cues }.flatMap { it.segments }
             .filter { it.word != null }.groupBy({ it.word!! }, { it.text })
@@ -270,7 +270,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
                 // The field each note is judged by (as morphs' filters on the PC).
                 val fields = notes.mapNotNull { n -> n.fields[language.judgedField(n)]?.let { n.id to it } }.toMap()
-                // Monolingual definitions too (Recalc unlocks them), keyed by -note id in the same parse cache.
+                // Monolingual definitions too (the PC's morphs recalc unlocks them), keyed by -note id in the same parse cache.
                 val defs = notes.mapNotNull { n -> n.fields[DEF_MONO]?.takeIf { it.isNotBlank() }?.let { -n.id to it } }.toMap()
                 _status.value = tr("Parsing %d notes…", fields.size)
                 val parsedAll = parse(fields + defs)
@@ -391,6 +391,19 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     }
 
     companion object {
+        /**
+         * An episode before Anki was read here (kumapie_plan.md item 7): no word is known but the marked ones, not the
+         * PC's colours (the PC sends someone else's words as all known).
+         */
+        fun unread(episode: EpisodeDetail, marked: Set<String>): EpisodeDetail {
+            val words = episode.words.mapValues { (key, w) ->
+                w.copy(status = if (key in marked) "k" else "u", card = null, forms = null, marked = key in marked)
+            }
+            return episode.copy(words = words, scenes = episode.scenes.map { s ->
+                if (!s.target) s else s.copy(level = io.github.pedrubik2000.kumapie.data.levelOf(s, words))
+            })
+        }
+
         val CORE1000 = Lang.GERMAN.tag("core1000")
         /** Word cards mined in kumapie ([Miner]): judged by their Word field, like Core 1000. */
         val MINED_WORD = Lang.GERMAN.tag("word")
@@ -398,7 +411,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         /** The definition fields (the card's template marks the second as locked monolingual). */
         const val DEF_BI = "Definition (bilingual)"
         const val DEF_MONO = "Definition (monolingual)"
-        /** MvJ's tags: every word of the monolingual definition is known (set by [Recalc]; -manually by hand), or not. */
+        /** MvJ's tags: every word of the monolingual definition is known (set by morphs recalc on the PC; -manually by hand), or not. */
         const val DEF_READY = "_mvj::def-is-ready"
         const val DEF_UNKNOWNS = "_mvj::def-has-unknowns"
         const val KNOWN_MANUALLY = "_card-status::i+0-manually"

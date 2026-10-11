@@ -127,7 +127,7 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                 }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                NewEpisodesSection(library)
+                NewEpisodesSection(library, learning)
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text(tr("On this device"), color = Colors.accent)
@@ -160,13 +160,12 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
  */
 @Composable
 private fun KnownWordsSection(library: Library, learning: Set<String>) {
-    val known = library.languages.german.known // permission and threshold are the same for every language
+    val known = library.languages.german.known // the permission is the same for every language
     val app = remember { known.ankiApp() }
     var allowed by remember { mutableStateOf(app != null && known.hasPermission(app)) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         allowed = granted
     }
-    var days by remember { mutableStateOf(known.threshold.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }) }
 
     Text(tr("Word colours from Anki"), color = Colors.accent)
     when {
@@ -178,19 +177,13 @@ private fun KnownWordsSection(library: Library, learning: Set<String>) {
             else -> app
         }), fontSize = 14.sp, color = Colors.dim)
     }
-    // Known from this stability (days) on.
-    OutlinedTextField(days, { v ->
-        days = v
-        v.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }?.let { known.threshold = it }
-    }, label = { Text(tr("Known from stability (days)")) }, singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
 
     library.languages.all.filter { it.lang.code in learning }.forEach { LanguageWordsSection(it, allowed, app) }
 }
 
 /**
  * One language's words from Anki: its parser (spaCy, the same as morphs on the PC; Sudachi for Japanese; downloaded
- * once), reading its cards again (also done when the app starts) and, for spaced languages, morphs' Recalc.
+ * once) and reading its cards again (also done when the app starts).
  */
 @Composable
 private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.Language, allowed: Boolean, app: String?) {
@@ -219,36 +212,6 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
     }) { Text(if (busy) tr("Reading Anki…") else tr("Read ${language.lang.name} cards now")) }
 
     if (language is io.github.pedrubik2000.kumapie.lang.Japanese) JitenImport(known)
-
-    // morphs' Recalc (the PC's daily `morphs recalc`): first what would change, then Apply. kuma3 Anki only.
-    if (language is io.github.pedrubik2000.kumapie.lang.Spaced && ready && allowed && app != "com.ichi2.anki") {
-        var plan by remember { mutableStateOf<io.github.pedrubik2000.kumapie.lang.Recalc.Plan?>(null) }
-        var said by remember { mutableStateOf("") }
-        val recalc = remember { io.github.pedrubik2000.kumapie.lang.Recalc(known) }
-        OutlinedButton(enabled = !busy, onClick = {
-            busy = true
-            said = tr("Working out the order…")
-            scope.launch {
-                runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { recalc.plan() } }
-                    .onSuccess { plan = it; said = it.describe() }.onFailure { said = it.message ?: it.toString() }
-                busy = false
-            }
-        }) { Text(tr("Order new cards (morphs)")) }
-        if (said.isNotEmpty()) Text(said, fontSize = 14.sp, color = Colors.dim)
-        plan?.takeIf { !it.empty }?.let { p ->
-            androidx.compose.material3.Button(enabled = !busy, onClick = {
-                busy = true
-                scope.launch {
-                    said = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { recalc.apply(p) } }
-                        .getOrElse { it.message ?: it.toString() }
-                    plan = null
-                    busy = false
-                }
-            }) { Text(tr("Apply")) }
-        }
-        Text(tr("Like morphs recalc on the PC: after reviewing, new cards with one unknown word come first. Run it on " +
-            "one device only (the PC's morphs and this would undo each other's marked-known words)."), fontSize = 13.sp, color = Colors.dim)
-    }
 }
 
 /**
@@ -411,7 +374,7 @@ private fun DictionarySection(library: Library) {
 
 /** New episodes made on the tablet: the Soniox key (kept only in kumapie's private settings) and the English source. */
 @Composable
-private fun NewEpisodesSection(library: Library) {
+private fun NewEpisodesSection(library: Library, learning: Set<String>) {
     var key by remember { mutableStateOf(library.settings.sonioxKey) }
     var rd by remember { mutableStateOf(library.settings.rdToken) }
     var jimaku by remember { mutableStateOf(library.settings.jimakuKey) }
@@ -431,7 +394,7 @@ private fun NewEpisodesSection(library: Library) {
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         androidx.compose.material3.FilterChip(selected = transcriber == "soniox", label = { Text(tr("Soniox (best, paid)")) },
             onClick = { transcriber = "soniox"; library.settings.transcriber = "soniox" })
-        androidx.compose.material3.FilterChip(selected = transcriber == "parakeet", label = { Text(tr("Parakeet on the tablet (free, offline)")) },
+        androidx.compose.material3.FilterChip(selected = transcriber == "parakeet", label = { Text(tr("Parakeet on this device (free, offline)")) },
             onClick = { transcriber = "parakeet"; library.settings.transcriber = "parakeet" })
     }
     if (transcriber == "parakeet") when {
@@ -444,14 +407,14 @@ private fun NewEpisodesSection(library: Library) {
         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
     OutlinedTextField(rd, { rd = it; library.settings.rdToken = it }, label = { Text(tr("Real-Debrid token (real-debrid.com/apitoken)")) },
         singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, label = { Text(tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles")) },
+    if ("ja" in learning) OutlinedTextField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, label = { Text(tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles")) },
         singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
     Text(tr("%s subtitles", tr(io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationName)), fontSize = 15.sp)
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         androidx.compose.material3.FilterChip(selected = english == "soniox", label = { Text(tr("Soniox (best, no extra cost)")) },
             onClick = { english = "soniox"; library.settings.englishSource = "soniox" })
-        androidx.compose.material3.FilterChip(selected = english == "gemma", label = { Text(tr("Gemma on the tablet (free, offline, good)")) },
+        androidx.compose.material3.FilterChip(selected = english == "gemma", label = { Text(tr("Gemma on this device (free, offline, good)")) },
             onClick = { english = "gemma"; library.settings.englishSource = "gemma" })
         androidx.compose.material3.FilterChip(selected = english == "device", label = { Text(tr("Google's translator (instant, rough)")) },
             onClick = { english = "device"; library.settings.englishSource = "device" })
@@ -459,7 +422,8 @@ private fun NewEpisodesSection(library: Library) {
             onClick = { english = "none"; library.settings.englishSource = "none" })
     }
     if (english == "soniox" && transcriber == "parakeet") {
-        Text(tr("With Parakeet there is no Soniox: the English then comes from Google's translator."), fontSize = 13.sp, color = Colors.dim)
+        Text(tr("With Parakeet there is no Soniox: the %s then comes from Google's translator.",
+            io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationDisplayName), fontSize = 13.sp, color = Colors.dim)
     }
     if (english == "gemma") when {
         gemmaReady -> Text(tr("Gemma: ready. It takes about 3 seconds a line (some 15 minutes for a 10-minute video) in the background."),

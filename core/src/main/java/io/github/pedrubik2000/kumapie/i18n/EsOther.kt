@@ -63,13 +63,6 @@ internal val esOther: Map<String, String> = mapOf(
     "%d h ago" to "hace %d h",
     "%1\$d known, %2\$d new (%3\$d notes, read %4\$s)." to
         "%1\$d conocidas, %2\$d nuevas (%3\$d notas, leído %4\$s).",
-    // Recalc
-    "%1\$d new cards at i+1, %2\$d at i+2 or more, %3\$d at i+0 (of %4\$d new). %5\$d of %6\$d monolingual definitions unlocked. " to
-        "%1\$d tarjetas nuevas en i+1, %2\$d en i+2 o más, %3\$d en i+0 (de %4\$d nuevas). %5\$d de %6\$d definiciones monolingües desbloqueadas. ",
-    "Nothing to change." to "Nada que cambiar.",
-    "%1\$d change place, %2\$d notes get new tags or study words." to
-        "%1\$d cambian de lugar, %2\$d notas reciben etiquetas nuevas o palabras de estudio.",
-    "Done: %1\$d cards placed, %2\$d notes updated." to "Listo: %1\$d tarjetas colocadas, %2\$d notas actualizadas.",
     // Voice
     "No %s voice yet: install one in the speech engine's settings." to
         "Aún no hay voz (%s): instala una en los ajustes del motor de voz.",

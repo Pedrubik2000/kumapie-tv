@@ -101,9 +101,12 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
         if (!BuildConfig.DEBUG) update = runCatching { Updater.newer() }.getOrNull()
     }
     LaunchedEffect(Unit) { // fresh word colours from Anki (cheap after the first time: only new or changed notes are parsed)
-        // Only once Anki has been read here by hand: reading wakes AnkiDroid, and an AnkiDroid that was never opened
-        // then sets itself up with a new empty collection in /sdcard/AnkiDroid.
-        library.languages.all.map { it.known }.filter { it.ready && it.modelReady }.forEach { it.refresh() }
+        // Only once reading Anki was allowed here (Settings > Allow reading Anki, done after kuma3 is set up): reading
+        // wakes AnkiDroid, and an AnkiDroid that was never opened then sets itself up with a new empty collection in
+        // /sdcard/AnkiDroid. Before the first read every word is red ([KnownWords.apply]); kumapie_plan.md item 7.
+        library.languages.all.map { it.known }.filter { k ->
+            k.modelReady && (k.ready || k.ankiApp()?.let(k::hasPermission) == true)
+        }.forEach { it.refresh() }
         library.syncProgress() // positions, scenes, time and marks from the other devices (through Anki)
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }

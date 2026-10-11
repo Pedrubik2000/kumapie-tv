@@ -39,15 +39,8 @@ internal val esSettings: Map<String, String> = mapOf(
     "Allow reading Anki" to "Permitir leer Anki",
     "Anki: %s." to "Anki: %s.",
     "kuma3 test build" to "kuma3 de prueba",
-    "Known from stability (days)" to "Conocida desde estabilidad (días)",
     "Reading Anki…" to "Leyendo Anki…",
-    "Working out the order…" to "Calculando el orden…",
-    "Order new cards (morphs)" to "Ordenar tarjetas nuevas (morphs)",
     "Apply" to "Aplicar",
-    "Like morphs recalc on the PC: after reviewing, new cards with one unknown word come first. Run it on " +
-        "one device only (the PC's morphs and this would undo each other's marked-known words)." to
-        "Como morphs recalc en la PC: después de repasar, primero salen las tarjetas nuevas con una sola palabra " +
-        "desconocida. Úsalo en un solo dispositivo (morphs en la PC y esto desharían las palabras marcadas como conocidas del otro).",
 
     // Japanese / English words
     "Japanese words" to "Palabras en japonés",
@@ -111,7 +104,7 @@ internal val esSettings: Map<String, String> = mapOf(
     "New episodes" to "Episodios nuevos",
     "Transcription" to "Transcripción",
     "Soniox (best, paid)" to "Soniox (el mejor, de pago)",
-    "Parakeet on the tablet (free, offline)" to "Parakeet en la tableta (gratis, sin conexión)",
+    "Parakeet on this device (free, offline)" to "Parakeet en este dispositivo (gratis, sin conexión)",
     "Parakeet: ready. More mistakes than Soniox (about 1 word in 9 differed in a test)." to
         "Parakeet: listo. Más errores que Soniox (alrededor de 1 palabra de cada 9 cambió en una prueba).",
     "Parakeet: %s" to "Parakeet: %s",
@@ -120,11 +113,11 @@ internal val esSettings: Map<String, String> = mapOf(
     "Real-Debrid token (real-debrid.com/apitoken)" to "Token de Real-Debrid (real-debrid.com/apitoken)",
     "Jimaku API key (jimaku.cc > Account), Japanese subtitles" to "Clave API de Jimaku (jimaku.cc > Account), subtítulos en japonés",
     "Soniox (best, no extra cost)" to "Soniox (el mejor, sin costo extra)",
-    "Gemma on the tablet (free, offline, good)" to "Gemma en la tableta (gratis, sin conexión, buena)",
+    "Gemma on this device (free, offline, good)" to "Gemma en este dispositivo (gratis, sin conexión, buena)",
     "Google's translator (instant, rough)" to "Traductor de Google (al instante, aproximado)",
     "None (no translation, fastest)" to "Ninguno (sin traducción, lo más rápido)",
-    "With Parakeet there is no Soniox: the English then comes from Google's translator." to
-        "Con Parakeet no hay Soniox: el inglés sale entonces del traductor de Google.",
+    "With Parakeet there is no Soniox: the %s then comes from Google's translator." to
+        "Con Parakeet no hay Soniox: la traducción (%s) sale entonces del traductor de Google.",
     "Gemma: ready. It takes about 3 seconds a line (some 15 minutes for a 10-minute video) in the background." to
         "Gemma: lista. Tarda unos 3 segundos por línea (unos 15 minutos para un video de 10 minutos) en segundo plano.",
     "Gemma: %s" to "Gemma: %s",

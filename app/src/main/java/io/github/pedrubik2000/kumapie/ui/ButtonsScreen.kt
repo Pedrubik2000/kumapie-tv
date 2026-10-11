@@ -1,5 +1,7 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import io.github.pedrubik2000.kumapie.player.text
+import io.github.pedrubik2000.kumapie.i18n.tr
 import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -71,18 +73,18 @@ fun ButtonsScreen(settings: Settings) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 32.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Buttons", fontSize = 30.sp, color = Colors.text)
+                Text(tr("Buttons"), fontSize = 30.sp, color = Colors.text)
                 Spacer(Modifier.weight(1f))
                 Button(onClick = {
                     KeyContext.entries.forEach { settings.resetKeys(it); keys[it] = defaultBindings(it) }
-                }) { Text("Reset to defaults") }
+                }) { Text(tr("Reset to defaults")) }
             }
-            Text("Choose an action, then press the button for it (hold it for a long press). Back can't be changed.",
+            Text(tr("Choose an action, then press the button for it (hold it for a long press). Back can't be changed."),
                 color = Colors.dim, fontSize = 15.sp, modifier = Modifier.padding(vertical = 10.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
                 KeyContext.entries.forEach { context ->
                     item(key = context.name) {
-                        Text(context.label, color = Colors.accent, fontSize = 20.sp, modifier = Modifier.padding(top = 10.dp))
+                        Text(context.text, color = Colors.accent, fontSize = 20.sp, modifier = Modifier.padding(top = 10.dp))
                     }
                     items(Action.entries.filter { it.context == context }, key = { it.name }) { action ->
                         val fr = focus.getOrPut(action) { FocusRequester() }
@@ -91,10 +93,10 @@ fun ButtonsScreen(settings: Settings) {
                             Button(onClick = { capturing = action }, scale = ButtonDefaults.scale(focusedScale = 1.02f),
                                 modifier = Modifier.weight(1f).focusRequester(fr)
                                     .let { if (action == Action.entries.first()) it.focusRequester(firstRow) else it }) {
-                                Text(action.label, modifier = Modifier.weight(1f))
+                                Text(action.text(), modifier = Modifier.weight(1f))
                                 Text(buttons.ifEmpty { "—" }, color = if (buttons.isEmpty()) Colors.dim else Color.Unspecified)
                             }
-                            Button(onClick = { save(context, keys.getValue(context).filterValues { it != action }) }) { Text("Clear") }
+                            Button(onClick = { save(context, keys.getValue(context).filterValues { it != action }) }) { Text(tr("Clear")) }
                         }
                     }
                 }
@@ -137,10 +139,10 @@ private fun CaptureOverlay(action: Action, onDone: (Binding?) -> Unit) {
     ) {
         Column(Modifier.background(Colors.surface, RoundedCornerShape(16.dp)).padding(36.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(action.label, fontSize = 24.sp, color = Colors.text)
-            Text(if (held) "Holding… let go to save it as a long press" else "Press a button (hold it for a long press)",
+            Text(action.text(), fontSize = 24.sp, color = Colors.text)
+            Text(if (held) tr("Holding… let go to save it as a long press") else tr("Press a button (hold it for a long press)"),
                 fontSize = 18.sp, color = Colors.learning)
-            Text("Back: cancel", fontSize = 15.sp, color = Colors.dim)
+            Text(tr("Back: cancel"), fontSize = 15.sp, color = Colors.dim)
         }
     }
     LaunchedEffect(Unit) { focus.requestFocus() }

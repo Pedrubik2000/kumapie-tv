@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import io.github.pedrubik2000.kumapie.profile
 import io.github.pedrubik2000.kumapie.i18n.tr
 import android.os.SystemClock
 import android.view.ViewGroup
@@ -101,7 +102,11 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
     fun openPicker() {
         if (!picker.open()) Toast.makeText(context, tr("No words in this scene"), Toast.LENGTH_SHORT).show()
     }
-    var help by remember { mutableStateOf(settings.showHelp) } // the list of buttons, when an episode opens
+    // The list of buttons opens by itself only the first time a person plays something (user, 2026-10-11); then
+    // from Options > Help.
+    val seenKey = "help_seen_${settings.profile}"
+    var help by remember { mutableStateOf(settings.showHelp && !settings.prefs.getBoolean(seenKey, false)) }
+    LaunchedEffect(help) { if (help) settings.prefs.edit().putBoolean(seenKey, true).apply() }
     var helpKey by remember { mutableStateOf<Int?>(null) } // the button that closed it: its release is ours too
     val watchKeys = remember { keyMapOf(KeyContext.WATCH, settings.keys(KeyContext.WATCH)) }
     val pickerKeys = remember { keyMapOf(KeyContext.PICKER, settings.keys(KeyContext.PICKER)) }
@@ -216,7 +221,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
         if (picker.isOpen && picker.cardOpen) anchor?.let { MeaningCard(ctl, picker, it) }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() },
             onHelp = { options = false; help = true; focus.requestFocus() })
-        if (help) HelpOverlay(settings)
+        if (help) HelpOverlay(settings, ctl.lang)
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
 }
@@ -245,10 +250,10 @@ private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean) {
         if (coloured) LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 16.dp))
     }
     val hint = when {
-        picker.isOpen && picker.inDef -> "←→ words of the definition   ↓ back to the line   OK: hear the word (twice: definition)   hold ↓ / Y: known   Back: close"
+        picker.isOpen && picker.inDef -> tr("←→ words of the definition   ↓ back to the line   OK: hear the word (twice: definition)   hold ↓: known   Back: close")
         picker.isOpen && picker.cardOpen ->
-            "OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK / X: replay line   hold ↓ / Y: known"
-        picker.isOpen -> tr("←→ words   ↑↓ lines   OK: show the meaning   hold OK / X: replay line   hold ↓ / Y: known   Back: close")
+            tr("OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK: replay line   hold ↓: known")
+        picker.isOpen -> tr("←→ words   ↑↓ lines   OK: show the meaning   hold OK: replay line   hold ↓: known   Back: close")
         ctl.atSceneEnd -> tr("OK: next scene   ↑: replay line   ↓: pick a word   ←: previous")
         else -> null
     }

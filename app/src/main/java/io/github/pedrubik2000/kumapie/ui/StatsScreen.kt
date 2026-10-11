@@ -110,7 +110,7 @@ private fun StatsContent(s: Stats) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(sh.title, color = Colors.text, fontSize = 16.sp, modifier = Modifier.width(360.dp))
                                 ProgressBar(if (sh.scenes > 0) sh.seen.toFloat() / sh.scenes else 0f, Modifier.width(300.dp))
-                                Text("  ${sh.seen} / ${sh.scenes} scenes", color = Colors.dim, fontSize = 14.sp)
+                                Text("  " + tr("%1\$d / %2\$d scenes", sh.seen, sh.scenes), color = Colors.dim, fontSize = 14.sp)
                             }
                         }
                     }

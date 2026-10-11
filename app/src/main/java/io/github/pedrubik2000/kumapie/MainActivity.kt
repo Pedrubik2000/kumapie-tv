@@ -86,6 +86,7 @@ fun App(settings: Settings) {
                 ProfilesScreen(api, settings.profile, onPick = {
                     settings.profile = it.id
                     Tr.use(it.menu)
+                    settings.speaks = if (it.menu == "es") "es" else "en" // translation line and help texts
                     profile = it
                 }, onSettings = { stack.add(Screen.Settings) })
             } else when (screen) {

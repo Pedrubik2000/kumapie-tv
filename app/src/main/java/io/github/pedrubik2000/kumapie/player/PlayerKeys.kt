@@ -1,6 +1,8 @@
 package io.github.pedrubik2000.kumapie.player
 
 import android.view.KeyEvent
+import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** Where a button press counts: while watching, or inside the word picker (each has its own buttons). */
 enum class KeyContext(val label: String) { WATCH("While watching"), PICKER("In the word picker") }
@@ -12,9 +14,9 @@ enum class Action(val label: String, val context: KeyContext = KeyContext.WATCH)
     PREVIOUS_SCENE("Previous scene"),
     REPLAY_LINE("Replay line"),
     REPLAY_SCENE("Replay scene"),
-    CYCLE_SUBTITLES("Subtitles: hidden → blurred → German → both (at a scene end: pick a word)"),
-    TOGGLE_GERMAN("German subtitles"),
-    TOGGLE_ENGLISH("English subtitles"),
+    CYCLE_SUBTITLES("Subtitles: hidden → blurred → %s → both (at a scene end: pick a word)"),
+    TOGGLE_GERMAN("%s subtitles"),   // the episode's language (the name stays: saved button maps use it)
+    TOGGLE_ENGLISH("%s subtitles"),  // the translation's
     SLOW("Speed 0.75x"),
     PAUSE_AT_SCENE_END("Pause at scene end / play on"),
     OPTIONS("Options"),
@@ -28,13 +30,23 @@ enum class Action(val label: String, val context: KeyContext = KeyContext.WATCH)
     PICK_AUDIO("Show the meaning; then hear the word (twice: the definition)", KeyContext.PICKER),
     PICK_REPLAY_LINE("Replay the word's line", KeyContext.PICKER),
     PICK_MARK_KNOWN("Mark known / undo", KeyContext.PICKER),
-    PICK_CLOSE("Close the picker", KeyContext.PICKER),
+    PICK_CLOSE("Close the picker", KeyContext.PICKER);
+
+    /** The label in the menu language, with the episode's language names ([lang]; none: "the episode's language"). */
+    fun text(lang: Lang? = null): String = when (this) {
+        CYCLE_SUBTITLES, TOGGLE_GERMAN -> tr(label, lang?.displayName ?: tr("the episode's language"))
+        TOGGLE_ENGLISH -> tr(label, lang?.translationDisplayName ?: tr("the translation"))
+        else -> tr(label)
+    }
 }
+
+/** The context's title in the menu language. */
+val KeyContext.text: String get() = tr(label)
 
 /**
  * Which key does what. A key with a long-press action acts when it is released (short) or held (long);
- * other keys act at once. Back (remote Back, gamepad B) is left to the system: it closes the player.
- * The gamepad's D-pad arrives as the same DPAD keys as the remote's.
+ * other keys act at once. Back is left to the system: it closes the player. The remote only (no gamepad since
+ * 2026-10-11): what has no key of its own (speed, pause at scene end, help) is in the Options menu.
  */
 class KeyMap(
     val short: Map<Int, Action> = DEFAULT_SHORT,
@@ -42,7 +54,6 @@ class KeyMap(
 ) {
     companion object {
         val DEFAULT_SHORT = mapOf(
-            // remote
             KeyEvent.KEYCODE_DPAD_CENTER to Action.PLAY_PAUSE,
             KeyEvent.KEYCODE_ENTER to Action.PLAY_PAUSE,
             KeyEvent.KEYCODE_DPAD_RIGHT to Action.NEXT_SCENE,
@@ -57,21 +68,10 @@ class KeyMap(
             KeyEvent.KEYCODE_MEDIA_REWIND to Action.REPLAY_SCENE,
             KeyEvent.KEYCODE_MEDIA_PREVIOUS to Action.PREVIOUS_SCENE,
             KeyEvent.KEYCODE_MENU to Action.OPTIONS,
-            // gamepad
-            KeyEvent.KEYCODE_BUTTON_A to Action.PLAY_PAUSE,
-            KeyEvent.KEYCODE_BUTTON_X to Action.REPLAY_LINE,
-            KeyEvent.KEYCODE_BUTTON_Y to Action.REPLAY_SCENE,
-            KeyEvent.KEYCODE_BUTTON_L1 to Action.TOGGLE_GERMAN,
-            KeyEvent.KEYCODE_BUTTON_R1 to Action.TOGGLE_ENGLISH,
-            KeyEvent.KEYCODE_BUTTON_L2 to Action.SLOW,
-            KeyEvent.KEYCODE_BUTTON_R2 to Action.PAUSE_AT_SCENE_END,
-            KeyEvent.KEYCODE_BUTTON_START to Action.OPTIONS,
-            KeyEvent.KEYCODE_BUTTON_SELECT to Action.WORD_PICKER,
         )
         val DEFAULT_LONG = mapOf(
             KeyEvent.KEYCODE_DPAD_CENTER to Action.WORD_PICKER,
             KeyEvent.KEYCODE_ENTER to Action.WORD_PICKER,
-            KeyEvent.KEYCODE_BUTTON_A to Action.WORD_PICKER,
             KeyEvent.KEYCODE_DPAD_LEFT to Action.REPLAY_SCENE,
             KeyEvent.KEYCODE_DPAD_DOWN to Action.OPTIONS,
         )
@@ -85,18 +85,12 @@ class KeyMap(
                 KeyEvent.KEYCODE_DPAD_DOWN to Action.PICK_DOWN,
                 KeyEvent.KEYCODE_DPAD_CENTER to Action.PICK_AUDIO,
                 KeyEvent.KEYCODE_ENTER to Action.PICK_AUDIO,
-                KeyEvent.KEYCODE_BUTTON_A to Action.PICK_AUDIO,
-                KeyEvent.KEYCODE_BUTTON_X to Action.PICK_REPLAY_LINE,
-                KeyEvent.KEYCODE_BUTTON_Y to Action.PICK_MARK_KNOWN,
-                KeyEvent.KEYCODE_BUTTON_SELECT to Action.PICK_CLOSE,
-                KeyEvent.KEYCODE_BUTTON_B to Action.PICK_CLOSE,
                 KeyEvent.KEYCODE_BACK to Action.PICK_CLOSE,
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE to Action.PICK_REPLAY_LINE,
             ),
             long = mapOf(
                 KeyEvent.KEYCODE_DPAD_CENTER to Action.PICK_REPLAY_LINE,
                 KeyEvent.KEYCODE_ENTER to Action.PICK_REPLAY_LINE,
-                KeyEvent.KEYCODE_BUTTON_A to Action.PICK_REPLAY_LINE,
                 KeyEvent.KEYCODE_DPAD_DOWN to Action.PICK_MARK_KNOWN,
             ),
         )
@@ -145,7 +139,7 @@ class KeyHandler(private val keyMap: () -> KeyMap, private val onAction: (Action
 
 /** One button: its key code, pressed briefly or held. */
 data class Binding(val code: Int, val long: Boolean) {
-    val label: String get() = (if (long) "hold " else "") + keyLabel(code)
+    val label: String get() = if (long) tr("hold %s", keyLabel(code)) else keyLabel(code)
 }
 
 /** "OK, Play/Pause, hold ←": the buttons' names, each once (OK and Enter are both "OK"), short ones first. */
@@ -170,31 +164,20 @@ fun keyMapOf(context: KeyContext, bindings: Map<Binding, Action>): KeyMap {
 /** Keys that can't be given to an action: Back and Home belong to the system. */
 fun isReservedKey(code: Int): Boolean = code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_HOME
 
-/** A short, readable name for a key: "OK", "→", "A", "L2", "Play/Pause". */
+/** A short, readable name for a key: "OK", "→", "Play/Pause". */
 fun keyLabel(code: Int): String = when (code) {
     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> "OK"
     KeyEvent.KEYCODE_DPAD_UP -> "↑"
     KeyEvent.KEYCODE_DPAD_DOWN -> "↓"
     KeyEvent.KEYCODE_DPAD_LEFT -> "←"
     KeyEvent.KEYCODE_DPAD_RIGHT -> "→"
-    KeyEvent.KEYCODE_BUTTON_A -> "A"
-    KeyEvent.KEYCODE_BUTTON_B -> "B"
-    KeyEvent.KEYCODE_BUTTON_X -> "X"
-    KeyEvent.KEYCODE_BUTTON_Y -> "Y"
-    KeyEvent.KEYCODE_BUTTON_L1 -> "L"
-    KeyEvent.KEYCODE_BUTTON_R1 -> "R"
-    KeyEvent.KEYCODE_BUTTON_L2 -> "L2"
-    KeyEvent.KEYCODE_BUTTON_R2 -> "R2"
-    KeyEvent.KEYCODE_BUTTON_START -> "Start (+)"
-    KeyEvent.KEYCODE_BUTTON_SELECT -> "Select (−)"
-    KeyEvent.KEYCODE_BUTTON_MODE -> "Home (gamepad)"
-    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> "Play/Pause"
-    KeyEvent.KEYCODE_MEDIA_PLAY -> "Play"
-    KeyEvent.KEYCODE_MEDIA_PAUSE -> "Pause"
-    KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> "Fast-forward"
-    KeyEvent.KEYCODE_MEDIA_REWIND -> "Rewind"
-    KeyEvent.KEYCODE_MEDIA_NEXT -> "Next"
-    KeyEvent.KEYCODE_MEDIA_PREVIOUS -> "Previous"
-    KeyEvent.KEYCODE_MENU -> "Menu"
+    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> tr("Play/Pause")
+    KeyEvent.KEYCODE_MEDIA_PLAY -> tr("Play")
+    KeyEvent.KEYCODE_MEDIA_PAUSE -> tr("Pause")
+    KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> tr("Fast-forward")
+    KeyEvent.KEYCODE_MEDIA_REWIND -> tr("Rewind")
+    KeyEvent.KEYCODE_MEDIA_NEXT -> tr("Next")
+    KeyEvent.KEYCODE_MEDIA_PREVIOUS -> tr("Previous")
+    KeyEvent.KEYCODE_MENU -> tr("Menu")
     else -> KeyEvent.keyCodeToString(code).removePrefix("KEYCODE_").lowercase().replace('_', ' ')
 }

@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,55 +42,55 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
 
     fun save() {
         val url = Settings.normalizeServer(server)
-        status = "Connecting…"
+        status = tr("Connecting…")
         scope.launch {
             runCatching { Api(url).info() }
                 .onSuccess {
                     settings.server = url
-                    status = "Connected: ${it.episodes} episodes"
+                    status = tr("Connected: %d episodes", it.episodes)
                     onSaved()
                 }
-                .onFailure { status = "Can't reach $url (${it.message})" }
+                .onFailure { status = tr("Can't reach %1\$s (%2\$s)", url, it.message) }
         }
     }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(if (firstRun) "Welcome to kumapie" else "Settings", fontSize = 32.sp, color = Colors.text)
+        Text(if (firstRun) tr("Welcome to kumapie") else tr("Settings"), fontSize = 32.sp, color = Colors.text)
         if (firstRun) {
-            Text("Type the address of the dojo server on the PC (Tailscale), e.g. https://my-pc.tailnet.ts.net:8445",
+            Text(tr("Type the address of the dojo server on the PC (Tailscale), e.g. https://my-pc.tailnet.ts.net:8445"),
                 color = Colors.dim)
         }
-        Text("Server", fontSize = 18.sp, color = Colors.dim)
+        Text(tr("Server"), fontSize = 18.sp, color = Colors.dim)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TvTextField(server, { server = it }, onDone = ::save,
                 modifier = Modifier.width(640.dp).let { if (firstRun) it.focusRequester(focus) else it })
-            Button(onClick = ::save) { Text("Save") }
+            Button(onClick = ::save) { Text(tr("Save")) }
         }
         if (status.isNotEmpty()) Text(status, color = Colors.dim)
 
         if (!firstRun) {
-            Text("Buttons and help", fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            Text(tr("Buttons and help"), fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
             var showHelp by remember { mutableStateOf(settings.showHelp) }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Focus starts here, not in the server field: focusing a text field opens the TV's keyboard.
-                Button(onClick = onButtons, modifier = Modifier.focusRequester(focus)) { Text("Change buttons") }
+                Button(onClick = onButtons, modifier = Modifier.focusRequester(focus)) { Text(tr("Change buttons")) }
                 Button(onClick = { showHelp = !showHelp; settings.showHelp = showHelp }) {
-                    Text("Help screen and key hints: " + if (showHelp) "on" else "off")
+                    Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")))
                 }
             }
-            Text("Updates", fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            Text(tr("Updates"), fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = {
-                    updateStatus = "Checking…"
+                    updateStatus = tr("Checking…")
                     scope.launch {
                         runCatching { Updater.newer() }
-                            .onSuccess { r -> if (r == null) updateStatus = "Up to date" else { updateStatus = ""; onUpdate(r) } }
-                            .onFailure { updateStatus = "Couldn't check: ${it.message}" }
+                            .onSuccess { r -> if (r == null) updateStatus = tr("Up to date") else { updateStatus = ""; onUpdate(r) } }
+                            .onFailure { updateStatus = tr("Couldn't check: %s", it.message) }
                     }
-                }) { Text("Check for updates") }
+                }) { Text(tr("Check for updates")) }
             }
             if (updateStatus.isNotEmpty()) Text(updateStatus, color = Colors.dim)
-            Text("Version ${BuildConfig.VERSION_NAME}", color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            Text(tr("Version %s", BuildConfig.VERSION_NAME), color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
         }
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }

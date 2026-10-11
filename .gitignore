@@ -7,3 +7,4 @@ local.properties
 # Release keys never go in the repo (CI gets them from the repository secrets).
 *.jks
 *.keystore
+__pycache__/

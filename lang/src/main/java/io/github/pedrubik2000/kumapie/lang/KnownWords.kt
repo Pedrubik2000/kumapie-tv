@@ -66,8 +66,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             _status.value = describe()
         }
 
-    /** This language's notes in Anki ("note:🐻 German" OR "note:🇩🇪 MvJ"). */
-    private val search get() = noteTypes.joinToString(" OR ", "(", ")") { "\"note:$it\"" }
+    /** This language's own cards: its Mined deck only ("deck:Deutsch Mined", subdecks included). */
+    private val search get() = "\"deck:${lang.deck}\""
 
     /** The Anki note type with the German sentences and Core 1000 words: its new name first, then the old one. */
     val noteTypes = lang.noteTypes

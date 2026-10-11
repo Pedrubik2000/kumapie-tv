@@ -137,7 +137,7 @@ internal fun japaneseRateForms(library: Library, forms: List<io.github.pedrubik2
 /**
  * "Add to Anki": the line as a sentence card, or the picked word as a word card with the meaning chosen from
  * kumapie's own meaning and every dictionary sense. Without kumapie's own meaning, the sense that fits the line's
- * English ([SensePick]) starts chosen. Adds to kuma3 Anki's Deutsch::Mined ([Miner]).
+ * English ([SensePick]) starts chosen. Adds to kuma3 Anki's Deutsch Mined ([Miner]).
  */
 @Composable
 fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit,
@@ -237,7 +237,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
 /**
  * "Add to Anki" for Japanese episodes ([Miner] writes the 🐻 Japanese card): the line as a sentence card, or the tapped
  * word with a meaning picked from the bilingual dictionaries (the first one chosen) and a monolingual definition picked
- * from the monolingual ones (国語 dictionaries before encyclopedias; or none). Into Japanese::Mined.
+ * from the monolingual ones (国語 dictionaries before encyclopedias; or none). Into Japanese Mined.
  */
 @Composable
 private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit,

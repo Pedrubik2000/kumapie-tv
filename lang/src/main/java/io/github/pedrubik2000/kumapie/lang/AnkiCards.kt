@@ -31,7 +31,7 @@ class AnkiCards(private val context: Context) {
     data class Card(val id: Long, val noteId: Long, val reviewed: Boolean, val stability: Double?, val due: Long,
                     val reps: Int = 0, val lapses: Int = 0, val ord: Int = 0, val type: Int = 0)
 
-    /** Notes found by an Anki search (`"note:🐻 German"`), with their fields by name. */
+    /** Notes found by an Anki search (`"deck:Deutsch Mined"`), with their fields by name. */
     fun notes(pkg: String, search: String): List<Note> {
         val names = HashMap<Long, List<String>>()
         val out = ArrayList<Note>()
@@ -104,7 +104,7 @@ class AnkiCards(private val context: Context) {
         return mid to fieldNames(pkg, mid)
     }
 
-    /** The deck's id, made when it doesn't exist ("Deutsch::Mined"). */
+    /** The deck's id, made when it doesn't exist ("Deutsch Mined"). */
     fun deck(pkg: String, name: String): Long {
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/decks"), arrayOf("deck_id", "deck_name"), null, null, null)?.use { c ->
             while (c.moveToNext()) if (c.getString(1) == name) return c.getLong(0)

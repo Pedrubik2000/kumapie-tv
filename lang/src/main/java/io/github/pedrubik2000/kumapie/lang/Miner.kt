@@ -70,7 +70,7 @@ class Miner(
         val formOf: String? = null,
     )
 
-    /** Adds the card; answers a line for the user ("Added to Deutsch::Mined"). */
+    /** Adds the card; answers a line for the user ("Added to Deutsch Mined"). */
     suspend fun mine(r: Request, progress: (String) -> Unit): String = withContext(Dispatchers.IO) {
         // German and English cards share the layout (🐻 German / 🐻 English); Japanese has Kaishi's.
         val language = when (val l = languages.of(r.episode.lang)) { is Japanese -> return@withContext mineJapanese(r, l, progress); is Spaced -> l }
@@ -143,7 +143,7 @@ class Miner(
     /**
      * A 🐻 Japanese card (the Kaishi 1.5k layout): the tapped subtitle line with the word in bold, that line's audio cut
      * from the episode, a screenshot, the English, and for a word card `届く[とどく]:0-` (reading, pitch), the meaning
-     * picked, a monolingual definition and the device voice saying the word. Into Japanese::Mined.
+     * picked, a monolingual definition and the device voice saying the word. Into Japanese Mined.
      */
     private suspend fun mineJapanese(r: Request, japanese: Japanese, progress: (String) -> Unit): String {
         val ja = japanese.lang
@@ -191,7 +191,7 @@ class Miner(
 
     /**
      * A 🐻 Japanese word card from the Japanese dictionary screen: word, reading, meaning, word audio; no sentence or
-     * clip (the card's front is the Word). Into Japanese::Mined.
+     * clip (the card's front is the Word). Into Japanese Mined.
      */
     suspend fun mineJapaneseWord(w: Word): String = withContext(Dispatchers.IO) {
         val japanese = languages.japanese

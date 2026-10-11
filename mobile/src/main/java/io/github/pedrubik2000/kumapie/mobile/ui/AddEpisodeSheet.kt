@@ -42,6 +42,11 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
     val context = LocalContext.current
     var link by remember { mutableStateOf(sharedLink?.let { Regex("""(https?://|magnet:)\S+""").find(it)?.value } ?: "") }
     var show by remember { mutableStateOf("") }
+    // The show it is (item 20): its type and the match picked in the search ("source:id"), for its poster and description.
+    var type by remember { mutableStateOf<String?>(null) }
+    var match by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var searching by remember { mutableStateOf(false) }
+    val matchKey = match?.let { it.getString("source") + ":" + it.getString("id") }
     var height by remember { mutableStateOf(library.settings.videoHeight) }
     // Only the languages this device learns (a parent's phone: English, no chips); the Home language first.
     val langs = remember { listOf(Lang.GERMAN, Lang.JAPANESE, Lang.ENGLISH).filter { it.code in library.settings.learning() } }
@@ -78,7 +83,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
         androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         uris.forEach { uri ->
             runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            ProcessWorker.start(context, uri.toString(), show.takeIf { it.isNotBlank() }, height, lang, transcriber, englishNow)
+            ProcessWorker.start(context, uri.toString(), show.takeIf { it.isNotBlank() }, height, lang, transcriber, englishNow,
+                type = type, match = matchKey)
         }
     }
     val ready = gemmaReady && when {
@@ -116,8 +122,17 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 androidx.compose.material3.Switch(checked = follow, onCheckedChange = { follow = it })
             }
         }
-        OutlinedTextField(show, { show = it }, label = { Text(tr("Show (blank: the channel's / file's name)")) }, singleLine = true,
-            modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(show, { show = it; match = null }, label = { Text(tr("Show (blank: the channel's / file's name)")) }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = { if (!youtube) androidx.compose.material3.TextButton(onClick = { searching = true }) { Text(tr("Find")) } })
+        match?.let { m ->
+            Text(tr("Show: %s", listOfNotNull(m.optString("title"), m.optInt("year").takeIf { it > 0 }?.toString()).joinToString(" · ")),
+                fontSize = 13.sp, color = Colors.dim)
+        }
+        if (searching) MatchDialog(library, type ?: if (japanese) "anime" else "shows",
+            show.ifBlank { links.firstOrNull()?.let { ProcessWorker.guessShow(context, it) } ?: "" }, tr("Which show is it?"),
+            onPick = { kind, c -> type = kind; match = c },
+            onDismiss = { searching = false })
         if (!japanese) {
             Text(tr("Transcription"), fontSize = 14.sp, color = Colors.dim)
             androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -165,7 +180,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                         if (follow && (kind == "shorts" || kind == "videos")) io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).add(
                             io.github.pedrubik2000.kumapie.mobile.local.Subscriptions.Sub(l, show, kind, lang.code, 5))
                         ProcessWorker.start(context, l, show.takeIf { it.isNotBlank() }, height, lang, transcriber, englishNow,
-                            kind, ytCount.toIntOrNull()?.coerceIn(1, 200) ?: 10)
+                            kind, ytCount.toIntOrNull()?.coerceIn(1, 200) ?: 10, type = type, match = matchKey)
                     }
                     link = ""
                 }) { Text(if (links.size > 1) tr("Make them episodes") else tr("Make it an episode")) }

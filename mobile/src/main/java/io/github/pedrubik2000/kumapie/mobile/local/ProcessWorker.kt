@@ -113,10 +113,15 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     private var english = "device"
     /** The job's last line in the menu language ([SHOWN]); [STAGE] keeps the English one ("Done…", "Failed…"). */
     private var shown: String? = null
+    /** The Add sheet's choices (item 20): Home category ("anime", "shows", "movies") and the match "source:id". */
+    private var type: String? = null
+    private var match: String? = null
 
     override suspend fun doWork(): Result {
         val url = inputData.getString(URL) ?: return Result.failure()
         val show = inputData.getString(SHOW)?.takeIf { it.isNotBlank() }
+        type = inputData.getString(TYPE)
+        match = inputData.getString(MATCH)
         height = inputData.getInt(HEIGHT, 720)
         lang = Lang.of(inputData.getString(LANG))
         transcriber = inputData.getString(TRANSCRIBER) ?: settings.transcriber
@@ -141,7 +146,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             if (!Python.isStarted()) Python.start(AndroidPlatform(applicationContext))
             val qjs = File(applicationContext.applicationInfo.nativeLibraryDir, "libqjs.so").path
             val urls = JSONArray(Python.getInstance().getModule("youtube").callAttr("listing", url, listKind, inputData.getInt(COUNT, 10), qjs).toString())
-            for (i in 0 until urls.length()) enqueue(applicationContext, urls.getString(i), showName, height, lang, transcriber, english, part = true,
+            for (i in 0 until urls.length()) enqueue(applicationContext, urls.getString(i), showName, height, lang, transcriber, english, part = true, type = type, match = match,
                 label = "YouTube ${i + 1}/${urls.length()}: ${urls.getString(i).substringAfterLast('/')}")
             return "YouTube: ${urls.length()} video(s) queued".also { shown = tr("YouTube: %d video(s) queued", urls.length()) }
         }
@@ -162,7 +167,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 val f = files.getJSONObject(i)
                 val about = JSONObject(rd.callAttr("describe", f.getString("name"), f.getBoolean("single")).toString())
                 // Japanese: blank stays blank, so the episode takes its AniList name.
-                enqueue(applicationContext, f.getString("link"), showName ?: about.getString("show").takeIf { lang != Lang.JAPANESE }, height, lang, transcriber, english, part = true,
+                enqueue(applicationContext, f.getString("link"), showName ?: about.getString("show").takeIf { lang != Lang.JAPANESE }, height, lang, transcriber, english, part = true, type = type, match = match,
                     label = f.getString("name"))
             }
             return "Real-Debrid: ${files.length()} episode(s) queued".also { shown = tr("Real-Debrid: %d episode(s) queued", files.length()) }
@@ -193,6 +198,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val audio = File(dir, "audio.m4a")
         val title: String
         var show: String
+        var anilistId: Int? = null
         var sourceName = ""
         var season: Int? = null
         var number: Int? = null
@@ -265,6 +271,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             val jm = py.getModule("jimaku")
             val found = JSONObject(jm.callAttr("candidates", jimakuKey, show, season, number, sourceName).toString())
             if (showName == null) found.optJSONObject("anilist")?.optString("romaji")?.takeIf { it.isNotBlank() }?.let { show = it }
+            anilistId = found.optJSONObject("anilist")?.optInt("id")?.takeIf { it > 0 }
             val files = found.getJSONArray("files")
             if (files.length() == 0) error(tr("No Japanese subtitles on Jimaku for %s", show) + (number?.let { tr(" episode %d", it) } ?: ""))
             val pick = files.getJSONObject(0)
@@ -321,8 +328,15 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         local.json(id).writeText(episode)
         audio.delete() // kept until here, so a retry after a failure needs no new download or conversion
         dl.deleteRecursively()
-        local.add(LocalEpisodes.Entry(id, show, title, duration, url, season, number, lang = lang.code,
-            kind = LocalEpisodes.category(url, lang.code, number)))
+        val kind = type?.takeIf { !isYouTube(url) } ?: LocalEpisodes.category(url, lang.code, number)
+        local.add(LocalEpisodes.Entry(id, show, title, duration, url, season, number, lang = lang.code, kind = kind))
+        // The show's metadata, once per show: the Add sheet's pick, else the AniList entry Jimaku found (item 20).
+        (match ?: anilistId?.let { "anilist:$it" })?.takeIf { local.meta(local.showId(show)) == null }?.let { m ->
+            runCatching {
+                ShowMeta(applicationContext).apply(local.showId(show), kind, m.substringBefore(':'), m.substringAfter(':'),
+                    listOf(Lang.speaker, lang.code, "en"))
+            }.onFailure { Log.w(TAG, "show metadata: $it") }
+        }
         val done = "Done: $title" + (if (synced.isNotEmpty()) " (subtitles $synced)" else "") +
             (if (englishFile != null) " (English from the video)" else "")
         shown = tr("Done: %s", title) + (if (synced.isNotEmpty()) tr(" (subtitles %s)", synced) else "") +
@@ -520,6 +534,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         const val TRANSCRIBER = "transcriber"
         /** A YouTube list instead of one video: "shorts" / "videos" (of the channel) or "playlist"; [COUNT] newest. */
         const val KIND = "kind"
+        const val TYPE = "type"
+        const val MATCH = "match"
         const val COUNT = "count"
         const val ENGLISH = "english"
         /** A file of a magnet / link already split into episodes. */
@@ -544,18 +560,27 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 .joinToString("") { "%02x".format(it) }.take(12)
         }
 
+        /** A magnet's show, guessed from its name (realdebrid.py), to pre-fill the Add sheet's search; "" when unknown. */
+        fun guessShow(context: Context, link: String): String = runCatching {
+            val name = android.net.Uri.parse(link).getQueryParameter("dn") ?: return ""
+            if (!Python.isStarted()) Python.start(AndroidPlatform(context.applicationContext))
+            Python.getInstance().getModule("realdebrid").callAttr("show_name", name).toString()
+        }.getOrDefault("")
+
         /** Queues [url] (YouTube / magnet / Real-Debrid link / content:// file) after the jobs already waiting. */
         fun start(context: Context, url: String, show: String?, height: Int, lang: Lang, transcriber: String, english: String,
-                  kind: String? = null, count: Int = 10) =
-            enqueue(context, url.trim(), show, height, lang, transcriber, english, part = false, kind = kind, count = count)
+                  kind: String? = null, count: Int = 10, type: String? = null, match: String? = null) =
+            enqueue(context, url.trim(), show, height, lang, transcriber, english, part = false, kind = kind, count = count,
+                type = type, match = match)
 
         private fun enqueue(context: Context, url: String, show: String?, height: Int, lang: Lang, transcriber: String,
-                            english: String, part: Boolean, kind: String? = null, count: Int = 10, label: String? = null) {
+                            english: String, part: Boolean, kind: String? = null, count: Int = 10, label: String? = null,
+                            type: String? = null, match: String? = null) {
             // A file on the device with Parakeet needs no connection.
             val offline = url.startsWith("content:") && transcriber == "parakeet" && lang == Lang.GERMAN && english != "soniox"
             val req = OneTimeWorkRequestBuilder<ProcessWorker>()
                 .setInputData(workDataOf(URL to url, SHOW to show, HEIGHT to height, LANG to lang.code, TRANSCRIBER to transcriber,
-                    ENGLISH to english, PART to part, KIND to kind, COUNT to count, LABEL to (label ?: url)))
+                    ENGLISH to english, PART to part, KIND to kind, COUNT to count, LABEL to (label ?: url), TYPE to type, MATCH to match))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(if (offline) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED).build())
                 .addTag(TAG).addTag("label:" + (label ?: url).take(120)).addTag("id:" + idFor(url)).build()
             WorkManager.getInstance(context).enqueueUniqueWork(QUEUE, ExistingWorkPolicy.APPEND_OR_REPLACE, req)

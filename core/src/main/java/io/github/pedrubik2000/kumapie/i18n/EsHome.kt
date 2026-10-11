@@ -97,4 +97,7 @@ internal val esHome: Map<String, String> = mapOf(
     "Search" to "Buscar",
     "No match found" to "Sin resultados",
     "Couldn't search (internet?): %s" to "No se pudo buscar (¿internet?): %s",
+    "Find" to "Buscar",
+    "Show: %s" to "Serie: %s",
+    "Which show is it?" to "¿Qué serie es?",
 )

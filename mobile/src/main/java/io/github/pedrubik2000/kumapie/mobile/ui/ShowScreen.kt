@@ -137,7 +137,14 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
         }
     }
 
-    if (fixing) FixMatchDialog(library, show, onDone = { fixing = false; reload++ })
+    if (fixing) MatchDialog(library, show.kind, show.title, tr("Fix match"),
+        onPick = { kind, c ->
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                library.showMeta.apply(show.id, kind, c.getString("source"), c.getString("id"),
+                    listOf(io.github.pedrubik2000.kumapie.data.Lang.speaker, show.lang, "en"))
+            }
+        },
+        onDismiss = { fixing = false; reload++ })
 
     deleting?.takeIf { io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(it.id) }?.let { ep ->
         AlertDialog(
@@ -272,15 +279,16 @@ private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, sta
 }
 
 /**
- * "Fix match" (item 21): the show's type and a title search over AniList / TVmaze / Wikidata (python/meta.py); a pick
- * saves its poster, description and episode titles for the show. Needs internet.
+ * A show's type and a title search over AniList / TVmaze / Wikidata (python/meta.py): "Fix match" on a show (item 21)
+ * and the Add sheet (item 20). [onPick] gets the type and the candidate; the dialog closes when it returns. Needs internet.
  */
 @Composable
-private fun FixMatchDialog(library: Library, show: Show, onDone: () -> Unit) {
+internal fun MatchDialog(library: Library, startKind: String, startQuery: String, title: String,
+                         onPick: suspend (String, org.json.JSONObject) -> Unit, onDismiss: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val kinds = listOf("anime" to tr("Anime"), "shows" to tr("Shows"), "movies" to tr("Movies"))
-    var kind by remember { mutableStateOf(show.kind.takeIf { k -> kinds.any { it.first == k } } ?: "shows") }
-    var query by remember { mutableStateOf(show.title) }
+    var kind by remember { mutableStateOf(startKind.takeIf { k -> kinds.any { it.first == k } } ?: "shows") }
+    var query by remember { mutableStateOf(startQuery) }
     var found by remember { mutableStateOf<List<org.json.JSONObject>?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -295,18 +303,13 @@ private fun FixMatchDialog(library: Library, show: Show, onDone: () -> Unit) {
     fun pick(c: org.json.JSONObject) {
         busy = true
         scope.launch {
-            runCatching {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    library.showMeta.apply(show.id, kind, c.getString("source"), c.getString("id"),
-                        listOf(io.github.pedrubik2000.kumapie.data.Lang.speaker, show.lang, "en"))
-                }
-            }.onSuccess { onDone() }.onFailure { error = it.message ?: it.toString(); busy = false }
+            runCatching { onPick(kind, c) }.onSuccess { onDismiss() }.onFailure { error = it.message ?: it.toString(); busy = false }
         }
     }
-    LaunchedEffect(Unit) { find() }
+    LaunchedEffect(Unit) { if (query.isNotBlank()) find() }
     AlertDialog(
-        onDismissRequest = onDone,
-        title = { Text(tr("Fix match")) },
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -338,6 +341,6 @@ private fun FixMatchDialog(library: Library, show: Show, onDone: () -> Unit) {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDone) { Text(tr("Close")) } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(tr("Close")) } },
     )
 }

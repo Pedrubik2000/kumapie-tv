@@ -31,3 +31,13 @@ dependencies {
     implementation("com.worksap.nlp:sudachi:0.8.2") // Japanese words (JapaneseModel.kt); dictionary downloaded
     implementation("androidx.work:work-runtime-ktx:2.11.0")
 }
+
+// The PC's Japanese splitting (kumapie_plan.md item 26b), the same Kotlin as the phones': JitenSplitCli (a test source,
+// for the real org.json) over the unit tests' classpath. C:\dojo\code\tools\kumapie\jiten_split.ps1 runs it.
+tasks.register<JavaExec>("jitenSplit") {
+    val test = tasks.named<Test>("testDebugUnitTest")
+    classpath = files(test.map { it.classpath })
+    mainClass.set("io.github.pedrubik2000.kumapie.lang.JitenSplitCli")
+    standardInput = System.`in`
+    maxHeapSize = "1g"
+}

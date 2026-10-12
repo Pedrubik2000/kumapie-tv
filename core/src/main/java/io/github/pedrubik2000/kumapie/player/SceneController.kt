@@ -82,6 +82,11 @@ class SceneController(
     private var stopAt: Double? = null
     private var stopIsSceneEnd = false
     private val seenNew = mutableSetOf<String>()
+    /** Scenes played to their end since the episode opened (seenNew is emptied by each report). */
+    private val seenHere = mutableSetOf<String>()
+
+    /** Seen before (any device) or since the episode opened: a novel's Skip goes through these. */
+    fun wasSeen(s: Scene) = s.seen || s.id in seenHere
     /** The position last sent to the server, so a paused player doesn't send the same one every 20 s. */
     private var reportedPos = episode.resume
     private var watchedMs = 0L
@@ -223,7 +228,7 @@ class SceneController(
         lastTick = now
         if (scenes.isEmpty()) return
 
-        if (playing && position >= scene.end) seenNew += scene.id
+        if (playing && position >= scene.end) { seenNew += scene.id; seenHere += scene.id }
         if (!pausesAtEnd(scene)) { // playing on: follow the video into the next scene
             val i = scenes.indexOfLast { it.start <= position }
             if (i > index) {
@@ -244,7 +249,7 @@ class SceneController(
                 playing = false
                 atSceneEnd = stopIsSceneEnd
                 stopAt = null
-                if (atSceneEnd) seenNew += scene.id
+                if (atSceneEnd) { seenNew += scene.id; seenHere += scene.id }
             }
         }
         if (now - lastReport > 20_000) report()

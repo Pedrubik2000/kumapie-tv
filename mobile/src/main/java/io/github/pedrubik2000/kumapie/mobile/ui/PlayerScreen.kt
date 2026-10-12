@@ -205,6 +205,10 @@ internal fun ScenePlayer(
     var anchor by remember { mutableStateOf<Rect?>(null) }
     var options by remember { mutableStateOf(false) }
     var sceneList by remember { mutableStateOf(false) }
+    // A novel's game buttons (item 46): the lines read so far, reading on by itself, racing through seen lines.
+    var backlog by remember { mutableStateOf(false) }
+    var auto by remember { mutableStateOf(false) }
+    var skip by remember { mutableStateOf(false) }
     var mining by remember { mutableStateOf(false) }
     // Each word's last rating from the word card ("Answered: Good", Undo), kept while the episode is open.
     val ratings: Ratings = remember { androidx.compose.runtime.mutableStateMapOf() }
@@ -274,6 +278,19 @@ internal fun ScenePlayer(
             }
         }
     }
+    // Auto: at a line's end (the voice done), time to read it, then the next line. A word card open waits.
+    LaunchedEffect(auto, ctl.index, ctl.playing, picker.isOpen) {
+        if (!auto || ctl.playing || picker.isOpen || ctl.position < ctl.scene.end - 0.15) return@LaunchedEffect
+        delay((ctl.scene.cues.sumOf { it.text.length } * 90L).coerceIn(1_200L, 6_000L))
+        if (ctl.index < ctl.scenes.lastIndex) ctl.nextScene() else auto = false
+    }
+    // Skip: lines seen before go by fast; the first new one stops it.
+    LaunchedEffect(skip, ctl.index) {
+        if (!skip) return@LaunchedEffect
+        if (!ctl.wasSeen(ctl.scene) || ctl.index >= ctl.scenes.lastIndex) { skip = false; return@LaunchedEffect }
+        delay(150)
+        ctl.nextScene()
+    }
     BackHandler { if (picker.isOpen) picker.close() else onBack() }
 
     Box(Modifier.fillMaxSize()) {
@@ -288,6 +305,7 @@ internal fun ScenePlayer(
             },
             modifier = Modifier.fillMaxSize(),
         )
+        if (ctl.scene.base != null) NovelScreen(ctl) // a novel kumapie draws: its file is audio only
         // A novel in landscape: the picture dims under the text, like the original game's text window (not during the
         // transition into the line, nor upright, where the text is below the picture).
         if (episode.novel) {
@@ -334,7 +352,14 @@ internal fun ScenePlayer(
 
         // A novel never shows the play button; its bar only when opened or on a long press.
         val barVisible = picker.isOpen || if (episode.novel) now < menuUntil else !ctl.playing || now < ctl.bannerUntil
-        if (barVisible) TopBar(ctl, onBack = onBack, onOptions = { options = true }, onScenes = { sceneList = true })
+        if (barVisible) Column {
+            TopBar(ctl, onBack = onBack, onOptions = { options = true }, onScenes = { sceneList = true })
+            if (episode.novel) Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = false, onClick = { backlog = true }, label = { Text(tr("Backlog")) })
+                FilterChip(selected = auto, onClick = { auto = !auto; skip = false; menuUntil = 0 }, label = { Text(tr("Auto")) })
+                FilterChip(selected = skip, onClick = { skip = !skip; auto = false; menuUntil = 0 }, label = { Text(tr("Skip")) })
+            }
+        }
         if (!ctl.playing && !picker.isOpen && !episode.novel) {
             Box(Modifier.align(Alignment.Center).size(64.dp).background(Color(0x66000000), CircleShape),
                 contentAlignment = Alignment.Center) {
@@ -369,6 +394,11 @@ internal fun ScenePlayer(
             Options(ctl, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow,
                 onShift?.let { f -> { secs: Double -> options = false; ctl.report(); f(secs, ctl.position) } },
                 onShift?.let { library.local.shifted(episode.id) })
+        }
+    }
+    if (backlog) {
+        ModalBottomSheet(onDismissRequest = { backlog = false }) {
+            Backlog(ctl, onPick = { i -> backlog = false; picker.close(); auto = false; ctl.playScene(i) })
         }
     }
     if (sceneList) {
@@ -422,6 +452,22 @@ private fun LevelBadge(level: Int?, modifier: Modifier = Modifier) {
 }
 
 /** Every scene: number, start time, first line, level, ✓ when seen; the one playing highlighted. Tap = play it. */
+@Composable
+private fun Backlog(ctl: SceneController, onPick: (Int) -> Unit) {
+    // A novel's lines read so far, newest at the bottom (like the game's backlog); a tap goes back to that line.
+    val list = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = ctl.index)
+    androidx.compose.foundation.lazy.LazyColumn(state = list, modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
+        items(ctl.index + 1) { i ->
+            val sc = ctl.scenes[i]
+            Column(Modifier.fillMaxWidth().clickable { onPick(i) }
+                .background(if (i == ctl.index) Color(0x33FFFFFF) else Color.Transparent).padding(horizontal = 20.dp, vertical = 8.dp)) {
+                Text(sc.cues.joinToString("") { it.text }, fontSize = 17.sp)
+                sc.english.firstOrNull()?.let { Text(sc.english.joinToString(" ") { e -> e.text }, color = Colors.dim, fontSize = 13.sp) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun SceneList(ctl: SceneController, onPick: (Int) -> Unit) {
     val list = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (ctl.index - 3).coerceAtLeast(0))

@@ -83,9 +83,9 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             if (i % 10 == 0) report(title, "audio", 0.85f + 0.15f * i / jobs.size)
         }
 
-        // A novel's music (a few tracks, kept beside the video).
-        episode.scenes.mapNotNull { it.bgm }.distinct().forEach { url ->
-            val file = downloads.bgm(id, url)
+        // A novel's music and screens (kumapie draws them: item 46), kept beside the video.
+        episode.scenes.flatMap { s -> listOfNotNull(s.bgm, s.base) + s.pics.flatMap { listOfNotNull(it.url, it.mask) } }.distinct().forEach { url ->
+            val file = downloads.novelFile(id, url)
             if (!file.exists()) {
                 file.parentFile?.mkdirs()
                 val tmp = File(file.path + ".part")

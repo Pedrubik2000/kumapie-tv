@@ -97,6 +97,9 @@ class Api(private val base: String, private val person: String = "") : Backend {
                     }
                 } ?: emptyMap(),
                 bgm = s.optString("bgm").takeIf { it.isNotEmpty() }?.let(::url),
+                base = s.optString("base").takeIf { it.isNotEmpty() }?.let(::url),
+                pics = s.optJSONArray("pics")?.let { a -> (0 until a.length()).map { i -> a.getJSONArray(i).let { p ->
+                    Pic(p.getDouble(0), p.getDouble(1), url(p.getString(2)), if (p.isNull(3)) null else url(p.getString(3))) } } }.orEmpty(),
             )
         }
         return EpisodeDetail(
@@ -289,9 +292,18 @@ data class Scene(
     val defs: Map<String, LineDef> = emptyMap(),
     /** A novel's music under this line (URL), played on its own so it goes on while the line waits. */
     val bgm: String? = null,
+    /** A novel kumapie draws (item 46): the screen when the line starts (URL), then its changes in order. */
+    val base: String? = null,
+    val pics: List<Pic> = emptyList(),
 ) {
     fun def(line: Int, word: String): LineDef? = defs["$line|$word"]
+
+    /** The novel's screen showing at [t] (episode seconds), done fading in; null when the episode has a picture video. */
+    fun picAt(t: Double): String? = pics.lastOrNull { it.start + it.fade <= t }?.url ?: base
 }
+
+/** A novel's screen change: from [start] (episode seconds) [url] fades in over [fade] s ([mask]: the game's wipe). */
+data class Pic(val start: Double, val fade: Double, val url: String, val mask: String?)
 
 /**
  * A word's definition in one line: dictionary form, English (translation + explanation), a dictionary-style

@@ -1,6 +1,9 @@
 package io.github.pedrubik2000.kumapie.i18n
 
 internal val esPlayer: Map<String, String> = mapOf(
+    "Backlog" to "Historial",
+    "Auto" to "Auto",
+    "Skip" to "Saltar",
     // Player
     "Try again" to "Reintentar",
     "Back" to "Volver",

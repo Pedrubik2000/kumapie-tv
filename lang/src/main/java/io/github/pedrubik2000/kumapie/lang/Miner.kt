@@ -161,7 +161,8 @@ class Miner(
             clipFile.delete()
         } else {
             fields["Sentence Audio"] = "[audio:$line]"
-            screenshot(r.episode.video, (startMs + endMs) / 2)?.let {
+            // A novel kumapie draws has no picture video: the screen itself (item 46).
+            (r.scene.picAt((startMs + endMs) / 2000.0)?.let(::picture) ?: screenshot(r.episode.video, (startMs + endMs) / 2))?.let {
                 fields["Image"] = "<img src=\"${anki.addMedia(pkg, it, "${slug}_$startMs")}\">"
                 it.delete()
             }
@@ -239,6 +240,14 @@ class Miner(
             cont.invokeOnCancellation { transformer.cancel() }
         }
     }
+
+    /** A novel's screen ([url]: the PC's or a downloaded file) as shot.webp; null when it can't be read. */
+    private fun picture(url: String): File? = runCatching {
+        val out = File(dir, "shot.webp").apply { delete() }
+        (if (url.startsWith("file:")) File(Uri.parse(url).path!!).inputStream() else java.net.URL(url).openStream())
+            .use { i -> out.outputStream().use { i.copyTo(it) } }
+        out
+    }.getOrNull()
 
     /** The frame at [ms], 480 p, as WebP; null when the video can't give one. */
     private fun screenshot(source: String, ms: Long): File? = runCatching {

@@ -535,6 +535,14 @@ private fun TransferSection() {
     val sending = sends.firstOrNull { !it.state.isFinished }
     val receiving = gets.lastOrNull()
     var dialog by remember { mutableStateOf(false) }
+    // Android 17 blocks the local network until the app holds ACCESS_LOCAL_NETWORK: asked once, before the first transfer.
+    var then by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val lan = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { then?.invoke(); then = null }
+    fun withLan(go: () -> Unit) {
+        val p = "android.permission.ACCESS_LOCAL_NETWORK"
+        if (android.os.Build.VERSION.SDK_INT < 37 || context.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED) go()
+        else { then = go; lan.launch(p) }
+    }
     Text(tr("Another device on this Wi-Fi"), color = Colors.accent)
     Text(tr("Copy episodes, dictionaries, models and keys from one kumapie to another, without the PC."), color = Colors.dim, fontSize = 14.sp)
     if (sending != null) {
@@ -543,7 +551,7 @@ private fun TransferSection() {
             sending.progress.getString("address") ?: "?"), fontSize = 15.sp)
         OutlinedButton(onClick = { work.cancelUniqueWork(Transfer.SEND) }) { Text(tr("Stop sending")) }
     } else {
-        OutlinedButton(onClick = { Transfer.send(context, (1000..9999).random().toString()) }) { Text(tr("Send to another device")) }
+        OutlinedButton(onClick = { withLan { Transfer.send(context, (1000..9999).random().toString()) } }) { Text(tr("Send to another device")) }
     }
     when (receiving?.state) {
         androidx.work.WorkInfo.State.RUNNING, androidx.work.WorkInfo.State.ENQUEUED -> {
@@ -554,7 +562,7 @@ private fun TransferSection() {
         else -> {
             receiving?.outputData?.getString("done")?.let { Text(tr("Copied: %s.", it), fontSize = 15.sp, color = Colors.dim) }
             receiving?.outputData?.getString("error")?.let { Text(tr("Copy failed: %s", it), fontSize = 15.sp, color = Colors.dim) }
-            OutlinedButton(onClick = { dialog = true }) { Text(tr("Receive from another device")) }
+            OutlinedButton(onClick = { withLan { dialog = true } }) { Text(tr("Receive from another device")) }
         }
     }
     if (dialog) ReceiveDialog { dialog = false }

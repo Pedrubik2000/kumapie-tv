@@ -18,6 +18,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.Constraints
+import androidx.work.Data
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
@@ -102,7 +103,8 @@ var Settings.englishSource: String
  * device (content://) → one MP4 with the German audio (Transformer) → Soniox (German, and English if chosen) → German cues → English (device translator, unless
  * Soniox gave it) → scenes and words (spaCy) → `local/<id>/episode.json`. A foreground job with a notification; all jobs
  * run one after another in one queue (one transcription at a time). A failure is not retried, so Soniox is never paid
- * twice for one link, and doesn't stop the jobs queued after it.
+ * twice for one link, and doesn't stop the jobs queued after it. Only a lost connection is retried (up to 5 times, the
+ * queue waits): a dozing tablet once failed 9 Lucky Star episodes in a row that way. A failed job can be queued again.
  */
 class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     private val local = LocalEpisodes(context)
@@ -133,9 +135,12 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             Result.success(workDataOf(STAGE to withContext(Dispatchers.IO) { process(id, url, show) }, SHOWN to shown))
         } catch (e: Throwable) {
             Log.w("kumapie", "process $url: $e")
-            // Succeeds anyway, so the episodes queued after this one still run.
+            if (offline(e) && runAttemptCount < 5) return Result.retry()
+            // Succeeds anyway, so the episodes queued after this one still run; keeps its input for "Try again" under
+            // AGAIN.: a job's output is merged into the next one's input, so its own keys would overwrite that job's link.
             val why = e.message?.lineSequence()?.lastOrNull { it.isNotBlank() } ?: e.toString()
-            Result.success(workDataOf(STAGE to "Failed: $why", SHOWN to tr("Failed: %s", why)))
+            val again = inputData.keyValueMap.filterKeys { !it.startsWith(AGAIN) }.mapKeys { AGAIN + it.key }
+            Result.success(Data.Builder().putAll(again).putString(STAGE, "Failed: $why").putString(SHOWN, tr("Failed: %s", why)).build())
         }
     }
 
@@ -545,6 +550,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
     companion object {
         const val URL = "url"
+        /** A failed job's input, kept in its output for "Try again" ([again]). */
+        private const val AGAIN = "again."
         const val SHOW = "show"
         const val HEIGHT = "height"
         /** The episode's language code (Lang): "de" (default) or "ja". */
@@ -604,9 +611,25 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             WorkManager.getInstance(context).enqueueUniqueWork(QUEUE, ExistingWorkPolicy.APPEND_OR_REPLACE, req)
         }
 
+        /** A failed job queued again with its own choices ([Job.again]). */
+        fun again(context: Context, failed: Data) {
+            val input = Data.Builder().putAll(failed.keyValueMap.filterKeys { it.startsWith(AGAIN) }.mapKeys { it.key.removePrefix(AGAIN) }).build()
+            val url = input.getString(URL) ?: return
+            enqueue(context, url, input.getString(SHOW), input.getInt(HEIGHT, 720), Lang.of(input.getString(LANG)),
+                input.getString(TRANSCRIBER) ?: "soniox", input.getString(ENGLISH) ?: "device", input.getBoolean(PART, false),
+                input.getString(KIND), input.getInt(COUNT, 10), input.getString(LABEL), input.getString(TYPE), input.getString(MATCH))
+        }
+
+        /** The connection was gone (no DNS, no route): worth waiting for, unlike a real failure. */
+        private fun offline(e: Throwable) = generateSequence(e) { it.cause }.any {
+            it is java.net.UnknownHostException || it is java.net.ConnectException ||
+                listOf("No address associated with hostname", "Network is unreachable", "download cut off").any { m -> it.message?.contains(m) == true }
+        }
+
         /** Every job's line for the home screen: "<url>: stage" / failed / done. */
         /** One job for the Downloads page. [state]: "running", "waiting", "done", "failed". */
-        data class Job(val id: java.util.UUID, val label: String, val state: String, val stage: String, val progress: Float)
+        data class Job(val id: java.util.UUID, val label: String, val state: String, val stage: String, val progress: Float,
+                       val again: Data? = null)
 
         /** Every job, running first, then waiting (in queue order), then finished. */
         fun jobs(context: Context): Flow<List<Job>> = WorkManager.getInstance(context).getWorkInfosByTagFlow(TAG).map { infos ->
@@ -619,7 +642,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                         if (info.state == WorkInfo.State.ENQUEUED) tr("Waiting for a connection") else tr("Queued"), 0f)
                     else -> {
                         val out = info.outputData.getString(STAGE) ?: "Done"
-                        Job(info.id, label, if (out.startsWith("Failed")) "failed" else "done", info.outputData.getString(SHOWN) ?: tr(out), 1f)
+                        Job(info.id, label, if (out.startsWith("Failed")) "failed" else "done", info.outputData.getString(SHOWN) ?: tr(out), 1f,
+                            info.outputData.takeIf { out.startsWith("Failed") && it.getString(AGAIN + URL) != null })
                     }
                 }
             }.sortedBy { listOf("running", "waiting", "done", "failed").indexOf(it.state) }

@@ -57,8 +57,9 @@ fun DownloadsScreen(onBack: () -> Unit) {
             item { if (waiting > 0) Text(tr("%d waiting", waiting), color = Colors.dim, fontSize = 14.sp) }
             items(jobs, key = { it.id }) { job ->
                 Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Row {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Text(job.label, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        job.again?.let { input -> TextButton(onClick = { ProcessWorker.again(context, input) }) { Text(tr("Try again")) } }
                     }
                     Text(job.stage, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, color = when (job.state) {
                         "failed" -> Colors.unknown

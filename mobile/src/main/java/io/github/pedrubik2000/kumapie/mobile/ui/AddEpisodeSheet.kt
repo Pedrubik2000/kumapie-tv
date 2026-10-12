@@ -40,7 +40,7 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 @Composable
 fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "de") {
     val context = LocalContext.current
-    var link by remember { mutableStateOf(sharedLink?.let { Regex("""(https?://|magnet:)\S+""").find(it)?.value } ?: "") }
+    var link by remember { mutableStateOf(sharedLink?.let { Regex("""(https?://|magnet:)\S+""").findAll(it).joinToString("\n") { m -> m.value } } ?: "") }
     var show by remember { mutableStateOf("") }
     // The show it is (item 20): its type and the match picked in the search ("source:id"), for its poster and description.
     var type by remember { mutableStateOf<String?>(null) }

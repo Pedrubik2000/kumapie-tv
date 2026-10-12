@@ -134,6 +134,9 @@ def download(token: str, link: str, folder: str, log) -> str:
                 if pct != shown:
                     shown = pct
                     log.log(f"Downloading {name}: {pct}% of {total / 1e9:.1f} GB")
+    # A dropped connection can end the read early without an error: keep the .part (the next try resumes it).
+    if total and done < total:
+        raise ConnectionError(f"download cut off at {done} of {total} bytes")
     os.rename(part, dest)
     return dest
 

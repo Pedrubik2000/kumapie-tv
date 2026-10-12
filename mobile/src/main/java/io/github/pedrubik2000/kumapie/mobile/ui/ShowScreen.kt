@@ -156,6 +156,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
                 io.github.pedrubik2000.kumapie.mobile.local.Sync(context).forget(ep.id)
                 show = show.copy(episodes = show.episodes.filter { it.id != ep.id })
                 deleting = null
+                if (show.episodes.isEmpty()) onBack() // nothing left to show
             }) { Text(tr("Delete")) } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text(tr("Keep")) } },
         )

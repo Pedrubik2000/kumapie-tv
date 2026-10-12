@@ -58,8 +58,11 @@ private suspend fun wordChoices(library: Library, ctl: SceneController, line: In
         .distinctBy { it.gloss }.take(8)
     val fits = SensePick.best(entries, SensePick.english(scene, line))
     var fitting = -1
+    val seen = HashMap<String, Int>() // the same entry can come twice (by surface and by lemma): one row per meaning
     entries.forEachIndexed { i, e ->
         e.senses.forEachIndexed { j, s ->
+            seen[e.pos + "\u0000" + s.gloss]?.let { if (fits == i to j) fitting = it; return@forEachIndexed }
+            seen[e.pos + "\u0000" + s.gloss] = list.size
             if (fits == i to j) fitting = list.size
             list += Choice("${e.word} (${e.pos}): ${s.gloss}" + if (fits == i to j) tr("  · fits this line") else "", s.gloss,
                 s.examples.firstOrNull())

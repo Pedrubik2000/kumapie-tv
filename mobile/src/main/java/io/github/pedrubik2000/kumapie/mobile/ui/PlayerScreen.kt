@@ -194,8 +194,8 @@ internal fun ScenePlayer(
         }
     }
     val ctl = remember { SceneController(episode, player, settings, backend) }
-    // A novel's music: its own player, so it goes on while a line waits for the tap.
-    val bgm = remember { if (!episode.novel) null else ExoPlayer.Builder(context).build().apply { repeatMode = Player.REPEAT_MODE_ONE; volume = 0.4f } }
+    // A novel's music: its own player, so it goes on while a line waits for the tap; quiet under the voices (0.4 was too loud).
+    val bgm = remember { if (!episode.novel) null else ExoPlayer.Builder(context).build().apply { repeatMode = Player.REPEAT_MODE_ONE; volume = 0.25f } }
     val track = if (bgm == null) null else ctl.scene.bgm
     LaunchedEffect(track) {
         if (bgm == null) return@LaunchedEffect

@@ -113,8 +113,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
                 File(base, folder).deleteRecursively()
                 if (!File(tmp, folder).renameTo(File(base, folder))) throw IOException(tr("couldn't move %s into place", folder))
                 val title = r.getString("title")
-                val wty = Regex("""^wty-(\w+)-(\w+)(-gloss)?$""").find(title)?.groupValues
-                val grp = group.ifBlank { if (wty == null) "" else if (wty[1] == wty[2]) "Monolingual" else "Bilingual" }
+                val grp = group.ifBlank { wtyGroup(title) }
                 val d = Dict(folder, title, lang.code, r.optString("revision"), r.optLong("terms"),
                     r.optLong("freq"), r.optLong("pitch"), r.optLong("kanji"), true, r.optBoolean("isUpdatable"),
                     r.optString("indexUrl").takeIf { it.isNotBlank() && it != "null" },
@@ -248,6 +247,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
     /** The group a dictionary belongs to, by its title. */
     fun groupOf(lang: Lang, title: String): String =
         of(lang).firstOrNull { it.title == title }?.group.orEmpty().let { if (it.startsWith("JA-JA")) "Monolingual" else it }
+            .ifBlank { wtyGroup(title) } // wty dictionaries imported before groups were set (item 33)
 
     private fun handle(lang: Lang): Long? {
         handles[lang.code]?.let { return it }
@@ -304,6 +304,11 @@ class YomitanDictionaries private constructor(private val context: Context) {
         fun groupOf(fileName: String): String =
             Regex("""^\[([^\]]+)]""").find(fileName.substringAfterLast('/'))?.groupValues?.get(1)?.split(',', '・')?.first()?.trim()
                 ?.let { if (it.startsWith("JA-JA")) "Monolingual" else it }.orEmpty()
+
+        /** wty-en-en -> "Monolingual", wty-de-en -> "Bilingual"; any other title -> "". */
+        fun wtyGroup(title: String): String =
+            Regex("""^wty-(\w+)-(\w+)(-gloss)?$""").find(title)?.groupValues
+                ?.let { if (it[1] == it[2]) "Monolingual" else "Bilingual" }.orEmpty()
 
         @Volatile private var instance: YomitanDictionaries? = null
 

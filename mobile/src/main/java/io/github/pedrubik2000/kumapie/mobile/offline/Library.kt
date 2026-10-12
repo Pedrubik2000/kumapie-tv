@@ -138,7 +138,10 @@ class Library(context: Context, val settings: Settings) {
         if (LocalEpisodes.isLocal(id)) {
             val json = withContext(Dispatchers.IO) { local.json(id).readText() }
             val detail = withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.run { refreshDue(); apply(it) } })
-            return detail.copy(video = Uri.fromFile(local.video(id)).toString(), resume = progress.merged.pos[id])
+            // Its copy deleted here: streamed from the PC (sync keeps every device episode there).
+            val video = local.video(id).takeIf { it.exists() }?.let { Uri.fromFile(it).toString() }
+                ?: "${settings.server}/api/sync/${settings.owner}/$id/video.mp4"
+            return detail.copy(video = video, resume = progress.merged.pos[id])
         }
         val downloaded = downloads.isComplete(id)
         // When the PC answers, send what waited, then fetch again so the episode has that progress in it.

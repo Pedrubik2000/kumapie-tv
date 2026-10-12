@@ -97,8 +97,11 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
         }
     }
 
-    fun playable(ep: Episode) = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) || !offline ||
-        states[ep.id] == DownloadState.Done
+    val sync = remember { io.github.pedrubik2000.kumapie.mobile.local.Sync(context) }
+    // A device episode whose copy was deleted here streams from the PC, so it needs the connection.
+    fun hasCopy(ep: Episode) = library.local.video(ep.id).exists()
+    fun playable(ep: Episode) = !offline || states[ep.id] == DownloadState.Done ||
+        (io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) && hasCopy(ep))
     // Play: the episode left partway most recently, else the first not watched to the end, else the first.
     val next = show.episodes.filter(::playable).let { eps ->
         eps.filter { e -> !e.watched && (e.resume ?: 0.0).let { it > 20 && it < e.duration * 0.95 } }.maxByOrNull { it.resumedAt }
@@ -110,7 +113,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     }
     val row = @Composable { ep: Episode ->
         EpisodeRow(library, ep, (io.github.pedrubik2000.kumapie.mobile.local.ShowMeta.episodeTitle(meta, ep.season, ep.number)
-            ?: ep.episodeTitle.ifBlank { null }).takeIf { ep.watched }, states[ep.id] ?: DownloadState.None, playable(ep), offline, wide,
+            ?: ep.episodeTitle.ifBlank { null }).takeIf { ep.watched }, states[ep.id] ?: DownloadState.None, playable(ep), hasCopy(ep), offline, wide,
             onPlay = { onPlay(ep) }, onDownload = { library.downloads.start(show, ep) },
             onCancel = { library.downloads.cancel(ep.id) }, onDelete = { deleting = ep },
             onMarkWatched = { watched ->
@@ -148,16 +151,30 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
         onDismiss = { fixing = false; reload++ })
 
     deleting?.takeIf { io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(it.id) }?.let { ep ->
+        val copy = hasCopy(ep) && sync.onPc(ep.id) // else "Delete here" would remove the episode itself
+        fun gone() {
+            show = show.copy(episodes = show.episodes.filter { it.id != ep.id })
+            deleting = null
+            if (show.episodes.isEmpty()) onBack() // nothing left to show
+        }
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text(tr("Delete from this device?")) },
-            text = { Text(tr("%s stays on the PC and your other devices, and won't download here again.", ep.title)) },
-            confirmButton = { TextButton(onClick = {
-                io.github.pedrubik2000.kumapie.mobile.local.Sync(context).forget(ep.id)
-                show = show.copy(episodes = show.episodes.filter { it.id != ep.id })
-                deleting = null
-                if (show.episodes.isEmpty()) onBack() // nothing left to show
-            }) { Text(tr("Delete")) } },
+            title = { Text(ep.title) },
+            text = { Text((if (copy) tr("Delete here: only this device's copy goes; the episode stays and plays from the PC.") + "\n\n" else "") +
+                tr("Delete everywhere: off the PC and all your devices.")) },
+            confirmButton = {
+                Row {
+                    if (copy) TextButton(onClick = { sync.removeCopy(ep.id); deleting = null; reload++ }) { Text(tr("Delete here")) }
+                    TextButton(onClick = {
+                        scope.launch {
+                            runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                sync.deleteEverywhere(library.settings.server, library.settings.owner, ep.id) } }
+                                .onSuccess { gone() }
+                                .onFailure { android.widget.Toast.makeText(context, tr("Couldn't reach the PC: %s", it.message ?: it.toString()), android.widget.Toast.LENGTH_LONG).show() }
+                        }
+                    }) { Text(tr("Delete everywhere")) }
+                }
+            },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text(tr("Keep")) } },
         )
         return
@@ -246,7 +263,7 @@ private fun ShowHeader(library: Library, show: Show, meta: org.json.JSONObject?,
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, state: DownloadState, playable: Boolean, offline: Boolean, wide: Boolean,
+private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, state: DownloadState, playable: Boolean, copy: Boolean, offline: Boolean, wide: Boolean,
                        onPlay: () -> Unit, onDownload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit, onListen: () -> Unit,
                        onMarkWatched: (Boolean) -> Unit) {
     val onDevice = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) // made here
@@ -271,7 +288,7 @@ private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, sta
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(watchedTitle?.let { "${ep.title} · $it" } ?: ep.title, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(if (onDevice) tr("%s · on this device", minutes(ep.duration)) else tr("%1\$s · %2\$d of %3\$d scenes easy", minutes(ep.duration), ep.easy, ep.scenes) +
+            Text(if (onDevice) (if (copy) tr("%s · on this device", minutes(ep.duration)) else tr("%s · on the PC", minutes(ep.duration))) else tr("%1\$s · %2\$d of %3\$d scenes easy", minutes(ep.duration), ep.easy, ep.scenes) +
                 if (ep.seen > 0) tr(" · %d seen", ep.seen) else "", fontSize = 12.sp, color = Colors.dim)
         }
         // Condensed: only the speech, in the background (screen off), like the PC's condensed audio.

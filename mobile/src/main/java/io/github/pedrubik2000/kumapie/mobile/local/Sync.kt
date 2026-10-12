@@ -25,13 +25,14 @@ import java.util.concurrent.TimeUnit
 /**
  * Episodes made on this device go to the PC (dojo-feed's /api/sync, the hub); the episodes the owner's other devices
  * made come back from it, on Wi-Fi (plan: kumapie_languages_plan.md, "PC sync and Android <-> Android").
- * An episode deleted here is never fetched here again ([forget]); it stays on the PC and the other devices.
+ * "Delete" removes only this device's copy of the video ([removeCopy]): the episode stays listed and streams from the
+ * PC. "Delete everywhere" ([deleteEverywhere]) removes it from the PC; the other devices drop it at their next sync.
  */
 class Sync(private val context: Context) {
     private val local = LocalEpisodes(context)
     /** Episodes the PC has (uploaded from here, or downloaded from it). */
     private val onPc = File(local.base, "synced.txt")
-    /** Episodes deleted on this device: never downloaded here again. */
+    /** Episodes whose video is not kept on this device (deleted here): listed, streamed from the PC, never downloaded. */
     private val never = File(local.base, "never.txt")
 
     private fun read(f: File) = runCatching { f.readLines().filter { it.isNotBlank() }.toSet() }.getOrDefault(emptySet())
@@ -44,6 +45,27 @@ class Sync(private val context: Context) {
     fun forget(id: String) {
         add(never, id)
         local.remove(id)
+    }
+
+    /** Whether the PC has [id] (so it can stream without this device's copy). */
+    fun onPc(id: String) = id in read(onPc)
+
+    /** "Delete" on this device: only the video goes; the episode stays and streams from the PC. */
+    fun removeCopy(id: String) {
+        if (!onPc(id)) return forget(id) // only here: nothing to stream from
+        add(never, id)
+        local.dir(id).listFiles()?.filter { it.name.startsWith("video.mp4") }?.forEach { it.delete() }
+    }
+
+    /** "Delete everywhere": off the PC (its files to the PC's archive), then here; other devices follow at their sync. */
+    fun deleteEverywhere(server: String, owner: String, id: String) {
+        if (onPc(id)) {
+            val c = open("$server/api/sync/$owner/$id/delete", "POST")
+            c.doOutput = true
+            c.outputStream.use { }
+            if (c.responseCode != 200) throw IOException("delete: HTTP ${c.responseCode}")
+        }
+        forget(id)
     }
 
     /** Uploads what is new here, then downloads what is new on the PC. Answers one line per episode moved. */
@@ -71,6 +93,13 @@ class Sync(private val context: Context) {
             runCatching { retime(base, e.id); local.retimed(e.id).delete(); done += "↑ ${e.title} (" + tr("subtitle timing") + ")" }
                 .onFailure { Log.w("kumapie", "sync retime ${e.id}: $it") }
         }
+        // Deleted everywhere on another device: gone here too.
+        val gone = runCatching { JSONArray(String(open("$base/deleted").inputStream.use { it.readBytes() })) }.getOrNull()
+        val listed = local.entries().associateBy { it.id }
+        for (i in 0 until (gone?.length() ?: 0)) {
+            val id = gone!!.getString(i)
+            listed[id]?.let { forget(id); done += "✕ ${it.title}" }
+        }
         val list = JSONArray(String(open("$base").inputStream.use { it.readBytes() }))
         val here = local.entries().map { it.id }.toSet()
         val skip = read(never)
@@ -87,8 +116,9 @@ class Sync(private val context: Context) {
                     done += "↓ ${e.getString("title")} (" + tr("subtitle timing") + ")"
                 }.onFailure { Log.w("kumapie", "sync timing $id: $it") }
             }
-            if (id in here || id in skip) continue
-            runCatching { download(base, e); add(onPc, id); done += "↓ ${e.getString("title")}" }
+            if (id in here) continue
+            // Its copy deleted here (or before 2026-10-12, deleted here at all): listed again, streamed, no video.
+            runCatching { download(base, e, video = id !in skip); add(onPc, id); if (id !in skip) done += "↓ ${e.getString("title")}" }
                 .onFailure { Log.w("kumapie", "sync down $id: $it") }
         }
         return done
@@ -139,14 +169,14 @@ class Sync(private val context: Context) {
         if (c.responseCode != 200) throw IOException("retime: HTTP ${c.responseCode}")
     }
 
-    private fun download(base: String, e: JSONObject) {
+    private fun download(base: String, e: JSONObject, video: Boolean = true) {
         val id = e.getString("id")
         val url = "$base/$id"
         local.dir(id).mkdirs()
         // Same source = same id: a job that failed here left its files (Nicos Weg: 880 MB). Kept: a dropped download's .part.
         local.dir(id).listFiles()?.filter { !it.name.endsWith(".part") }?.forEach { it.deleteRecursively() }
         // The video first (resumable), episode.json last: the episode shows up only once it is whole.
-        fetch("$url/video.mp4", local.video(id), e.getString("title"))
+        if (video) fetch("$url/video.mp4", local.video(id), e.getString("title"))
         runCatching { fetch("$url/thumb.jpg", local.thumb(id)) }
         val episode = JSONObject(String(open("$url/episode.json").inputStream.use { it.readBytes() }))
         episode.put("video", local.video(id).path)

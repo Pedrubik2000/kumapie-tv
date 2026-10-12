@@ -28,17 +28,21 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         val scanned = dicts.scan(ja, text.substring(from.coerceIn(0, text.length)))
         // Only change: among matches of the same length, Sudachi's dictionary form first (行って: 行く, not 行う), with
         // its reading when the word isn't conjugated (先生 せんせい, not Pixiv's あにめせんせい).
-        val sudachi = tok?.takeIf { it.surface == it.base }?.let { hiragana(it.reading) }
+        val sudachi = tok?.let { t -> if (t.surface == t.base) hiragana(t.reading) else if (prefixed(t) && t.surface.drop(1) == t.base) hiragana(t.reading).drop(1) else null }
         val bySudachi = { t: YomitanDictionaries.Term ->
             when {
                 tok == null || t.expression != tok.base -> 2
                 sudachi != null && readingOf(t).let { r -> r.isNotEmpty() && r != sudachi } -> 1
                 else -> 0
             } }
-        found += scanned.sortedWith(compareBy({ -it.first.length }, { bySudachi(it.second) })).map { it.second }
+        val sorted = scanned.sortedWith(compareBy({ -it.first.length }, { bySudachi(it.second) }))
+        // お料理 (item 31): the scan from お finds only お; 料理 comes before matches shorter than the word.
+        val (first, later) = if (tok != null && prefixed(tok)) sorted.partition { it.first.length >= tok.surface.length } else sorted to emptyList()
+        found += first.map { it.second }
         // The dictionary form or the word as written when the scan didn't reach them (they come after).
         if (tok != null) found += (dicts.query(ja, tok.base) + if (tok.surface != tok.base) dicts.query(ja, tok.surface) else emptyList())
             .sortedBy(bySudachi)
+        found += later.map { it.second }
         val unique = found.distinct()
         found.clear(); found += unique
         // One headword per word and reading (hiragana); entries without a reading join the first with that spelling.
@@ -60,24 +64,32 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
     fun forms(text: String, offset: Int): List<Form> {
         val w = model.words(listOf(text)).first().lastOrNull { it.begin <= offset }?.takeIf { it.isWord } ?: return emptyList()
         val heads = lookup(text, w.begin, w.surface.length)
-        val scanned = dicts.scan(Lang.JAPANESE, text.substring(w.begin))
+        // お料理 rates as 料理 and すごーい as すごい (item 31): never a card of their own; お's scan starts after it.
+        val skip = if (prefixed(w)) 1 else 0
+        val (written, reading) = when {
+            skip == 1 -> w.surface.drop(1) to hiragana(w.reading).drop(1)
+            stretched(w) -> w.surface.replace("ー", "") to hiragana(w.reading).replace("ー", "")
+            else -> w.surface to hiragana(w.reading)
+        }
+        val scanned = dicts.scan(Lang.JAPANESE, text.substring(w.begin + skip))
         // Its headword covers the whole word (item 26): its dictionary form or spelling, or a scan match at least as long.
         // A shorter piece never is (ホント is not ホン "book", カスミ not カス): no headword then, the card gets no meaning.
-        val whole = scanned.filter { it.first.length >= w.surface.length }.map { it.second.expression }.toSet() + w.base + w.surface
+        val whole = scanned.filter { it.first.length >= w.surface.length - skip }.map { it.second.expression }.toSet() + w.base + w.surface
         val covering = heads.filter { it.expression in whole }
         // Among those, preferring one with an English meaning for its card (がんばります: 頑張る, not a monolingual-only 頑張ります).
         val meant = covering.filter { h -> h.terms.any(::bilingual) }
         val own = meant.firstOrNull { it.expression == w.base } ?: meant.firstOrNull() ?: covering.firstOrNull { it.expression == w.base } ?: covering.firstOrNull()
-        val out = mutableListOf(Form(w.surface, hiragana(w.reading), own))
+        val out = mutableListOf(Form(written, reading, own))
         // The longest match, only when it covers the word (気にしない from 気); among same-length ones a bilingual
         // dictionary's (しましょう: する, not Pixiv's しましょう). A shorter piece is no row (user, 2026-10-11).
-        val longest = scanned.filter { it.first.length == scanned.maxOfOrNull { s -> s.first.length } && it.first.length >= w.surface.length }
-        val (matched, term) = longest.firstOrNull { bilingual(it.second) } ?: longest.firstOrNull() ?: return out
+        val longest = scanned.filter { it.first.length == scanned.maxOfOrNull { s -> s.first.length } && it.first.length >= w.surface.length - skip }
+        val (matched, term) = longest.firstOrNull { it.second.expression == w.base && bilingual(it.second) }
+            ?: longest.firstOrNull { bilingual(it.second) } ?: longest.firstOrNull() ?: return out
         val head = heads.firstOrNull { it.expression == term.expression && readingOf(term).let { r -> r.isEmpty() || r == it.reading } }
             ?: Headword(term.expression, readingOf(term), listOf(term))
         out += Form(matched, model.parse(listOf(matched)).first().joinToString("") { hiragana(it.reading) }, head)
         out += Form(term.expression, head.reading, head)
-        return out.distinctBy { it.key }
+        return out.filterNot { written != w.surface && it.written == w.surface }.distinctBy { it.key }
     }
 
     /** The term has a bilingual dictionary's entry (an English meaning for a card). */
@@ -123,6 +135,14 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         /** A sense as a short meaning: "よばれる【呼ばれる】; 〘v1・vi〙; 1 to be called out." → "to be called out." */
         fun meaning(s: String) = s.substringAfterLast('】').replace(Regex("""〘[^〙]*〙|［[^］]*］|\[[^\]]*]|→\S+"""), "")
             .replace(Regex("""^[\s;；:・.\d①-⑳]+"""), "").trim()
+
+        /** A word お/ご joined to the word after it, keyed by that word (お料理 → 料理, お待たせ → 待たせる; JitenSplitter.joinPrefix). */
+        fun prefixed(t: JapaneseModel.Token) =
+            t.surface.length > 1 && t.surface[0] in "おご" && t.base.firstOrNull() != t.surface[0] && t.surface[1] == t.base.firstOrNull()
+
+        /** A hiragana word with a long mark that isn't its own (すごーい → すごい, keyed 凄い or すごい). */
+        fun stretched(t: JapaneseModel.Token) = 'ー' in t.surface && t.surface.replace("ー", "").length > 1 &&
+            t.surface.all { it == 'ー' || it in 'ぁ'..'ゖ' }
 
         /** Katakana -> hiragana (Sudachi gives readings in katakana, dictionaries in hiragana). */
         fun hiragana(s: String): String = buildString { for (c in s) append(if (c in 'ァ'..'ヶ') c - 0x60 else c) }

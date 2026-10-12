@@ -43,7 +43,7 @@ class JitenSplitter(private val lexicon: File, private val systemDic: File, priv
             at = found + surface.length
         }
         gap(text, at, text.length, out)
-        return out
+        return joinPrefix(out)
     }
 
     /** Text Jiten gave no word for: Sudachi's words there when it has Japanese in it (never dropped), else one non-word. */
@@ -70,8 +70,28 @@ class JitenSplitter(private val lexicon: File, private val systemDic: File, priv
 
     companion object {
         /** Stamped on episodes split with this ([resplitEpisode]); a new one re-splits them. */
-        const val ID = "jiten-1"
+        const val ID = "jiten-2"
         private val JAPANESE = Regex("[぀-ヿ㐀-鿿々]")
+
+        private val PREFIX = setOf("お", "ご", "御")
+        private val JOINS = setOf("名詞", "形状詞", "形容詞", "動詞")
+
+        /**
+         * A bare お/ご/御 (a prefix Jiten left alone because JMdict has no お-form) + the noun, adjective or verb right
+         * after it is one word keyed by that word (お料理 → 料理, ご理解 → 理解, お優しい → 優しい, お待たせ → 待たせる; not names or
+         * pronouns): kumapie_plan.md item 31. Words JMdict has whole (お茶, お風呂) are already Jiten's.
+         */
+        fun joinPrefix(tokens: List<JapaneseModel.Token>): List<JapaneseModel.Token> {
+            val out = ArrayList<JapaneseModel.Token>()
+            for (t in tokens) {
+                val p = out.lastOrNull()
+                if (p != null && p.pos == "接頭辞" && p.surface in PREFIX && p.begin + p.surface.length == t.begin &&
+                    t.pos in JOINS && t.sub != "固有名詞")
+                    out[out.lastIndex] = t.copy(surface = p.surface + t.surface, reading = p.reading + t.reading, begin = p.begin)
+                else out += t
+            }
+            return out
+        }
 
         /** Readings in katakana, as Sudachi gives them (Jiten's are sometimes hiragana). */
         private fun katakana(s: String) = buildString { for (c in s) append(if (c in 'ぁ'..'ゖ') c + 0x60 else c) }

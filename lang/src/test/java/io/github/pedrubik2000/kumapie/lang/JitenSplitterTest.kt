@@ -51,4 +51,27 @@ class JitenSplitterTest {
         assertEquals("x", words.getJSONObject("普通").getString("lemma"))
         assertEquals(JitenSplitter.ID, ep.getString("splitter"))
     }
+
+    /** [JitenSplitter.joinPrefix] on Jiten-style tokens ("surface/key/pos/sub"): needs no dictionary. */
+    @Test fun prefix() {
+        fun words(vararg pieces: String): String {
+            var at = 0
+            val tokens = pieces.map { p ->
+                val (s, b, pos, sub) = p.split("/")
+                JapaneseModel.Token(s, b, "", pos, at, sub).also { at += s.length }
+            }
+            return JitenSplitter.joinPrefix(tokens).joinToString(" | ") { if (it.surface == it.base) it.surface else "${it.surface}→${it.base}" }
+        }
+        assertEquals("お城→城 | の | 中", words("お/お/接頭辞/", "城/城/名詞/", "の/の/助詞/", "中/中/名詞/"))
+        assertEquals("ご理解→理解", words("ご/ご/接頭辞/", "理解/理解/名詞/"))
+        assertEquals("お優しい→優しい", words("お/お/接頭辞/", "優しい/優しい/形容詞/"))
+        assertEquals("お待たせ→待たせる", words("お/お/接頭辞/", "待たせ/待たせる/動詞/"))
+        assertEquals("お | おぉ", words("お/お/感動詞/", "おぉ/おぉ/感動詞/"))
+        assertEquals("お茶 | を", words("お茶/お茶/名詞/", "を/を/助詞/"))
+        assertEquals("お | 圭一", words("お/お/接頭辞/", "圭一/圭一/名詞/固有名詞"))
+        assertEquals("お |   | 城", words("お/お/接頭辞/", " / /空白/", "城/城/名詞/"))
+        fun t(s: String, b: String) = JapaneseModel.Token(s, b, "", "名詞", 0)
+        assertEquals(listOf(true, true, false, false), listOf(t("お料理", "料理"), t("お待たせ", "待たせる"),
+            t("おっしゃった", "仰る"), t("お茶", "お茶")).map(JapaneseLookup::prefixed))
+    }
 }

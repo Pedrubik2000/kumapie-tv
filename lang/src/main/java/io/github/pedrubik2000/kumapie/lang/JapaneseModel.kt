@@ -101,10 +101,9 @@ class JapaneseModel(private val context: Context) : Model {
             var boundary = true
             for (t in tokens) {
                 val cur = out.lastOrNull()
-                // お/ご (a prefix) + noun is one word (お風呂, ご丁寧); + verb joins the verb (お待ちください → 待つ).
+                // お/ご (a prefix) + noun or verb is one word keyed by it (お風呂 → 風呂, ご丁寧 → 丁寧, お待ちください → 待つ; item 31).
                 if (cur != null && !boundary && cur.pos == "接頭辞" && t.pos in setOf("名詞", "形状詞", "動詞")) {
-                    val noun = t.pos != "動詞"
-                    out[out.lastIndex] = cur.copy(surface = cur.surface + t.surface, base = if (noun) cur.surface + t.surface else t.base,
+                    out[out.lastIndex] = cur.copy(surface = cur.surface + t.surface, base = t.base,
                         reading = cur.reading + t.reading, pos = t.pos, sub = t.sub)
                     last = t.pos
                     continue

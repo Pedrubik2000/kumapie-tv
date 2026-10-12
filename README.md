@@ -1,163 +1,120 @@
-# kumapie-tv
+# kumapie
 
-Watch your own shows in a foreign language **scene by scene** on Android TV, Lingopie-style: every scene
-shows how many words in it you don't know yet, subtitles stay hidden until you ask, and you can pick a word
-for its meaning. You drive it with the TV remote or a Bluetooth gamepad.
+An immersion app for Android phones and tablets, with a companion Android TV app. You watch your own shows, anime,
+movies and YouTube videos in the language you're learning **scene by scene**, Lingopie-style. Every word is coloured
+by your Anki cards. Tap a word to look it up, mine it as a card (with the scene's video clip) or rate its card
+without leaving the player.
 
-The app is only the TV side. Your videos, their subtitles, the scenes, the word meanings and which words
-you know live on your own PC, in a small server that the app talks to (see [Server API](#server-api)).
-Part of **kuma3**, a personal language-learning setup (see also
-[kuma3-anki](https://github.com/Pedrubik2000/kuma3-anki-app)).
+It works offline first. Episodes, dictionaries, the word splitter and your known words all live on the device. A
+small server on your own PC is optional: it syncs episodes and progress between devices and feeds the TV app.
+kumapie is part of **kuma3**, a personal language-learning setup (see
+[kuma3-anki](https://github.com/Pedrubik2000/kuma3-anki-app), the AnkiDroid build it reads cards from).
 
-> Status: early. Shows, episodes, the scene player, the word picker, button mapping, the help screen and stats
-> work on the TV; the phone/tablet app is new.
+> Status: personal project, built for one family's use. Languages: German and English (spaCy), Japanese (a Kotlin
+> port of [Jiten](https://github.com/Sirush/Jiten)'s parser over Sudachi). The UI is in English or Spanish.
 
-## Buttons
+## Phone and tablet (`:mobile`)
 
-These are the defaults. **Settings > Change buttons** gives any action any button on the remote or a gamepad
-(a short press or a held one); Back always stays Back. A help screen with the current buttons shows when an
-episode opens (turn it off in Settings; Options > Help shows it any time).
+- **Home**: one language at a time (a switch when you learn several), rows by media type (anime, shows, movies,
+  YouTube), Continue watching. Posters and descriptions come from AniList / Jikan / Kitsu for anime and TMDB (with
+  your own key) or TVmaze / Wikidata for shows and movies; "Fix match" corrects a wrong one.
+- **Player**: plays scene by scene in landscape or upright. Swipe left/right to change scenes; tap the video to
+  play or pause. The ⋮ menu holds the subtitle mode (none, blurred while playing, transcript, transcript +
+  translation), the subtitle timing, 0.75x and "pause at the end of each scene".
+- **Word colours** (from your Anki cards, Mined decks only):
+
+  | colour | means |
+  |---|---|
+  | white | studied and not due, or marked known |
+  | green | its card is due today |
+  | blue | it has a Mined card that was never reviewed |
+  | red | no card yet, or the card is still learning |
+
+  Each scene shows how many unknown words it has, so you can pick i+0 / i+1 scenes.
+- **Popup** (tap a word): Yomitan dictionaries (through [hoshidicts](https://github.com/bee-san/hoshidicts)), word
+  audio, and rating rows. One rating answers every due card of the word, with Undo. A word with no card is mined
+  first: a 🐻 note in "<Language> Mined" with the sentence, translation, audio and the scene's clip (VP9/Opus WebM).
+- **Adding episodes**: share a link or a file with kumapie. It downloads (Real-Debrid, yt-dlp), finds
+  subtitles (Jimaku for Japanese) and syncs them with [alass](https://github.com/kaegi/alass), or transcribes
+  them on the device with Parakeet. The work runs in a processing queue that retries lost connections.
+- **No spoilers**: episode pictures stay blurred until you've watched the episode; the feed only shows scenes
+  you've already seen. Long-press an episode for "Mark as (not) watched".
+- **Also**: a feed of seen scenes, condensed audio, novels (pictures, voices and music, one line per scene), a
+  dictionary/search screen, stats, Improve (fix a card that doesn't stick), and a Wi-Fi transfer between two
+  devices.
+- **Offline**: everything a device does (progress, lookups, marks) waits on it and syncs when the PC answers.
+  Progress lives in the Anki collection, so it follows the collection.
+
+## TV (`:app`)
+
+The same scenes and colours on Android TV, driven by the remote or a Bluetooth gamepad. It needs the PC server.
+You pick a profile, a language and an episode; a help screen lists the buttons (Settings > Change buttons remaps
+them).
 
 | | remote | gamepad |
 |---|---|---|
 | play / pause (at the end of a scene: next scene) | OK | A |
 | next / previous scene | → / ← | D-pad → / ← |
-| replay the line | ↑ | X |
-| replay the scene | hold ← | Y |
-| subtitles: none → German blurred → German → German + English | ↓ | L = German (un-blurs), R = English |
-| speed 0.75x | options | L2 |
-| pause at the end of each scene / play on | options | R2 |
+| replay the line / the scene | ↑ / hold ← | X / Y |
+| subtitle mode | ↓ | L / R |
+| pick a word (the card shows its meaning; hold ↓ marks it known) | hold OK | hold A, or Select |
 | options | hold ↓ | Start |
-| pick a word | hold OK, or ↓ when the scene has ended | hold A, or Select |
 | back | Back | B |
-
-**Word picker:** the video pauses and every line of the scene shows; the cursor starts on the first red word
-of the line being said and jumps between red (never studied) and orange (learning) words; moving is silent.
-OK opens a card above the word with its definition for that line: dictionary form, English, a German dictionary definition (its words
-coloured; shown first when you know all of them), and a grammar note. Opening it plays the word and counts as
-a lookup; moving to another word closes it.
-
-| in the picker | remote | gamepad |
-|---|---|---|
-| next / previous word | → / ← | D-pad → / ← |
-| line below | ↓ | D-pad ↓ |
-| into the German definition (card open; pick its words), back | ↑, ↓ | D-pad ↑, ↓ |
-| open the card (and hear the word); with it open: hear again, twice: the German definition | OK | A |
-| replay the word's line | hold OK | X (or hold A) |
-| mark known / undo | hold ↓ | Y |
-| close | Back | B or Select |
-
-Subtitles stay as you set them, from scene to scene and the next time you watch; while paused they show the whole scene, with
-unknown words in red and words you're learning in yellow. The options are remembered on the TV.
-
-## Phone and tablet
-
-`kumapie-vX.Y.Z-mobile.apk` (same Releases page) is the same player for Android phones and tablets: the same
-server, scenes, meanings and progress (start an episode on the TV, go on with it on the phone). It plays full
-screen in landscape and is driven by touch:
-
-| | |
-|---|---|
-| play / pause (at the end of a scene: next scene) | tap the video |
-| next / previous scene | swipe ← / → |
-| replay the line / the scene | double-tap the left / right half |
-| subtitles: none → German blurred → German → German + English | tap the subtitles (when hidden: the bottom of the screen) |
-| a word's meaning | tap the word (German readable); in the card: hear the word, hear the definition, replay the line, mark known; tap words of the German definition |
-| pause at the end of each scene, 0.75x, subtitle mode | ⋮ |
-
-**Downloads:** each episode has a download button. It saves the video, the scenes and meanings, and the audio of
-every word and definition, so the episode plays with no connection. What you do offline (progress, lookups,
-words marked known) waits on the device and goes to the server the next time it answers.
-
-## Install
-
-1. On the TV, allow installing apps from your browser/file manager (Settings → Privacy → Security & restrictions → Unknown sources), or use `adb install`.
-2. Download `kumapie-tv-vX.Y.Z.apk` from [Releases](https://github.com/Pedrubik2000/kumapie-tv/releases/latest) and install it.
-3. Open **kumapie** and type your server's address, e.g. `https://my-pc.my-tailnet.ts.net:8445`.
-   Typing with a remote is slow; from a PC with ADB you can send it instead:
-   ```
-   adb shell am start -n io.github.pedrubik2000.kumapie/.MainActivity --es server https://my-pc.my-tailnet.ts.net:8445
-   ```
-
-The app updates itself: when it starts it checks this repo's latest release and offers **Update**. The
-first time, Android asks you to allow kumapie to install apps.
 
 ## Build
 
-Android Studio, or the command line with JDK 17 and the Android SDK (`local.properties`: `sdk.dir=...`):
+JDK 17 and the Android SDK (`local.properties`: `sdk.dir=...`), or Android Studio:
 
 ```
-./gradlew :app:assembleDebug :mobile:assembleDebug
+./gradlew :mobile:assembleDebug :app:assembleDebug
 ```
 
-Debug builds are called `io.github.pedrubik2000.kumapie.debug` (TV) and `io.github.pedrubik2000.kumapie.mobile.debug`
-(phone/tablet), so they install next to the release apps.
-They don't update themselves.
+Debug builds install next to the release apps (`…kumapie.mobile.debug`, `…kumapie.debug`) and don't update
+themselves. The `dev` build type is a quick test build that is signed with the release key and installs over the
+real app. On Windows, Gradle needs a short `TEMP` path.
+
+`tools/` holds the native parts and their build scripts: hoshidicts, alass, QuickJS, llama, audio and the
+dictionary data.
 
 ## Releases
 
-Push an annotated tag; GitHub Actions builds both signed APKs (`kumapie-tv-vX.Y.Z.apk`, `kumapie-vX.Y.Z-mobile.apk`) and publishes them (`.github/workflows/release.yml`):
-
-```
-git tag -a v0.2.0 -m "What changed (shown in the app's update dialog)"
-git push origin v0.2.0
-```
-
-The version comes from the tag (`v1.2.3` → versionName `1.2.3`, versionCode `10203`). The release key is
-never in the repo: the workflow reads it from the repository secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
-`KEY_ALIAS` and `KEY_PASSWORD`. A local release build reads the same values from the environment
-(`KUMAPIE_KEYSTORE`, `KUMAPIE_KEYSTORE_PASSWORD`, `KUMAPIE_KEY_ALIAS`, `KUMAPIE_KEY_PASSWORD`).
+Pushing an annotated tag `vX.Y.Z` makes GitHub Actions (`.github/workflows/release.yml`) build and publish both
+signed APKs (`kumapie-vX.Y.Z-mobile.apk`, `kumapie-tv-vX.Y.Z.apk`). The version comes from the tag (`v1.2.3` →
+versionCode `10203`). The release key is never in the repo: CI reads `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
+`KEY_ALIAS` and `KEY_PASSWORD`, and a local release build reads `KUMAPIE_KEYSTORE`, `KUMAPIE_KEYSTORE_PASSWORD`,
+`KUMAPIE_KEY_ALIAS` and `KUMAPIE_KEY_PASSWORD`. Without them the release build is unsigned.
 
 ## Code
 
-Three modules: `core` (shared), `app` (TV), `mobile` (phone/tablet). Paths below are under each module's
-`src/main/java/io/github/pedrubik2000/kumapie/`.
+Four modules. Paths are under `src/main/java/io/github/pedrubik2000/kumapie/`.
 
-| file | what |
+| module | what |
 |---|---|
-| core `data/Api.kt`, `data/Backend.kt` | the server API and its data; what the player needs from it |
-| core `data/Settings.kt` | what the device remembers (server address, subtitle mode, modes); the TV's buttons: app `data/KeySettings.kt` |
-| core `player/SceneController.kt`, `player/WordPicker.kt` | scenes on top of the whole episode; the word picker (D-pad and touch) |
-| core `ui/Subtitles.kt`, `ui/MeaningCard.kt`, `ui/Colors.kt` | subtitles (shrink to fit, picker cursor, taps), the meaning card, colours |
-| core `update/Updater.kt`, `update/InstallReceiver.kt` | self-update from GitHub Releases (each app takes its own APK) |
-| mobile `MainActivity.kt`, `ui/*` | phone/tablet screens: shows, episodes with downloads, touch player, stats, settings |
-| mobile `offline/*` | downloads (WorkManager), reports waiting while offline, PC-or-device data |
-| app `MainActivity.kt` | the TV screens and Back |
-| app `ui/HomeScreen.kt`, `ui/ShowScreen.kt` | shows → episodes |
-| app `ui/PlayerScreen.kt` | the scene player: video, top bar, options |
-| app `player/PlayerKeys.kt` | which button does what (short and long presses) |
-| app `ui/SettingsScreen.kt`, `ui/UpdateDialog.kt` | settings, updates |
-| app `ui/ButtonsScreen.kt`, `ui/HelpOverlay.kt` | change buttons, the help screen |
-| app `ui/StatsScreen.kt` | watch time (today, 7 days, total, streak, year heatmap, 30 days), scenes and words |
-| `tools/make_icons.py` | draws the launcher banner and icon |
+| `core` | shared by both apps: server API (`data/Api.kt`, `data/Backend.kt`), settings, scene controller and word picker, subtitles, meaning card, colours, Spanish strings (`i18n/`), self-update |
+| `lang` | the language layer: `Language.kt` (`Languages` registry; `Spaced` for German/English, `Japanese`), `KnownWords.kt`, `CardIndex.kt` and `AnkiCards.kt` (reading kuma3), `Miner.kt` and `WebmMuxer.kt` (mining), `Dictionary.kt` / `Hoshidicts.kt` (Yomitan), `JitenSplitter.kt` + `jiten/` (Japanese splitting) |
+| `mobile` | the phone/tablet app: `ui/` screens, `local/` (episodes on the device, processing queue, sync with the PC, subtitle sync, Wi-Fi transfer, Parakeet), `offline/` (downloads, pending reports), `listen/` (condensed audio). Python (spaCy, metadata) runs through Chaquopy from `src/main/python` |
+| `app` | the TV app: screens, player, button mapping, help, stats, profiles |
 
-Compose for TV (TV) / Material 3 (phone), Media3 ExoPlayer, Coil, WorkManager (downloads). JSON is parsed with `org.json`, no code generation.
+Compose (Material 3 on mobile, Compose for TV), Media3 ExoPlayer, Coil, WorkManager. JSON is parsed with
+`org.json`.
 
-## Server API
+## Server
 
-JSON over HTTP(S). The app needs these routes (the reference server is part of a private setup:
-`services/feed/tv.py`, Python standard library only). Ids are 12 hex characters.
+The PC side is a private Python server (standard library only). Each phone or tablet adds `?person=<profile>` to
+its calls. Its routes:
 
-| route | returns |
+| route | what |
 |---|---|
-| `GET /api/tv` | `{"api": 1, "language": "de", "translation": "en", "episodes": 14}` |
-| `GET /api/tv/shows` | `{"shows": [{"id", "title", "kind", "poster", "episodes": [{"id", "title", "season", "episode", "duration", "thumb", "scenes", "seen", "easy", "resume"}]}]}`. `easy` = scenes at i+0/i+1 today, `resume` = seconds or null |
-| `GET /api/tv/episode/<id>` | `{"id", "show", "title", "duration", "video", "resume", "scenes": [{"id", "i", "start", "end", "german", "level", "seen", "cues": [{"start", "end", "seg": [[text, word or null]]}], "english": [[start, end, text]], "g": {word: meaning}}], "words": {word: {"s": "k"/"l"/"u", "g": meaning}}}`. Times are seconds in the episode; `level` = unknown words in the scene; a scene's `g` overrides a word's meaning where it means something else there |
-| `GET /api/tv/video/<id>` | the episode file (H.264/AAC MP4), with HTTP Range |
-| `GET /api/tv/thumb/<id>.jpg`, `GET /api/tv/poster/<show>.jpg` | images |
-| `POST /api/tv/progress` | body `{"episode", "pos", "seen": [scene ids], "watched": seconds}` |
-| `GET /api/tv/stats` | `{"days": {"2026-10-04": seconds}, "today", "week", "total", "streak", "scenes_seen", "scenes_total", "lookups", "words_looked_up", "top_lookups": [[word, times, meaning]], "marked_known", "shows": [{"title", "seen", "scenes"}]}` (days start at 4 am) |
-| `GET /api/tts?d=<scene>\|<line>\|<word>` | a line's German definition read aloud |
-| `POST /api/tv/lookup` | body `{"word", "scene"}` → `{"n": times looked up}` |
-| `POST /api/tv/known` | body `{"word", "known": true/false}` → `{"s": "k"/"l"/"u"}` (mark a word known without a card, or undo) |
-| `GET /api/tts?w=<word>` | the word read aloud (MP3) |
-
-A scene's `defs` holds its per-line definitions: `{"<line>|<word>": {"lemma", "en", "de": [[text, word or null]], "gr"}}`.
-A word in an episode's `words` also has `lemma` (dictionary form), `d` (best stability in days, or null),
-`n` (times looked up) and `m` (marked known).
+| `GET /api/tv`, `/api/tv/people`, `/api/tv/shows`, `/api/tv/episode/<id>` | server info, profiles, shows and episodes (scenes, cues, words, meanings) |
+| `GET /api/tv/video/<id>`, `/api/tv/file/<id>/<name>`, `/api/tv/thumb/…`, `/api/tv/poster/…` | media (MP4 with HTTP Range) and images |
+| `GET /api/tv/stats`, `/api/tv/history` | watch time and history |
+| `POST /api/tv/progress`, `/api/tv/device_seen`, `/api/tv/lookup`, `/api/tv/known`, `/api/tv/meta` | progress and seen scenes, lookups, marks, a show's metadata match |
+| `POST /api/tv/known_words` | a device's known words for one person and language |
+| `GET/PUT/POST /api/sync/<device>/<episode>/…` | episodes made on a device go up to the PC (resumable), are deleted everywhere or re-timed |
+| `GET /api/models/<file>` | data files for the Japanese splitter |
+| `GET /api/tts?w=<word>&lang=…` | a word read aloud (MP3) |
 
 ## License
 
-GPL-3.0 (since v0.23.0; earlier releases were MIT). The phone/tablet app includes
-[hoshidicts](https://github.com/bee-san/hoshidicts) (GPL-3.0) for Yomitan dictionaries, built from source by
-`tools/hoshidicts/build.sh`.
+GPL-3.0 (since v0.23.0; earlier releases were MIT). Includes [hoshidicts](https://github.com/bee-san/hoshidicts)
+(GPL-3.0) and a port of Jiten's parser (Apache-2.0).

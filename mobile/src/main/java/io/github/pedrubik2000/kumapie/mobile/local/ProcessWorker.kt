@@ -595,7 +595,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                             english: String, part: Boolean, kind: String? = null, count: Int = 10, label: String? = null,
                             type: String? = null, match: String? = null) {
             // A file on the device with Parakeet needs no connection.
-            val offline = url.startsWith("content:") && transcriber == "parakeet" && lang == Lang.GERMAN && english != "soniox"
+            val offline = url.startsWith("content:") && transcriber == "parakeet" && lang != Lang.JAPANESE && english != "soniox"
             val req = OneTimeWorkRequestBuilder<ProcessWorker>()
                 .setInputData(workDataOf(URL to url, SHOW to show, HEIGHT to height, LANG to lang.code, TRANSCRIBER to transcriber,
                     ENGLISH to english, PART to part, KIND to kind, COUNT to count, LABEL to (label ?: url), TYPE to type, MATCH to match))

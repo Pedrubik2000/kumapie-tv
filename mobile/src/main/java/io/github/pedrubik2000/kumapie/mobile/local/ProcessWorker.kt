@@ -103,7 +103,7 @@ var Settings.englishSource: String
  * device (content://) → one MP4 with the German audio (Transformer) → Soniox (German, and English if chosen) → German cues → English (device translator, unless
  * Soniox gave it) → scenes and words (spaCy) → `local/<id>/episode.json`. A foreground job with a notification; all jobs
  * run one after another in one queue (one transcription at a time). A failure is not retried, so Soniox is never paid
- * twice for one link, and doesn't stop the jobs queued after it. Only a lost connection is retried (up to 5 times, the
+ * twice for one link, and doesn't stop the jobs queued after it. Only a lost connection is retried (up to 10 times over hours, the
  * queue waits): a dozing tablet once failed 9 Lucky Star episodes in a row that way. A failed job can be queued again.
  */
 class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -135,7 +135,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             Result.success(workDataOf(STAGE to withContext(Dispatchers.IO) { process(id, url, show) }, SHOWN to shown))
         } catch (e: Throwable) {
             Log.w("kumapie", "process $url: $e")
-            if (offline(e) && runAttemptCount < 5) return Result.retry()
+            if (offline(e) && runAttemptCount < 10) return Result.retry() // backoff 30 s doubling: waits out hours asleep
             // Succeeds anyway, so the episodes queued after this one still run; keeps its input for "Try again" under
             // AGAIN.: a job's output is merged into the next one's input, so its own keys would overwrite that job's link.
             val why = e.message?.lineSequence()?.lastOrNull { it.isNotBlank() } ?: e.toString()

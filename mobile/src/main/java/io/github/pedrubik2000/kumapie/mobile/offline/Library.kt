@@ -127,7 +127,7 @@ class Library(context: Context, val settings: Settings) {
         val m = progress.merged
         return (mine + pcOwn).map { s ->
             // A "not watched" mark: the PC's own count is from before it, only the merged scenes count.
-            s.copy(episodes = s.episodes.map { e -> e.copy(resume = m.pos[e.id] ?: e.resume,
+            s.copy(episodes = s.episodes.map { e -> e.copy(resume = m.pos[e.id] ?: e.resume, resumedAt = maxOf(e.resumedAt, m.posAt[e.id] ?: 0),
                 seen = if (e.id in m.unwatched) m.seenIn(e.id) else maxOf(e.seen, m.seenIn(e.id))) })
         } to offline
     }

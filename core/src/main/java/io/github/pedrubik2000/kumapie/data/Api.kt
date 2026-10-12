@@ -46,6 +46,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
                         scenes = e.optInt("scenes"), seen = e.optInt("seen"), easy = e.optInt("easy"),
                         resume = if (e.isNull("resume")) null else e.getDouble("resume"),
                         episodeTitle = e.optString("episode_title").takeIf { it != "null" }.orEmpty(),
+                        resumedAt = e.optLong("resumed_at"),
                     )
                 },
             )
@@ -225,6 +226,8 @@ data class Episode(
     val resume: Double?,
     /** Its title from the show's metadata; shown only once [watched] (titles can spoil). */
     val episodeTitle: String = "",
+    /** When [resume] was saved (epoch seconds, 0 = never): "Continue watching" lists the newest first. */
+    val resumedAt: Long = 0,
 ) {
     /** Every scene seen to its end (on any device), or marked watched: no spoilers left in it. */
     val watched: Boolean get() = scenes > 0 && seen >= scenes

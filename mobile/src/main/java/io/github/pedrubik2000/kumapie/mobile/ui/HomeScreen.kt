@@ -237,7 +237,7 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
         val at = e.resume ?: 0.0
         // Marked watched (or every scene seen): nothing left to continue.
         !e.watched && e.duration > 0 && at > 20 && at < e.duration * 0.95
-    }
+    }.sortedByDescending { it.second.resumedAt }
     val other = shows.filter { s -> s.kind != "reels" && KINDS.none { it.first == s.kind } }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         if (going.isNotEmpty()) item(key = "going") {

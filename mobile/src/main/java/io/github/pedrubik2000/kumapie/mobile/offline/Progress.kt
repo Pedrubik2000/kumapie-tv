@@ -46,6 +46,8 @@ class Progress private constructor(context: Context, private val settings: Setti
         val gloss: Map<String, String>,
         /** Episode -> when it was marked not watched (seconds): scenes seen before that don't count. */
         val unwatched: Map<String, Long> = emptyMap(),
+        /** Episode -> when its position was saved (seconds): "Continue watching" puts the newest first. */
+        val posAt: Map<String, Long> = emptyMap(),
     ) {
         fun seenIn(episode: String) = seen.count { it.value == episode }
     }
@@ -172,7 +174,8 @@ class Progress private constructor(context: Context, private val settings: Setti
             }
             p.optJSONObject("gloss")?.let { o -> for (k in o.keys()) gloss[k] = o.getString(k) }
         }
-        return View(pos.mapValues { it.value.first }, stillSeen(seen, seenLast, unwatched), watch, lookups, marked.filterValues { it.first }.keys, gloss, unwatched)
+        return View(pos.mapValues { it.value.first }, stillSeen(seen, seenLast, unwatched), watch, lookups, marked.filterValues { it.first }.keys, gloss, unwatched,
+            pos.mapValues { it.value.second })
     }
 
     companion object {

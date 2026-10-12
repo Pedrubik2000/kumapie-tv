@@ -110,11 +110,11 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
     val going = shows.flatMap { s -> s.episodes.map { s to it } }.filter { (_, e) ->
         val at = e.resume ?: 0.0
         !e.watched && e.duration > 0 && at > 20 && at < e.duration * 0.95
-    }
+    }.sortedByDescending { it.second.resumedAt }
     val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
     val rows = KINDS.map { (k, label) -> tr(label) to shows.filter { it.kind == k } } + listOf(tr("Other") to other)
     val first = remember { FocusRequester() }
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn {
         if (going.isNotEmpty()) item(key = "going") {
             Shelf(tr("Continue watching")) {
                 itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
@@ -142,16 +142,16 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
 @Composable
 private fun Shelf(title: String, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     Column {
-        Text(title, color = Colors.text, fontSize = 20.sp, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+        Text(title, color = Colors.text, fontSize = 20.sp, modifier = Modifier.padding(start = 16.dp))
         // The focused card grows by 10%: padding keeps it inside the screen and off its title.
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(32.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp), content = content)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), content = content)
     }
 }
 
 @Composable
 private fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, onClick: () -> Unit) {
-    Column(Modifier.width(160.dp)) {
+    Column(Modifier.width(110.dp)) {
         Card(onClick = onClick, modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
             Box(Modifier.fillMaxSize()) { // a Card lays out as a column: the box puts the image over the neutral poster
                 NeutralPoster(title, Modifier.fillMaxSize()) // shows where there's no poster (never an episode frame)
@@ -159,7 +159,7 @@ private fun Poster(image: String, title: String, line: String, progress: Float?,
             }
         }
         Text(title, color = Colors.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 16.dp))
+            modifier = Modifier.padding(top = 10.dp))
         Text(line, color = Colors.dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (progress != null) ProgressBar(progress, Modifier.fillMaxWidth().padding(top = 4.dp))
     }

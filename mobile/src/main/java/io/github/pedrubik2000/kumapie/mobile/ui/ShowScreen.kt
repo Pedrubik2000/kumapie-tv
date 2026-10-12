@@ -99,9 +99,9 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
 
     fun playable(ep: Episode) = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) || !offline ||
         states[ep.id] == DownloadState.Done
-    // Play: the episode left partway, else the first not watched to the end, else the first.
+    // Play: the episode left partway most recently, else the first not watched to the end, else the first.
     val next = show.episodes.filter(::playable).let { eps ->
-        eps.firstOrNull { e -> !e.watched && (e.resume ?: 0.0).let { it > 20 && it < e.duration * 0.95 } }
+        eps.filter { e -> !e.watched && (e.resume ?: 0.0).let { it > 20 && it < e.duration * 0.95 } }.maxByOrNull { it.resumedAt }
             ?: eps.firstOrNull { it.seen < it.scenes } ?: eps.firstOrNull()
     }
     val header = @Composable { modifier: Modifier ->

@@ -38,7 +38,7 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import androidx.compose.ui.draw.blur
 
-/** A show's poster and its episodes. Focus starts on the episode watched last (or the first one). */
+/** A show's poster and its episodes. Focus starts on the episode played most recently (or the first one). */
 @Composable
 fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Episode) -> Unit) {
     var show by remember { mutableStateOf(initial) }
@@ -46,7 +46,7 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
         runCatching { api.shows() }.getOrNull()?.firstOrNull { it.id == initial.id }?.let { show = it }
     }
     val episodes = show.episodes.filter { it.scenes > 0 } // nothing to play scene by scene (a reel without speech)
-    val start = episodes.indexOfLast { it.resume != null }.coerceAtLeast(0)
+    val start = episodes.indices.filter { episodes[it].resume != null }.maxByOrNull { episodes[it].resumedAt } ?: 0
     val focus = remember { FocusRequester() }
     val list = rememberLazyListState()
 
@@ -57,7 +57,7 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
                 AsyncImage(model = show.poster, contentDescription = show.title, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize())
             }
-            Text(show.title, fontSize = 22.sp, color = Colors.text, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+            Text(show.title, fontSize = 22.sp, color = Colors.text, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
             if (show.description.isNotBlank()) Text(show.description, fontSize = 14.sp, color = Colors.dim, maxLines = 8,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         }

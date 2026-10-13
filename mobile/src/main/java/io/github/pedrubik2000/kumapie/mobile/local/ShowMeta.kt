@@ -34,16 +34,21 @@ class ShowMeta(private val context: Context) {
 
     /** Saves the pick's details (in [langs]) and poster for the show, and sets its episodes' Home category to [kind]. */
     fun apply(showId: String, kind: String, source: String, id: String, langs: List<String>) {
+        save(dir(showId), source, id, langs)
+        local.setKind(showId, kind)
+    }
+
+    /** The pick's details as `meta.json` + `poster.jpg` in [dir] (a show's, a manga series'). */
+    fun save(dir: File, source: String, id: String, langs: List<String>) {
         val py = py()
         val d = JSONObject(py.getModule("json").callAttr("dumps",
             py.getModule("meta").callAttr("details", source, id, langs.distinct().joinToString(","))).toString())
-        val dir = dir(showId).apply { mkdirs() }
+        dir.mkdirs()
         d.optString("poster").takeIf { it.startsWith("http") }?.let { url ->
             runCatching { URL(url).openStream().use { s -> File(dir, "poster.part").outputStream().use { s.copyTo(it) } } }
                 .onSuccess { File(dir, "poster.part").renameTo(File(dir, "poster.jpg")) }
         }
         File(dir, "meta.json").writeText(d.toString())
-        local.setKind(showId, kind)
     }
 
     /** YouTube shows made before 2026-10-11 have no picture yet: their channel's, found from one of their videos. */

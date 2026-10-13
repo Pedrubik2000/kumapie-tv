@@ -7,7 +7,7 @@ the same way. No keys: anime from AniList -> Jikan (MyAnimeList) -> Kitsu, shows
     details(source, id, langs=("en",)) -> {"source", "id", "title": {lang: ...}, "original", "year", "poster",
                                            "description": {lang: ...}, "episodes": {"S-E": title}}
 
-kind: "anime", "shows", "movies" (kumapie's Home categories). Self-test: python meta.py
+kind: "anime", "shows", "movies", "visual_novels", "manga" (kumapie's Home categories). Self-test: python meta.py
 """
 import html
 import json
@@ -141,6 +141,25 @@ def _anime_details(source, id_):
     return out
 
 
+# ------------------------------------------------------------------ manga: AniList (type MANGA)
+
+_MANGA_FIELDS = "id title{romaji english native} startDate{year} coverImage{extraLarge} description(asHtml:false)"
+
+
+def _manga_search(q, year):
+    found = _anilist(f"query($s:String){{Page(perPage:10){{media(search:$s,type:MANGA){{{_MANGA_FIELDS}}}}}}}", {"s": q})["Page"]["media"]
+    return [{"source": "anilist-manga", "id": str(m["id"]), "title": m["title"]["english"] or m["title"]["romaji"],
+             "year": m["startDate"]["year"], "poster": m["coverImage"]["extraLarge"]} for m in found]
+
+
+def _manga_details(id_):
+    m = _anilist(f"query($i:Int){{Media(id:$i,type:MANGA){{{_MANGA_FIELDS}}}}}", {"i": int(id_)})["Media"]
+    t = m["title"]
+    return {"title": {"en": t["english"] or t["romaji"], "ja": t["native"]}, "original": t["romaji"],
+            "year": m["startDate"]["year"], "poster": m["coverImage"]["extraLarge"],
+            "description": {"en": _text(m["description"])}, "episodes": {}}
+
+
 # ------------------------------------------------------------------ shows: TVmaze (English)
 
 def _show_search(q, year):
@@ -255,7 +274,7 @@ def _youtube_search(video_url, year):
 def search(kind, query, year=None):
     """Candidates for [query] (a show name, a file name's guess), best first; a [year] match moves up."""
     find = {"anime": _anime_search, "shows": _show_search, "movies": _movie_search, "visual_novels": _vn_search,
-            "youtube": _youtube_search}[kind]  # youtube: [query] is one of the channel's video links
+            "manga": _manga_search, "youtube": _youtube_search}[kind]  # youtube: [query] is one of the channel's video links
     found = find(query.strip(), year)
     if year:
         found.sort(key=lambda c: c["year"] != year)  # stable: same order otherwise
@@ -267,6 +286,8 @@ def details(source, id_, langs=("en",)):
         langs = langs.split(",")
     if source in ("anilist", "mal", "kitsu"):
         d = _anime_details(source, id_)
+    elif source == "anilist-manga":
+        d = _manga_details(id_)
     elif source == "tvmaze":
         d = _show_details(id_)
     elif source == "vndb":
@@ -302,6 +323,11 @@ if __name__ == "__main__":
     y = details("youtube", "https://www.youtube.com/watch?v=jNQXAC9IVRw")
     assert y["poster"] and y["title"]["en"] == "jawed", y
     print("youtube:", y["title"], y["poster"][:60])
+    g = search("manga", "Hagure Idol Jigokuhen")
+    assert g and g[0]["source"] == "anilist-manga", g[:2]
+    d = details(g[0]["source"], g[0]["id"])
+    assert d["poster"] and d["title"]["ja"], d
+    print("manga:", d["title"], d["year"], d["description"]["en"][:60])
     k = details("anilist", "184951")
     assert k["episodes"].get("1-2") == "First Date!", list(k["episodes"].items())[:3]
     print("You and I:", len(k["episodes"]), "episode titles")

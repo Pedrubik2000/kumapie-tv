@@ -141,7 +141,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             Text(tr("Show: %s", listOfNotNull(m.optString("title"), m.optInt("year").takeIf { it > 0 }?.toString()).joinToString(" · ")),
                 fontSize = 13.sp, color = Colors.dim)
         }
-        if (searching) MatchDialog(library, type ?: if (japanese) "anime" else "shows",
+        if (searching) MatchDialog(library.showMeta, type ?: if (japanese) "anime" else "shows",
             show.ifBlank { links.firstOrNull()?.let { ProcessWorker.guessShow(context, it) } ?: "" }, tr("Which show is it?"),
             onPick = { kind, c -> type = kind; match = c },
             onDismiss = { searching = false })

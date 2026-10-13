@@ -63,6 +63,11 @@ class Books(private val context: Context) {
 
     private val synced = File(base, ".synced")
 
+    /** A manga series' AniList match (ShowMeta.save): `.series/<name>/meta.json` + `poster.jpg`, on this device only. */
+    fun seriesDir(name: String) = File(base, ".series/" + name.lowercase().replace(Regex("""[^\p{L}\p{N}]+"""), "_"))
+    fun seriesMeta(name: String) = runCatching { org.json.JSONObject(File(seriesDir(name), "meta.json").readText()) }.getOrNull()
+    fun seriesPoster(name: String) = File(seriesDir(name), "poster.jpg").takeIf { it.exists() }
+
     fun onPc(id: String) = runCatching { id in synced.readLines() }.getOrDefault(false)
     @Synchronized fun markOnPc(id: String) { if (!onPc(id)) synced.appendText("$id\n") }
 

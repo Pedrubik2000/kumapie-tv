@@ -104,6 +104,10 @@ private fun series(books: Books, lang: Lang) = books.all().filter { it.lang == l
     .groupBy { Books.seriesOf(it.title) }.map { (name, vols) -> Series(name, vols.sortedBy { it.title.lowercase() }) }
     .sortedBy { it.name.lowercase() }
 
+/** The series' AniList title in the person's language, else its folder name. */
+private fun seriesTitle(meta: org.json.JSONObject?, name: String) =
+    meta?.let { io.github.pedrubik2000.kumapie.mobile.local.ShowMeta.title(it, Lang.speaker) } ?: name
+
 /** A volume's cover: its first page (from the PC when this device hasn't got it). */
 private fun cover(books: Books, book: Book) = book.pages?.firstOrNull()?.let { books.picture(book, it.image) }
 
@@ -123,25 +127,47 @@ internal fun MangaSeriesScreen(books: Books, lang: Lang, name: String, onBack: (
     var menu by remember { mutableStateOf<Book?>(null) }
     menu?.let { VolumeMenu(books, it, onClose = { menu = null; tick++ }) }
     var downloading by remember { mutableStateOf<String?>(null) }
+    // AniList's entry for the series (title, cover, description): the best match on first open, "Fix match" for another.
+    val showMeta = remember { io.github.pedrubik2000.kumapie.mobile.local.ShowMeta(context) }
+    var meta by remember(name) { mutableStateOf(books.seriesMeta(name)) }
+    var fixing by remember { mutableStateOf(false) }
+    val langs = listOf(Lang.speaker, lang.code, "en")
+    LaunchedEffect(name) {
+        if (meta == null) runCatching {
+            withContext(Dispatchers.IO) {
+                showMeta.search("manga", name).firstOrNull()?.let { showMeta.save(books.seriesDir(name), it.getString("source"), it.getString("id"), langs) }
+            }
+        }.onSuccess { meta = books.seriesMeta(name) } // offline: try again next time
+    }
+    if (fixing) MatchDialog(showMeta, "manga", meta?.optString("original")?.ifBlank { null } ?: name, tr("Fix match"),
+        onPick = { _, c -> withContext(Dispatchers.IO) { showMeta.save(books.seriesDir(name), c.getString("source"), c.getString("id"), langs) } },
+        onDismiss = { fixing = false; meta = books.seriesMeta(name) })
     fun done(b: Book) = books.pos(b.id) >= b.pages!!.size - 1
     // Read: the volume left partway, else the first not finished, else the first.
     val next = volumes.firstOrNull { books.pos(it.id) > 0 && !done(it) } ?: volumes.firstOrNull { !done(it) } ?: volumes.first()
     val header = @Composable { modifier: Modifier ->
         Box(modifier) {
             val art = if (wide) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 10f)
-            AsyncImage(cover(books, volumes.first()), null, contentScale = ContentScale.Crop, modifier = art)
+            AsyncImage(remember(meta) { books.seriesPoster(name) } ?: cover(books, volumes.first()), null, contentScale = ContentScale.Crop, modifier = art)
             Box(Modifier.matchParentSize().background(Brush.verticalGradient(
                 0f to Color.Transparent, 0.45f to Colors.background.copy(alpha = 0.35f), 1f to Colors.background)))
             IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(8.dp).background(Color.Black.copy(alpha = 0.4f), CircleShape)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Color.White)
             }
+            TextButton(onClick = { fixing = true }, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp)
+                .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(20.dp))) { Text(tr("Fix match"), color = Color.White) }
             Column(Modifier.align(Alignment.BottomStart).let { if (wide) it.navigationBarsPadding() else it }.statusBarsPadding()
                 .padding(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(name, fontSize = if (wide) 30.sp else 24.sp, lineHeight = if (wide) 36.sp else 30.sp, fontWeight = FontWeight.Bold,
+                Text(seriesTitle(meta, name), fontSize = if (wide) 30.sp else 24.sp, lineHeight = if (wide) 36.sp else 30.sp, fontWeight = FontWeight.Bold,
                     maxLines = 3, overflow = TextOverflow.Ellipsis)
                 val n = volumes.size
-                Text((if (n == 1) tr("1 volume") else tr("%d volumes", n)) + " · " + tr("%d pages", volumes.sumOf { it.pages!!.size }),
-                    fontSize = 14.sp, color = Colors.dim)
+                Text(listOfNotNull(meta?.optInt("year")?.takeIf { it > 0 }?.toString(), if (n == 1) tr("1 volume") else tr("%d volumes", n),
+                    tr("%d pages", volumes.sumOf { it.pages!!.size })).joinToString(" · "), fontSize = 14.sp, color = Colors.dim)
+                meta?.let { io.github.pedrubik2000.kumapie.mobile.local.ShowMeta.description(it, Lang.speaker) }?.let { text ->
+                    var all by remember { mutableStateOf(false) }
+                    Text(text, fontSize = 14.sp, maxLines = if (all) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clickable { all = !all })
+                }
                 Button(onClick = { onOpen(next.id) }) {
                     Icon(Icons.Default.PlayArrow, null)
                     Text(if (next != volumes.first() || books.pos(next.id) > 0) tr("Continue: %s", Books.volumeOf(next.title)) else tr("Read"),
@@ -211,7 +237,7 @@ internal fun MangaShelf(books: Books, lang: Lang, width: Dp, onSeries: (String?)
     }) {
         items(list, key = { it.name }) { s ->
             val n = s.volumes.size
-            Poster(cover(books, s.volumes.first()), s.name, if (n == 1) tr("1 volume") else tr("%d volumes", n), width,
+            Poster(books.seriesPoster(s.name) ?: cover(books, s.volumes.first()), seriesTitle(books.seriesMeta(s.name), s.name), if (n == 1) tr("1 volume") else tr("%d volumes", n), width,
                 onLongClick = if (n == 1) ({ menu = s.volumes[0] }) else null) {
                 if (n == 1) onOpen(s.volumes[0].id) else onSeries(s.name)
             }

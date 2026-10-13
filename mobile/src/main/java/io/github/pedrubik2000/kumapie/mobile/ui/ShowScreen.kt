@@ -156,7 +156,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
         }
     }
 
-    if (fixing) MatchDialog(library, show.kind, show.title, tr("Fix match"),
+    if (fixing) MatchDialog(library.showMeta, show.kind, show.title, tr("Fix match"),
         onPick = { kind, c ->
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 if (show.id.startsWith("local-show-")) library.showMeta.apply(show.id, kind, c.getString("source"), c.getString("id"),
@@ -319,10 +319,11 @@ private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, sta
  * and the Add sheet (item 20). [onPick] gets the type and the candidate; the dialog closes when it returns. Needs internet.
  */
 @Composable
-internal fun MatchDialog(library: Library, startKind: String, startQuery: String, title: String,
+internal fun MatchDialog(meta: io.github.pedrubik2000.kumapie.mobile.local.ShowMeta, startKind: String, startQuery: String, title: String,
                          onPick: suspend (String, org.json.JSONObject) -> Unit, onDismiss: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val kinds = listOf("anime" to tr("Anime"), "shows" to tr("Shows"), "movies" to tr("Movies"), "visual_novels" to tr("Visual novels"))
+    val kinds = if (startKind == "manga") listOf("manga" to tr("Manga"))
+        else listOf("anime" to tr("Anime"), "shows" to tr("Shows"), "movies" to tr("Movies"), "visual_novels" to tr("Visual novels"))
     var kind by remember { mutableStateOf(startKind.takeIf { k -> kinds.any { it.first == k } } ?: "shows") }
     var query by remember { mutableStateOf(startQuery) }
     var found by remember { mutableStateOf<List<org.json.JSONObject>?>(null) }
@@ -331,7 +332,7 @@ internal fun MatchDialog(library: Library, startKind: String, startQuery: String
     fun find() {
         busy = true; error = null
         scope.launch {
-            runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { library.showMeta.search(kind, query) } }
+            runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { meta.search(kind, query) } }
                 .onSuccess { found = it }.onFailure { error = tr("Couldn't search (internet?): %s", it.message ?: "") }
             busy = false
         }

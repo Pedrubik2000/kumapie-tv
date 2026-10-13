@@ -46,6 +46,8 @@ sealed interface Screen {
     data object Stats : Screen
     data object Search : Screen
     data object Downloads : Screen
+    data object Books : Screen
+    data class Reader(val bookId: String) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -93,6 +95,8 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     val settings = library.settings
     var server by remember { mutableStateOf(settings.server) }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home).apply { if (openSearch) add(Screen.Search); if (openImprove) add(Screen.Improve) } }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val books = remember { io.github.pedrubik2000.kumapie.mobile.read.Books(context) }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
     // The show list, kept here so the episode list and the player see the same (refreshed) shows.
     var shows by remember { mutableStateOf<List<Show>>(emptyList()) }
@@ -132,6 +136,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 onImprove = { stack += Screen.Improve },
                 onSearch = { stack += Screen.Search },
                 onDownloads = { stack += Screen.Downloads },
+                onBooks = { stack += Screen.Books },
                 homeLang = homeLang,
                 onHomeLang = { homeLang = it; settings.prefs.edit().putString("home_lang", it).apply() },
                 sharedLink = sharedLink,
@@ -151,6 +156,9 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             Screen.Stats -> StatsScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Search -> io.github.pedrubik2000.kumapie.mobile.ui.SearchScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Downloads -> io.github.pedrubik2000.kumapie.mobile.ui.DownloadsScreen(onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.Books -> io.github.pedrubik2000.kumapie.mobile.ui.BooksScreen(library, books, homeLang, onOpen = { stack += Screen.Reader(it) },
+                onBack = { stack.removeAt(stack.lastIndex) })
+            is Screen.Reader -> io.github.pedrubik2000.kumapie.mobile.ui.ReaderScreen(library, books, screen.bookId, onBack = { stack.removeAt(stack.lastIndex) })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
     }

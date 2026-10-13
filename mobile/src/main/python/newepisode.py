@@ -253,3 +253,11 @@ def build(model_dir: str, episode_id: str, show: str, title: str, duration: floa
         words[infl]["lemma"] = lemma
     return json.dumps({"id": episode_id, "show": show, "title": title, "lang": lang, "duration": duration, "video": video,
                        "resume": None, "scenes": scenes, "words": words}, ensure_ascii=False)
+
+
+def text_segments(model_dir: str, texts_json: str) -> str:
+    """Any texts (a book's paragraphs) -> per text [[surface, inflection or None]], split as episode cues are
+    (the reader's words and their known-word keys)."""
+    texts = json.loads(texts_json)
+    mz = _morphemizer(model_dir)
+    return json.dumps([segments(t, toks) for t, toks in zip(texts, parse(mz, texts))], ensure_ascii=False)

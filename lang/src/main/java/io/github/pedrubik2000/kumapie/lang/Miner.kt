@@ -114,7 +114,8 @@ class Miner(
         val knownJa = japanese.known
         val pkg = knownJa.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
         if (!knownJa.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
-        val (mid, fieldNames) = anki.noteType(pkg, knownJa.noteTypes) ?: error(tr("The Japanese note type isn't in Anki."))
+        val (mid, fieldNames) = anki.noteType(pkg, knownJa.noteTypes) ?: anki.addBundledNoteType(pkg, ja)
+            ?: error(tr("The Japanese note type isn't in Anki."))
         val slug = slug(r.episode.show)
         val tags = mutableListOf(slug, "kumapie", ja.tag(if (r.word != null) "word" else "sentence"))
         val fields = HashMap<String, String>()
@@ -178,6 +179,46 @@ class Miner(
     }
 
     /**
+     * A card from a book or manga (kumapie_plan.md, "Readers"): no video, so no audio or clip. [sentence] with the word
+     * in bold (Japanese, with its reading when written as in the dictionary), the word's fields as from an episode, the
+     * [picture] (a manga page) where the note type has an Image field, and Context naming [source]. Into the Mined deck.
+     */
+    suspend fun mineText(lang: io.github.pedrubik2000.kumapie.data.Lang, sentence: String, word: Word?, source: String,
+                         picture: File? = null): String = withContext(Dispatchers.IO) {
+        val language = languages.of(lang)
+        val known = language.known
+        val pkg = known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
+        if (!known.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
+        val (mid, fieldNames) = anki.noteType(pkg, known.noteTypes) ?: anki.addBundledNoteType(pkg, lang)
+            ?: error(tr("The %s note type isn't in Anki.", lang.displayName))
+        val missing = (listOf("Sentence") + if (word != null) listOf(KnownWords.DEF_BI) else emptyList()).filter { it !in fieldNames }
+        if (missing.isNotEmpty()) error(tr("The note type has no field %s.", missing.joinToString()))
+        dir.mkdirs()
+        val fields = HashMap<String, String>()
+        var reading: String? = null
+        if (word != null) when (language) {
+            is Japanese -> reading = japaneseWord(fields, word, language, pkg).let { (expression, r) -> r?.takeIf { word.surface == expression } }
+            is Spaced -> {
+                val written = word.key?.takeIf { ' ' in it } ?: word.surface
+                fields["Word"] = esc(written) + (word.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
+                wordAudio(word.surface, language)?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-${slug(word.surface)}")}]" }
+                fields[KnownWords.DEF_BI] = definition(written, word)
+                word.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
+            }
+        }
+        val surface = word?.surface
+        val at = if (language is Japanese && surface != null) sentence.indexOf(surface) else -1
+        fields["Sentence"] = if (at < 0) esc(sentence) else esc(sentence.substring(0, at)) + "<b>" + esc(surface!!) +
+            (reading?.let { "[${esc(it)}]" } ?: "") + "</b>" + esc(sentence.substring(at + surface.length))
+        if (picture != null && "Image" in fieldNames) fields["Image"] = "<img src=\"${anki.addMedia(pkg, picture, "${slug(source)}_${System.currentTimeMillis()}")}\">"
+        word?.formOf?.let { fields["Notes"] = esc("form of $it") }
+        fields["Context"] = esc("Mined in kumapie: $source.")
+        anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, listOf(slug(source), "kumapie", lang.tag(if (word != null) "word" else "sentence")),
+            anki.deck(pkg, lang.deck))
+        tr("Added to %s", lang.deck) + (word?.let { ": ${it.lemma ?: it.surface}" } ?: "")
+    }
+
+    /**
      * A 🐻 Japanese word card from the Japanese dictionary screen: word, reading, meaning, word audio; no sentence or
      * clip (the card's front is the Word). Into Japanese Mined.
      */
@@ -185,7 +226,8 @@ class Miner(
         val japanese = languages.japanese
         val pkg = japanese.known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
         if (!japanese.known.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
-        val (mid, fieldNames) = anki.noteType(pkg, japanese.known.noteTypes) ?: error(tr("The Japanese note type isn't in Anki."))
+        val (mid, fieldNames) = anki.noteType(pkg, japanese.known.noteTypes) ?: anki.addBundledNoteType(pkg, japanese.lang)
+            ?: error(tr("The Japanese note type isn't in Anki."))
         if (KnownWords.DEF_BI !in fieldNames) error(tr("The Japanese note type has no field %s.", KnownWords.DEF_BI))
         dir.mkdirs()
         val fields = HashMap<String, String>()

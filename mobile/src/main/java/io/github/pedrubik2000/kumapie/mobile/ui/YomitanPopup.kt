@@ -291,9 +291,9 @@ private const val OPEN_FIRST = 2
 private val PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <style>
 body { margin: 0; padding: 2px; background: transparent; color: #e8e6e3; font: 15px/1.45 sans-serif; }
-details { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; margin: 0 0 8px; padding: 6px 10px; }
-summary { color: #a8a6a3; font-size: 13px; cursor: pointer; list-style: none; }
-summary::before { content: "▸ "; } details[open] summary::before { content: "▾ "; }
+#cards > details { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; margin: 0 0 8px; padding: 6px 10px; }
+#cards > details > summary { color: #a8a6a3; font-size: 13px; cursor: pointer; list-style: none; }
+#cards > details > summary::before { content: "▸ "; } #cards > details[open] > summary::before { content: "▾ "; }
 summary .grp { color: #777; font-size: 11px; margin-left: 6px; }
 .body { padding: 4px 0 2px; }
 ol.glossary-list { margin: 0; padding-left: 1.3em; }
@@ -320,11 +320,11 @@ document.addEventListener('click', e => {
   if (!ja(at)) return;
   kumapie.tapText(text, at);
 });
-function showGroup(g) { document.querySelectorAll('details').forEach(d => d.style.display = (!g || d.dataset.group === g) ? '' : 'none'); }
+function showGroup(g) { document.querySelectorAll('#cards > details').forEach(d => d.style.display = (!g || d.dataset.group === g) ? '' : 'none'); }
 function render(css, html, g) {
   document.getElementById('dict').textContent = css;
   const c = document.getElementById('cards'); c.innerHTML = html; window.scrollTo(0, 0);
-  c.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => kumapie.toggled(d.dataset.dictionary, d.open)));
+  c.querySelectorAll(':scope > details').forEach(d => d.addEventListener('toggle', () => kumapie.toggled(d.dataset.dictionary, d.open)));
   showGroup(g);
 }
 </script></body></html>"""

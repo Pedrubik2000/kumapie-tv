@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -500,15 +501,16 @@ private fun SceneList(ctl: SceneController, onPick: (Int) -> Unit) {
 private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> Unit) {
     val word = (picker.selectedInDef ?: picker.selected)?.word
     val marked = word?.let { ctl.words[it]?.marked } == true
-    Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = picker::hearWord) { Icon(Icons.AutoMirrored.Filled.VolumeUp, tr("Hear the word"), tint = Colors.text) }
         if (picker.definition != null) {
             IconButton(onClick = picker::hearDefinition) { Icon(Icons.Default.RecordVoiceOver, tr("Hear the definition"), tint = Colors.text) }
         }
         IconButton(onClick = onMine) { Icon(Pickaxe, tr("Add to Anki"), tint = Colors.text) }
-        Spacer(Modifier.weight(1f, fill = false).width(8.dp))
-        FilterChip(selected = marked, onClick = picker::toggleKnown, label = { Text(if (marked) tr("Known") else tr("Mark known")) },
+        // Known takes the rest of the line (user, 2026-10-13).
+        FilterChip(selected = marked, onClick = picker::toggleKnown, modifier = Modifier.weight(1f).height(48.dp),
+            label = { Text(if (marked) tr("Known") else tr("Mark known"), fontSize = 16.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
             leadingIcon = if (marked) ({ Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }) else null)
     }
 }

@@ -88,8 +88,8 @@ private fun series(books: Books, lang: Lang) = books.all().filter { it.lang == l
     .groupBy { Books.seriesOf(it.title) }.map { (name, vols) -> Series(name, vols.sortedBy { it.title.lowercase() }) }
     .sortedBy { it.name.lowercase() }
 
-/** A volume's cover: its first page. */
-private fun cover(book: Book) = book.pages?.firstOrNull()?.let { File(book.dir, it.image) }
+/** A volume's cover: its first page (from the PC when this device hasn't got it). */
+private fun cover(books: Books, book: Book) = book.pages?.firstOrNull()?.let { books.picture(book, it.image) }
 
 /**
  * Manga on this device (Home's Manga), as a library of series (cover, number of volumes); a series ([series]) shows its
@@ -101,11 +101,15 @@ internal fun MangaShelf(books: Books, lang: Lang, series: String?, width: Dp, on
     val list = remember(lang, tick) { series(books, lang) }
     val imports = rememberImports(books, lang, onDone = { ids -> tick++; if (ids.size == 1) onOpen(ids[0]) })
     val volumes = series?.let { name -> list.firstOrNull { it.name == name }?.volumes.orEmpty() }
+    var menu by remember { mutableStateOf<Book?>(null) }
+    menu?.let { VolumeMenu(books, it, onClose = { menu = null; tick++ }) }
     if (volumes != null) ShelfGrid(width, imports, null) {
         items(volumes, key = { it.id }) { v ->
             val at = books.pos(v.id)
             val n = v.pages!!.size
-            Poster(cover(v), Books.volumeOf(v.title), tr("%d pages", n), width, progress = if (at > 0) (at + 1f) / n else null) { onOpen(v.id) }
+            val here = n - books.missing(v).size
+            Poster(cover(books, v), Books.volumeOf(v.title), tr("%d pages", n) + if (here < n) " · " + tr("on the PC") else "", width,
+                progress = if (at > 0) (at + 1f) / n else null, onLongClick = { menu = v }) { onOpen(v.id) }
         }
     } else ShelfGrid(width, imports, if (list.isEmpty()) tr("No manga yet.") else null, buttons = {
         TextButton(onClick = { imports.file.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.comicbook+zip", "application/octet-stream")) }) {
@@ -115,11 +119,51 @@ internal fun MangaShelf(books: Books, lang: Lang, series: String?, width: Dp, on
     }) {
         items(list, key = { it.name }) { s ->
             val n = s.volumes.size
-            Poster(cover(s.volumes.first()), s.name, if (n == 1) tr("1 volume") else tr("%d volumes", n), width) {
+            Poster(cover(books, s.volumes.first()), s.name, if (n == 1) tr("1 volume") else tr("%d volumes", n), width,
+                onLongClick = if (n == 1) ({ menu = s.volumes[0] }) else null) {
                 if (n == 1) onOpen(s.volumes[0].id) else onSeries(s.name)
             }
         }
     }
+}
+
+/**
+ * A volume's long press: "Download" (its pages here, to read without the PC), "Delete here" (only this device's
+ * pages; it stays and reads from the PC) and "Delete everywhere" (off the PC and all the owner's devices).
+ */
+@Composable
+private fun VolumeMenu(books: Books, book: Book, onClose: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var said by remember { mutableStateOf("") }
+    val pages = book.pages!!.size
+    val missing = remember(book.id) { books.missing(book).size }
+    val onPc = remember(book.id) { books.onPc(book.id) }
+    fun fail(e: Throwable) = android.widget.Toast.makeText(context, tr("Couldn't reach the PC: %s", e.message ?: e.toString()), android.widget.Toast.LENGTH_LONG).show()
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(book.title) },
+        text = {
+            Text(listOfNotNull(
+                said.takeIf { it.isNotEmpty() },
+                if (missing > 0) tr("%d of %d pages are on this device; the others are read from the PC.", pages - missing, pages) else null,
+                if (onPc && missing < pages) tr("Delete here: only this device's pages go; the volume stays and reads from the PC.") else null,
+                tr("Delete everywhere: off the PC and all your devices."),
+            ).joinToString("\n\n"))
+        },
+        confirmButton = {
+            Row {
+                if (missing > 0 && onPc) TextButton(onClick = {
+                    scope.launch { runCatching { books.download(book) { said = it } }.onSuccess { onClose() }.onFailure { said = ""; fail(it) } }
+                }) { Text(tr("Download")) }
+                if (onPc && missing < pages) TextButton(onClick = { books.removeCopy(book.id); onClose() }) { Text(tr("Delete here")) }
+                TextButton(onClick = {
+                    scope.launch { runCatching { withContext(Dispatchers.IO) { books.deleteEverywhere(book.id) } }.onSuccess { onClose() }.onFailure(::fail) }
+                }) { Text(tr("Delete everywhere")) }
+            }
+        },
+        dismissButton = { TextButton(onClick = onClose) { Text(tr("Keep")) } },
+    )
 }
 
 /** Home's Books and Manga: the import [buttons], the import's progress, [empty] when there's nothing, then posters as on Home. */
@@ -171,7 +215,7 @@ internal fun MangaReader(library: Library, books: Books, book: Book, onBack: () 
     /** Page [n] with its bubbles: as stored, else read now (and kept). */
     suspend fun read(n: Int): Manga.Page = pages[n].takeIf { it.blocks != null } ?: withContext(Dispatchers.IO) {
         if (!ocr.isReady) ocr.download { status = it }
-        val (w, h, blocks) = ocr.read(File(book.dir, pages[n].image), n * 1000)
+        val (w, h, blocks) = ocr.read(books.ensurePage(book.id, pages[n].image), n * 1000)
         Manga.Page(pages[n].image, w, h, blocks).also { books.setPage(book.id, n, it) }
     }.also { pages[n] = it }
 
@@ -180,6 +224,8 @@ internal fun MangaReader(library: Library, books: Books, book: Book, onBack: () 
         failed = null
         books.setPos(book.id, shown.first())
         val spread = runCatching {
+            if (shown.any { !File(book.dir, pages[it].image).exists() }) status = tr("Loading the page from the PC…")
+            withContext(Dispatchers.IO) { shown.forEach { books.ensurePage(book.id, pages[it].image) } } // a volume read from the PC
             if (shown.any { pages[it].blocks == null }) status = tr("Reading the page…")
             shown.map { read(it) }
         }.onFailure { android.util.Log.w("kumabook", "manga page ${shown.first() + 1}", it); failed = it.message ?: it.toString() }.getOrNull()
@@ -192,7 +238,12 @@ internal fun MangaReader(library: Library, books: Books, book: Book, onBack: () 
             "text/html", "utf-8", null)
         // Read the next pages ahead, so turning to them doesn't wait.
         val next = shown.last() + 1
-        scope.launch { for (n in next until minOf(pages.size, next + shown.size)) if (pages[n].blocks == null) runCatching { read(n) } }
+        scope.launch {
+            for (n in next until minOf(pages.size, next + shown.size)) runCatching {
+                withContext(Dispatchers.IO) { books.ensurePage(book.id, pages[n].image) }
+                if (pages[n].blocks == null) read(n)
+            }
+        }
     }
     // ponytail: time on this screen counts as reading (no idle detection), as for books.
     LaunchedEffect(book.id) {
@@ -333,6 +384,7 @@ internal class Imports(val file: androidx.activity.result.ActivityResultLauncher
 
 @Composable
 internal fun rememberImports(books: Books, lang: Lang, onDone: (List<String>) -> Unit): Imports {
+    val context = LocalContext.current
     var said by remember { mutableStateOf("") }
     var bad by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
@@ -344,7 +396,8 @@ internal fun rememberImports(books: Books, lang: Lang, onDone: (List<String>) ->
             bad = false
             said = tr("Importing…")
             runCatching { job { said = it } }
-                .onSuccess { ids -> said = if (ids.size == 1) "" else tr("%d books imported.", ids.size); onDone(ids) }
+                .onSuccess { ids -> said = if (ids.size == 1) "" else tr("%d books imported.", ids.size); onDone(ids)
+                    io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.now(context) } // to the PC and the other devices
                 .onFailure { bad = true; said = it.message ?: it.toString() }
             importing = false
         }

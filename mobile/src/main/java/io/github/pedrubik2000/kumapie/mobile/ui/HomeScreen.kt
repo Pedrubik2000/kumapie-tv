@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -296,8 +297,8 @@ internal fun posterWidth(wide: Boolean) = if (wide) 150.dp else 118.dp
 
 /** A poster with its title and [sub] below (and [progress] over it): shows, books and manga look the same. */
 @Composable
-internal fun Poster(image: Any?, title: String, sub: String, width: Dp, progress: Float? = null, onClick: () -> Unit) {
-    Column(Modifier.width(width).clickable(onClick = onClick)) {
+internal fun Poster(image: Any?, title: String, sub: String, width: Dp, progress: Float? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+    Column(Modifier.width(width).combinedClickable(onLongClick = onLongClick, onClick = onClick)) {
         Box {
             val art = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(10.dp))
             NeutralPoster(title, art, fontSize = 15.sp) // shows where there's no poster (never an episode frame)

@@ -14,6 +14,7 @@ import androidx.work.WorkerParameters
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.data.Settings
+import io.github.pedrubik2000.kumapie.mobile.read.Books
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -121,6 +122,8 @@ class Sync(private val context: Context) {
             runCatching { download(base, e, video = id !in skip); add(onPc, id); if (id !in skip) done += "↓ ${e.getString("title")}" }
                 .onFailure { Log.w("kumapie", "sync down $id: $it") }
         }
+        done += runCatching { runBooks(server, owner, gone?.let { g -> (0 until g.length()).map { g.getString(it) }.toSet() }.orEmpty()) }
+            .onFailure { Log.w("kumapie", "sync books: $it") }.getOrDefault(emptyList())
         return done
     }
 
@@ -129,24 +132,7 @@ class Sync(private val context: Context) {
         val got = JSONObject(String(open("$url/status").inputStream.use { it.readBytes() }))
         val files = mapOf("episode.json" to local.json(e.id), "thumb.jpg" to local.thumb(e.id), "video.mp4" to local.video(e.id))
         for ((name, file) in files) {
-            if (!file.exists()) continue
-            var offset = got.optLong(name, 0L)
-            file.inputStream().use { input ->
-                input.skip(offset)
-                val buf = ByteArray(CHUNK)
-                while (offset < file.length()) {
-                    if (name == "video.mp4") progress("↑ ${e.title}", offset.toFloat() / file.length())
-                    var n = 0
-                    while (n < buf.size) { val r = input.read(buf, n, buf.size - n); if (r < 0) break; n += r }
-                    if (n == 0) break
-                    val c = open("$url/$name?offset=$offset", "PUT")
-                    c.doOutput = true
-                    c.setFixedLengthStreamingMode(n)
-                    c.outputStream.use { it.write(buf, 0, n) }
-                    if (c.responseCode != 200) throw IOException("upload $name: HTTP ${c.responseCode}")
-                    offset = JSONObject(String(c.inputStream.use { it.readBytes() })).getLong("size")
-                }
-            }
+            if (file.exists()) put("$url/$name", file, got.optLong(name, 0L)) { if (name == "video.mp4") progress("↑ ${e.title}", it) }
         }
         val meta = JSONObject().put("show", e.show).put("title", e.title).put("lang", e.lang)
             .put("translation", Lang.of(e.lang).translation).put("kind", e.kind).put("season", e.season ?: JSONObject.NULL)
@@ -158,6 +144,67 @@ class Sync(private val context: Context) {
         c.setRequestProperty("Content-Type", "application/json")
         c.outputStream.use { it.write(meta.toString().toByteArray()) }
         if (c.responseCode != 200) throw IOException("upload done: HTTP ${c.responseCode}")
+    }
+
+    /** [file] to [url] from [from] (what the PC already has), [CHUNK] bytes a request; [shown] gets how far (0..1). */
+    private fun put(url: String, file: File, from: Long, shown: (Float) -> Unit = {}) {
+        var offset = from
+        file.inputStream().use { input ->
+            input.skip(offset)
+            val buf = ByteArray(CHUNK)
+            while (offset < file.length()) {
+                shown(offset.toFloat() / file.length())
+                var n = 0
+                while (n < buf.size) { val r = input.read(buf, n, buf.size - n); if (r < 0) break; n += r }
+                if (n == 0) break
+                val c = open("$url?offset=$offset", "PUT")
+                c.doOutput = true
+                c.setFixedLengthStreamingMode(n)
+                c.outputStream.use { it.write(buf, 0, n) }
+                if (c.responseCode != 200) throw IOException("upload ${file.name}: HTTP ${c.responseCode}")
+                offset = JSONObject(String(c.inputStream.use { it.readBytes() })).getLong("size")
+            }
+        }
+    }
+
+    /**
+     * Books and manga (book_sync.py on the PC): the ones added here go up (pages, then book.json with "done"); the
+     * ones on the PC that aren't here come down as their book.json only (pages read from the PC, or "Download").
+     */
+    private fun runBooks(server: String, owner: String, gone: Set<String>): List<String> {
+        val base = "$server/api/sync/$owner/books"
+        val books = Books(context)
+        val done = ArrayList<String>()
+        for (id in gone) books.load(id)?.let { books.delete(id); done += "✕ ${it.title}" }
+        for (b in books.all()) {
+            if (books.onPc(b.id) || books.missing(b).isNotEmpty()) continue
+            runCatching {
+                val url = "$base/${b.id}"
+                val got = JSONObject(String(open("$url/status").inputStream.use { it.readBytes() }))
+                b.pages.orEmpty().forEachIndexed { i, p ->
+                    progress("↑ ${b.title}", i.toFloat() / b.pages!!.size)
+                    put("$url/${p.image}", File(b.dir, p.image), got.optLong(p.image, 0L))
+                }
+                val meta = JSONObject().put("title", b.title).put("series", Books.seriesOf(b.title)).put("lang", b.lang.code)
+                    .put("book", JSONObject(File(b.dir, "book.json").readText()))
+                val c = open("$url/done", "POST")
+                c.doOutput = true
+                c.setRequestProperty("Content-Type", "application/json")
+                c.outputStream.use { it.write(meta.toString().toByteArray()) }
+                if (c.responseCode != 200) throw IOException("upload done: HTTP ${c.responseCode}")
+                books.markOnPc(b.id)
+                done += "↑ ${b.title}"
+            }.onFailure { Log.w("kumapie", "sync book up ${b.id}: $it") }
+        }
+        val list = JSONArray(String(open(base).inputStream.use { it.readBytes() }))
+        for (i in 0 until list.length()) {
+            val e = list.getJSONObject(i)
+            val id = e.getString("id")
+            if (books.has(id) || id in gone) { if (books.has(id)) books.markOnPc(id); continue }
+            runCatching { books.fetchBook("$base/$id", id); done += "↓ ${e.getString("title")}" }
+                .onFailure { Log.w("kumapie", "sync book down $id: $it") }
+        }
+        return done
     }
 
     private fun retime(base: String, id: String) {

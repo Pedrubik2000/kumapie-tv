@@ -32,7 +32,9 @@ data class Piece(val text: String, val key: String?)
 class Books(private val context: Context) {
     private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "books").apply { mkdirs() }
 
-    fun all(): List<Book> = base.listFiles().orEmpty().filter { !it.name.startsWith(".") }.mapNotNull { load(it.name) }.sortedBy { it.title.lowercase() }
+    fun all(): List<Book> = base.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }.mapNotNull { load(it.name) }.sortedBy { it.title.lowercase() }
+
+    fun has(id: String) = File(base, "$id/book.json").exists()
 
     fun load(id: String): Book? = runCatching {
         val o = JSONObject(File(base, "$id/book.json").readText())
@@ -54,6 +56,68 @@ class Books(private val context: Context) {
     fun setPos(id: String, at: Int) = runCatching { File(base, "$id/pos.txt").writeText(at.toString()) }
 
     fun delete(id: String) = File(base, id).deleteRecursively()
+
+    // --- The PC (dojo-feed's /api/sync/<owner>/books, book_sync.py): a book added here goes up at the next sync
+    // ([io.github.pedrubik2000.kumapie.mobile.local.Sync]); one added on another device comes down as its book.json
+    // only, its pages read from the PC when shown ([ensurePage]) or all at once ([download]).
+
+    private val synced = File(base, ".synced")
+
+    fun onPc(id: String) = runCatching { id in synced.readLines() }.getOrDefault(false)
+    @Synchronized fun markOnPc(id: String) { if (!onPc(id)) synced.appendText("$id\n") }
+
+    /** The book's folder on the PC, or null (no PC set up, or the PC doesn't have it). */
+    fun remote(id: String): String? {
+        val s = io.github.pedrubik2000.kumapie.data.Settings(context)
+        return if (s.server.isBlank() || s.owner.isBlank() || !onPc(id)) null else "${s.server}/api/sync/${s.owner}/books/$id"
+    }
+
+    /** The pages not on this device (read from the PC when shown). */
+    fun missing(book: Book) = book.pages.orEmpty().filter { !File(base, "${book.id}/${it.image}").exists() }
+
+    /** A page's picture: the file here, else its address on the PC (a volume read without its own copy). */
+    fun picture(book: Book, image: String): Any? = File(base, "${book.id}/$image").takeIf { it.exists() } ?: remote(book.id)?.let { "$it/$image" }
+
+    /** Page [image] of [id] here, fetched from the PC when it isn't. */
+    fun ensurePage(id: String, image: String): File {
+        val f = File(base, "$id/$image")
+        if (!f.exists()) get("${remote(id) ?: error(tr("This page isn't on this device."))}/$image", f)
+        return f
+    }
+
+    /** All of a volume's pages here, so it reads without the PC. */
+    suspend fun download(book: Book, progress: (String) -> Unit) = withContext(Dispatchers.IO) {
+        val todo = missing(book)
+        todo.forEachIndexed { i, p -> progress(tr("Downloading page %d of %d…", i + 1, todo.size)); ensurePage(book.id, p.image) }
+    }
+
+    /** "Delete here": only the pages go (the volume stays and reads from the PC); not on the PC: all of it. */
+    fun removeCopy(id: String) { if (onPc(id)) File(base, "$id/pages").deleteRecursively() else delete(id) }
+
+    /** "Delete everywhere": off the PC (to its archive), then here; the other devices follow at their sync. */
+    fun deleteEverywhere(id: String) {
+        remote(id)?.let { url ->
+            val c = java.net.URL("$url/delete").openConnection() as java.net.HttpURLConnection
+            c.requestMethod = "POST"; c.doOutput = true; c.connectTimeout = 15_000
+            c.outputStream.use { }
+            if (c.responseCode != 200) throw java.io.IOException("delete: HTTP ${c.responseCode}")
+        }
+        delete(id)
+    }
+
+    /** Another device's book from the PC ([url] = its folder there): its book.json, which lists it here. */
+    fun fetchBook(url: String, id: String) {
+        get("$url/book.json", File(base, "$id/book.json"))
+        markOnPc(id)
+    }
+
+    private fun get(url: String, out: File) {
+        val c = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 60_000 }
+        if (c.responseCode != 200) throw java.io.IOException("${out.name}: HTTP ${c.responseCode}")
+        val part = File(out.path + ".part").apply { parentFile!!.mkdirs() }
+        c.inputStream.use { i -> part.outputStream().use { i.copyTo(it) } }
+        if (!part.renameTo(out)) throw java.io.IOException("couldn't move ${out.name} into place")
+    }
 
     /**
      * A file -> books in [lang], answers their ids, off the main thread: an .epub ([Epub]); a .cbz/.zip ([importArchive]:

@@ -30,7 +30,7 @@ class MangaTest {
         // book.json round trip, and the page HTML has the block where Mokuro put it.
         val back = Manga.fromJson(JSONObject().put("pages", Manga.toJson(v.pages)).getJSONArray("pages"))
         assertEquals("吾輩は猫である。", back[0].blocks!![0].text)
-        val html = Manga.html(back[0], mapOf(0 to listOf(Piece("猫", "猫"))), { "k" }, List(6) { "#000000" })
+        val html = Manga.html(listOf(back[0]), mapOf(0 to listOf(Piece("猫", "猫"))), { "k" }, List(6) { "#000000" })
         assert("left:71.250%;top:11.667%;width:12.500%;height:26.667%" in html && "data-k=\"猫\"" in html && '$' !in html)
     }
 

@@ -206,6 +206,14 @@ class Books(private val context: Context) {
     }
 
     companion object {
+        private val VOLUME = Regex("""[\s_-]*(?:vol(?:ume)?\.?\s*|第\s*)?\d+\s*巻?\s*$""", RegexOption.IGNORE_CASE)
+
+        /** A manga volume's series, from its title: "Hagure Idol Jigokuhen Volume 07" -> "Hagure Idol Jigokuhen". */
+        fun seriesOf(title: String) = VOLUME.replace(title, "").trim().ifBlank { title }
+
+        /** What tells the volume apart in its series: "Volume 07" (the title when it has no series part). */
+        fun volumeOf(title: String) = title.removePrefix(seriesOf(title)).trim().ifBlank { title }
+
         private val END = Regex("""[.!?。！？…]+["'“”‘’»«」』)）]*\s*""")
 
         /** The sentence of [text] around [offset] (a book paragraph can hold many): the card's Sentence. */

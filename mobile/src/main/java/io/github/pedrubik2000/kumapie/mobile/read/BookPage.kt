@@ -7,7 +7,7 @@ package io.github.pedrubik2000.kumapie.mobile.read
  * (`writing-mode: vertical-rl`: its columns stack downwards, so pages are scrollTop steps), the rest horizontal.
  *
  * Every word is `<span class="w <status>" data-p data-i data-k>`; the script tells Kotlin ([JS_BRIDGE]) about a
- * tapped word (`word(p, i)`), the first paragraph on the page after a turn (`page(p)`), a turn past either end of the
+ * tapped word (`word(p, i, y)`, y: 0 top .. 1 bottom), the first paragraph on the page after a turn (`page(p)`), a turn past either end of the
  * section (`edge(±1)`) and a tap in the middle (`middle()`). Kotlin calls `select(p, i)`, `recolor({key: status})`.
  */
 object BookPage {
@@ -125,7 +125,7 @@ document.addEventListener('click', function (e) {
   if (e.clientX < edge) { turn(FORWARD_LEFT ? 1 : -1); return; }
   if (e.clientX > window.innerWidth - edge) { turn(FORWARD_LEFT ? -1 : 1); return; }
   var w = e.target.closest('span.w');
-  if (w) K.word(+w.dataset.p, +w.dataset.i); else K.middle();
+  if (w) K.word(+w.dataset.p, +w.dataset.i, e.clientY / window.innerHeight); else K.middle();
 });
 window.addEventListener('resize', function () { var p = firstShown(); setup(); goToParagraph(p); });
 setup();

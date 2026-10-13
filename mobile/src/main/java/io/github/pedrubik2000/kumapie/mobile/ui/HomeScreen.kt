@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Healing
@@ -106,6 +107,7 @@ fun HomeScreen(
     onSearch: () -> Unit = {},
     onDownloads: () -> Unit = {},
     onBooks: () -> Unit = {},
+    onManga: () -> Unit = {},
     /** An episode of "Continue watching": straight to the player, where it was left. */
     onPlay: (Show, Episode) -> Unit = { s, _ -> onShow(s) },
     /** The language Home, the feed and i+1 show ([io.github.pedrubik2000.kumapie.data.Lang.code]). */
@@ -152,6 +154,7 @@ fun HomeScreen(
         Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove),
         Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch).takeIf { homeLang == "ja" },
         Dest(Icons.Default.Book, tr("Books"), onBooks),
+        Dest(Icons.Default.AutoStories, tr("Manga"), onManga).takeIf { homeLang == "ja" }, // the OCR model reads Japanese
         Dest(Icons.Default.Settings, tr("Settings"), onSettings),
     )
 

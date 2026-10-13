@@ -48,6 +48,8 @@ sealed interface Screen {
     data object Downloads : Screen
     data object Books : Screen
     data class Reader(val bookId: String) : Screen
+    data object Manga : Screen
+    data class MangaSeries(val name: String) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -137,6 +139,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 onSearch = { stack += Screen.Search },
                 onDownloads = { stack += Screen.Downloads },
                 onBooks = { stack += Screen.Books },
+                onManga = { stack += Screen.Manga },
                 homeLang = homeLang,
                 onHomeLang = { homeLang = it; settings.prefs.edit().putString("home_lang", it).apply() },
                 sharedLink = sharedLink,
@@ -158,6 +161,10 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             Screen.Downloads -> io.github.pedrubik2000.kumapie.mobile.ui.DownloadsScreen(onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Books -> io.github.pedrubik2000.kumapie.mobile.ui.BooksScreen(library, books, homeLang, onOpen = { stack += Screen.Reader(it) },
                 onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.Manga -> io.github.pedrubik2000.kumapie.mobile.ui.MangaScreen(library, books, homeLang, onSeries = { stack += Screen.MangaSeries(it) },
+                onOpen = { stack += Screen.Reader(it) }, onBack = { stack.removeAt(stack.lastIndex) })
+            is Screen.MangaSeries -> io.github.pedrubik2000.kumapie.mobile.ui.MangaSeriesScreen(books, homeLang, screen.name,
+                onOpen = { stack += Screen.Reader(it) }, onBack = { stack.removeAt(stack.lastIndex) })
             is Screen.Reader -> io.github.pedrubik2000.kumapie.mobile.ui.ReaderScreen(library, books, screen.bookId, onBack = { stack.removeAt(stack.lastIndex) })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }

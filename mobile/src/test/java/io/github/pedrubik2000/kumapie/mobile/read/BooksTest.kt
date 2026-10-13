@@ -8,6 +8,16 @@ class BooksTest {
         assertEquals(listOf("Eins.", "Zwei."), Books.paragraphs("\uFEFFEins.\r\n\r\n  Zwei.  \n"))
     }
 
+    @Test fun seriesFromVolumeTitles() {
+        assertEquals("Hagure Idol Jigokuhen", Books.seriesOf("Hagure Idol Jigokuhen Volume 07"))
+        assertEquals("Volume 07", Books.volumeOf("Hagure Idol Jigokuhen Volume 07"))
+        assertEquals("hagure_idol", Books.seriesOf("hagure_idol 第01巻"))
+        assertEquals("Jujutsu Kaisen", Books.seriesOf("Jujutsu Kaisen 30"))
+        assertEquals("Jujutsu Kaisen", Books.seriesOf("Jujutsu Kaisen vol.3"))
+        assertEquals("第01巻", Books.seriesOf("第01巻")) // nothing but a volume: its own series
+        assertEquals("1984", Books.seriesOf("1984"))
+    }
+
     @Test fun sentenceAroundAWord() {
         val de = "Ich rufe an. Er sagt: „Ja!“ Dann geht er"
         assertEquals("Ich rufe an.", Books.sentenceAt(de, 4))

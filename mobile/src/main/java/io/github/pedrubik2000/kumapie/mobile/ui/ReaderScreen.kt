@@ -1,9 +1,10 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,43 +56,20 @@ import kotlinx.coroutines.launch
 @Composable
 fun BooksScreen(library: Library, books: Books, homeLang: String, onOpen: (String) -> Unit, onBack: () -> Unit) {
     val lang = Lang.of(homeLang)
-    var list by remember { mutableStateOf(books.all().filter { it.lang == lang }) }
-    var said by remember { mutableStateOf("") }
-    var importing by remember { mutableStateOf(false) }
-    var bad by remember { mutableStateOf(false) } // [said] is an error
-    val scope = rememberCoroutineScope()
-    /** Runs an import: one book opens, several are listed ("%d books imported"). */
-    fun run(job: suspend ((String) -> Unit) -> List<String>) {
-        if (importing) return
-        scope.launch {
-            importing = true
-            bad = false
-            said = tr("Importing…")
-            runCatching { job { said = it } }
-                .onSuccess { ids ->
-                    list = books.all().filter { it.lang == lang }
-                    said = if (ids.size == 1) "" else tr("%d books imported.", ids.size)
-                    if (ids.size == 1) onOpen(ids[0])
-                }
-                .onFailure { bad = true; said = it.message ?: it.toString() }
-            importing = false
-        }
-    }
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) run { p -> books.import(uri, lang, p) }
-    }
-    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
-        if (tree != null) run { p -> books.importFolder(tree, lang, p) }
-    }
+    fun mine() = books.all().filter { it.lang == lang && it.pages == null }
+    var list by remember { mutableStateOf(mine()) }
+    val imports = rememberImports(books, lang, onDone = { ids -> list = mine(); if (ids.size == 1) onOpen(ids[0]) })
     BackHandler { onBack() }
     Scaffold(topBar = {
         TopAppBar(title = { Text(tr("Books")) },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            TextButton(onClick = { pick.launch(arrayOf("application/epub+zip", "text/plain", "application/zip", "application/x-cbz", "application/vnd.comicbook+zip", "application/octet-stream")) }) { Text(tr("Import a book: EPUB, text or manga (%s)", lang.displayName)) }
-            TextButton(onClick = { pickFolder.launch(null) }) { Text(tr("Import a folder (every book or volume in it)")) }
-            if (said.isNotEmpty()) Text(said, color = if (bad) Colors.unknown else Colors.dim, fontSize = 13.sp)
+            TextButton(onClick = { imports.file.launch(arrayOf("application/epub+zip", "text/plain", "application/octet-stream")) }) {
+                Text(tr("Import a book: EPUB or text (%s)", lang.displayName))
+            }
+            TextButton(onClick = { imports.folder.launch(null) }) { Text(tr("Import a folder")) }
+            imports.Status()
             if (list.isEmpty()) Text(tr("No books yet."), color = Colors.dim)
             list.forEach { b ->
                 Text(b.title, color = Colors.text, fontSize = 18.sp, modifier = Modifier.fillMaxWidth().clickable { onOpen(b.id) }.padding(vertical = 8.dp))
@@ -116,7 +94,7 @@ fun ReaderScreen(library: Library, books: Books, id: String, onBack: () -> Unit)
     var section by remember { mutableIntStateOf(at / SECTION) }
     var atEnd by remember { mutableStateOf(false) } // a backward turn opens the previous section at its last page
     var pieces by remember { mutableStateOf<List<List<Piece>>?>(null) }
-    var picked by remember { mutableStateOf<Pair<Int, Int>?>(null) } // paragraph, piece
+    var picked by remember { mutableStateOf<Triple<Int, Int, Float>?>(null) } // paragraph, piece, where on screen (0 top .. 1)
     var failed by remember { mutableStateOf<String?>(null) }
     val web = rememberBookWebView()
     fun unpick() { picked = null; web.evaluateJavascript("select(-1, -1)", null) }
@@ -141,7 +119,7 @@ fun ReaderScreen(library: Library, books: Books, id: String, onBack: () -> Unit)
         }
     }
     BookBridge(web,
-        onWord = { p, i -> picked = p to i; web.evaluateJavascript("select($p, $i)", null) },
+        onWord = { p, i, y -> picked = Triple(p, i, y); web.evaluateJavascript("select($p, $i)", null) },
         onPage = { p -> if (p >= 0) { at = p; books.setPos(id, p) } },
         onEdge = { d ->
             val next = section + d
@@ -153,20 +131,24 @@ fun ReaderScreen(library: Library, books: Books, id: String, onBack: () -> Unit)
         TopAppBar(title = { Text(book.title, maxLines = 1) },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
             actions = { Text("${at + 1} / ${book.paragraphs.size}", color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(end = 12.dp)) })
-    }, bottomBar = {
-        val (p, i) = picked ?: return@Scaffold
-        val ps = pieces?.getOrNull(p - from) ?: return@Scaffold
-        if (ps.getOrNull(i)?.key != null) WordPanel(library, book.lang, book.paragraphs[p], ps, i, book.title) {
-            // After a rating: the section's words take their new colours.
-            val map = org.json.JSONObject()
-            pieces.orEmpty().flatten().mapNotNull { it.key }.toSet().forEach { map.put(it, BookPage.status(language.known.shown(it))) }
-            web.evaluateJavascript("recolor($map)", null)
-        }
     }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            failed?.let { Text(it, color = Colors.unknown, fontSize = 13.sp, modifier = Modifier.padding(16.dp)) }
-            if (pieces == null && failed == null) Text(tr("Splitting the text into words…"), color = Colors.dim, modifier = Modifier.padding(16.dp))
-            androidx.compose.ui.viewinterop.AndroidView({ web }, Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize()) {
+                failed?.let { Text(it, color = Colors.unknown, fontSize = 13.sp, modifier = Modifier.padding(16.dp)) }
+                if (pieces == null && failed == null) Text(tr("Splitting the text into words…"), color = Colors.dim, modifier = Modifier.padding(16.dp))
+                androidx.compose.ui.viewinterop.AndroidView({ web }, Modifier.fillMaxSize())
+            }
+            picked?.let { (p, i, y) ->
+                val ps = pieces?.getOrNull(p - from)
+                if (ps?.getOrNull(i)?.key != null) Box(Modifier.align(if (y > 0.5f) Alignment.TopCenter else Alignment.BottomCenter).background(Colors.background)) {
+                    WordPanel(library, book.lang, book.paragraphs[p], ps, i, book.title) {
+                        // After a rating: the section's words take their new colours.
+                        val map = org.json.JSONObject()
+                        pieces.orEmpty().flatten().mapNotNull { it.key }.toSet().forEach { map.put(it, BookPage.status(language.known.shown(it))) }
+                        web.evaluateJavascript("recolor($map)", null)
+                    }
+                }
+            }
         }
     }
 }
@@ -174,99 +156,14 @@ fun ReaderScreen(library: Library, books: Books, id: String, onBack: () -> Unit)
 private const val SECTION = 100
 
 /** background, text, due, mined, unknown, picked: [Colors] as CSS. */
-private val COLORS = listOf(Colors.background, Colors.text, Colors.due, Colors.mined, Colors.unknown, Colors.surface).map { c ->
+internal val COLORS = listOf(Colors.background, Colors.text, Colors.due, Colors.mined, Colors.unknown, Colors.surface).map { c ->
     "#%06X".format(c.toArgb() and 0xFFFFFF)
-}
-
-/**
- * A manga volume ([Manga]): one page at a time, its speech bubbles over the picture (a tap shows a bubble's words,
- * a tap on a word opens it below). Turning as in Japanese manga; pinch to zoom. `pos.txt` keeps the page. A page
- * without a .mokuro is read on the device the first time it is shown ([MangaOcr], the model downloaded once), kept in
- * book.json, and the next page is read ahead.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MangaReader(library: Library, books: Books, book: Book, onBack: () -> Unit) {
-    val pages = remember { androidx.compose.runtime.mutableStateListOf(*book.pages!!.toTypedArray()) }
-    val language = library.languages.of(book.lang)
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val ocr = remember { io.github.pedrubik2000.kumapie.mobile.read.MangaOcr(context) }
-    var page by remember { mutableIntStateOf(books.pos(book.id).coerceIn(0, pages.size - 1)) }
-    var pieces by remember { mutableStateOf<Map<Int, List<Piece>>?>(null) }
-    var picked by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    var failed by remember { mutableStateOf<String?>(null) }
-    var status by remember { mutableStateOf("") }
-    val web = rememberBookWebView(files = true)
-    val scope = rememberCoroutineScope()
-    fun unpick() { picked = null; web.evaluateJavascript("select(-1, -1)", null) }
-    BackHandler { if (picked != null) unpick() else onBack() }
-
-    /** Page [n] with its bubbles: as stored, else read now (and kept). */
-    suspend fun read(n: Int): Manga.Page = pages[n].takeIf { it.blocks != null } ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        if (!ocr.isReady) ocr.download { status = it }
-        val (w, h, blocks) = ocr.read(java.io.File(book.dir, pages[n].image), n * 1000)
-        Manga.Page(pages[n].image, w, h, blocks).also { books.setPage(book.id, n, it) }
-    }.also { pages[n] = it }
-
-    LaunchedEffect(page) {
-        picked = null
-        failed = null
-        books.setPos(book.id, page)
-        val shown = runCatching {
-            if (pages[page].blocks == null) status = tr("Reading the page…")
-            read(page)
-        }.onFailure { android.util.Log.w("kumabook", "manga page ${page + 1}", it); failed = it.message ?: it.toString() }.getOrNull()
-        status = ""
-        val blocks = shown?.blocks.orEmpty()
-        val split = runCatching { books.pieces(library, book.lang, blocks.map { it.text }) }
-            .onFailure { failed = it.message ?: it.toString() }.getOrDefault(blocks.map { emptyList() })
-        pieces = blocks.mapIndexed { i, b -> b.p to split[i] }.toMap()
-        if (shown != null) web.loadDataWithBaseURL(book.dir!!.toURI().toString(), Manga.html(shown, pieces!!, language.known::shown, COLORS),
-            "text/html", "utf-8", null)
-        // Read the next page ahead, so turning to it doesn't wait.
-        if (page + 1 < pages.size && pages[page + 1].blocks == null) scope.launch { runCatching { read(page + 1) } }
-    }
-    // ponytail: time on this screen counts as reading (no idle detection), as for books.
-    LaunchedEffect(book.id) {
-        while (true) {
-            delay(60_000)
-            library.progress.record(book.id, page.toDouble(), emptyList(), 60.0)
-        }
-    }
-    BookBridge(web,
-        onWord = { p, i -> picked = p to i; web.evaluateJavascript("select($p, $i)", null) },
-        onPage = {},
-        onEdge = { d -> if (page + d in pages.indices) page += d },
-        onMiddle = { unpick() })
-
-    Scaffold(topBar = {
-        TopAppBar(title = { Text(book.title, maxLines = 1) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
-            actions = { Text("${page + 1} / ${pages.size}", color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(end = 12.dp)) })
-    }, bottomBar = {
-        val (p, i) = picked ?: return@Scaffold
-        val ps = pieces?.get(p) ?: return@Scaffold
-        val text = pages.getOrNull(p / 1000)?.blocks?.firstOrNull { it.p == p }?.text ?: return@Scaffold
-        val block = pages[p / 1000].blocks!!.first { it.p == p }
-        if (ps.getOrNull(i)?.key != null) WordPanel(library, book.lang, text, ps, i, "${book.title}, p. ${p / 1000 + 1}",
-            { Manga.crop(java.io.File(book.dir, pages[p / 1000].image), block, java.io.File(context.cacheDir, "mining").apply { mkdirs() }) }) {
-            val map = org.json.JSONObject()
-            pieces.orEmpty().values.flatten().mapNotNull { it.key }.toSet().forEach { map.put(it, BookPage.status(language.known.shown(it))) }
-            web.evaluateJavascript("recolor($map)", null)
-        }
-    }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            failed?.let { Text(it, color = Colors.unknown, fontSize = 13.sp, modifier = Modifier.padding(16.dp)) }
-            if (status.isNotEmpty()) Text(status, color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
-            androidx.compose.ui.viewinterop.AndroidView({ web }, Modifier.fillMaxSize())
-        }
-    }
 }
 
 /** [files]: a manga page, whose images load from the book's folder (its base URL), with pinch zoom. */
 @android.annotation.SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun rememberBookWebView(files: Boolean = false): android.webkit.WebView {
+internal fun rememberBookWebView(files: Boolean = false): android.webkit.WebView {
     val context = androidx.compose.ui.platform.LocalContext.current
     return remember {
         android.webkit.WebView(context).apply {
@@ -291,14 +188,14 @@ private fun rememberBookWebView(files: Boolean = false): android.webkit.WebView 
 
 /** The page's calls ([BookPage.JS_BRIDGE]) → the callbacks, on the main thread. */
 @Composable
-private fun BookBridge(web: android.webkit.WebView, onWord: (Int, Int) -> Unit, onPage: (Int) -> Unit, onEdge: (Int) -> Unit, onMiddle: () -> Unit) {
+internal fun BookBridge(web: android.webkit.WebView, onWord: (Int, Int, Float) -> Unit, onPage: (Int) -> Unit, onEdge: (Int) -> Unit, onMiddle: () -> Unit) {
     val word by androidx.compose.runtime.rememberUpdatedState(onWord)
     val page by androidx.compose.runtime.rememberUpdatedState(onPage)
     val edge by androidx.compose.runtime.rememberUpdatedState(onEdge)
     val middle by androidx.compose.runtime.rememberUpdatedState(onMiddle)
     androidx.compose.runtime.DisposableEffect(web) {
         web.addJavascriptInterface(object {
-            @android.webkit.JavascriptInterface fun word(p: Int, i: Int) { web.post { word(p, i) } }
+            @android.webkit.JavascriptInterface fun word(p: Int, i: Int, y: Float) { web.post { word(p, i, y) } }
             @android.webkit.JavascriptInterface fun page(p: Int) { web.post { page(p) } }
             @android.webkit.JavascriptInterface fun edge(d: Int) { web.post { edge(d) } }
             @android.webkit.JavascriptInterface fun middle() { web.post { middle() } }
@@ -309,7 +206,7 @@ private fun BookBridge(web: android.webkit.WebView, onWord: (Int, Int) -> Unit, 
 
 /** The picked word: its dictionaries (the popup) and its rating rows; Japanese can make a word card for a missing form. */
 @Composable
-private fun WordPanel(library: Library, lang: Lang, text: String, pieces: List<Piece>, i: Int, source: String,
+internal fun WordPanel(library: Library, lang: Lang, text: String, pieces: List<Piece>, i: Int, source: String,
                       picture: (suspend () -> java.io.File?)? = null, repaint: () -> Unit) {
     val language = library.languages.of(lang)
     val offset = pieces.take(i).sumOf { it.text.length }

@@ -75,26 +75,6 @@ object Manga {
             ?: images.sorted().getOrNull(n)
     }
 
-    /**
-     * A mined card's picture: the page around [block] (the bubble and as much again on each side, so the panel shows),
-     * at most 800 px wide, as a JPEG in [dir].
-     */
-    fun crop(image: java.io.File, block: Block, dir: java.io.File): java.io.File? {
-        val page = android.graphics.BitmapFactory.decodeFile(image.path) ?: return null
-        val (x1, y1, x2, y2) = block.box
-        val w = x2 - x1; val h = y2 - y1
-        val l = maxOf(0, (x1 - w).toInt()); val t = maxOf(0, (y1 - h).toInt())
-        val r = minOf(page.width, (x2 + w).toInt()); val b = minOf(page.height, (y2 + h).toInt())
-        if (r <= l || b <= t) return null
-        val part = android.graphics.Bitmap.createBitmap(page, l, t, r - l, b - t)
-        val scale = minOf(1.0, 800.0 / part.width)
-        val out = if (scale < 1) android.graphics.Bitmap.createScaledBitmap(part, 800, (part.height * scale).toInt(), true) else part
-        val file = java.io.File(dir, "bubble.jpg")
-        file.outputStream().use { out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
-        listOf(page, part, out).distinct().forEach { it.recycle() }
-        return file
-    }
-
     fun toJson(pages: List<Page>) =JSONArray(pages.map { pg ->
         JSONObject().put("image", pg.image).put("w", pg.width).put("h", pg.height).put("blocks", pg.blocks?.let { bs -> JSONArray(bs.map { b ->
             JSONObject().put("p", b.p).put("box", JSONArray(b.box)).put("v", b.vertical).put("fs", b.fontSize).put("t", b.text)
@@ -112,57 +92,66 @@ object Manga {
     }
 
     /**
-     * One manga page as a WebView page (loaded with the book's folder as base URL): the picture fitted to the screen,
-     * each block a box over its bubble; a tapped box shows its words, coloured by [shown], vertical where the bubble is;
-     * a word in a shown box calls `word(p, i)` ([BookPage.JS_BRIDGE]). Turning as in Japanese manga (forward = the left
-     * strip or a swipe to the right): `edge(±1)`; elsewhere outside a box `middle()`.
+     * One page or a two-page spread as a WebView page (loaded with the book's folder as base URL): the pictures side by
+     * side, right to left as in a printed volume ([spread] in reading order: its first page goes on the right), fitted
+     * to the screen at one height; each block a box over its bubble; a tapped box shows its words, coloured by [shown],
+     * vertical where the bubble is; a word in a shown box calls `word(p, i, y)` ([BookPage.JS_BRIDGE]; y: 0 top .. 1
+     * bottom of the screen). Turning as in Japanese manga (forward = the left strip or a swipe to the right):
+     * `edge(±1)`; elsewhere outside a box `middle()`.
      */
-    fun html(page: Page, pieces: Map<Int, List<Piece>>, shown: (String) -> String, colors: List<String>): String {
+    fun html(spread: List<Page>, pieces: Map<Int, List<Piece>>, shown: (String) -> String, colors: List<String>): String {
         val (bg, fg) = colors
-        val boxes = StringBuilder()
-        for (b in page.blocks.orEmpty()) {
-            val (x1, y1, x2, y2) = b.box
-            val pct = { v: Double, of: Int -> "%.3f%%".format(java.util.Locale.ROOT, 100 * v / of) }
-            boxes.append("<div class=\"box").append(if (b.vertical) " v" else "").append("\" data-b=\"").append(b.p)
-                .append("\" data-fs=\"").append(b.fontSize).append("\" style=\"left:").append(pct(x1, page.width)).append(";top:")
-                .append(pct(y1, page.height)).append(";width:").append(pct(x2 - x1, page.width)).append(";height:")
-                .append(pct(y2 - y1, page.height)).append("\">")
-            pieces[b.p]?.forEachIndexed { i, piece ->
-                if (piece.key == null) boxes.append(BookPage.esc(piece.text))
-                else boxes.append("<span class=\"w ").append(BookPage.status(shown(piece.key))).append("\" data-p=\"").append(b.p)
-                    .append("\" data-i=\"").append(i).append("\" data-k=\"").append(BookPage.esc(piece.key)).append("\">")
-                    .append(BookPage.esc(piece.text)).append("</span>")
+        val body = StringBuilder()
+        for (page in spread) {
+            body.append("<div class=\"page\" data-w=\"").append(page.width).append("\" data-h=\"").append(page.height)
+                .append("\"><img src=\"").append(BookPage.esc(page.image)).append("\">\n")
+            for (b in page.blocks.orEmpty()) {
+                val (x1, y1, x2, y2) = b.box
+                val pct = { v: Double, of: Int -> "%.3f%%".format(java.util.Locale.ROOT, 100 * v / of) }
+                body.append("<div class=\"box").append(if (b.vertical) " v" else "").append("\" data-b=\"").append(b.p)
+                    .append("\" data-fs=\"").append(b.fontSize).append("\" style=\"left:").append(pct(x1, page.width)).append(";top:")
+                    .append(pct(y1, page.height)).append(";width:").append(pct(x2 - x1, page.width)).append(";height:")
+                    .append(pct(y2 - y1, page.height)).append("\">")
+                pieces[b.p]?.forEachIndexed { i, piece ->
+                    if (piece.key == null) body.append(BookPage.esc(piece.text))
+                    else body.append("<span class=\"w ").append(BookPage.status(shown(piece.key))).append("\" data-p=\"").append(b.p)
+                        .append("\" data-i=\"").append(i).append("\" data-k=\"").append(BookPage.esc(piece.key)).append("\">")
+                        .append(BookPage.esc(piece.text)).append("</span>")
+                }
+                body.append("</div>\n")
             }
-            boxes.append("</div>\n")
+            body.append("</div>\n")
         }
         return """<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4, user-scalable=yes">
 <style>
 html, body { margin: 0; height: 100%; width: 100%; background: $bg; overflow: hidden; -webkit-user-select: none; user-select: none; }
-#page { position: absolute; }
-#page img { display: block; width: 100%; height: 100%; }
+.page { position: absolute; }
+.page img { display: block; width: 100%; height: 100%; }
 .box { position: absolute; box-sizing: border-box; color: transparent; line-height: 1.15; overflow: visible; white-space: nowrap; }
 .box.v { writing-mode: vertical-rl; }
 .box.open { color: $fg; background: rgba(20, 18, 28, 0.92); border-radius: 6px; z-index: 2; white-space: normal; padding: 2px; }
 .box.open .k { color: $fg; } .box.open .d { color: ${colors[2]}; } .box.open .b { color: ${colors[3]}; } .box.open .u { color: ${colors[4]}; }
 .box.open .sel { background: ${colors[5]}; border-radius: 3px; }
-</style></head><body><div id="page"><img src="${BookPage.esc(page.image)}">
-$boxes</div><script>
-${script(page.width, page.height)}
+</style></head><body>
+$body<script>
+$SCRIPT
 </script></body></html>"""
     }
 
-    private fun script(w: Int, h: Int) = """
-var K = window.${BookPage.JS_BRIDGE}, W = $w, H = $h, P = document.getElementById('page');
+    private const val SCRIPT = """
+var K = window.Kuma, PS = [].slice.call(document.querySelectorAll('.page'));
+// Sized and placed in px: 100%/vh and top/left 50% resolve against a broken viewport height in Android's WebView.
 function fit() {
-  // The page in px, not 100%/vh: Android's WebView can resolve those to a few dozen px.
-  document.documentElement.style.height = document.body.style.height = window.innerHeight + 'px';
-  var s = Math.min(window.innerWidth / W, window.innerHeight / H);
-  P.style.width = (W * s) + 'px'; P.style.height = (H * s) + 'px';
-  // Centred in px: top/left 50% resolve against the same broken viewport height as vh.
-  P.style.left = ((window.innerWidth - W * s) / 2) + 'px'; P.style.top = ((window.innerHeight - H * s) / 2) + 'px';
-  document.querySelectorAll('.box').forEach(function (b) {
-    var fs = +b.dataset.fs; b.style.fontSize = (fs > 0 ? fs * s : 16) + 'px';
+  var W = window.innerWidth, H = window.innerHeight;
+  document.documentElement.style.height = document.body.style.height = H + 'px';
+  var ratio = PS.reduce(function (a, p) { return a + (+p.dataset.w) / (+p.dataset.h); }, 0);
+  var h = Math.min(H, W / ratio), x = (W + h * ratio) / 2; // the spread's right edge: its first page goes there
+  PS.forEach(function (p) {
+    var w = h * (+p.dataset.w) / (+p.dataset.h), s = h / (+p.dataset.h);
+    x -= w;
+    p.style.left = x + 'px'; p.style.top = ((H - h) / 2) + 'px'; p.style.width = w + 'px'; p.style.height = h + 'px';
+    p.querySelectorAll('.box').forEach(function (b) { var fs = +b.dataset.fs; b.style.fontSize = (fs > 0 ? fs * s : 16) + 'px'; });
   });
 }
 function select(p, i) {
@@ -190,7 +179,7 @@ document.addEventListener('touchend', function (e) {
 document.addEventListener('click', function (e) {
   var x = e.clientX / window.innerWidth, zoomed = window.visualViewport && window.visualViewport.scale > 1.05;
   var w = e.target.closest('.box.open span.w');
-  if (w) { K.word(+w.dataset.p, +w.dataset.i); return; }
+  if (w) { K.word(+w.dataset.p, +w.dataset.i, e.clientY / window.innerHeight); return; }
   var box = e.target.closest('.box');
   if (box) {
     var was = box.classList.contains('open');
@@ -206,4 +195,25 @@ document.addEventListener('click', function (e) {
 window.addEventListener('resize', fit);
 fit();
 """
+
+    /** A mined card's default picture: the bubble and as much again on each side (so the panel shows), in page pixels. */
+    fun around(block: Block, page: Page): List<Double> {
+        val (x1, y1, x2, y2) = block.box
+        val w = x2 - x1; val h = y2 - y1
+        return listOf(maxOf(0.0, x1 - w), maxOf(0.0, y1 - h), minOf(page.width.toDouble(), x2 + w), minOf(page.height.toDouble(), y2 + h))
+    }
+
+    /** [rect] (x1, y1, x2, y2 in page pixels) of [image], at most 800 px wide, as a JPEG in [dir]: a card's picture. */
+    fun crop(image: java.io.File, rect: List<Double>, dir: java.io.File): java.io.File? {
+        val page = android.graphics.BitmapFactory.decodeFile(image.path) ?: return null
+        val l = rect[0].toInt().coerceIn(0, page.width - 1); val t = rect[1].toInt().coerceIn(0, page.height - 1)
+        val r = rect[2].toInt().coerceIn(l + 1, page.width); val b = rect[3].toInt().coerceIn(t + 1, page.height)
+        val part = android.graphics.Bitmap.createBitmap(page, l, t, r - l, b - t)
+        val scale = minOf(1.0, 800.0 / part.width)
+        val out = if (scale < 1) android.graphics.Bitmap.createScaledBitmap(part, 800, maxOf(1, (part.height * scale).toInt()), true) else part
+        val file = java.io.File(dir, "bubble.jpg")
+        file.outputStream().use { out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
+        listOf(page, part, out).distinct().forEach { it.recycle() }
+        return file
+    }
 }

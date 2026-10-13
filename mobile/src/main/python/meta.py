@@ -254,7 +254,7 @@ def _youtube_search(video_url, year):
 
 def search(kind, query, year=None):
     """Candidates for [query] (a show name, a file name's guess), best first; a [year] match moves up."""
-    find = {"anime": _anime_search, "shows": _show_search, "movies": _movie_search, "novels": _vn_search,
+    find = {"anime": _anime_search, "shows": _show_search, "movies": _movie_search, "visual_novels": _vn_search,
             "youtube": _youtube_search}[kind]  # youtube: [query] is one of the channel's video links
     found = find(query.strip(), year)
     if year:
@@ -295,7 +295,7 @@ if __name__ == "__main__":
     assert m and m[0]["year"] == 2026, m[:3]
     d = details(m[0]["source"], m[0]["id"], ("en", "de", "es"))
     print("movie:", d["title"].get("de"), d["year"], d["poster"], "|", d["description"])
-    v = search("novels", "Higurashi no Naku Koro ni")
+    v = search("visual_novels", "Higurashi no Naku Koro ni")
     assert v and v[0]["source"] == "vndb", v[:2]
     d = details("vndb", v[0]["id"])
     print("novel:", d["title"], d["year"], d["poster"], "|", d["description"]["en"][:60])

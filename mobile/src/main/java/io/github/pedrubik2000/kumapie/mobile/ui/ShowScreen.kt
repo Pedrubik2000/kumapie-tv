@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -128,15 +129,30 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
                 io.github.pedrubik2000.kumapie.mobile.listen.CondensedService.play(context, ep.id, art)
             })
     }
+    // Season chips when the show has more than one; starts on the season of the episode Play would open.
+    val seasons = show.episodes.mapNotNull { it.season }.distinct().sorted()
+    var season by remember(show.id) { mutableStateOf(next?.season ?: seasons.firstOrNull()) }
+    val episodes = if (seasons.size > 1) show.episodes.filter { it.season == season } else show.episodes
+    val chips = @Composable {
+        if (seasons.size > 1) Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            seasons.forEach { s ->
+                androidx.compose.material3.FilterChip(selected = s == season, onClick = { season = s },
+                    label = { Text(tr("Season %d", s)) })
+            }
+        }
+    }
     androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = Colors.background, contentColor = Colors.text) {
         if (wide) Row(Modifier.fillMaxSize()) {
             header(Modifier.weight(0.42f).fillMaxHeight())
             LazyColumn(Modifier.weight(0.58f).fillMaxHeight(), contentPadding = PaddingValues(vertical = 24.dp)) {
-                items(show.episodes, key = { it.id }) { row(it) }
+                item(key = "seasons") { chips() }
+                items(episodes, key = { it.id }) { row(it) }
             }
         } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item(key = "header") { header(Modifier.fillMaxWidth()) }
-            items(show.episodes, key = { it.id }) { row(it) }
+            item(key = "seasons") { chips() }
+            items(episodes, key = { it.id }) { row(it) }
         }
     }
 
@@ -306,7 +322,7 @@ private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, sta
 internal fun MatchDialog(library: Library, startKind: String, startQuery: String, title: String,
                          onPick: suspend (String, org.json.JSONObject) -> Unit, onDismiss: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val kinds = listOf("anime" to tr("Anime"), "shows" to tr("Shows"), "movies" to tr("Movies"), "novels" to tr("Novels"))
+    val kinds = listOf("anime" to tr("Anime"), "shows" to tr("Shows"), "movies" to tr("Movies"), "visual_novels" to tr("Visual novels"))
     var kind by remember { mutableStateOf(startKind.takeIf { k -> kinds.any { it.first == k } } ?: "shows") }
     var query by remember { mutableStateOf(startQuery) }
     var found by remember { mutableStateOf<List<org.json.JSONObject>?>(null) }

@@ -43,7 +43,7 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 
 /** Home's rows, in this order (the phone's); reels are feed-only, so the TV never lists them. */
-private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "novels" to "Novels")
+private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "visual_novels" to "Visual novels")
 
 /**
  * Asks for the focus until the target is laid out: a lazy list composes its items only when it lays them out, so a

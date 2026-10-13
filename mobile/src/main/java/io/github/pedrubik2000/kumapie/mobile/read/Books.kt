@@ -2,7 +2,9 @@ package io.github.pedrubik2000.kumapie.mobile.read
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.lang.Japanese
 import io.github.pedrubik2000.kumapie.lang.Spaced
@@ -30,7 +32,7 @@ data class Piece(val text: String, val key: String?)
 class Books(private val context: Context) {
     private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "books").apply { mkdirs() }
 
-    fun all(): List<Book> = base.listFiles().orEmpty().mapNotNull { load(it.name) }.sortedBy { it.title.lowercase() }
+    fun all(): List<Book> = base.listFiles().orEmpty().filter { !it.name.startsWith(".") }.mapNotNull { load(it.name) }.sortedBy { it.title.lowercase() }
 
     fun load(id: String): Book? = runCatching {
         val o = JSONObject(File(base, "$id/book.json").readText())
@@ -53,24 +55,124 @@ class Books(private val context: Context) {
 
     fun delete(id: String) = File(base, id).deleteRecursively()
 
-    /** An .epub ([Epub]), a .cbz/.zip manga with its .mokuro ([Manga]) or a .txt file (one paragraph per non-blank line) → a book in [lang]. Answers its id. */
-    fun import(uri: Uri, lang: Lang): String {
-        val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+    /**
+     * A file -> books in [lang], answers their ids, off the main thread: an .epub ([Epub]); a .cbz/.zip ([importArchive]:
+     * one manga volume, several (a folder of images each, or archives inside), streamed to files: a volume is 100 MB+);
+     * else text (one paragraph per non-blank line).
+     */
+    suspend fun import(uri: Uri, lang: Lang, progress: (String) -> Unit = {}): List<String> = withContext(Dispatchers.IO) {
         val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else null
         } ?: uri.lastPathSegment ?: "Book"
-        if (name.endsWith(".epub", ignoreCase = true)) {
-            val epub = Epub.read(bytes)
-            if (epub.paragraphs.isEmpty()) error(io.github.pedrubik2000.kumapie.i18n.tr("No text in this EPUB."))
-            return add(epub.title.ifBlank { name.substringBeforeLast('.') }, lang, epub.paragraphs)
+        context.contentResolver.openInputStream(uri)!!.use { importStream(it, name, "", lang, progress) }
+    }
+
+    /**
+     * A folder ([tree], from the system folder picker) -> books: every archive, EPUB or text file in it and its
+     * subfolders, and each folder of pictures as one manga volume; titles start with the folder's name.
+     */
+    suspend fun importFolder(tree: Uri, lang: Lang, progress: (String) -> Unit = {}): List<String> = withContext(Dispatchers.IO) {
+        val root = DocumentsContract.getTreeDocumentId(tree)
+        val top = docName(DocumentsContract.buildDocumentUriUsingTree(tree, root)) ?: "Books"
+        val ids = ArrayList<String>()
+        fun walk(docId: String, path: String) {
+            val children = children(tree, docId).sortedBy { it.name }
+            val pictures = children.filter { !it.dir && Manga.isImage(it.name) }
+            if (pictures.isNotEmpty()) withTemp { tmp ->
+                val files = pictures.mapIndexed { i, d ->
+                    progress(tr("Copying page %d…", i + 1))
+                    File(tmp, i.toString()).also { f -> context.contentResolver.openInputStream(d.uri)!!.use { i -> f.outputStream().use { i.copyTo(it) } } }
+                }
+                val mokuro = children.firstOrNull { it.name.endsWith(".mokuro", true) }?.let { m -> context.contentResolver.openInputStream(m.uri)!!.use { it.readBytes() } }
+                ids += volume(path, lang, pictures.map { "$path/${it.name}" }.zip(files), mokuro)
+            }
+            for (d in children) when {
+                d.dir -> walk(d.id, "$path ${d.name}")
+                d.name.matches(Regex(""".*\.(cbz|zip|epub|txt)""", RegexOption.IGNORE_CASE)) ->
+                    context.contentResolver.openInputStream(d.uri)!!.use { ids += importStream(it, d.name, "$path ", lang, progress) }
+            }
         }
-        if (name.endsWith(".cbz", ignoreCase = true) || name.endsWith(".zip", ignoreCase = true)) {
-            val manga = Manga.read(bytes)
-            val id = add(manga.title.ifBlank { name.substringBeforeLast('.') }, lang, emptyList(), manga.pages)
-            for ((path, data) in manga.images) File(base, "$id/$path").apply { parentFile!!.mkdirs() }.writeBytes(data)
-            return id
+        walk(root, top)
+        if (ids.isEmpty()) error(tr("Nothing to import in this folder."))
+        ids
+    }
+
+    private class Doc(val id: String, val uri: Uri, val name: String, val dir: Boolean)
+
+    private fun children(tree: Uri, docId: String): List<Doc> = context.contentResolver.query(
+        DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId),
+        arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE),
+        null, null, null)?.use { c ->
+        val out = ArrayList<Doc>()
+        while (c.moveToNext()) out += Doc(c.getString(0), DocumentsContract.buildDocumentUriUsingTree(tree, c.getString(0)), c.getString(1),
+            c.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR)
+        out
+    }.orEmpty()
+
+    private fun docName(uri: Uri) = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+        if (c.moveToFirst()) c.getString(0) else null
+    }
+
+    /** One file's content: [prefix] goes before its books' titles (the folder it came from). */
+    private fun importStream(input: java.io.InputStream, name: String, prefix: String, lang: Lang, progress: (String) -> Unit): List<String> {
+        val stem = name.substringBeforeLast('.')
+        return when {
+            name.endsWith(".cbz", true) || name.endsWith(".zip", true) -> importArchive(input, prefix + stem, lang, progress)
+            name.endsWith(".epub", true) -> {
+                val epub = Epub.read(input.readBytes())
+                if (epub.paragraphs.isEmpty()) error(tr("No text in this EPUB."))
+                listOf(add(prefix + epub.title.ifBlank { stem }, lang, epub.paragraphs))
+            }
+            else -> listOf(add(prefix + stem, lang, paragraphs(input.readBytes().toString(Charsets.UTF_8))))
         }
-        return add(name.substringBeforeLast('.'), lang, paragraphs(bytes.toString(Charsets.UTF_8)))
+    }
+
+    /**
+     * A zip, streamed: its pictures grouped by folder, one manga volume per folder ("Series/Volume 01/001.jpg" ->
+     * "Series Volume 01"; a .mokuro is its folder's when named after it, else the archive's only one), and every
+     * archive or EPUB inside imported in turn (a zip of .cbz volumes).
+     */
+    private fun importArchive(input: java.io.InputStream, title: String, lang: Lang, progress: (String) -> Unit): List<String> = withTemp { tmp ->
+        val pictures = ArrayList<Pair<String, File>>()
+        val mokuros = HashMap<String, ByteArray>()
+        val ids = ArrayList<String>()
+        val zip = java.util.zip.ZipInputStream(input.buffered())
+        for (e in generateSequence { zip.nextEntry }) {
+            if (e.isDirectory) continue
+            val lower = e.name.lowercase()
+            when {
+                lower.endsWith(".mokuro") -> mokuros[e.name.substringBeforeLast('.')] = zip.readBytes()
+                Manga.isImage(e.name) -> {
+                    pictures += e.name to File(tmp, pictures.size.toString()).also { f -> f.outputStream().use { zip.copyTo(it) } }
+                    progress(tr("Copying page %d…", pictures.size))
+                }
+                lower.endsWith(".cbz") || lower.endsWith(".zip") || lower.endsWith(".epub") ->
+                    ids += importStream(object : java.io.FilterInputStream(zip) { override fun close() {} }, // the outer zip stays open
+                        e.name.substringAfterLast('/'), "$title ", lang, progress)
+            }
+        }
+        val folders = pictures.groupBy { it.first.substringBeforeLast('/', "") }
+        for ((folder, files) in folders.toSortedMap()) {
+            val name = if (folders.size == 1) title else folder.replace('/', ' ').trim().ifBlank { title }
+            ids += volume(name, lang, files, mokuros[folder] ?: mokuros.values.singleOrNull()?.takeIf { folders.size == 1 })
+        }
+        if (ids.isEmpty()) error(tr("No pictures in this archive."))
+        ids
+    }
+
+    /** One manga volume from its pictures ([name in the archive or folder] to the file it was copied to). */
+    private fun volume(title: String, lang: Lang, pictures: List<Pair<String, File>>, mokuro: ByteArray?): String {
+        val (own, pages) = Manga.layout(pictures.map { it.first }, mokuro)
+        val id = add(if (mokuro != null && own.isNotBlank()) own else title, lang, emptyList(), pages.map { it.first })
+        val byName = pictures.toMap()
+        for ((page, source) in pages) byName.getValue(source).renameTo(File(base, "$id/${page.image}").apply { parentFile!!.mkdirs() })
+        return id
+    }
+
+    /** A scratch folder for the copied pictures, gone afterwards (a nested archive gets its own). */
+    private fun <T> withTemp(block: (File) -> T): T {
+        val tmp = File(base, ".import-${System.nanoTime()}").apply { mkdirs() }
+        try { return block(tmp) } finally { tmp.deleteRecursively() }
     }
 
     fun add(title: String, lang: Lang, paragraphs: List<String>, pages: List<Manga.Page>? = null): String {

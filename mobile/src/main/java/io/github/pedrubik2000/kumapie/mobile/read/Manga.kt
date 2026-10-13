@@ -19,50 +19,60 @@ object Manga {
 
     private val IMAGE = Regex("""\.(jpe?g|png|webp|avif|gif)$""", RegexOption.IGNORE_CASE)
 
+    fun isImage(name: String) = IMAGE.containsMatchIn(name)
+
+    /** A whole archive in memory (tests, small files): [layout] plus the images under their stored paths. */
     fun read(zip: ByteArray): Volume {
         val files = LinkedHashMap<String, ByteArray>()
+        var mokuro: ByteArray? = null
         ZipInputStream(zip.inputStream()).use { z ->
-            generateSequence { z.nextEntry }.filter { !it.isDirectory }.forEach { files[it.name] = z.readBytes() }
+            generateSequence { z.nextEntry }.filter { !it.isDirectory }.forEach {
+                if (it.name.endsWith(".mokuro", ignoreCase = true)) mokuro = z.readBytes() else if (isImage(it.name)) files[it.name] = z.readBytes()
+            }
         }
-        val images = files.filterKeys { IMAGE.containsMatchIn(it) }
+        val (title, pages) = layout(files.keys.toList(), mokuro)
+        return Volume(title, pages.map { it.first }, pages.associate { (page, source) -> page.image to files.getValue(source) })
+    }
+
+    /**
+     * The volume from the archive's image names and its .mokuro (null: none): its title and each page with the archive
+     * file it is stored from (`pages/0000.jpg`…). With a .mokuro, its pages and their bubbles; without, the images in
+     * name order, read on the device when shown.
+     */
+    fun layout(images: List<String>, mokuro: ByteArray?): Pair<String, List<Pair<Page, String>>> {
         if (images.isEmpty()) error(io.github.pedrubik2000.kumapie.i18n.tr("No pictures in this archive."))
-        val mokuro = files.entries.firstOrNull { it.key.endsWith(".mokuro", ignoreCase = true) }?.value
-        if (mokuro == null) { // pages in name order, read on the device when shown
-            val sorted = images.entries.sortedBy { it.key }
-            val stored = sorted.mapIndexed { n, e -> "pages/%04d.%s".format(n, e.key.substringAfterLast('.').lowercase()) to e.value }
-            return Volume(sorted.first().key.substringBefore('/', "").ifBlank { "" }, stored.map { Page(it.first, 0, 0, null) }, stored.toMap())
+        fun stored(n: Int, source: String) = "pages/%04d.%s".format(n, source.substringAfterLast('.').lowercase())
+        if (mokuro == null) {
+            val sorted = images.sorted()
+            return sorted.first().substringBefore('/', "") to sorted.mapIndexed { n, source -> Page(stored(n, source), 0, 0, null) to source }
         }
         val o = JSONObject(mokuro.toString(Charsets.UTF_8))
-        val used = LinkedHashMap<String, ByteArray>()
         val pages = o.getJSONArray("pages").let { ps ->
             (0 until ps.length()).mapNotNull { n ->
                 val page = ps.getJSONObject(n)
-                val (name, bytes) = image(images, page.optString("img_path"), n) ?: return@mapNotNull null
-                val stored = "pages/%04d.%s".format(n, name.substringAfterLast('.').lowercase())
-                used[stored] = bytes
+                val source = image(images, page.optString("img_path"), n) ?: return@mapNotNull null
                 val blocks = page.optJSONArray("blocks") ?: JSONArray()
-                Page(stored, page.getInt("img_width"), page.getInt("img_height"), (0 until blocks.length()).mapNotNull { b ->
+                Page(stored(n, source), page.getInt("img_width"), page.getInt("img_height"), (0 until blocks.length()).mapNotNull { b ->
                     val block = blocks.getJSONObject(b)
                     val lines = block.getJSONArray("lines").let { l -> (0 until l.length()).map { l.getString(it) } }
                     val text = lines.joinToString("").trim()
                     val box = block.getJSONArray("box").let { x -> (0 until x.length()).map { x.getDouble(it) } }
                     if (text.isEmpty() || box.size < 4) return@mapNotNull null
                     Block(n * 1000 + b, box, block.optBoolean("vertical", true), block.optDouble("font_size", 0.0), text)
-                })
+                }) to source
             }
         }
         if (pages.isEmpty()) error(io.github.pedrubik2000.kumapie.i18n.tr("None of the .mokuro file's pages is in the archive."))
-        val title = listOf(o.optString("title"), o.optString("volume")).filter { it.isNotBlank() }.distinct().joinToString(" ")
-        return Volume(title, pages, used)
+        return listOf(o.optString("title"), o.optString("volume")).filter { it.isNotBlank() }.distinct().joinToString(" ") to pages
     }
 
     /** A page's image: the archive file [path] ends with, else one with its base name, else the [n]th image (chimahon's order). */
-    private fun image(images: Map<String, ByteArray>, path: String, n: Int): Pair<String, ByteArray>? {
+    private fun image(images: List<String>, path: String, n: Int): String? {
         val name = path.substringAfterLast('/')
         val base = name.substringBeforeLast('.')
-        return images.entries.firstOrNull { name.isNotEmpty() && it.key.endsWith("/$name") || it.key == name }?.toPair()
-            ?: images.entries.firstOrNull { base.isNotEmpty() && it.key.substringAfterLast('/').substringBeforeLast('.').equals(base, true) }?.toPair()
-            ?: images.entries.sortedBy { it.key }.getOrNull(n)?.toPair()
+        return images.firstOrNull { name.isNotEmpty() && (it.endsWith("/$name") || it == name) }
+            ?: images.firstOrNull { base.isNotEmpty() && it.substringAfterLast('/').substringBeforeLast('.').equals(base, true) }
+            ?: images.sorted().getOrNull(n)
     }
 
     /**

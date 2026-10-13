@@ -3,7 +3,16 @@ package io.github.pedrubik2000.kumapie.i18n
 internal val esAdd: Map<String, String> = mapOf(
     // Add an episode (AddEpisodeSheet)
     "Add an episode" to "Agregar un episodio",
-    "YouTube, TikTok, magnet or Real-Debrid links (one or several)" to "Enlaces de YouTube, TikTok, magnet o Real-Debrid (uno o varios)",
+    "YouTube, TikTok, AniWorld, magnet or Real-Debrid links (one or several)" to "Enlaces de YouTube, TikTok, AniWorld, magnet o Real-Debrid (uno o varios)",
+    "AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to its shows, a few minutes an episode. A season link brings the whole season." to
+        "AniWorld: el PC descarga el doblaje en %s, lo transcribe (Parakeet) y lo añade a sus series, unos minutos por episodio. Un enlace de temporada trae la temporada entera.",
+    "AniWorld links need the PC: Settings > server and whose device it is." to "Los enlaces de AniWorld necesitan el PC: Ajustes > servidor y de quién es el dispositivo.",
+    "Sent to the PC." to "Enviado al PC.",
+    "The PC refused it: %s" to "El PC lo rechazó: %s",
+    "The PC can't be reached: %s" to "No se puede conectar con el PC: %s",
+    "done" to "listo",
+    "failed: %s" to "falló: %s",
+    "waiting" to "en espera",
     "%d links" to "%d enlaces",
     "This video" to "Este video",
     "Channel's shorts" to "Shorts del canal",

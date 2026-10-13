@@ -31,6 +31,7 @@ import io.github.pedrubik2000.kumapie.mobile.local.transcriber
 import io.github.pedrubik2000.kumapie.mobile.local.videoHeight
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
+import kotlinx.coroutines.launch
 
 /**
  * "Add an episode": a YouTube link, a magnet or Real-Debrid link (or one shared to kumapie), or video files on the
@@ -70,7 +71,18 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
     val gemmaReady = !gemma || gemmaDownloaded
     // Several links at once (one per line, or pasted together).
     val links = Regex("""(https?://|magnet:)\S+""").findAll(link).map { it.value }.toList()
-    val needsRd = links.any { !ProcessWorker.viaYtDlp(it) }
+    // AniWorld / s.to links go to the PC (dojo-feed /api/aniworld): it downloads the dub, transcribes it with Parakeet
+    // and the episode appears with the PC's shows. The rest is made on this device.
+    val aniworld = links.filter(::isAniWorld)
+    val onDevice = links - aniworld.toSet()
+    val pc = library.settings.server.isNotBlank() && library.settings.owner.isNotBlank()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var pcSent by remember { mutableStateOf("") }
+    var pcJobs by remember { mutableStateOf(emptyList<String>()) }
+    if (pc) androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) { pcJobs = aniworldJobs(library); kotlinx.coroutines.delay(5000) }
+    }
+    val needsRd = onDevice.any { !ProcessWorker.viaYtDlp(it) }
     val youtube = links.any { ProcessWorker.isYouTube(it) }
     val channelLink = links.any { Regex("""youtube\.com/(@|channel/|c/|user/)""").containsMatchIn(it) }
     val playlistLink = links.any { "list=" in it }
@@ -103,7 +115,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 androidx.compose.material3.FilterChip(selected = lang == l, label = { Text(l.displayName) }, onClick = { lang = l })
             }
         }
-        OutlinedTextField(link, { link = it }, label = { Text(tr("YouTube, TikTok, magnet or Real-Debrid links (one or several)")) }, maxLines = 6,
+        OutlinedTextField(link, { link = it }, label = { Text(tr("YouTube, TikTok, AniWorld, magnet or Real-Debrid links (one or several)")) }, maxLines = 6,
             modifier = Modifier.fillMaxWidth())
         if (links.size > 1) Text(tr("%d links", links.size), fontSize = 13.sp, color = Colors.dim)
         if (youtube) {
@@ -173,9 +185,11 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
         if (needsRd && library.settings.rdToken.isBlank()) Text(tr("For magnets and Real-Debrid links: Settings > your Real-Debrid token."),
             color = Colors.unknown, fontSize = 14.sp)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(enabled = ready && links.isNotEmpty() && !(needsRd && library.settings.rdToken.isBlank()),
+            Button(enabled = links.isNotEmpty() && (ready || onDevice.isEmpty()) && (pc || aniworld.isEmpty()) &&
+                    !(needsRd && library.settings.rdToken.isBlank()),
                 onClick = {
-                    links.forEach { l ->
+                    aniworld.forEach { l -> scope.launch { pcSent = aniworldSend(library, l, lang.code) } }
+                    onDevice.forEach { l ->
                         val kind = if (ProcessWorker.isYouTube(l) && ytKind != "video") ytKind else null
                         if (follow && (kind == "shorts" || kind == "videos")) io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).add(
                             io.github.pedrubik2000.kumapie.mobile.local.Subscriptions.Sub(l, show, kind, lang.code, 5))
@@ -202,6 +216,46 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 else -> tr("%s (the device's translator)", translation)
             } + tr(" → scenes. A season (magnet) becomes one episode per file; MKV files keep their %s audio. Jobs run " +
             "one after another in the background; each episode appears on the home screen when done.", spoken), color = Colors.dim, fontSize = 13.sp)
+        if (aniworld.isNotEmpty()) Text(if (pc) tr("AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to " +
+            "its shows, a few minutes an episode. A season link brings the whole season.", spoken)
+            else tr("AniWorld links need the PC: Settings > server and whose device it is."), color = Colors.dim, fontSize = 13.sp)
+        if (pcSent.isNotBlank()) Text(pcSent, fontSize = 14.sp)
+        pcJobs.forEach { Text(it, fontSize = 14.sp) }
         jobs.forEach { Text(it.stage, fontSize = 14.sp) }
     }
 }
+
+private fun isAniWorld(link: String) = Regex("""^https://(aniworld\.to|s\.to|serienstream\.to)/""").containsMatchIn(link)
+
+/** Queues an AniWorld link on the PC; returns what to show. */
+private suspend fun aniworldSend(library: Library, url: String, lang: String): String =
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            val c = java.net.URL("${library.settings.server}/api/aniworld").openConnection() as java.net.HttpURLConnection
+            c.requestMethod = "POST"
+            c.doOutput = true
+            c.setRequestProperty("Content-Type", "application/json")
+            c.outputStream.use {
+                it.write(org.json.JSONObject().put("person", library.settings.owner).put("lang", lang).put("url", url).toString().toByteArray())
+            }
+            if (c.responseCode == 200) tr("Sent to the PC.") else tr("The PC refused it: %s", c.responseMessage)
+        }.getOrElse { tr("The PC can't be reached: %s", it.message) }
+    }
+
+/** The PC's AniWorld jobs, one line each: "PC · show/staffel-2/episode-1: transcribing…". */
+private suspend fun aniworldJobs(library: Library): List<String> =
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            val a = org.json.JSONArray(java.net.URL("${library.settings.server}/api/aniworld").readText())
+            (0 until a.length()).map { i ->
+                val j = a.getJSONObject(i)
+                val what = j.getString("url").substringAfter("/stream/")
+                "PC · $what: " + when (j.getString("state")) {
+                    "done" -> tr("done")
+                    "failed" -> tr("failed: %s", j.optString("error"))
+                    "queued" -> tr("waiting")
+                    else -> j.optString("step")
+                }
+            }
+        }.getOrElse { emptyList() }
+    }

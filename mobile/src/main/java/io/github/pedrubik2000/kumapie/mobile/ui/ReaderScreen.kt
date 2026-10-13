@@ -57,10 +57,31 @@ fun BooksScreen(library: Library, books: Books, homeLang: String, onOpen: (Strin
     val lang = Lang.of(homeLang)
     var list by remember { mutableStateOf(books.all().filter { it.lang == lang }) }
     var said by remember { mutableStateOf("") }
+    var importing by remember { mutableStateOf(false) }
+    var bad by remember { mutableStateOf(false) } // [said] is an error
+    val scope = rememberCoroutineScope()
+    /** Runs an import: one book opens, several are listed ("%d books imported"). */
+    fun run(job: suspend ((String) -> Unit) -> List<String>) {
+        if (importing) return
+        scope.launch {
+            importing = true
+            bad = false
+            said = tr("Importing…")
+            runCatching { job { said = it } }
+                .onSuccess { ids ->
+                    list = books.all().filter { it.lang == lang }
+                    said = if (ids.size == 1) "" else tr("%d books imported.", ids.size)
+                    if (ids.size == 1) onOpen(ids[0])
+                }
+                .onFailure { bad = true; said = it.message ?: it.toString() }
+            importing = false
+        }
+    }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) runCatching { books.import(uri, lang) }
-            .onSuccess { list = books.all().filter { it.lang == lang }; onOpen(it) }
-            .onFailure { said = it.message ?: it.toString() }
+        if (uri != null) run { p -> books.import(uri, lang, p) }
+    }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree != null) run { p -> books.importFolder(tree, lang, p) }
     }
     BackHandler { onBack() }
     Scaffold(topBar = {
@@ -69,7 +90,8 @@ fun BooksScreen(library: Library, books: Books, homeLang: String, onOpen: (Strin
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             TextButton(onClick = { pick.launch(arrayOf("application/epub+zip", "text/plain", "application/zip", "application/x-cbz", "application/vnd.comicbook+zip", "application/octet-stream")) }) { Text(tr("Import a book: EPUB, text or manga (%s)", lang.displayName)) }
-            if (said.isNotEmpty()) Text(said, color = Colors.unknown, fontSize = 13.sp)
+            TextButton(onClick = { pickFolder.launch(null) }) { Text(tr("Import a folder (every book or volume in it)")) }
+            if (said.isNotEmpty()) Text(said, color = if (bad) Colors.unknown else Colors.dim, fontSize = 13.sp)
             if (list.isEmpty()) Text(tr("No books yet."), color = Colors.dim)
             list.forEach { b ->
                 Text(b.title, color = Colors.text, fontSize = 18.sp, modifier = Modifier.fillMaxWidth().clickable { onOpen(b.id) }.padding(vertical = 8.dp))

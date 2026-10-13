@@ -154,6 +154,9 @@ fun HomeScreen(
     val title = series ?: when (shelf) { "books" -> tr("Books"); "manga" -> tr("Manga"); else -> null }
     val back = if (series != null) ({ onSection("manga") }) else null
     val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
+    // A manga series: full screen, like a show.
+    if (series != null) return MangaSeriesScreen(books, io.github.pedrubik2000.kumapie.data.Lang.of(homeLang), series,
+        onBack = { onSection("manga") }, onOpen = onRead)
     val main = listOf(
         Dest(Icons.Default.Swipe, tr("Feed"), onFeed),
         Dest(Icons.Default.AutoAwesome, tr("i+1 scenes"), onIPlusOne),
@@ -184,8 +187,7 @@ fun HomeScreen(
                 when {
                     // On the device: no PC needed.
                     shelf == "books" -> BooksShelf(books, io.github.pedrubik2000.kumapie.data.Lang.of(lang), posterWidth(wide), onRead)
-                    shelf == "manga" -> MangaShelf(books, io.github.pedrubik2000.kumapie.data.Lang.of(lang), series,
-                        posterWidth(wide), onSeries = { onSection(if (it == null) "manga" else "manga/$it") }, onOpen = onRead)
+                    shelf == "manga" -> MangaShelf(books, io.github.pedrubik2000.kumapie.data.Lang.of(lang), posterWidth(wide), onSeries = { onSection(if (it == null) "manga" else "manga/$it") }, onOpen = onRead)
                     error != null && shows == null -> Column(Modifier.align(Alignment.Center).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(tr("Can't reach the PC"), fontSize = 20.sp)

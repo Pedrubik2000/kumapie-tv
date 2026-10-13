@@ -63,6 +63,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import coil3.compose.AsyncImage
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.i18n.tr
@@ -92,26 +108,102 @@ private fun series(books: Books, lang: Lang) = books.all().filter { it.lang == l
 private fun cover(books: Books, book: Book) = book.pages?.firstOrNull()?.let { books.picture(book, it.image) }
 
 /**
- * Manga on this device (Home's Manga), as a library of series (cover, number of volumes); a series ([series]) shows its
- * volumes. Imports .cbz/.zip volumes, a zip of a whole series, or a folder ([Books.import], [Books.importFolder]).
+ * A manga series, laid out like a show ([ShowScreen]): the first cover fading into the page, title, volumes, pages and
+ * Read / Continue; then its volumes with progress, Download and Delete. Tablet: the header left, the volumes right.
  */
 @Composable
-internal fun MangaShelf(books: Books, lang: Lang, series: String?, width: Dp, onSeries: (String?) -> Unit, onOpen: (String) -> Unit) {
+internal fun MangaSeriesScreen(books: Books, lang: Lang, name: String, onBack: () -> Unit, onOpen: (String) -> Unit) {
+    val wide = LocalConfiguration.current.screenWidthDp >= 600
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var tick by remember { mutableIntStateOf(0) }
+    val volumes = remember(lang, name, tick) { series(books, lang).firstOrNull { it.name == name }?.volumes.orEmpty() }
+    LaunchedEffect(volumes.isEmpty()) { if (volumes.isEmpty()) onBack() } // the last one deleted
+    if (volumes.isEmpty()) return
+    var menu by remember { mutableStateOf<Book?>(null) }
+    menu?.let { VolumeMenu(books, it, onClose = { menu = null; tick++ }) }
+    var downloading by remember { mutableStateOf<String?>(null) }
+    fun done(b: Book) = books.pos(b.id) >= b.pages!!.size - 1
+    // Read: the volume left partway, else the first not finished, else the first.
+    val next = volumes.firstOrNull { books.pos(it.id) > 0 && !done(it) } ?: volumes.firstOrNull { !done(it) } ?: volumes.first()
+    val header = @Composable { modifier: Modifier ->
+        Box(modifier) {
+            val art = if (wide) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 10f)
+            AsyncImage(cover(books, volumes.first()), null, contentScale = ContentScale.Crop, modifier = art)
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(
+                0f to Color.Transparent, 0.45f to Colors.background.copy(alpha = 0.35f), 1f to Colors.background)))
+            IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(8.dp).background(Color.Black.copy(alpha = 0.4f), CircleShape)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Color.White)
+            }
+            Column(Modifier.align(Alignment.BottomStart).let { if (wide) it.navigationBarsPadding() else it }.statusBarsPadding()
+                .padding(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(name, fontSize = if (wide) 30.sp else 24.sp, lineHeight = if (wide) 36.sp else 30.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis)
+                val n = volumes.size
+                Text((if (n == 1) tr("1 volume") else tr("%d volumes", n)) + " · " + tr("%d pages", volumes.sumOf { it.pages!!.size }),
+                    fontSize = 14.sp, color = Colors.dim)
+                Button(onClick = { onOpen(next.id) }) {
+                    Icon(Icons.Default.PlayArrow, null)
+                    Text(if (next != volumes.first() || books.pos(next.id) > 0) tr("Continue: %s", Books.volumeOf(next.title)) else tr("Read"),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
+                }
+            }
+        }
+    }
+    val row = @Composable { v: Book ->
+        val n = v.pages!!.size
+        val missing = remember(v.id, tick) { books.missing(v).size }
+        val at = books.pos(v.id)
+        Row(Modifier.fillMaxWidth().clickable { onOpen(v.id) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(if (wide) 72.dp else 56.dp)) {
+                AsyncImage(cover(books, v), null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(0.7f).clip(RoundedCornerShape(6.dp)))
+                if (at > 0) ProgressBar((at + 1f) / n, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(4.dp))
+            }
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(Books.volumeOf(v.title), fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(tr("%d pages", n) + " · " + (if (missing > 0) tr("on the PC") else tr("on this device")), fontSize = 12.sp, color = Colors.dim)
+            }
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                if (downloading == v.id) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                else if (missing > 0 && books.onPc(v.id)) IconButton(enabled = downloading == null, onClick = {
+                    downloading = v.id
+                    scope.launch {
+                        runCatching { books.download(v) {} }.onFailure {
+                            android.widget.Toast.makeText(context, tr("Couldn't reach the PC: %s", it.message ?: it.toString()), android.widget.Toast.LENGTH_LONG).show()
+                        }
+                        downloading = null; tick++
+                    }
+                }) { Icon(Icons.Default.Download, tr("Download")) }
+            }
+            IconButton(onClick = { menu = v }) { Icon(Icons.Default.Delete, tr("Delete")) }
+        }
+    }
+    androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = Colors.background, contentColor = Colors.text) {
+        if (wide) Row(Modifier.fillMaxSize()) {
+            header(Modifier.weight(0.42f).fillMaxHeight())
+            LazyColumn(Modifier.weight(0.58f).fillMaxHeight(), contentPadding = PaddingValues(vertical = 24.dp)) {
+                items(volumes, key = { it.id }) { row(it) }
+            }
+        } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            item(key = "header") { header(Modifier.fillMaxWidth()) }
+            items(volumes, key = { it.id }) { row(it) }
+        }
+    }
+}
+
+/**
+ * Manga on this device (Home's Manga), as a library of series (cover, number of volumes); a series opens
+ * [MangaSeriesScreen]. Imports .cbz/.zip volumes, a zip of a whole series, or a folder ([Books.import], [Books.importFolder]).
+ */
+@Composable
+internal fun MangaShelf(books: Books, lang: Lang, width: Dp, onSeries: (String?) -> Unit, onOpen: (String) -> Unit) {
     var tick by remember { mutableIntStateOf(0) }
     val list = remember(lang, tick) { series(books, lang) }
     val imports = rememberImports(books, lang, onDone = { ids -> tick++; if (ids.size == 1) onOpen(ids[0]) })
-    val volumes = series?.let { name -> list.firstOrNull { it.name == name }?.volumes.orEmpty() }
     var menu by remember { mutableStateOf<Book?>(null) }
     menu?.let { VolumeMenu(books, it, onClose = { menu = null; tick++ }) }
-    if (volumes != null) ShelfGrid(width, imports, null) {
-        items(volumes, key = { it.id }) { v ->
-            val at = books.pos(v.id)
-            val n = v.pages!!.size
-            val here = n - books.missing(v).size
-            Poster(cover(books, v), Books.volumeOf(v.title), tr("%d pages", n) + if (here < n) " · " + tr("on the PC") else "", width,
-                progress = if (at > 0) (at + 1f) / n else null, onLongClick = { menu = v }) { onOpen(v.id) }
-        }
-    } else ShelfGrid(width, imports, if (list.isEmpty()) tr("No manga yet.") else null, buttons = {
+    ShelfGrid(width, imports, if (list.isEmpty()) tr("No manga yet.") else null, buttons = {
         TextButton(onClick = { imports.file.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.comicbook+zip", "application/octet-stream")) }) {
             Text(tr("Import manga (.cbz, .zip)"))
         }

@@ -38,13 +38,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.lang.GlossaryHtml
-import io.github.pedrubik2000.kumapie.lang.JapaneseLookup
 import io.github.pedrubik2000.kumapie.lang.Headword
 import io.github.pedrubik2000.kumapie.lang.Tap
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
@@ -68,9 +66,15 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
                  /** In the player's word card: a lower card list. */
                  compact: Boolean = false,
                  /** In a column of bounded height: the cards shrink to the height left (the buttons below stay visible). */
-                 fit: Boolean = false) {
+                 fit: Boolean = false,
+                 /**
+                  * The word card in landscape: two columns, the chips, header, then [side] (ratings, buttons) on the left
+                  * and the cards on the right at the card's full height (user, 2026-10-13: meanings on a short screen).
+                  */
+                 side: (@Composable () -> Unit)? = null) {
     if (headwords.isEmpty()) {
         Text(tr("Not in your %s dictionaries.", lang.displayName), color = Colors.dim, fontSize = 14.sp)
+        side?.invoke()
         return
     }
     // Words looked up from inside a definition (Japanese): a stack, ← goes back.
@@ -82,7 +86,7 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val language = library.languages.of(lang)
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val top = @Composable {
         if (shown.size > 1 || nested.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             if (nested.isNotEmpty()) FilterChip(selected = false, onClick = { nested = nested.dropLast(1) }, label = { Text("←", fontSize = 14.sp) })
             shown.forEachIndexed { i, h ->
@@ -100,9 +104,9 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
                     label = { Text("$g ${dicts.count { library.yomitan.groupOf(lang, it) == g }}", fontSize = 13.sp) })
             }
         }
-        // In the word card: the popup's max height (Settings) and the screen's, less the chips, header and buttons.
-        val screen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
-        Glossaries(library, lang, hw, group, if (fit) Modifier.weight(1f, fill = false) else Modifier, if (compact) (minOf(screen, library.settings.popupHeight) - 330).coerceAtLeast(140) else 520,
+    }
+    val cards = @Composable { modifier: Modifier, height: Int ->
+        Glossaries(library, lang, hw, group, modifier, height,
             onOpen = { w -> shown.indexOfFirst { it.expression == w }.takeIf { it >= 0 }?.let { selected = it } },
             onTapText = { text, offset ->
                 // A tap in a definition (Japanese scans from there; spaced languages find nothing without a picked word).
@@ -112,12 +116,31 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
                 }
             })
     }
+    // In the word card: the popup's max height (Settings) and the screen's.
+    val tall = minOf(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp, library.settings.popupHeight)
+    if (side != null) Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) { top(); side() }
+        // Less the screen margins and the card's padding; the card's height clamps it further.
+        cards(Modifier.weight(1.2f), (tall - 76).coerceAtLeast(140))
+    } else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        top()
+        // Less the chips, header and buttons above and below.
+        cards(if (fit) Modifier.weight(1f, fill = false) else Modifier, if (compact) (tall - 270).coerceAtLeast(140) else 520)
+    }
 }
 
-/** Reading with pitch over the word, the first meanings beside it, 🔊; then frequency and pitch badges. */
+/** Reading with pitch over the word, then frequency, pitch and IPA badges on the same line, 🔊. */
 @Composable
 private fun Header(hw: Headword, onSpeak: (Headword) -> Unit) {
     val downsteps = hw.pitches.flatMap { it.second }.distinct()
+    val badges = buildList {
+        hw.terms.flatMap { it.ipa }.distinct().take(2).forEach { add(it) }
+        val kana = hw.reading.ifBlank { hw.expression }
+        downsteps.take(3).forEach { add("$kana [$it] ${pattern(morae(kana).size, it)}") }
+        if (hw.frequencies.isNotEmpty()) add(tr("Freq ") + hw.frequencies.take(3).joinToString(" · ") { Regex("""\d+""").find(it.second)?.value ?: it.second } +
+            if (hw.frequencies.size > 3) "  +${hw.frequencies.size - 3}" else "")
+    }
+    // No meaning summary here: the cards below have the meanings (user, 2026-10-13).
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column {
             // Kana words too when there is a pitch (もう: the line over it is the point).
@@ -125,23 +148,13 @@ private fun Header(hw: Headword, onSpeak: (Headword) -> Unit) {
             if (kana != hw.expression || downsteps.isNotEmpty()) PitchReading(kana, downsteps.firstOrNull())
             Text(hw.expression, fontSize = 28.sp, color = Colors.text)
         }
-        val summary = hw.terms.flatMap { it.glossaries }.firstOrNull { it.senses.isNotEmpty() }?.senses
-            ?.flatMap(JapaneseLookup::meanings)?.distinct()?.take(3)?.joinToString("  ·  ") { it.take(40) }.orEmpty()
-        Text(summary, fontSize = 14.sp, color = Colors.dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        IconButton(onClick = { onSpeak(hw) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, tr("Say it")) }
-    }
-    val badges = buildList {
-        if (hw.frequencies.isNotEmpty()) add(tr("Freq ") + hw.frequencies.take(3).joinToString(" · ") { Regex("""\d+""").find(it.second)?.value ?: it.second } +
-            if (hw.frequencies.size > 3) "  +${hw.frequencies.size - 3}" else "")
-        val kana = hw.reading.ifBlank { hw.expression }
-        downsteps.take(3).forEach { add("$kana [$it] ${pattern(morae(kana).size, it)}") }
-        hw.terms.flatMap { it.ipa }.distinct().take(2).forEach { add(it) }
-    }
-    if (badges.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        badges.forEach { b ->
-            Text(b, fontSize = 12.sp, color = Colors.text, modifier = Modifier.border(1.dp, Colors.dim.copy(alpha = 0.4f), RoundedCornerShape(5.dp))
-                .padding(horizontal = 6.dp, vertical = 1.dp))
+        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            badges.forEach { b ->
+                Text(b, fontSize = 12.sp, color = Colors.text, modifier = Modifier.border(1.dp, Colors.dim.copy(alpha = 0.4f), RoundedCornerShape(5.dp))
+                    .padding(horizontal = 6.dp, vertical = 1.dp))
+            }
         }
+        IconButton(onClick = { onSpeak(hw) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, tr("Say it")) }
     }
 }
 

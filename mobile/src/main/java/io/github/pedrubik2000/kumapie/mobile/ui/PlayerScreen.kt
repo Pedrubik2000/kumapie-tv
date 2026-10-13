@@ -32,7 +32,6 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -375,12 +374,19 @@ internal fun ScenePlayer(
         if (picker.isOpen && picker.cardOpen) anchor?.let {
             // With imported dictionaries the popup below has the meanings: no second, episode-made meaning above it.
             val dictionaries = remember { library.yomitan.of(ctl.lang).any { d -> d.enabled && d.terms > 0 } }
-            MeaningCard(ctl, picker, it, maxWidth = library.settings.popupWidth.dp, onTapDef = picker::tapInDef, ownMeaning = !dictionaries, footer = {
-                // The dictionaries get the height the other rows leave, so the buttons stay on screen (landscape).
-                DictionaryPanel(library, ctl, picker, if (dictionaries) Modifier.weight(1f, fill = false) else Modifier)
+            // Landscape with dictionaries: two columns, twice as wide (ratings and buttons left, meanings right).
+            val twoColumns = dictionaries && androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            val actions = @Composable {
                 RatingRow(library, ctl, picker, ratings, queueScope, queueBusy)
                 CardButtons(ctl, picker, onMine = { mining = true })
-            })
+            }
+            MeaningCard(ctl, picker, it, maxWidth = library.settings.popupWidth.dp * if (twoColumns) 2 else 1, onTapDef = picker::tapInDef,
+                ownMeaning = !dictionaries, footer = {
+                    // The dictionaries get the height the other rows leave, so the buttons stay on screen.
+                    DictionaryPanel(library, ctl, picker, if (dictionaries) Modifier.weight(1f, fill = false) else Modifier,
+                        side = if (twoColumns) actions else null)
+                    if (!twoColumns) actions()
+                })
         }
 
         if (flash != null && now - flashAt < 900) {
@@ -489,7 +495,7 @@ private fun SceneList(ctl: SceneController, onPick: (Int) -> Unit) {
     }
 }
 
-/** Under the meaning: hear the word, hear the definition, replay the line, mark known. */
+/** Under the meaning: hear the word, hear the definition, mine, mark known. */
 @Composable
 private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> Unit) {
     val word = (picker.selectedInDef ?: picker.selected)?.word
@@ -500,7 +506,6 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> 
         if (picker.definition != null) {
             IconButton(onClick = picker::hearDefinition) { Icon(Icons.Default.RecordVoiceOver, tr("Hear the definition"), tint = Colors.text) }
         }
-        IconButton(onClick = picker::replayLine) { Icon(Icons.Default.Replay, tr("Replay the line"), tint = Colors.text) }
         IconButton(onClick = onMine) { Icon(Pickaxe, tr("Add to Anki"), tint = Colors.text) }
         Spacer(Modifier.weight(1f, fill = false).width(8.dp))
         FilterChip(selected = marked, onClick = picker::toggleKnown, label = { Text(if (marked) tr("Known") else tr("Mark known")) },

@@ -99,6 +99,9 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     }
 
     val sync = remember { io.github.pedrubik2000.kumapie.mobile.local.Sync(context) }
+    // A device episode streaming from the PC: its "Download" (episode id -> how far, 0..1).
+    // ponytail: tied to this screen (leaving it stops the download; the .part resumes next tap); a worker if that bites.
+    var fetching by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
     // A device episode whose copy was deleted here streams from the PC, so it needs the connection.
     fun hasCopy(ep: Episode) = library.local.video(ep.id).exists()
     fun playable(ep: Episode) = !offline || states[ep.id] == DownloadState.Done ||
@@ -117,6 +120,17 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
             ?: ep.episodeTitle.ifBlank { null }).takeIf { ep.watched }, states[ep.id] ?: DownloadState.None, playable(ep), hasCopy(ep), offline, wide,
             onPlay = { onPlay(ep) }, onDownload = { library.downloads.start(show, ep) },
             onCancel = { library.downloads.cancel(ep.id) }, onDelete = { deleting = ep },
+            fetched = fetching[ep.id],
+            onFetch = fun() {
+                fetching = fetching + (ep.id to 0f)
+                scope.launch {
+                    runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        sync.downloadVideo(library.settings.server, library.settings.owner, ep.id) { f -> fetching = fetching + (ep.id to f) } } }
+                        .onFailure { android.widget.Toast.makeText(context, tr("Couldn't reach the PC: %s", it.message ?: it.toString()), android.widget.Toast.LENGTH_LONG).show() }
+                    fetching = fetching - ep.id
+                    reload++
+                }
+            }.takeIf { !hasCopy(ep) && sync.onPc(ep.id) && !offline },
             onMarkWatched = { watched ->
                 scope.launch {
                     runCatching { if (watched) library.markWatched(ep.id) else library.markUnwatched(ep.id) }
@@ -281,7 +295,7 @@ private fun ShowHeader(library: Library, show: Show, meta: org.json.JSONObject?,
 @Composable
 private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, state: DownloadState, playable: Boolean, copy: Boolean, offline: Boolean, wide: Boolean,
                        onPlay: () -> Unit, onDownload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit, onListen: () -> Unit,
-                       onMarkWatched: (Boolean) -> Unit) {
+                       onMarkWatched: (Boolean) -> Unit, fetched: Float? = null, onFetch: (() -> Unit)? = null) {
     val onDevice = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) // made here
     var menu by remember { mutableStateOf(false) }
     Row(
@@ -309,6 +323,9 @@ private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, sta
         }
         // Condensed: only the speech, in the background (screen off), like the PC's condensed audio.
         IconButton(enabled = playable, onClick = onListen) { Icon(Icons.Default.Headphones, tr("Listen condensed")) }
+        if (onDevice && fetched != null) Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(progress = { fetched }, modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+        } else if (onDevice && onFetch != null) IconButton(onClick = onFetch) { Icon(Icons.Default.Download, tr("Download")) }
         if (onDevice) IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, tr("Delete")) }
         else DownloadButton(state, enabled = !offline || state == DownloadState.Done, onStart = onDownload, onCancel = onCancel, onDelete = onDelete)
     }

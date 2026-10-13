@@ -25,7 +25,8 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Episodes made on this device go to the PC (dojo-feed's /api/sync, the hub); the episodes the owner's other devices
- * made come back from it, on Wi-Fi (plan: kumapie_languages_plan.md, "PC sync and Android <-> Android").
+ * made come back from it, on Wi-Fi (plan: kumapie_languages_plan.md, "PC sync and Android <-> Android"), without their
+ * video: they stream from the PC until "Download" ([downloadVideo]) keeps a copy here (user, 2026-10-13).
  * "Delete" removes only this device's copy of the video ([removeCopy]): the episode stays listed and streams from the
  * PC. "Delete everywhere" ([deleteEverywhere]) removes it from the PC; the other devices drop it at their next sync.
  */
@@ -118,8 +119,8 @@ class Sync(private val context: Context) {
                 }.onFailure { Log.w("kumapie", "sync timing $id: $it") }
             }
             if (id in here) continue
-            // Its copy deleted here (or before 2026-10-12, deleted here at all): listed again, streamed, no video.
-            runCatching { download(base, e, video = id !in skip); add(onPc, id); if (id !in skip) done += "↓ ${e.getString("title")}" }
+            // Listed and streamed; the video comes only with "Download" (user, 2026-10-13: no 1 GB syncs).
+            runCatching { download(base, e, video = false); add(onPc, id); if (id !in skip) done += "↓ ${e.getString("title")}" }
                 .onFailure { Log.w("kumapie", "sync down $id: $it") }
         }
         done += runCatching { runBooks(server, owner, gone?.let { g -> (0 until g.length()).map { g.getString(it) }.toSet() }.orEmpty()) }
@@ -207,6 +208,13 @@ class Sync(private val context: Context) {
         return done
     }
 
+    /** "Download" on an episode that streams from the PC: its video here, so it plays offline (and is kept). */
+    fun downloadVideo(server: String, owner: String, id: String, shown: (Float) -> Unit) {
+        progress = { _, f -> shown(f) }
+        fetch("$server/api/sync/$owner/$id/video.mp4", local.video(id))
+        synchronized(Sync::class.java) { never.writeText(read(never).filter { it != id }.joinToString("") { "$it\n" }) }
+    }
+
     private fun retime(base: String, id: String) {
         val body = JSONObject().put("shifted", local.shifted(id)).put("episode", JSONObject(local.json(id).readText()))
         val c = open("$base/$id/episode", "POST")
@@ -224,6 +232,7 @@ class Sync(private val context: Context) {
         local.dir(id).listFiles()?.filter { !it.name.endsWith(".part") }?.forEach { it.deleteRecursively() }
         // The video first (resumable), episode.json last: the episode shows up only once it is whole.
         if (video) fetch("$url/video.mp4", local.video(id), e.getString("title"))
+        else File(local.video(id).path + ".part").delete() // a video download the old sync left half done
         runCatching { fetch("$url/thumb.jpg", local.thumb(id)) }
         val episode = JSONObject(String(open("$url/episode.json").inputStream.use { it.readBytes() }))
         episode.put("video", local.video(id).path)

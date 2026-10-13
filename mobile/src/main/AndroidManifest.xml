@@ -10,6 +10,11 @@
     <!-- Android 17: the Wi-Fi transfer between devices (Settings) is local-network traffic. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
+    <!-- Other apps (chimahon) may read word colours (WordColours). -->
+    <permission
+        android:name="${applicationId}.permission.READ_WORDS"
+        android:protectionLevel="normal" />
+
     <application
         android:allowBackup="false"
         android:largeHeap="true"
@@ -59,6 +64,13 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+
+        <!-- Word colours for chimahon's manga OCR boxes. -->
+        <provider
+            android:name=".WordColours"
+            android:authorities="${applicationId}.words"
+            android:exported="true"
+            android:readPermission="${applicationId}.permission.READ_WORDS" />
 
         <!-- WorkManager's foreground service, declared with its type for Android 14+. -->
         <service

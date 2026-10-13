@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -65,7 +66,9 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 @Composable
 fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpeak: (Headword) -> Unit,
                  /** In the player's word card: a lower card list. */
-                 compact: Boolean = false) {
+                 compact: Boolean = false,
+                 /** In a column of bounded height: the cards shrink to the height left (the buttons below stay visible). */
+                 fit: Boolean = false) {
     if (headwords.isEmpty()) {
         Text(tr("Not in your %s dictionaries.", lang.displayName), color = Colors.dim, fontSize = 14.sp)
         return
@@ -99,7 +102,7 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
         }
         // In the word card: the popup's max height (Settings) and the screen's, less the chips, header and buttons.
         val screen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
-        Glossaries(library, lang, hw, group, if (compact) (minOf(screen, library.settings.popupHeight) - 330).coerceAtLeast(140) else 520,
+        Glossaries(library, lang, hw, group, if (fit) Modifier.weight(1f, fill = false) else Modifier, if (compact) (minOf(screen, library.settings.popupHeight) - 330).coerceAtLeast(140) else 520,
             onOpen = { w -> shown.indexOfFirst { it.expression == w }.takeIf { it >= 0 }?.let { selected = it } },
             onTapText = { text, offset ->
                 // A tap in a definition (Japanese scans from there; spaced languages find nothing without a picked word).
@@ -173,7 +176,7 @@ private fun morae(kana: String): List<String> {
 
 /** The headword's cards in the shared WebView; chips hide the other groups; open/closed is remembered. */
 @Composable
-private fun Glossaries(library: Library, lang: Lang, hw: Headword, group: String?, height: Int, onOpen: (String) -> Unit,
+private fun Glossaries(library: Library, lang: Lang, hw: Headword, group: String?, modifier: Modifier, height: Int, onOpen: (String) -> Unit,
                        onTapText: (String, Int) -> Unit = { _, _ -> }) {
     val opener by rememberUpdatedState(onOpen)
     val tapper by rememberUpdatedState(onTapText)
@@ -195,8 +198,8 @@ private fun Glossaries(library: Library, lang: Lang, hw: Headword, group: String
     PopupWeb.onOpen = { opener(it) }
     PopupWeb.onTapText = { t, o -> tapper(t, o) }
     PopupWeb.media = { dict, path -> library.yomitan.media(lang, dict, path) }
-    Box(Modifier.fillMaxWidth().height(height.dp)) {
-        AndroidView(modifier = Modifier.fillMaxWidth().height(height.dp),
+    Box(modifier.fillMaxWidth().height(height.dp)) {
+        AndroidView(modifier = Modifier.fillMaxSize(),
             factory = { ctx -> PopupWeb.get(ctx).also { (it.parent as? ViewGroup)?.removeView(it) } },
             onRelease = { (it.parent as? ViewGroup)?.removeView(it) },
             update = { PopupWeb.show(cards, css, group) })

@@ -37,7 +37,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
  * first as "In this line".
  */
 @Composable
-fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) {
+fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker, modifier: Modifier = Modifier) {
     val language = library.languages.of(ctl.lang)
     fun lemma(key: String?) = key?.let { ctl.words[it]?.lemma }?.takeIf { it.isNotBlank() }
     // A word in the card's definition alone; a subtitle word with its place in the line (Japanese scans from there).
@@ -63,12 +63,12 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker) 
     val fits = remember(found) { if (picker.selectedInDef != null) null else SensePick.best(found, SensePick.english(ctl.scene, picker.line)) }
     // Dictionary entries scroll here; the popup's cards scroll inside it (a second scroller fought with it).
     val scroll = if (found.isEmpty() || !headwords.isNullOrEmpty()) Modifier else Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState())
-    Column(scroll, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(modifier.then(scroll), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         val hws = headwords
         when {
             missing != null -> Text(missing, color = Colors.dim, fontSize = 14.sp)
             hws == null -> Text(tr("Looking it up…"), color = Colors.dim, fontSize = 14.sp)
-            hws.isNotEmpty() -> YomitanPopup(library, ctl.lang, hws, onSpeak = language::say, compact = true)
+            hws.isNotEmpty() -> YomitanPopup(library, ctl.lang, hws, onSpeak = language::say, compact = true, fit = modifier != Modifier)
             found.isEmpty() -> Text(
                 if (library.yomitan.of(ctl.lang).any { it.enabled && it.terms > 0 }) tr("Not in the dictionary.")
                 else tr("Download the recommended %s dictionaries in Settings to see meanings here.", ctl.lang.displayName),

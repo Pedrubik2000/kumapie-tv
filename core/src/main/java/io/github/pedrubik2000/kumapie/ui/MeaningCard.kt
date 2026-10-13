@@ -51,7 +51,7 @@ fun MeaningCard(
     anchor: Rect,
     maxWidth: androidx.compose.ui.unit.Dp = 720.dp,
     onTapDef: ((Int) -> Unit)? = null,
-    footer: (@Composable () -> Unit)? = null,
+    footer: (@Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit)? = null,
     /** The episode's own meaning of the word (and its German definition); off when the footer has the dictionaries. */
     ownMeaning: Boolean = true,
 ) {
@@ -83,7 +83,7 @@ fun MeaningCard(
                 Text("${picker.selectedInDef?.text}: " + (noEquals(w.meaning.substringAfter(" = ")).ifBlank { tr("no meaning yet") }) + "  ·  $s",
                     color = c, fontSize = 16.sp, modifier = Modifier.padding(top = 6.dp))
             }
-            footer?.invoke()
+            footer?.invoke(this)
         }
     }
 }

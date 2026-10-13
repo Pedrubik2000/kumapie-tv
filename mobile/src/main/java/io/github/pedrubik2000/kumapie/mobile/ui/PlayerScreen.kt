@@ -376,7 +376,8 @@ internal fun ScenePlayer(
             // With imported dictionaries the popup below has the meanings: no second, episode-made meaning above it.
             val dictionaries = remember { library.yomitan.of(ctl.lang).any { d -> d.enabled && d.terms > 0 } }
             MeaningCard(ctl, picker, it, maxWidth = library.settings.popupWidth.dp, onTapDef = picker::tapInDef, ownMeaning = !dictionaries, footer = {
-                DictionaryPanel(library, ctl, picker)
+                // The dictionaries get the height the other rows leave, so the buttons stay on screen (landscape).
+                DictionaryPanel(library, ctl, picker, if (dictionaries) Modifier.weight(1f, fill = false) else Modifier)
                 RatingRow(library, ctl, picker, ratings, queueScope, queueBusy)
                 CardButtons(ctl, picker, onMine = { mining = true })
             })

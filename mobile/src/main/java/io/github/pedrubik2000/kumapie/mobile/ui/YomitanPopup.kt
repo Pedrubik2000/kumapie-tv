@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -118,8 +119,9 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
     }
     // In the word card: the popup's max height (Settings) and the screen's.
     val tall = minOf(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp, library.settings.popupHeight)
-    if (side != null) Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) { top(); side() }
+    // The left column spreads over the cards' height (no empty space under the buttons).
+    if (side != null) Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween) { top(); side() }
         // Less the screen margins and the card's padding; the card's height clamps it further.
         cards(Modifier.weight(1.2f), (tall - 76).coerceAtLeast(140))
     } else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

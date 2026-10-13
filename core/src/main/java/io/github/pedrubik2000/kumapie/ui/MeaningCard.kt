@@ -2,6 +2,9 @@ package io.github.pedrubik2000.kumapie.ui
 
 import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -54,18 +57,19 @@ fun MeaningCard(
     footer: (@Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit)? = null,
     /** The episode's own meaning of the word (and its German definition); off when the footer has the dictionaries. */
     ownMeaning: Boolean = true,
+    /** A see-through ✕ in the card's top right corner. */
+    onClose: (() -> Unit)? = null,
 ) {
     val segment = picker.selected ?: return
     val key = segment.word ?: return
     val word = ctl.words[key] ?: Word("u", "")
     val def = picker.definition
-    AboveAnchor(anchor) {
+    AboveAnchor(anchor) { Box(Modifier.widthIn(max = maxWidth).background(Colors.surface, RoundedCornerShape(12.dp))
+        .pointerInput(Unit) { detectTapGestures { } }) { // taps on the card stay on the card
         Column(
-            Modifier.widthIn(max = maxWidth).background(Colors.surface, RoundedCornerShape(12.dp))
-                // With the dictionaries the footer's popup scrolls itself (sized to fit): a second scroller here took the
-                // swipes and they reached the popup as taps.
-                .then(if (ownMeaning) Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()) else Modifier)
-                .pointerInput(Unit) { detectTapGestures { } } // taps on the card stay on the card
+            // With the dictionaries the footer's popup scrolls itself (sized to fit): a second scroller here took the
+            // swipes and they reached the popup as taps.
+            (if (ownMeaning) Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()) else Modifier)
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -85,7 +89,11 @@ fun MeaningCard(
             }
             footer?.invoke(this)
         }
-    }
+        onClose?.let {
+            Text("✕", color = Colors.dim, fontSize = 18.sp, modifier = Modifier.align(Alignment.TopEnd)
+                .clickable(onClick = it).padding(horizontal = 12.dp, vertical = 6.dp))
+        }
+    } }
 }
 
 @Composable

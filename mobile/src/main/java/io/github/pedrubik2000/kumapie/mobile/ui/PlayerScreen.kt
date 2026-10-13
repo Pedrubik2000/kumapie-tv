@@ -381,7 +381,7 @@ internal fun ScenePlayer(
                 CardButtons(ctl, picker, onMine = { mining = true })
             }
             MeaningCard(ctl, picker, it, maxWidth = library.settings.popupWidth.dp * if (twoColumns) 2 else 1, onTapDef = picker::tapInDef,
-                ownMeaning = !dictionaries, footer = {
+                ownMeaning = !dictionaries, onClose = { picker.close() }, footer = {
                     // The dictionaries get the height the other rows leave, so the buttons stay on screen.
                     DictionaryPanel(library, ctl, picker, if (dictionaries) Modifier.weight(1f, fill = false) else Modifier,
                         side = if (twoColumns) actions else null)

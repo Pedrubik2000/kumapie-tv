@@ -27,10 +27,22 @@ class WordColours : ContentProvider() {
     private val japanese by lazy {
         val ctx = context!!.applicationContext
         Japanese(ctx, Settings(ctx), YomitanDictionaries.get(ctx), background).also { ja ->
-            // Card states (green, blue) come from kuma3: read it once in this process, the due queue each minute.
+            // Card states (green, blue) come from kuma3: read once here, then kept fresh by [fresh].
             // ponytail: second KnownWords next to the app's own; one shared instance if they ever disagree.
             background.launch { ja.known.refresh() }
         }
+    }
+    @Volatile private var cardsAt = System.currentTimeMillis()
+
+    /**
+     * What the app changed since: its marked and imported words (files), and the Mined deck's cards at most once a
+     * minute (ratings and cards made in kumapie or kuma3), so the colours asked for next are today's.
+     */
+    private fun fresh(known: KnownWords) {
+        known.reloadLists()
+        if (System.currentTimeMillis() - cardsAt < 60_000) return
+        cardsAt = System.currentTimeMillis()
+        runBlocking { known.reloadCards() }
     }
 
     override fun onCreate() = true
@@ -40,6 +52,7 @@ class WordColours : ContentProvider() {
         val text = args?.firstOrNull() ?: return out
         if (uri.lastPathSegment != "colours" || !japanese.model.isReady) return out
         val known = japanese.known
+        fresh(known)
         background.launch { known.refreshDue() }
         for (t in japanese.model.words(listOf(text)).first()) {
             if (!t.isWord) continue
@@ -63,6 +76,7 @@ class WordColours : ContentProvider() {
         val out = android.os.Bundle()
         runBlocking {
             if (known.lastReading == null) known.refresh()
+            if (method == "state") fresh(known)
             if (method == "rate" || method == "undo") {
                 val pkg = known.ankiApp() ?: return@runBlocking
                 ctx.enforceCallingPermission(known.permission(pkg), "rating kuma3 cards")

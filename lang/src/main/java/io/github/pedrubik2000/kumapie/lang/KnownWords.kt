@@ -59,6 +59,20 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     @Volatile private var imported: Set<String> = runCatching { importedFile.readLines().filter { it.isNotEmpty() }.toSet() }
         .getOrDefault(emptySet())
 
+    private var listsRead = markedFile.lastModified() to importedFile.lastModified()
+
+    /**
+     * marked.txt and imported.txt again when another KnownWords wrote them since (the app's, for the one in
+     * WordColours: a word marked known or a Jiten import there).
+     */
+    fun reloadLists() {
+        val now = markedFile.lastModified() to importedFile.lastModified()
+        if (now == listsRead) return
+        listsRead = now
+        marked = runCatching { markedFile.readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet() }.getOrDefault(emptySet())
+        imported = runCatching { importedFile.readLines().filter { it.isNotEmpty() }.toSet() }.getOrDefault(emptySet())
+    }
+
     val importedWords: Set<String> get() = imported
 
     /** Replaces the imported known words (empty: none). */

@@ -75,6 +75,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
     // and the episode appears with the PC's shows. The rest is made on this device.
     val aniworld = links.filter(::isAniWorld)
     val onDevice = links - aniworld.toSet()
+    val pcOnly = links.isNotEmpty() && onDevice.isEmpty() // the device's own choices below don't apply
     val pc = library.settings.server.isNotBlank() && library.settings.owner.isNotBlank()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var pcSent by remember { mutableStateOf("") }
@@ -145,7 +146,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             show.ifBlank { links.firstOrNull()?.let { ProcessWorker.guessShow(context, it) } ?: "" }, tr("Which show is it?"),
             onPick = { kind, c -> type = kind; match = c },
             onDismiss = { searching = false })
-        if (!japanese) {
+        if (!japanese && !pcOnly) {
             Text(tr("Transcription"), fontSize = 14.sp, color = Colors.dim)
             androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (sonioxKey) androidx.compose.material3.FilterChip(selected = !parakeet, label = { Text(tr("Soniox (best, paid)")) },
@@ -154,6 +155,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                     onClick = { transcriber = "parakeet"; library.settings.transcriber = "parakeet" })
             }
         }
+        if (!pcOnly) {
         Text(tr("%s subtitles", tr(io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationName)), fontSize = 14.sp, color = Colors.dim)
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -182,6 +184,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             color = Colors.unknown, fontSize = 14.sp)
         else if (!ready) Text(if (parakeet) tr("First: Settings > the %s model and the speech model (Parakeet).", spoken)
             else tr("First: Settings > the %s model, and your Soniox key.", spoken), color = Colors.unknown, fontSize = 14.sp)
+        }
         if (needsRd && library.settings.rdToken.isBlank()) Text(tr("For magnets and Real-Debrid links: Settings > your Real-Debrid token."),
             color = Colors.unknown, fontSize = 14.sp)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -201,7 +204,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             androidx.compose.material3.OutlinedButton(enabled = ready, onClick = { pick.launch(arrayOf("video/*")) }) { Text(tr("Video files…")) }
         }
         val noEnglish = englishNow == "none"
-        if (japanese) Text(tr("Download → Japanese subtitles from Jimaku, fitted to the audio → ") + when {
+        if (pcOnly) Unit
+        else if (japanese) Text(tr("Download → Japanese subtitles from Jimaku, fitted to the audio → ") + when {
                 noEnglish -> tr("no %s (Settings)", translation)
                 gemma -> tr("%s (Gemma on this device, about 3 s a line)", translation)
                 else -> tr("%s (the device's translator)", translation)
@@ -229,33 +233,18 @@ private fun isAniWorld(link: String) = Regex("""^https://(aniworld\.to|s\.to|ser
 
 /** Queues an AniWorld link on the PC; returns what to show. */
 private suspend fun aniworldSend(library: Library, url: String, lang: String): String =
-    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        runCatching {
-            val c = java.net.URL("${library.settings.server}/api/aniworld").openConnection() as java.net.HttpURLConnection
-            c.requestMethod = "POST"
-            c.doOutput = true
-            c.setRequestProperty("Content-Type", "application/json")
-            c.outputStream.use {
-                it.write(org.json.JSONObject().put("person", library.settings.owner).put("lang", lang).put("url", url).toString().toByteArray())
-            }
-            if (c.responseCode == 200) tr("Sent to the PC.") else tr("The PC refused it: %s", c.responseMessage)
-        }.getOrElse { tr("The PC can't be reached: %s", it.message) }
-    }
+    runCatching { library.api.aniworld(url, lang); tr("Sent to the PC.") }.getOrElse { tr("The PC can't be reached: %s", it.message) }
 
 /** The PC's AniWorld jobs, one line each: "PC · show/staffel-2/episode-1: transcribing…". */
-private suspend fun aniworldJobs(library: Library): List<String> =
-    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        runCatching {
-            val a = org.json.JSONArray(java.net.URL("${library.settings.server}/api/aniworld").readText())
-            (0 until a.length()).map { i ->
-                val j = a.getJSONObject(i)
-                val what = j.getString("url").substringAfter("/stream/")
-                "PC · $what: " + when (j.getString("state")) {
-                    "done" -> tr("done")
-                    "failed" -> tr("failed: %s", j.optString("error"))
-                    "queued" -> tr("waiting")
-                    else -> j.optString("step")
-                }
-            }
-        }.getOrElse { emptyList() }
+private suspend fun aniworldJobs(library: Library): List<String> = runCatching {
+    val a = library.api.aniworldJobs()
+    (0 until a.length()).map { i ->
+        val j = a.getJSONObject(i)
+        "PC · ${j.getString("url").substringAfter("/stream/")}: " + when (j.getString("state")) {
+            "done" -> tr("done")
+            "failed" -> tr("failed: %s", j.optString("error"))
+            "queued" -> tr("waiting")
+            else -> j.optString("step")
+        }
     }
+}.getOrElse { emptyList() }

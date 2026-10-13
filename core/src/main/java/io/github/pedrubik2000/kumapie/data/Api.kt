@@ -172,6 +172,12 @@ class Api(private val base: String, private val person: String = "") : Backend {
     override fun wordAudio(surface: String, lang: String): String =
         url("/api/tts?w=" + java.net.URLEncoder.encode(surface.lowercase(), "UTF-8") + "&lang=$lang")
 
+    /** AniWorld / s.to links: the PC downloads, transcribes and lists them (services\feed\aniworld.py). */
+    suspend fun aniworld(link: String, lang: String) =
+        post("/api/aniworld", JSONObject().put("person", person).put("lang", lang).put("url", link).toString())
+
+    suspend fun aniworldJobs() = JSONArray(get("/api/aniworld"))
+
     private suspend fun post(path: String, body: String): String = withContext(Dispatchers.IO) {
         val conn = URL(url(path)).openConnection() as HttpURLConnection
         conn.connectTimeout = 8_000

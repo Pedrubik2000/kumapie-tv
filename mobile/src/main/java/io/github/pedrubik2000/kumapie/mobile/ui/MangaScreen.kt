@@ -11,7 +11,13 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -86,70 +92,45 @@ private fun series(books: Books, lang: Lang) = books.all().filter { it.lang == l
 private fun cover(book: Book) = book.pages?.firstOrNull()?.let { File(book.dir, it.image) }
 
 /**
- * Manga on this device, as a library of series (one card each: cover, number of volumes); a series opens its volumes.
- * Imports .cbz/.zip volumes, a zip of a whole series, or a folder ([Books.import], [Books.importFolder]).
+ * Manga on this device (Home's Manga), as a library of series (cover, number of volumes); a series ([series]) shows its
+ * volumes. Imports .cbz/.zip volumes, a zip of a whole series, or a folder ([Books.import], [Books.importFolder]).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MangaScreen(library: Library, books: Books, homeLang: String, onSeries: (String) -> Unit, onOpen: (String) -> Unit, onBack: () -> Unit) {
-    val lang = Lang.of(homeLang)
-    var list by remember { mutableStateOf(series(books, lang)) }
-    val imports = rememberImports(books, lang, onDone = { ids -> list = series(books, lang); if (ids.size == 1) onOpen(ids[0]) })
-    BackHandler { onBack() }
-    Scaffold(topBar = {
-        TopAppBar(title = { Text(tr("Manga")) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
-    }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp)) {
-            Row {
-                TextButton(onClick = { imports.file.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.comicbook+zip", "application/octet-stream")) }) {
-                    Text(tr("Import manga (.cbz, .zip)"))
-                }
-                TextButton(onClick = { imports.folder.launch(null) }) { Text(tr("Import a folder")) }
-            }
-            imports.Status()
-            if (list.isEmpty()) Text(tr("No manga yet."), color = Colors.dim, modifier = Modifier.padding(8.dp))
-            LazyVerticalGrid(GridCells.Adaptive(150.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(list, key = { it.name }) { s ->
-                    Card(cover(s.volumes.first()), s.name, s.volumes.size.toString()) {
-                        if (s.volumes.size == 1) onOpen(s.volumes[0].id) else onSeries(s.name)
-                    }
-                }
+internal fun MangaShelf(books: Books, lang: Lang, series: String?, width: Dp, onSeries: (String?) -> Unit, onOpen: (String) -> Unit) {
+    var tick by remember { mutableIntStateOf(0) }
+    val list = remember(lang, tick) { series(books, lang) }
+    val imports = rememberImports(books, lang, onDone = { ids -> tick++; if (ids.size == 1) onOpen(ids[0]) })
+    val volumes = series?.let { name -> list.firstOrNull { it.name == name }?.volumes.orEmpty() }
+    if (volumes != null) ShelfGrid(width, imports, null) {
+        items(volumes, key = { it.id }) { v ->
+            val at = books.pos(v.id)
+            val n = v.pages!!.size
+            Poster(cover(v), Books.volumeOf(v.title), tr("%d pages", n), width, progress = if (at > 0) (at + 1f) / n else null) { onOpen(v.id) }
+        }
+    } else ShelfGrid(width, imports, if (list.isEmpty()) tr("No manga yet.") else null, buttons = {
+        TextButton(onClick = { imports.file.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.comicbook+zip", "application/octet-stream")) }) {
+            Text(tr("Import manga (.cbz, .zip)"))
+        }
+        TextButton(onClick = { imports.folder.launch(null) }) { Text(tr("Import a folder")) }
+    }) {
+        items(list, key = { it.name }) { s ->
+            val n = s.volumes.size
+            Poster(cover(s.volumes.first()), s.name, if (n == 1) tr("1 volume") else tr("%d volumes", n), width) {
+                if (n == 1) onOpen(s.volumes[0].id) else onSeries(s.name)
             }
         }
     }
 }
 
-/** One series' volumes, as covers. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Home's Books and Manga: the import [buttons], the import's progress, [empty] when there's nothing, then posters as on Home. */
 @Composable
-fun MangaSeriesScreen(books: Books, homeLang: String, name: String, onOpen: (String) -> Unit, onBack: () -> Unit) {
-    val volumes = remember(name) { series(books, Lang.of(homeLang)).firstOrNull { it.name == name }?.volumes.orEmpty() }
-    BackHandler { onBack() }
-    Scaffold(topBar = {
-        TopAppBar(title = { Text(name, maxLines = 1) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
-    }) { padding ->
-        LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize().padding(padding).padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(volumes, key = { it.id }) { v ->
-                val at = books.pos(v.id)
-                Card(cover(v), Books.volumeOf(v.title), if (at > 0) "${at + 1}/${v.pages!!.size}" else null) { onOpen(v.id) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun Card(image: File?, title: String, badge: String?, onClick: () -> Unit) {
-    Box(Modifier.fillMaxWidth().aspectRatio(0.7f).clip(RoundedCornerShape(8.dp)).background(Colors.surface).clickable(onClick = onClick)) {
-        if (image != null) AsyncImage(image, title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        Text(title, color = Colors.text, fontSize = 15.sp, maxLines = 2, modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.6f)).padding(8.dp))
-        badge?.let {
-            Text(it, color = Color.White, fontSize = 13.sp, modifier = Modifier.align(Alignment.TopStart).padding(6.dp)
-                .background(Colors.mined, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
-        }
+internal fun ShelfGrid(width: Dp, imports: Imports, empty: String?, buttons: (@Composable RowScope.() -> Unit)? = null, content: LazyGridScope.() -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        buttons?.let { Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), content = it) }
+        imports.Status()
+        empty?.let { Text(it, color = Colors.dim, modifier = Modifier.padding(16.dp)) }
+        LazyVerticalGrid(GridCells.FixedSize(width), contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(22.dp), content = content)
     }
 }
 

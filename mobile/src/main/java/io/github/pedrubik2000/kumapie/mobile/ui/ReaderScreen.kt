@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -51,29 +52,21 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Books on this device in the Home language: open one, or import a .txt (one paragraph per line). */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Books on this device in the Home language (Home's Books): open one, or import EPUB or text. */
 @Composable
-fun BooksScreen(library: Library, books: Books, homeLang: String, onOpen: (String) -> Unit, onBack: () -> Unit) {
-    val lang = Lang.of(homeLang)
-    fun mine() = books.all().filter { it.lang == lang && it.pages == null }
-    var list by remember { mutableStateOf(mine()) }
-    val imports = rememberImports(books, lang, onDone = { ids -> list = mine(); if (ids.size == 1) onOpen(ids[0]) })
-    BackHandler { onBack() }
-    Scaffold(topBar = {
-        TopAppBar(title = { Text(tr("Books")) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
-    }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            TextButton(onClick = { imports.file.launch(arrayOf("application/epub+zip", "text/plain", "application/octet-stream")) }) {
-                Text(tr("Import a book: EPUB or text (%s)", lang.displayName))
-            }
-            TextButton(onClick = { imports.folder.launch(null) }) { Text(tr("Import a folder")) }
-            imports.Status()
-            if (list.isEmpty()) Text(tr("No books yet."), color = Colors.dim)
-            list.forEach { b ->
-                Text(b.title, color = Colors.text, fontSize = 18.sp, modifier = Modifier.fillMaxWidth().clickable { onOpen(b.id) }.padding(vertical = 8.dp))
-            }
+internal fun BooksShelf(books: Books, lang: Lang, width: androidx.compose.ui.unit.Dp, onOpen: (String) -> Unit) {
+    var tick by remember { mutableIntStateOf(0) }
+    val list = remember(lang, tick) { books.all().filter { it.lang == lang && it.pages == null } }
+    val imports = rememberImports(books, lang, onDone = { ids -> tick++; if (ids.size == 1) onOpen(ids[0]) })
+    ShelfGrid(width, imports, if (list.isEmpty()) tr("No books yet.") else null, buttons = {
+        TextButton(onClick = { imports.file.launch(arrayOf("application/epub+zip", "text/plain", "application/octet-stream")) }) {
+            Text(tr("Import a book: EPUB or text (%s)", lang.displayName))
+        }
+        TextButton(onClick = { imports.folder.launch(null) }) { Text(tr("Import a folder")) }
+    }) {
+        items(list, key = { it.id }) { b ->
+            val at = books.pos(b.id)
+            Poster(null, b.title, "", width, progress = if (at > 0) at.toFloat() / b.paragraphs.size else null) { onOpen(b.id) }
         }
     }
 }

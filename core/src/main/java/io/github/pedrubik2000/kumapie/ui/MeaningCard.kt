@@ -69,14 +69,13 @@ fun MeaningCard(
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            when {
-                !ownMeaning -> Text(segment.text, color = Colors.text, fontSize = 26.sp)
-                def != null -> DefinitionParts(ctl, picker, segment.text, def, onTapDef)
-                else -> ShortMeaning(ctl, key, segment.text, word)
+            // With the dictionaries the footer starts at the word chips and header (user, 2026-10-13): no title or status here.
+            if (ownMeaning) {
+                if (def != null) DefinitionParts(ctl, picker, segment.text, def, onTapDef) else ShortMeaning(ctl, key, segment.text, word)
+                // Japanese: the tapped form's own card (届いた), not its dictionary form's (届く), as the subtitle colours it.
+                val (status, color) = statusLine(word.forms?.get(segment.text)?.takeIf { it.isNotEmpty() }?.let { word.copy(card = it) } ?: word)
+                Text(status + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
             }
-            // Japanese: the tapped form's own card (届いた), not its dictionary form's (届く), as the subtitle colours it.
-            val (status, color) = statusLine(word.forms?.get(segment.text)?.takeIf { it.isNotEmpty() }?.let { word.copy(card = it) } ?: word)
-            Text(status + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
             // The word picked inside the German definition: its own short meaning and status.
             picker.selectedInDef?.word?.let { inner ->
                 val w = ctl.words[inner] ?: Word("u", "")

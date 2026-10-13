@@ -32,7 +32,6 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material3.Button
@@ -376,7 +375,7 @@ internal fun ScenePlayer(
         if (picker.isOpen && picker.cardOpen) anchor?.let {
             // With imported dictionaries the popup below has the meanings: no second, episode-made meaning above it.
             val dictionaries = remember { library.yomitan.of(ctl.lang).any { d -> d.enabled && d.terms > 0 } }
-            MeaningCard(ctl, picker, it, maxWidth = 460.dp, onTapDef = picker::tapInDef, ownMeaning = !dictionaries, footer = {
+            MeaningCard(ctl, picker, it, maxWidth = library.settings.popupWidth.dp, onTapDef = picker::tapInDef, ownMeaning = !dictionaries, footer = {
                 DictionaryPanel(library, ctl, picker)
                 RatingRow(library, ctl, picker, ratings, queueScope, queueBusy)
                 CardButtons(ctl, picker, onMine = { mining = true })
@@ -501,7 +500,7 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> 
             IconButton(onClick = picker::hearDefinition) { Icon(Icons.Default.RecordVoiceOver, tr("Hear the definition"), tint = Colors.text) }
         }
         IconButton(onClick = picker::replayLine) { Icon(Icons.Default.Replay, tr("Replay the line"), tint = Colors.text) }
-        IconButton(onClick = onMine) { Icon(Icons.Default.BookmarkAdd, tr("Add to Anki"), tint = Colors.text) }
+        IconButton(onClick = onMine) { Icon(Pickaxe, tr("Add to Anki"), tint = Colors.text) }
         Spacer(Modifier.weight(1f, fill = false).width(8.dp))
         FilterChip(selected = marked, onClick = picker::toggleKnown, label = { Text(if (marked) tr("Known") else tr("Mark known")) },
             leadingIcon = if (marked) ({ Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }) else null)
@@ -582,3 +581,11 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
         io.github.pedrubik2000.kumapie.lang.Miner.Word(segment.text, key, null, ""))
     RatingRows(language.known, library.settings.prefs, forms, ratings, queueScope, queueBusy, at) { repaintWords(ctl, language.known) }
 }
+
+/** Mining: a pickaxe (Material has none). Handle up to the right, the curved head across its top. */
+private val Pickaxe = androidx.compose.ui.graphics.vector.ImageVector.Builder("Pickaxe", 24.dp, 24.dp, 24f, 24f).addPath(
+    androidx.compose.ui.graphics.vector.PathBuilder().moveTo(3.5f, 20.5f).lineTo(15f, 9f)
+        .moveTo(9f, 3f).quadTo(19.5f, 4.5f, 21f, 15f).nodes,
+    stroke = androidx.compose.ui.graphics.SolidColor(Color.Black), strokeLineWidth = 2.5f,
+    strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
+).build()

@@ -4,8 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -19,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.i18n.tr
@@ -96,9 +99,11 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
             }
             val r = ratings[f.key]?.rated
             val answered = ratings[f.key]?.label.orEmpty()
-            if (r == null) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("Again" to Colors.unknown, "Hard" to Colors.learning, "Good" to Colors.due, "Easy" to Colors.accent).forEachIndexed { i, (label, color) ->
-                    OutlinedButton(enabled = !busy.value, contentPadding = PaddingValues(horizontal = 10.dp), onClick = {
+            // Filled and the card's whole width (user, 2026-10-13): red, gray, green, blue.
+            if (r == null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Again" to Colors.unknown, "Hard" to Color(0xFF8A8696), "Good" to Colors.due, "Easy" to Colors.mined).forEachIndexed { i, (label, color) ->
+                    Button(enabled = !busy.value, contentPadding = PaddingValues(horizontal = 4.dp), modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color(0xFF1E1B26)), onClick = {
                         rating {
                             if (known.cardIndex.state(f.key) == "u") {
                                 val made = runCatching { f.make!! { said[f.key] = it } }.onFailure { said[f.key] = it.message ?: it.toString() }.isSuccess
@@ -109,7 +114,7 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
                             if (done != null) { ratings[f.key] = Rating(done, tr("Answered: %s", tr(label)), at); count(done.cards); said.remove(f.key) }
                             else said[f.key] = tr("kuma3 didn't take the rating.")
                         }
-                    }) { Text(tr(label), color = color, fontSize = 14.sp) }
+                    }) { Text(tr(label), fontSize = 14.sp, maxLines = 1) }
                 }
             } else Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(answered, color = Colors.dim, fontSize = 14.sp)

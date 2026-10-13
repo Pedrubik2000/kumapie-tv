@@ -129,6 +129,9 @@ internal val esSettings: Map<String, String> = mapOf(
 
     // Followed channels
     "Followed channels" to "Canales seguidos",
+    "Word popup" to "Ventana de palabra",
+    "Max width" to "Ancho máximo",
+    "height" to "alto",
     "None yet. In Add an episode, paste a channel's video, pick its shorts or videos and turn on Follow." to
         "Ninguno todavía. En Agregar un episodio, pega un video del canal, elige sus shorts o videos y activa Seguir.",
     "shorts" to "shorts",

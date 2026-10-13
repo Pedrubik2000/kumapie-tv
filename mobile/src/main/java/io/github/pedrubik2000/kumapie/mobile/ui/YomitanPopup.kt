@@ -97,8 +97,9 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
                     label = { Text("$g ${dicts.count { library.yomitan.groupOf(lang, it) == g }}", fontSize = 13.sp) })
             }
         }
-        // In the word card: small enough that the card (word above, buttons below) fits a phone in landscape.
-        Glossaries(library, lang, hw, group, if (compact) (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp - 300).coerceIn(140, 320) else 520,
+        // In the word card: the popup's max height (Settings) and the screen's, less the chips, header and buttons.
+        val screen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+        Glossaries(library, lang, hw, group, if (compact) (minOf(screen, library.settings.popupHeight) - 330).coerceAtLeast(140) else 520,
             onOpen = { w -> shown.indexOfFirst { it.expression == w }.takeIf { it >= 0 }?.let { selected = it } },
             onTapText = { text, offset ->
                 // A tap in a definition (Japanese scans from there; spaced languages find nothing without a picked word).

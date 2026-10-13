@@ -127,6 +127,9 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                 }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                PopupSize(settings)
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 NewEpisodesSection(library, learning)
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -636,4 +639,28 @@ private fun ReceiveDialog(onDismiss: () -> Unit) {
         },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(tr("Cancel")) } },
     )
+}
+
+/** The player's word popup: at most this wide and tall (dp). */
+var Settings.popupWidth: Int
+    get() = prefs.getInt("popup_width", 460)
+    set(value) = prefs.edit().putInt("popup_width", value).apply()
+var Settings.popupHeight: Int
+    get() = prefs.getInt("popup_height", 650)
+    set(value) = prefs.edit().putInt("popup_height", value).apply()
+
+@Composable
+private fun PopupSize(settings: Settings) {
+    var w by remember { mutableStateOf(settings.popupWidth.toString()) }
+    var h by remember { mutableStateOf(settings.popupHeight.toString()) }
+    Text(tr("Word popup"), color = Colors.accent)
+    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(tr("Max width"), fontSize = 14.sp)
+        OutlinedTextField(w, { v -> w = v.filter(Char::isDigit).take(4); w.toIntOrNull()?.takeIf { it >= 240 }?.let { settings.popupWidth = it } },
+            singleLine = true, modifier = Modifier.width(80.dp))
+        Text(tr("height"), fontSize = 14.sp)
+        OutlinedTextField(h, { v -> h = v.filter(Char::isDigit).take(4); h.toIntOrNull()?.takeIf { it >= 300 }?.let { settings.popupHeight = it } },
+            singleLine = true, modifier = Modifier.width(80.dp))
+        Text("dp", fontSize = 14.sp)
+    }
 }

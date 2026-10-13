@@ -157,7 +157,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             return "YouTube: ${urls.length()} video(s) queued".also { shown = tr("YouTube: %d video(s) queued", urls.length()) }
         }
         if (local.json(id).exists()) return (local.entries().firstOrNull { it.id == id }?.title ?: url).let { shown = tr("Already here: %s", it); "Already here: $it" }
-        val youtube = isYouTube(url)
+        val youtube = viaYtDlp(url)
         val file = url.startsWith("content:")
         val rdToken = if (youtube || file) "" else settings.rdToken.ifBlank { error(tr("Add your Real-Debrid token in Settings first.")) }
         if (!Python.isStarted()) Python.start(AndroidPlatform(applicationContext))
@@ -349,7 +349,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         local.json(id).writeText(episode)
         audio.delete() // kept until here, so a retry after a failure needs no new download or conversion
         dl.deleteRecursively()
-        val kind = type?.takeIf { !isYouTube(url) } ?: LocalEpisodes.category(url, lang.code, number)
+        val kind = type?.takeIf { !viaYtDlp(url) } ?: LocalEpisodes.category(url, lang.code, number)
         local.add(LocalEpisodes.Entry(id, show, title, duration, url, season, number, lang = lang.code, kind = kind))
         // The show's metadata, once per show: the Add sheet's pick, else the AniList entry Jimaku found (item 20).
         // YouTube: the channel's picture and name, found from this video.
@@ -577,11 +577,15 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         private const val QUEUE = "process-queue"
 
         fun isYouTube(url: String) = Regex("""^https?://([\w-]+\.)?(youtube\.com|youtu\.be)/""").containsMatchIn(url)
+        fun isTikTok(url: String) = Regex("""^https?://([\w-]+\.)?tiktok\.com/""").containsMatchIn(url)
+        /** Downloaded by yt-dlp (python/youtube.py), not Real-Debrid: YouTube, and single TikTok videos (reels). */
+        fun viaYtDlp(url: String) = isYouTube(url) || isTikTok(url)
 
-        /** One id per video: a YouTube link counts by its video id, so links shared with tracking (`?si=`) don't repeat it. */
+        /** One id per video: a YouTube or TikTok link counts by its video id, so links shared with tracking (`?si=`) don't repeat it. */
         fun idFor(url: String): String {
-            val video = Regex("""(?:youtu\.be/|[?&]v=|/shorts/|/live/|/embed/)([\w-]{11})""").find(url)?.groupValues?.get(1)
-            return "local-" + MessageDigest.getInstance("SHA-1").digest((video?.let { "youtube:$it" } ?: url.trim()).toByteArray())
+            val video = Regex("""(?:youtu\.be/|[?&]v=|/shorts/|/live/|/embed/)([\w-]{11})""").find(url)?.groupValues?.get(1)?.let { "youtube:$it" }
+                ?: Regex("""tiktok\.com/.*?/video/(\d+)""").find(url)?.groupValues?.get(1)?.let { "tiktok:$it" }
+            return "local-" + MessageDigest.getInstance("SHA-1").digest((video ?: url.trim()).toByteArray())
                 .joinToString("") { "%02x".format(it) }.take(12)
         }
 

@@ -3,7 +3,7 @@ package io.github.pedrubik2000.kumapie.i18n
 internal val esAdd: Map<String, String> = mapOf(
     // Add an episode (AddEpisodeSheet)
     "Add an episode" to "Agregar un episodio",
-    "YouTube, magnet or Real-Debrid links (one or several)" to "Enlaces de YouTube, magnet o Real-Debrid (uno o varios)",
+    "YouTube, TikTok, magnet or Real-Debrid links (one or several)" to "Enlaces de YouTube, TikTok, magnet o Real-Debrid (uno o varios)",
     "%d links" to "%d enlaces",
     "This video" to "Este video",
     "Channel's shorts" to "Shorts del canal",

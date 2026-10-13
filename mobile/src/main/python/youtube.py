@@ -90,8 +90,9 @@ def download(url: str, folder: str, qjs: str, log, height: int = 720, sub_langs:
             log.log(f"Video: {best['width']}x{best['height']}")
             ydl.format_selector = ydl.build_format_selector(f"{best['format_id']},ba[ext=m4a]")
         else:
-            log.log("No separate H.264 video: the 360p file")
-            ydl.format_selector = ydl.build_format_selector("18/b[ext=mp4][acodec!=none]")
+            # YouTube's 360p file; TikTok (one file with sound, H.264 or HEVC): H.264, which every device plays.
+            log.log("No separate H.264 video: one file with sound")
+            ydl.format_selector = ydl.build_format_selector("18/b[ext=mp4][vcodec^=h264][acodec!=none]/b[ext=mp4][acodec!=none]")
         ydl.process_ie_result(info, download=True)
         # The video's own subtitles (made by people; YouTube's automatic ones are in "automatic_captions", never used).
         # Fetched here in the same session, so they come even when yt-dlp's own subtitle step writes nothing.

@@ -70,7 +70,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
     val gemmaReady = !gemma || gemmaDownloaded
     // Several links at once (one per line, or pasted together).
     val links = Regex("""(https?://|magnet:)\S+""").findAll(link).map { it.value }.toList()
-    val needsRd = links.any { !ProcessWorker.isYouTube(it) }
+    val needsRd = links.any { !ProcessWorker.viaYtDlp(it) }
     val youtube = links.any { ProcessWorker.isYouTube(it) }
     val channelLink = links.any { Regex("""youtube\.com/(@|channel/|c/|user/)""").containsMatchIn(it) }
     val playlistLink = links.any { "list=" in it }
@@ -103,7 +103,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 androidx.compose.material3.FilterChip(selected = lang == l, label = { Text(l.displayName) }, onClick = { lang = l })
             }
         }
-        OutlinedTextField(link, { link = it }, label = { Text(tr("YouTube, magnet or Real-Debrid links (one or several)")) }, maxLines = 6,
+        OutlinedTextField(link, { link = it }, label = { Text(tr("YouTube, TikTok, magnet or Real-Debrid links (one or several)")) }, maxLines = 6,
             modifier = Modifier.fillMaxWidth())
         if (links.size > 1) Text(tr("%d links", links.size), fontSize = 13.sp, color = Colors.dim)
         if (youtube) {

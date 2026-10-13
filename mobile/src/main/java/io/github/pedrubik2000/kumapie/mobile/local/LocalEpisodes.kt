@@ -136,10 +136,10 @@ class LocalEpisodes(context: Context) {
             o.optString("source"), o.optInt("season").takeIf { o.has("season") }, o.optInt("number").takeIf { o.has("number") },
             o.optInt("scenes", -1), o.optString("lang", "de"), o.optString("kind"))
 
-        /** Home's category of an episode made here: YouTube shorts are reels, other YouTube videos youtube; a Japanese series
+        /** Home's category of an episode made here: YouTube shorts and TikTok videos are reels, other YouTube videos youtube; a Japanese series
          * is anime, other numbered episodes shows, the rest movies. */
         fun category(source: String, lang: String, number: Int?): String = when {
-            Regex("""youtube\.com/shorts/""").containsMatchIn(source) -> "reels"
+            Regex("""youtube\.com/shorts/""").containsMatchIn(source) || ProcessWorker.isTikTok(source) -> "reels"
             ProcessWorker.isYouTube(source) -> "youtube"
             lang == "ja" -> "anime"
             number != null -> "shows"

@@ -157,7 +157,13 @@ class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionarie
 
     /** Kaishi and mined words: the card's word when it has one, else its sentence. */
     override fun judgedField(note: AnkiCards.Note): String? = if (note.fields["Word"].isNullOrBlank()) "Sentence" else "Word"
-    override fun cardKeys(note: AnkiCards.Note) = CardIndex.japaneseKeys(note)
+    /** [CardIndex.japaneseKeys], and the same for the word's other spellings ([JitenSplitter.spellings]) once Jiten's here. */
+    override fun cardKeys(note: AnkiCards.Note): List<String> {
+        val keys = CardIndex.japaneseKeys(note)
+        val (spelling, reading) = keys.firstOrNull()?.split('	') ?: return keys
+        val other = runCatching { model.splitter()?.spellings(spelling, reading) }.getOrNull().orEmpty()
+        return keys + other.flatMap { listOf(CardIndex.japaneseKey(it, reading), it) }
+    }
 
     private val auto = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 

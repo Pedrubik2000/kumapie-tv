@@ -2,6 +2,8 @@ package io.github.pedrubik2000.kumapie.lang
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
@@ -35,6 +37,15 @@ class JitenSplitterTest {
         assertEquals("それじゃ | 元も子もなくなる→元も子もない | ぞ", show("それじゃ元も子もなくなるぞ"))
         assertEquals("雨が降りそう→雨が降る | な | 気がします→気がする", show("雨が降りそうな気がします"))
         assertEquals("呼ばれちゃった→呼ぶ | [！]", show("呼ばれちゃった！"))
+    }
+
+    @Test fun spellings() {
+        assumeTrue(splitter != null)
+        val s = splitter!!
+        assertTrue(s.spellings("ガキ共", "がきども").containsAll(listOf("ガキども", "餓鬼ども")))
+        assertTrue("わかる" in s.spellings("分かる", "わかる"))
+        assertFalse("かみ" in s.spellings("紙", "かみ")) // 神, 髪 are かみ too
+        assertFalse("うわて" in s.spellings("上手", "じょうず")) // the reading picks the entry
     }
 
     @Test fun resplit() {

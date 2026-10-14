@@ -6,6 +6,8 @@ import com.worksap.nlp.sudachi.Tokenizer
 import io.github.pedrubik2000.kumapie.lang.jiten.DeckWord
 import io.github.pedrubik2000.kumapie.lang.jiten.JitenLexicon
 import io.github.pedrubik2000.kumapie.lang.jiten.JitenParser
+import io.github.pedrubik2000.kumapie.lang.jiten.JmDictFormType
+import io.github.pedrubik2000.kumapie.lang.jiten.KanaConverter
 import io.github.pedrubik2000.kumapie.lang.jiten.MorphologicalAnalyser
 import io.github.pedrubik2000.kumapie.lang.jiten.PartOfSpeech
 import org.json.JSONArray
@@ -26,11 +28,33 @@ class JitenSplitter(private val lexicon: File, private val systemDic: File, priv
     private var parser: JitenParser? = null
     private var sudachi: Tokenizer? = null
 
+    private fun parser(): JitenParser = parser ?: lexicon.inputStream().use { JitenLexicon.load(it) }.let { lex ->
+        JitenParser(lex, MorphologicalAnalyser(lex, systemDic.toPath(), userDic?.toPath()))
+    }.also { parser = it }
+
+    /**
+     * The other spellings of a card's word: every form of its JMdict entry ([spelling] with [reading]; the only entry
+     * written so when the reading doesn't pick one), so a ガキ共 card colours ガキども and 餓鬼ども, a 分かる card わかる
+     * (user, 2026-10-13). A kana form only when no other entry is written so (かみ is 紙, 神 and 髪: never added).
+     */
+    @Synchronized
+    fun spellings(spelling: String, reading: String): Set<String> {
+        val lex = parser().lexicon
+        fun ids(text: String) = (lex.lookup(text)?.toList().orEmpty() + lex.lookup(KanaConverter.toHiragana(text))?.toList().orEmpty())
+            .distinct().filterNot(lex::isNameOnly)
+        val read = KanaConverter.toHiragana(reading)
+        val entries = ids(spelling).mapNotNull(lex::getWord).filter { w -> w.forms.any { it.text == spelling } }
+        val words = entries.filter { w -> w.forms.any { it.formType == JmDictFormType.KanaForm && KanaConverter.toHiragana(it.text) == read } }
+            .ifEmpty { entries.takeIf { it.size == 1 }.orEmpty() }
+        return words.flatMap { w ->
+            w.forms.filter { f -> !f.isSearchOnly && (f.formType == JmDictFormType.KanjiForm || ids(f.text) == listOf(w.wordId)) }
+                .map { it.text }
+        }.toSet() - spelling
+    }
+
     @Synchronized
     fun split(text: String): List<JapaneseModel.Token> {
-        val p = parser ?: lexicon.inputStream().use { JitenLexicon.load(it) }.let { lex ->
-            JitenParser(lex, MorphologicalAnalyser(lex, systemDic.toPath(), userDic?.toPath()))
-        }.also { parser = it }
+        val p = parser()
         val words = runCatching { p.parseText(text) }.getOrElse { emptyList() }
         val out = ArrayList<JapaneseModel.Token>()
         var at = 0

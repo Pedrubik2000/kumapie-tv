@@ -73,11 +73,14 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
     // Several links at once (one per line, or pasted together).
     val links = Regex("""(https?://|magnet:)\S+""").findAll(link).map { it.value }.toList()
     // AniWorld / s.to links go to the PC (dojo-feed /api/aniworld): it downloads the dub, transcribes it with Parakeet
-    // and the episode appears with the PC's shows. The rest is made on this device.
-    val aniworld = links.filter(::isAniWorld)
-    val onDevice = links - aniworld.toSet()
-    val pcOnly = links.isNotEmpty() && onDevice.isEmpty() // the device's own choices below don't apply
+    // and the episode appears with the PC's shows. YouTube links too when "Make it on: the PC" (remembered). The rest
+    // is made on this device.
     val pc = library.settings.server.isNotBlank() && library.settings.owner.isNotBlank()
+    var onPc by remember { mutableStateOf(library.settings.prefs.getBoolean(MAKE_ON_PC, false)) }
+    val aniworld = links.filter(::isAniWorld)
+    val pcLinks = aniworld + if (pc && onPc) links.filter { ProcessWorker.isYouTube(it) } else emptyList()
+    val onDevice = links - pcLinks.toSet()
+    val pcOnly = links.isNotEmpty() && onDevice.isEmpty() // the device's own choices below don't apply
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var pcSent by remember { mutableStateOf("") }
     var pcJobs by remember { mutableStateOf(emptyList<String>()) }
@@ -120,6 +123,15 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
         OutlinedTextField(link, { link = it }, label = { Text(tr("YouTube, TikTok, AniWorld, magnet or Real-Debrid links (one or several)")) }, maxLines = 6,
             modifier = Modifier.fillMaxWidth())
         if (links.size > 1) Text(tr("%d links", links.size), fontSize = 13.sp, color = Colors.dim)
+        if (youtube && pc) {
+            Text(tr("Make it on"), fontSize = 14.sp, color = Colors.dim)
+            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(false to tr("This device"), true to tr("The PC")).forEach { (v, label) ->
+                    androidx.compose.material3.FilterChip(selected = onPc == v, label = { Text(label) },
+                        onClick = { onPc = v; library.settings.prefs.edit().putBoolean(MAKE_ON_PC, v).apply() })
+                }
+            }
+        }
         if (youtube) {
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
             androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,7 +142,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             }
             if (ytKind != "video") OutlinedTextField(ytCount, { ytCount = it.filter(Char::isDigit).take(3) },
                 label = { Text(tr("How many (newest first)")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            if (ytKind == "shorts" || ytKind == "videos") androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            // Following runs on this device (at night), so not for the PC.
+            if ((ytKind == "shorts" || ytKind == "videos") && !(pc && onPc)) androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text(tr("Follow: new ones (and older ones not here) download by themselves, at night (Settings)"), fontSize = 14.sp,
                     modifier = Modifier.weight(1f))
                 androidx.compose.material3.Switch(checked = follow, onCheckedChange = { follow = it })
@@ -193,7 +206,10 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             Button(enabled = links.isNotEmpty() && (ready || onDevice.isEmpty()) && (pc || aniworld.isEmpty()) &&
                     !(needsRd && library.settings.rdToken.isBlank()),
                 onClick = {
-                    aniworld.forEach { l -> scope.launch { pcSent = aniworldSend(library, l, lang.code) } }
+                    pcLinks.forEach { l ->
+                        val kind = if (ProcessWorker.isYouTube(l)) ytKind else null
+                        scope.launch { pcSent = aniworldSend(library, l, lang.code, kind, ytCount.toIntOrNull()?.coerceIn(1, 200) ?: 10, height) }
+                    }
                     onDevice.forEach { l ->
                         val kind = if (ProcessWorker.isYouTube(l) && ytKind != "video") ytKind else null
                         if (follow && (kind == "shorts" || kind == "videos")) io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).add(
@@ -223,6 +239,9 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 else -> tr("%s (the device's translator)", translation)
             } + tr(" → scenes. A season (magnet) becomes one episode per file; MKV files keep their %s audio. Jobs run " +
             "one after another in the background; each episode appears on the home screen when done.", spoken), color = Colors.dim, fontSize = 13.sp)
+        if (pcLinks.size > aniworld.size) Text(tr("YouTube on the PC: it downloads the video with its own subtitles, else transcribes it " +
+            "(Parakeet; Japanese: Parakeet ja), and the episode comes to this device with the PC's shows (on Wi-Fi). " +
+            "Its name is the channel's."), color = Colors.dim, fontSize = 13.sp)
         if (aniworld.isNotEmpty()) Text(if (pc) tr("AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to " +
             "its shows, a few minutes an episode. A season link brings the whole season.", spoken)
             else tr("AniWorld links need the PC: Settings > server and whose device it is."), color = Colors.dim, fontSize = 13.sp)
@@ -232,18 +251,20 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
     }
 }
 
+private const val MAKE_ON_PC = "make_on_pc"
+
 private fun isAniWorld(link: String) = Regex("""^https://(aniworld\.to|s\.to|serienstream\.to)/""").containsMatchIn(link)
 
-/** Queues an AniWorld link on the PC; returns what to show. */
-private suspend fun aniworldSend(library: Library, url: String, lang: String): String =
-    runCatching { library.api.aniworld(url, lang); tr("Sent to the PC.") }.getOrElse { tr("The PC can't be reached: %s", it.message) }
+/** Queues an AniWorld or YouTube link ([kind]: video / shorts / videos / playlist) on the PC; returns what to show. */
+private suspend fun aniworldSend(library: Library, url: String, lang: String, kind: String? = null, count: Int = 10, height: Int = 720): String =
+    runCatching { library.api.aniworld(url, lang, kind, count, height); tr("Sent to the PC.") }.getOrElse { tr("The PC can't be reached: %s", it.message) }
 
-/** The PC's AniWorld jobs, one line each: "PC · show/staffel-2/episode-1: transcribing…". */
+/** The PC's jobs (AniWorld, YouTube), one line each: "PC · show/staffel-2/episode-1: transcribing…". */
 private suspend fun aniworldJobs(library: Library): List<String> = runCatching {
     val a = library.api.aniworldJobs()
     (0 until a.length()).map { i ->
         val j = a.getJSONObject(i)
-        "PC · ${j.getString("url").substringAfter("/stream/")}: " + when (j.getString("state")) {
+        "PC · ${j.getString("url").substringAfter("/stream/").substringAfter("youtube.com/")}: " + when (j.getString("state")) {
             "done" -> tr("done")
             "failed" -> tr("failed: %s", j.optString("error"))
             "queued" -> tr("waiting")

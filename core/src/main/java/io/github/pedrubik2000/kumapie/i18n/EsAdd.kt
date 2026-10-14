@@ -8,6 +8,11 @@ internal val esAdd: Map<String, String> = mapOf(
         "AniWorld: el PC descarga el doblaje en %s, lo transcribe (Parakeet) y lo añade a sus series, unos minutos por episodio. Un enlace de temporada trae la temporada entera.",
     "AniWorld links need the PC: Settings > server and whose device it is." to "Los enlaces de AniWorld necesitan el PC: Ajustes > servidor y de quién es el dispositivo.",
     "Sent to the PC." to "Enviado al PC.",
+    "Make it on" to "Hacerlo en",
+    "This device" to "Este dispositivo",
+    "The PC" to "El PC",
+    "YouTube on the PC: it downloads the video with its own subtitles, else transcribes it (Parakeet; Japanese: Parakeet ja), and the episode comes to this device with the PC's shows (on Wi-Fi). Its name is the channel's." to
+        "YouTube en el PC: descarga el video con sus propios subtítulos, si no lo transcribe (Parakeet; japonés: Parakeet ja), y el episodio llega a este dispositivo con las series del PC (con Wi-Fi). Su nombre es el del canal.",
     "The PC can't be reached: %s" to "No se puede conectar con el PC: %s",
     "done" to "listo",
     "failed: %s" to "falló: %s",

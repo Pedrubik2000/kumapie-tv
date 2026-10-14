@@ -172,9 +172,13 @@ class Api(private val base: String, private val person: String = "") : Backend {
     override fun wordAudio(surface: String, lang: String): String =
         url("/api/tts?w=" + java.net.URLEncoder.encode(surface.lowercase(), "UTF-8") + "&lang=$lang")
 
-    /** AniWorld / s.to links: the PC downloads, transcribes and lists them (services\feed\aniworld.py). */
-    suspend fun aniworld(link: String, lang: String) =
-        post("/api/aniworld", JSONObject().put("person", person).put("lang", lang).put("url", link).toString())
+    /**
+     * AniWorld / s.to links, and YouTube ones made on the PC ([kind]: video / shorts / videos / playlist): the PC
+     * downloads, transcribes and lists them (services\feed\aniworld.py).
+     */
+    suspend fun aniworld(link: String, lang: String, kind: String? = null, count: Int = 10, height: Int = 720) =
+        post("/api/aniworld", JSONObject().put("person", person).put("lang", lang).put("url", link)
+            .put("kind", kind ?: JSONObject.NULL).put("count", count).put("height", height).toString())
 
     suspend fun aniworldJobs() = JSONArray(get("/api/aniworld"))
 

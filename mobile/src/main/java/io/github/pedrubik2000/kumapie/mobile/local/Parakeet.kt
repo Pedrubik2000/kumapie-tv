@@ -59,9 +59,8 @@ class Parakeet(private val context: Context, val japanese: Boolean = false) {
     fun state(): Flow<String?> = AssetWorker.state(work, workName)
 
     /**
-     * Japanese: an audio file -> cues [[start, end, text]] as Jimaku's give them, one per stretch of speech (at most 8 s,
-     * cut at pauses: lines to read, and a little better than 20 s pieces in the test). No word times: Japanese words
-     * come from the splitter, as for subtitles.
+     * Japanese: an audio file -> cues [[start, end, text]] as Jimaku's give them: each stretch of speech cut into lines
+     * by [splitLines]. No word times: Japanese words come from the splitter, as for subtitles.
      */
     suspend fun cuesJa(audio: File, progress: suspend (String) -> Unit): String {
         progress(tr("Reading the audio…"))
@@ -70,15 +69,18 @@ class Parakeet(private val context: Context, val japanese: Boolean = false) {
         val cues = JSONArray()
         var shown = -1
         try {
-            speech(audio, maxSeconds = 8f) { start, pcm, done ->
+            speech(audio) { start, pcm, done ->
                 val percent = (done * 100).toInt()
                 if (percent != shown) { shown = percent; progress(tr("Transcribing on this device: %d%%", percent)) }
                 val st = rec.createStream()
                 st.acceptWaveform(pcm, 16000)
                 rec.decode(st)
-                val text = rec.getResult(st).text.trim()
+                val r = rec.getResult(st)
                 st.release()
-                if (text.isNotEmpty()) cues.put(JSONArray().put(round(start / 16000.0)).put(round((start + pcm.size) / 16000.0)).put(text))
+                val t0 = start / 16000.0
+                splitLines(r.tokens.toList(), r.timestamps.map { t0 + it }, t0 + pcm.size / 16000.0).forEach { (a, b, text) ->
+                    cues.put(JSONArray().put(round(a)).put(round(b)).put(text))
+                }
             }
         } finally {
             rec.release()
@@ -243,6 +245,40 @@ class Parakeet(private val context: Context, val japanese: Boolean = false) {
         )
         val FILES_JA = listOf("model.int8.onnx" to HF_JA + "model.int8.onnx", "tokens.txt" to HF_JA + "tokens.txt", FILES.last())
     }
+}
+
+/**
+ * One stretch of speech -> subtitle lines (start, end, text): a line ends at a sentence mark, or at 、 or a pause
+ * once it is long enough; past 7.5 s at the best place after its first 2 s, right after a particle if it can
+ * (Silero doesn't cut long speech by itself). Never before hiragana (誤|った: a word's ending). Same rule as
+ * kumapie-server's pipeline\parakeet.py.
+ */
+internal fun splitLines(tokens: List<String>, times: List<Double>, end: Double): List<Triple<Double, Double, String>> {
+    val n = tokens.size
+    fun after(i: Int) = if (i + 1 < n) times[i + 1] else end
+    fun gap(i: Int) = after(i) - times[i]
+    fun free(i: Int) = i + 1 < n && tokens[i + 1].trim().firstOrNull().let { it != null && it !in 'ぁ'..'ゖ' && it != 'ー' && it != 'っ' }
+    fun score(i: Int) = gap(i) + if (tokens[i].trim().lastOrNull()?.let { it in "はがをにでともへや" } == true) 1.0 else 0.0
+    val out = mutableListOf<Triple<Double, Double, String>>()
+    var first = 0
+    var i = 0
+    while (i < n) {
+        val dur = after(i) - times[first]
+        val tok = tokens[i].trim()
+        var cut = i + 1 == n || (dur >= 2.5 && tok in listOf("。", "？", "！", "?", "!")) ||
+            (dur >= 3.5 && (tok == "、" || (free(i) && gap(i) >= 0.75)))
+        if (!cut && dur >= 7.5) {
+            i = (first..i).filter { j -> times[j] - times[first] >= 2 && (free(j) || tokens[j].trim() == "、") }.maxByOrNull(::score) ?: i
+            cut = true
+        }
+        if (cut) {
+            val text = tokens.subList(first, i + 1).joinToString("").trim()
+            if (text.isNotEmpty()) out.add(Triple(times[first], after(i), text))
+            first = i + 1
+        }
+        i++
+    }
+    return out
 }
 
 /** Downloads Parakeet's files (resumable), each to a .part then renamed. */

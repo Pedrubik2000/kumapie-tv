@@ -61,7 +61,7 @@ class SceneController(
     /** Primed Listening: a new scene waits on its start (all its lines shown while paused) until play. */
     var pauseAtSceneStart by mutableStateOf(settings.pauseAtSceneStart)
         private set
-    /** Scenes not seen before this episode opened play straight through: no pauses, the gaps between scenes too. */
+    /** Skip nothing: the whole episode plays straight through, gaps between scenes too, no pauses (user, 2026-10-13). */
     var newStraight by mutableStateOf(settings.newStraight)
         private set
     var slow by mutableStateOf(settings.slow)
@@ -285,10 +285,9 @@ class SceneController(
         position = seconds
     }
 
-    private fun straight(s: Scene) = newStraight && !s.seen
     // A novel waits after every line until a tap, like the game: the modes don't apply.
-    private fun pausesAtStart(s: Scene) = !episode.novel && pauseAtSceneStart && !straight(s)
-    private fun pausesAtEnd(s: Scene) = episode.novel || (pauseAtSceneEnd && !straight(s))
+    private fun pausesAtStart(s: Scene) = !episode.novel && pauseAtSceneStart && !newStraight
+    private fun pausesAtEnd(s: Scene) = episode.novel || (pauseAtSceneEnd && !newStraight)
 
     private fun stopAtSceneEnd() {
         if (pausesAtEnd(scene)) {

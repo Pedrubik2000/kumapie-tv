@@ -109,8 +109,14 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
                 val item = list[page]
                 if (page == pager.settledPage) {
                     key(item.scene.id) {
+                        // The feed's episodes were read once: words marked known (or unmarked) since keep their colour.
+                        val known = library.languages.of(item.episode.lang).known
+                        val words = item.episode.words.mapValues { (k, w) ->
+                            val m = k in known.markedWords
+                            if (m == w.marked) w else w.copy(marked = m, status = if (m) "k" else known.status(k) ?: "u")
+                        }
                         ScenePlayer(library, settings, backend,
-                            item.episode.copy(scenes = listOf(item.scene), resume = item.scene.start),
+                            item.episode.copy(scenes = listOf(item.scene), resume = item.scene.start, words = words),
                             startPaused = false, onBack = onBack)
                     }
                 } else {

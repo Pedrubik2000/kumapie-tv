@@ -431,7 +431,7 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Colors.text) }
         Text("${ctl.episode.show} · ${ctl.episode.title}", color = Colors.text, fontSize = 15.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        val modes = listOfNotNull(if (ctl.newStraight) tr("new: straight") else null,
+        val modes = listOfNotNull(if (ctl.newStraight) tr("skip nothing") else null,
             if (ctl.pauseAtSceneStart) tr("primed") else null, if (ctl.pauseAtSceneEnd) null else tr("plays on"),
             if (ctl.slow) "0.75x" else null)
         if (modes.isNotEmpty()) Text(modes.joinToString(" · "), color = Colors.dim, fontSize = 13.sp,
@@ -523,7 +523,7 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OptionRow(tr("Primed Listening: pause at the start of each scene (read, then play)"), ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
         OptionRow(tr("Pause at the end of each scene"), ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
-        OptionRow(tr("Scenes I haven't seen: play straight through (no pauses, nothing skipped)"), ctl.newStraight, ctl::toggleNewStraight)
+        OptionRow(tr("Skip nothing: play the whole episode straight through (no pauses)"), ctl.newStraight, ctl::toggleNewStraight)
         OptionRow(tr("Slow (0.75x)"), ctl.slow, ctl::toggleSlow)
         if (onUpright != null) OptionRow(tr("Upright: scene by scene, swipe left"), uprightNow, onUpright)
         if (onShift != null) {

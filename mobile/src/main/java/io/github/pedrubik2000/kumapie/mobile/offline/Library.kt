@@ -124,8 +124,11 @@ class Library(context: Context, val settings: Settings) {
         }
         // The PC lists episodes made on devices too (for the TV); here they come through Sync, so only once.
         val pcOwn = pc.map { s -> s.copy(episodes = s.episodes.filterNot { LocalEpisodes.isLocal(it.id) }) }.filter { it.episodes.isNotEmpty() }
+        // A device-made show without a match of its own: the PC's poster (the PC looks every show up).
+        val pcPoster = pc.flatMap { s -> s.episodes.map { it.id to s.poster } }.toMap()
+        val mineShown = mine.map { s -> if (s.poster.isNotEmpty()) s else s.copy(poster = s.episodes.firstNotNullOfOrNull { pcPoster[it.id]?.ifEmpty { null } } ?: "") }
         val m = progress.merged
-        return (mine + pcOwn).map { s ->
+        return (mineShown + pcOwn).map { s ->
             // A "not watched" mark: the PC's own count is from before it, only the merged scenes count.
             s.copy(episodes = s.episodes.map { e -> e.copy(resume = m.pos[e.id] ?: e.resume, resumedAt = maxOf(e.resumedAt, m.posAt[e.id] ?: 0),
                 seen = if (e.id in m.unwatched) m.seenIn(e.id) else maxOf(e.seen, m.seenIn(e.id))) })

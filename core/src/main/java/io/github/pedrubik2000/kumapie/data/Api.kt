@@ -173,14 +173,54 @@ class Api(private val base: String, private val person: String = "") : Backend {
         url("/api/tts?w=" + java.net.URLEncoder.encode(surface.lowercase(), "UTF-8") + "&lang=$lang")
 
     /**
-     * AniWorld / s.to links, and YouTube ones made on the PC ([kind]: video / shorts / videos / playlist): the PC
-     * downloads, transcribes and lists them (services\feed\aniworld.py).
+     * An episode made on the PC (kumapie-server services\feed\jobs.py): [job] has "url" (AniWorld, YouTube / TikTok with
+     * "kind" and "count", a magnet or Real-Debrid link with "rd") or "upload" (sent with [upload]), and "show", "type",
+     * "height", "jimaku"; the person and [lang] are added here.
      */
-    suspend fun aniworld(link: String, lang: String, kind: String? = null, count: Int = 10, height: Int = 720) =
-        post("/api/aniworld", JSONObject().put("person", person).put("lang", lang).put("url", link)
-            .put("kind", kind ?: JSONObject.NULL).put("count", count).put("height", height).toString())
+    suspend fun makeOnPc(lang: String, job: JSONObject) = post("/api/aniworld", job.put("person", person).put("lang", lang).toString())
 
     suspend fun aniworldJobs() = JSONArray(get("/api/aniworld"))
+
+    /**
+     * A video file for [makeOnPc] as "<id>/<name>": sent [CHUNK] bytes a request from where the PC is (resumable: an
+     * empty first request answers what it has); [shown] gets how far (0..1).
+     */
+    suspend fun upload(id: String, name: String, size: Long, input: java.io.InputStream, shown: suspend (Float) -> Unit): String =
+        withContext(Dispatchers.IO) {
+            val path = "/api/aniworld/upload/$id/" + java.net.URLEncoder.encode(name, "UTF-8").replace("+", "%20")
+            fun put(offset: Long, buf: ByteArray, n: Int): Long {
+                val conn = URL(url("$path?offset=$offset&total=$size")).openConnection() as HttpURLConnection
+                conn.connectTimeout = 8_000
+                conn.readTimeout = 60_000
+                conn.requestMethod = "PUT"
+                conn.doOutput = true
+                conn.setFixedLengthStreamingMode(n)
+                try {
+                    conn.outputStream.use { it.write(buf, 0, n) }
+                    val code = conn.responseCode
+                    if (code != 200 && code != 409) throw IOException(tr("HTTP %1\$d for %2\$s", code, path))
+                    return JSONObject((if (code == 200) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }).getLong("size")
+                } finally {
+                    conn.disconnect()
+                }
+            }
+            val buf = ByteArray(CHUNK)
+            var offset = put(0, buf, 0) // what the PC has from an earlier try
+            input.use {
+                var skip = offset
+                while (skip > 0) skip -= it.skip(skip).takeIf { s -> s > 0 } ?: throw IOException("can't skip in $name")
+                while (offset < size) {
+                    shown(offset.toFloat() / size)
+                    var n = 0
+                    while (n < buf.size) { val r = it.read(buf, n, buf.size - n); if (r < 0) break; n += r }
+                    if (n == 0) throw IOException("$name ended at $offset of $size bytes")
+                    val got = put(offset, buf, n)
+                    if (got != offset + n) throw IOException("the PC has $got bytes of $name, not ${offset + n}")
+                    offset = got
+                }
+            }
+            "$id/$name"
+        }
 
     private suspend fun post(path: String, body: String): String = withContext(Dispatchers.IO) {
         val conn = URL(url(path)).openConnection() as HttpURLConnection
@@ -212,6 +252,8 @@ class Api(private val base: String, private val person: String = "") : Backend {
         }
     }
 }
+
+private const val CHUNK = 8 shl 20 // an upload request: 8 MB
 
 /** A person on the TV's "Who's watching?": [id] as the PC knows them ("giovanna"), [menu] "en" / "es". */
 data class Profile(val id: String, val name: String, val menu: String)

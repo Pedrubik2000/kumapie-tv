@@ -145,6 +145,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     }
 
     private suspend fun process(id: String, url: String, showName: String?): String {
+        if (inputData.getBoolean(PC, false)) return toPc(url, showName)
         // A YouTube channel or playlist: one job per video in it, queued after this one.
         val listKind = inputData.getString(KIND)
         if (listKind != null && !inputData.getBoolean(PART, false)) {
@@ -375,6 +376,39 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         return done
     }
 
+    /**
+     * "Make it on: the PC" (kumapie-server services\feed\jobs.py): a link goes to the PC's job queue as it is (with this
+     * device's Real-Debrid token and Jimaku key, which it needs), a video file is sent first (resumable). The episode
+     * comes back with the PC's shows. The PC transcribes with Parakeet (free); the line under it only from subtitles.
+     */
+    private suspend fun toPc(url: String, showName: String?): String {
+        val api = io.github.pedrubik2000.kumapie.data.Api(settings.server, settings.owner)
+        if (settings.server.isBlank() || settings.owner.isBlank()) error(tr("Making it on the PC needs Settings > server and whose device it is."))
+        val job = JSONObject().put("show", showName ?: "").put("type", type ?: "").put("height", height)
+            .put("kind", inputData.getString(KIND) ?: if (isYouTube(url)) "video" else JSONObject.NULL)
+            .put("count", inputData.getInt(COUNT, 10)).put("rd", settings.rdToken).put("jimaku", settings.jimakuKey)
+        val what = if (url.startsWith("content:")) {
+            val uri = Uri.parse(url)
+            val name = displayName(uri)
+            val size = applicationContext.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+                ?.use { c -> if (c.moveToFirst()) c.getLong(0) else -1L } ?: -1L
+            if (size <= 0) error(tr("Can't read %s", name))
+            val input = applicationContext.contentResolver.openInputStream(uri) ?: error(tr("Can't read %s", name))
+            job.put("upload", api.upload(idFor(url).removePrefix("local-"), name, size, input) {
+                report(tr("Sending to the PC: %d%%", (it * 100).toInt()), it)
+            })
+            name
+        } else {
+            job.put("url", url)
+            url
+        }
+        report(tr("Sending to the PC…"), 1f)
+        api.makeOnPc(lang.code, job)
+        Subscriptions(applicationContext).markSent(idFor(url))
+        shown = tr("Sent to the PC: %s", what)
+        return "Sent to the PC: $what"
+    }
+
     /** A Python call that blocks for long (download, Real-Debrid), its last progress line shown every second. */
     private suspend fun <T> ticking(progress: Float, block: () -> T): T = coroutineScope {
         val ticker = launch { while (true) { delay(1000); if (lastLine.isNotEmpty()) report(lastLine, progress) } }
@@ -571,6 +605,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         const val ENGLISH = "english"
         /** A file of a magnet / link already split into episodes. */
         const val PART = "part"
+        /** Made on the PC: the job only sends the link or the file there ([toPc]). */
+        const val PC = "pc"
         const val STAGE = "stage"
         /** A finished job's line in the menu language (STAGE stays English: Home looks for "Done"). */
         const val SHOWN = "shown"
@@ -604,18 +640,19 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
         /** Queues [url] (YouTube / magnet / Real-Debrid link / content:// file) after the jobs already waiting. */
         fun start(context: Context, url: String, show: String?, height: Int, lang: Lang, transcriber: String, english: String,
-                  kind: String? = null, count: Int = 10, type: String? = null, match: String? = null) =
+                  kind: String? = null, count: Int = 10, type: String? = null, match: String? = null, pc: Boolean = false) =
             enqueue(context, url.trim(), show, height, lang, transcriber, english, part = false, kind = kind, count = count,
-                type = type, match = match)
+                type = type, match = match, pc = pc)
 
         private fun enqueue(context: Context, url: String, show: String?, height: Int, lang: Lang, transcriber: String,
                             english: String, part: Boolean, kind: String? = null, count: Int = 10, label: String? = null,
-                            type: String? = null, match: String? = null) {
+                            type: String? = null, match: String? = null, pc: Boolean = false) {
             // A file on the device with Parakeet needs no connection.
-            val offline = url.startsWith("content:") && transcriber == "parakeet" && lang != Lang.JAPANESE && english != "soniox"
+            val offline = !pc && url.startsWith("content:") && transcriber == "parakeet" && lang != Lang.JAPANESE && english != "soniox"
             val req = OneTimeWorkRequestBuilder<ProcessWorker>()
                 .setInputData(workDataOf(URL to url, SHOW to show, HEIGHT to height, LANG to lang.code, TRANSCRIBER to transcriber,
-                    ENGLISH to english, PART to part, KIND to kind, COUNT to count, LABEL to (label ?: url), TYPE to type, MATCH to match))
+                    ENGLISH to english, PART to part, KIND to kind, COUNT to count, LABEL to (label ?: url), TYPE to type, MATCH to match,
+                    PC to pc))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(if (offline) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED).build())
                 .addTag(TAG).addTag("label:" + (label ?: url).take(120)).addTag("id:" + idFor(url)).build()
             WorkManager.getInstance(context).enqueueUniqueWork(QUEUE, ExistingWorkPolicy.APPEND_OR_REPLACE, req)

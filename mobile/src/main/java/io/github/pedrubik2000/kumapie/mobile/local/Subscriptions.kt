@@ -22,10 +22,12 @@ import java.util.concurrent.TimeUnit
  * Followed YouTube channels: their shorts or normal videos download by themselves, newest first, then older ones not
  * here yet, at most [Sub.perRun] a check and only between [Settings.subFrom] and [Settings.subTo] o'clock (night by
  * default). Kept in `subscriptions.json`; checked hourly by [SubscriptionWorker], which queues normal
- * [ProcessWorker] jobs (so they show on the Downloads page).
+ * [ProcessWorker] jobs (so they show on the Downloads page). [Sub.pc]: the jobs only send the videos to the PC, which
+ * makes them; what was sent is kept in `sent-to-pc.txt` (the episodes come back with the PC's own source).
  */
 class Subscriptions(private val context: Context) {
-    data class Sub(val url: String, val name: String, val kind: String, val lang: String, val perRun: Int, val lastCheck: Long = 0)
+    data class Sub(val url: String, val name: String, val kind: String, val lang: String, val perRun: Int, val lastCheck: Long = 0,
+                   val pc: Boolean = false)
 
     private val file = File(context.filesDir, "subscriptions.json")
 
@@ -33,17 +35,28 @@ class Subscriptions(private val context: Context) {
     fun all(): List<Sub> = runCatching {
         val a = JSONArray(file.readText())
         (0 until a.length()).map { a.getJSONObject(it).let { o ->
-            Sub(o.getString("url"), o.optString("name"), o.optString("kind", "shorts"), o.optString("lang", "de"), o.optInt("perRun", 5), o.optLong("last"))
+            Sub(o.getString("url"), o.optString("name"), o.optString("kind", "shorts"), o.optString("lang", "de"), o.optInt("perRun", 5), o.optLong("last"),
+                o.optBoolean("pc"))
         } }
     }.getOrDefault(emptyList())
 
     @Synchronized
     fun save(list: List<Sub>) = file.writeText(JSONArray(list.map {
         JSONObject().put("url", it.url).put("name", it.name).put("kind", it.kind).put("lang", it.lang).put("perRun", it.perRun).put("last", it.lastCheck)
+            .put("pc", it.pc)
     }).toString())
 
     fun add(sub: Sub) { save(all().filter { !(it.url == sub.url && it.kind == sub.kind) } + sub); SubscriptionWorker.schedule(context) }
     fun remove(sub: Sub) = save(all().filter { !(it.url == sub.url && it.kind == sub.kind) })
+
+    private val sent = File(context.filesDir, "sent-to-pc.txt")
+
+    /** Ids ([ProcessWorker.idFor]) of the videos sent to the PC to be made there. */
+    @Synchronized
+    fun sentToPc(): Set<String> = if (sent.exists()) sent.readLines().toSet() else emptySet()
+
+    @Synchronized
+    fun markSent(id: String) = sent.appendText(id + "\n")
 }
 
 /** Hourly: inside the allowed hours, each followed channel's next videos not here yet become download jobs. */
@@ -58,7 +71,7 @@ class SubscriptionWorker(context: Context, params: WorkerParameters) : Coroutine
         val yt = Python.getInstance().getModule("youtube")
         val qjs = File(applicationContext.applicationInfo.nativeLibraryDir, "libqjs.so").path
         // Videos already here or already queued (made here: their source link).
-        val have = local.entries().map { ProcessWorker.idFor(it.source) }.toMutableSet()
+        val have = (local.entries().map { ProcessWorker.idFor(it.source) } + subs.sentToPc()).toMutableSet()
         for (sub in subs.all()) runCatching {
             // Look a bit deeper than one run's share, so older videos are found once the newest are here.
             val urls = JSONArray(yt.callAttr("listing", sub.url, sub.kind, 200, qjs).toString())
@@ -69,7 +82,7 @@ class SubscriptionWorker(context: Context, params: WorkerParameters) : Coroutine
                 val id = ProcessWorker.idFor(u)
                 if (id in have || queuedIds(applicationContext).contains(id)) continue
                 ProcessWorker.start(applicationContext, u, sub.name.ifBlank { null }, settings.videoHeight, Lang.of(sub.lang),
-                    settings.transcriber, settings.englishSource)
+                    settings.transcriber, settings.englishSource, pc = sub.pc)
                 have += id
                 queued++
             }

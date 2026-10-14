@@ -249,14 +249,15 @@ class Parakeet(private val context: Context, val japanese: Boolean = false) {
 
 /**
  * One stretch of speech -> subtitle lines (start, end, text): a line ends at a sentence mark, or at 、 or a pause
- * once it is long enough; past 7.5 s at the best place after its first 2 s, right after a particle if it can
- * (Silero doesn't cut long speech by itself). Never before hiragana (誤|った: a word's ending). Same rule as
+ * once it is long enough, always at 2 s of silence (a song between words); past 7.5 s at the best place after its
+ * first 2 s, right after a particle if it can (Silero doesn't cut long speech by itself). Never before hiragana
+ * (誤|った: a word's ending). A line lasts until 1 s after its last token at most. Same rule as
  * kumapie-server's pipeline\parakeet.py.
  */
 internal fun splitLines(tokens: List<String>, times: List<Double>, end: Double): List<Triple<Double, Double, String>> {
     val n = tokens.size
-    fun after(i: Int) = if (i + 1 < n) times[i + 1] else end
-    fun gap(i: Int) = after(i) - times[i]
+    fun gap(i: Int) = (if (i + 1 < n) times[i + 1] else end) - times[i] // this token and the silence after it
+    fun after(i: Int) = times[i] + minOf(gap(i), 1.0) // this token's end
     fun free(i: Int) = i + 1 < n && tokens[i + 1].trim().firstOrNull().let { it != null && it !in 'ぁ'..'ゖ' && it != 'ー' && it != 'っ' }
     fun score(i: Int) = gap(i) + if (tokens[i].trim().lastOrNull()?.let { it in "はがをにでともへや" } == true) 1.0 else 0.0
     val out = mutableListOf<Triple<Double, Double, String>>()
@@ -265,7 +266,7 @@ internal fun splitLines(tokens: List<String>, times: List<Double>, end: Double):
     while (i < n) {
         val dur = after(i) - times[first]
         val tok = tokens[i].trim()
-        var cut = i + 1 == n || (dur >= 2.5 && tok in listOf("。", "？", "！", "?", "!")) ||
+        var cut = i + 1 == n || gap(i) >= 2 || (dur >= 2.5 && tok in listOf("。", "？", "！", "?", "!")) ||
             (dur >= 3.5 && (tok == "、" || (free(i) && gap(i) >= 0.75)))
         if (!cut && dur >= 7.5) {
             i = (first..i).filter { j -> times[j] - times[first] >= 2 && (free(j) || tokens[j].trim() == "、") }.maxByOrNull(::score) ?: i

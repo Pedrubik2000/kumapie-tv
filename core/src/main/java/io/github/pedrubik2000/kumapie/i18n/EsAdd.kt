@@ -7,13 +7,16 @@ internal val esAdd: Map<String, String> = mapOf(
     "AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to its shows, a few minutes an episode. A season link brings the whole season." to
         "AniWorld: el PC descarga el doblaje en %s, lo transcribe (Parakeet) y lo añade a sus series, unos minutos por episodio. Un enlace de temporada trae la temporada entera.",
     "AniWorld links need the PC: Settings > server and whose device it is." to "Los enlaces de AniWorld necesitan el PC: Ajustes > servidor y de quién es el dispositivo.",
-    "Sent to the PC." to "Enviado al PC.",
     "Make it on" to "Hacerlo en",
     "This device" to "Este dispositivo",
     "The PC" to "El PC",
-    "YouTube on the PC: it downloads the video with its own subtitles, else transcribes it (Parakeet; Japanese: Parakeet ja), and the episode comes to this device with the PC's shows (on Wi-Fi). Its name is the channel's." to
-        "YouTube en el PC: descarga el video con sus propios subtítulos, si no lo transcribe (Parakeet; japonés: Parakeet ja), y el episodio llega a este dispositivo con las series del PC (con Wi-Fi). Su nombre es el del canal.",
-    "The PC can't be reached: %s" to "No se puede conectar con el PC: %s",
+    "On the PC: it downloads (video files are sent there first), uses the video's own subtitles, else Jimaku's for Japanese, else transcribes it with Parakeet (free); the line under it only from subtitles. The episode comes to this device with the PC's shows, on Wi-Fi. Jobs run there one after another." to
+        "En el PC: descarga (los archivos de video se envían primero), usa los subtítulos del propio video, si no los de Jimaku para japonés, si no lo transcribe con Parakeet (gratis); la línea de abajo solo sale de subtítulos. El episodio llega a este dispositivo con las series del PC, con Wi-Fi. Los trabajos se hacen allí uno tras otro.",
+    "Making it on the PC needs Settings > server and whose device it is." to "Hacerlo en el PC necesita Ajustes > servidor y de quién es el dispositivo.",
+    "Can't read %s" to "No se puede leer %s",
+    "Sending to the PC: %d%%" to "Enviando al PC: %d%%",
+    "Sending to the PC…" to "Enviando al PC…",
+    "Sent to the PC: %s" to "Enviado al PC: %s",
     "done" to "listo",
     "failed: %s" to "falló: %s",
     "waiting" to "en espera",

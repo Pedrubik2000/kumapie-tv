@@ -523,7 +523,7 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OptionRow(tr("Primed Listening: pause at the start of each scene (read, then play)"), ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
         OptionRow(tr("Pause at the end of each scene"), ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
-        OptionRow(tr("Skip nothing: play the whole episode straight through (no pauses)"), ctl.newStraight, ctl::toggleNewStraight)
+        OptionRow(tr("Skip nothing: play the gaps between scenes too"), ctl.newStraight, ctl::toggleNewStraight)
         OptionRow(tr("Slow (0.75x)"), ctl.slow, ctl::toggleSlow)
         if (onUpright != null) OptionRow(tr("Upright: scene by scene, swipe left"), uprightNow, onUpright)
         if (onShift != null) {

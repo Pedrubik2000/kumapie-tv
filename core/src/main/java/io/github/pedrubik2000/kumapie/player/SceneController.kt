@@ -61,7 +61,7 @@ class SceneController(
     /** Primed Listening: a new scene waits on its start (all its lines shown while paused) until play. */
     var pauseAtSceneStart by mutableStateOf(settings.pauseAtSceneStart)
         private set
-    /** Skip nothing: the whole episode plays straight through, gaps between scenes too, no pauses (user, 2026-10-13). */
+    /** Skip nothing: the gaps between scenes play too and scenes don't wait on their start; Pause at scene end still pauses (user, 2026-10-14). */
     var newStraight by mutableStateOf(settings.newStraight)
         private set
     var slow by mutableStateOf(settings.slow)
@@ -158,6 +158,9 @@ class SceneController(
     fun togglePlay() {
         when {
             playing -> player.pause()
+            atSceneEnd && newStraight && !episode.novel && index < scenes.lastIndex -> { // play on through the gap into the next scene
+                atSceneEnd = false; stopAt = null; player.play(); playing = true
+            }
             atSceneEnd -> if (index < scenes.lastIndex) nextScene() else replayScene()
             else -> { stopAtSceneEnd(); player.play(); playing = true }
         }
@@ -232,7 +235,7 @@ class SceneController(
         if (scenes.isEmpty()) return
 
         if (playing && position >= scene.end) { seenNew += scene.id; seenHere += scene.id }
-        if (!pausesAtEnd(scene)) { // playing on: follow the video into the next scene
+        if (!pausesAtEnd(scene) || (newStraight && !episode.novel)) { // playing on: follow the video into the next scene
             val i = scenes.indexOfLast { it.start <= position }
             if (i > index) {
                 index = i
@@ -287,7 +290,7 @@ class SceneController(
 
     // A novel waits after every line until a tap, like the game: the modes don't apply.
     private fun pausesAtStart(s: Scene) = !episode.novel && pauseAtSceneStart && !newStraight
-    private fun pausesAtEnd(s: Scene) = episode.novel || (pauseAtSceneEnd && !newStraight)
+    private fun pausesAtEnd(s: Scene) = episode.novel || pauseAtSceneEnd
 
     private fun stopAtSceneEnd() {
         if (pausesAtEnd(scene)) {

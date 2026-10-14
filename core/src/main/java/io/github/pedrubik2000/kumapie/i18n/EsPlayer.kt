@@ -24,8 +24,8 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Primed Listening: pause at the start of each scene (read, then play)" to
         "Escucha preparada: pausa al empezar cada escena (lee y luego reproduce)",
     "Pause at the end of each scene" to "Pausa al final de cada escena",
-    "Skip nothing: play the whole episode straight through (no pauses)" to
-        "No saltar nada: el episodio entero de corrido (sin pausas)",
+    "Skip nothing: play the gaps between scenes too" to
+        "No saltar nada: también los huecos entre escenas",
     "Slow (0.75x)" to "Lento (0.75x)",
     "Upright: scene by scene, swipe left" to "Vertical: escena por escena, desliza a la izquierda",
     "Subtitle timing" to "Sincronía de subtítulos",

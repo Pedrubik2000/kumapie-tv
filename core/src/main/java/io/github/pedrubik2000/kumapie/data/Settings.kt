@@ -43,7 +43,7 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("pause_at_scene_end", true)
         set(value) = prefs.edit().putBoolean("pause_at_scene_end", value).apply()
 
-    /** Skip nothing: every scene plays straight through (gaps too, no pauses), over the two settings above. */
+    /** Skip nothing: the gaps between scenes play too and scenes don't wait on their start; pause at scene end still applies. */
     var newStraight: Boolean
         get() = prefs.getBoolean("new_straight", false)
         set(value) = prefs.edit().putBoolean("new_straight", value).apply()

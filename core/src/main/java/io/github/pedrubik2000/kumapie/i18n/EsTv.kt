@@ -14,6 +14,9 @@ internal val esTv: Map<String, String> = mapOf(
     "Scene %1\$d / %2\$d" to "Escena %1\$d / %2\$d",
     "pauses at scene end" to "pausa al final de la escena",
     "plays on" to "sigue",
+    "Scenes I haven't seen: %s" to "Escenas que no he visto: %s",
+    "straight through, nothing skipped" to "de corrido, sin saltar nada",
+    "scene by scene" to "escena por escena",
     "OK: next scene   ↑: replay line   ↓: pick a word   ←: previous" to "OK: siguiente escena   ↑: repetir   ↓: elegir una palabra   ←: anterior",
     "←→ words   ↑↓ lines   OK: show the meaning   hold OK: replay line   hold ↓: known   Back: close" to
         "←→ palabras   ↑↓ líneas   OK: ver el significado   mantener OK: repetir   mantener ↓: conocida   Atrás: cerrar",

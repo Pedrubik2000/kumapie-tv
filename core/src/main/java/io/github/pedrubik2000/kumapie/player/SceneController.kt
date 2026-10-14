@@ -129,6 +129,7 @@ class SceneController(
         } else {
             stopAtSceneEnd()
             player.play()
+            playing = true
         }
         showBanner()
     }
@@ -151,13 +152,14 @@ class SceneController(
         stopAt = minOf(cue.end + 0.25, scene.end)
         stopIsSceneEnd = stopAt == scene.end
         player.play()
+        playing = true
     }
 
     fun togglePlay() {
         when {
-            player.isPlaying -> player.pause()
+            playing -> player.pause()
             atSceneEnd -> if (index < scenes.lastIndex) nextScene() else replayScene()
-            else -> { stopAtSceneEnd(); player.play() }
+            else -> { stopAtSceneEnd(); player.play(); playing = true }
         }
         showBanner()
     }
@@ -223,7 +225,8 @@ class SceneController(
     fun tick() {
         val now = SystemClock.uptimeMillis()
         position = player.currentPosition / 1000.0
-        playing = player.isPlaying
+        // Loading counts as playing: a scene still buffering after a seek must not show paused (readable) subtitles.
+        playing = player.isPlaying || (player.playWhenReady && player.playbackState == Player.STATE_BUFFERING)
         if (playing) watchedMs += now - lastTick
         lastTick = now
         if (scenes.isEmpty()) return

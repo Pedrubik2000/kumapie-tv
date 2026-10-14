@@ -291,6 +291,9 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
             Button(onClick = ctl::togglePauseAtSceneEnd, modifier = Modifier.fillMaxWidth().focusRequester(first)) {
                 Text(tr("At the end of a scene: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")))
             }
+            Button(onClick = ctl::toggleNewStraight, modifier = Modifier.fillMaxWidth()) {
+                Text(tr("Scenes I haven't seen: %s", if (ctl.newStraight) tr("straight through, nothing skipped") else tr("scene by scene")))
+            }
             Button(onClick = ctl::toggleSlow, modifier = Modifier.fillMaxWidth()) {
                 Text(tr("Speed: %s", if (ctl.slow) "0.75x" else tr("normal")))
             }

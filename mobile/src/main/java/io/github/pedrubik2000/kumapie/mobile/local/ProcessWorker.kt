@@ -179,10 +179,12 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             return "Real-Debrid: ${files.length()} episode(s) queued".also { shown = tr("Real-Debrid: %d episode(s) queued", files.length()) }
         }
 
-        // Japanese: subtitles from Jimaku instead of a transcription (kumapie_languages_plan.md, step 4).
+        // Japanese: subtitles from Jimaku instead of a transcription (kumapie_languages_plan.md, step 4); YouTube: its own
+        // Japanese subtitles, else Parakeet ja on the device.
         val japanese = lang == Lang.JAPANESE
-        if (japanese && youtube) error(tr("Japanese episodes come from Real-Debrid or a video file (subtitles from Jimaku)."))
-        val jimakuKey = if (japanese) settings.jimakuKey.ifBlank { error(tr("Add your Jimaku API key in Settings first.")) } else ""
+        val jimakuKey = if (japanese && !youtube) settings.jimakuKey.ifBlank { error(tr("Add your Jimaku API key in Settings first.")) } else ""
+        val parakeetJa = Parakeet(applicationContext, japanese = true)
+        if (japanese && youtube && !parakeetJa.isReady) error(tr("Download the Japanese speech model (Parakeet) in Settings first."))
         if (japanese && !JapaneseModel(applicationContext).isReady) error(tr("Download the Japanese words dictionary in Settings first."))
         val parakeetHere = !japanese && transcriber == "parakeet"
         // Checked only when a transcription is needed (a video with its own subtitles needs none).
@@ -272,6 +274,10 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         } else if (japanese && inside("ja") != null) {
             synced = tr("inside the video")
             py.getModule("jimaku").callAttr("cues", inside("ja")!!.path, "ja").toString()
+        } else if (japanese && youtube) {
+            val kept = File(dir, "cues.json") // a retry after a later step failed: no second transcription
+            if (!kept.exists()) kept.writeText(parakeetJa.cuesJa(audio) { report(it, 0.55f) })
+            kept.readText()
         } else if (japanese) {
             report(tr("Finding Japanese subtitles on Jimaku…"), 0.45f)
             val jm = py.getModule("jimaku")

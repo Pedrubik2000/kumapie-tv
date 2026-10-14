@@ -393,6 +393,10 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
     val parakeetState by remember { parakeet.state() }.collectAsState(initial = null)
     var parakeetReady by remember { mutableStateOf(parakeet.isReady) }
     LaunchedEffect(parakeetState) { parakeetReady = parakeet.isReady }
+    val parakeetJa = remember { io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context, japanese = true) }
+    val parakeetJaState by remember { parakeetJa.state() }.collectAsState(initial = null)
+    var parakeetJaReady by remember { mutableStateOf(parakeetJa.isReady) }
+    LaunchedEffect(parakeetJaState) { parakeetJaReady = parakeetJa.isReady }
     val gemma = remember { io.github.pedrubik2000.kumapie.mobile.local.Gemma(context) }
     val gemmaState by remember { gemma.state() }.collectAsState(initial = null)
     var gemmaReady by remember { mutableStateOf(gemma.isReady) }
@@ -417,6 +421,13 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
         singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
     if ("ja" in learning) OutlinedTextField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, label = { Text(tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles")) },
         singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+    // Japanese YouTube without Japanese subtitles: transcribed on the device.
+    if ("ja" in learning) when {
+        parakeetJaReady -> Text(tr("Japanese YouTube: Parakeet ja ready (free, offline). About 1 character in 6 differs from people's subtitles."),
+            fontSize = 13.sp, color = Colors.dim)
+        parakeetJaState != null -> Text(tr("Parakeet ja: %s", parakeetJaState), fontSize = 13.sp, color = Colors.dim)
+        else -> OutlinedButton(onClick = { parakeetJa.download() }) { Text(tr("Download Parakeet ja for Japanese YouTube (about 655 MB, once)")) }
+    }
     Text(tr("%s subtitles", tr(io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationName)), fontSize = 15.sp)
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

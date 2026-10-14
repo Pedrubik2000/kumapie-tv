@@ -61,6 +61,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
     // The job's choices, offered only when they can work (keys and downloads are in Settings); the last ones are remembered.
     val sonioxKey = library.settings.sonioxKey.isNotBlank()
     val parakeetReady = remember { io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context).isReady }
+    val parakeetJaReady = remember { io.github.pedrubik2000.kumapie.mobile.local.Parakeet(context, japanese = true).isReady }
     val gemmaDownloaded = remember { Gemma(context).isReady }
     var transcriber by remember { mutableStateOf(library.settings.transcriber) }
     var english by remember { mutableStateOf(library.settings.englishSource) }
@@ -101,7 +102,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
         }
     }
     val ready = gemmaReady && when {
-        japanese -> library.languages.japanese.model.isReady && library.settings.jimakuKey.isNotBlank()
+        japanese -> library.languages.japanese.model.isReady && (if (youtube) parakeetJaReady else library.settings.jimakuKey.isNotBlank())
         parakeet -> library.languages.of(lang).model.isReady && parakeetReady
         else -> library.languages.of(lang).model.isReady && sonioxKey
     }
@@ -180,7 +181,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             fontSize = 12.sp, color = Colors.dim)
         if (!gemmaReady) Text(tr("First: Settings > download the translation model (Gemma), or pick another %s source.", translation),
             color = Colors.unknown, fontSize = 14.sp)
-        else if (!ready && japanese) Text(tr("First: Settings > the Japanese words dictionary, and your Jimaku API key."),
+        else if (!ready && japanese) Text(if (youtube) tr("First: Settings > the Japanese words dictionary, and Parakeet ja.")
+            else tr("First: Settings > the Japanese words dictionary, and your Jimaku API key."),
             color = Colors.unknown, fontSize = 14.sp)
         else if (!ready) Text(if (parakeet) tr("First: Settings > the %s model and the speech model (Parakeet).", spoken)
             else tr("First: Settings > the %s model, and your Soniox key.", spoken), color = Colors.unknown, fontSize = 14.sp)
@@ -205,7 +207,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
         }
         val noEnglish = englishNow == "none"
         if (pcOnly) Unit
-        else if (japanese) Text(tr("Download → Japanese subtitles from Jimaku, fitted to the audio → ") + when {
+        else if (japanese) Text((if (youtube) tr("Download → the video's Japanese subtitles, else Parakeet ja on this device (free) → ")
+            else tr("Download → Japanese subtitles from Jimaku, fitted to the audio → ")) + when {
                 noEnglish -> tr("no %s (Settings)", translation)
                 gemma -> tr("%s (Gemma on this device, about 3 s a line)", translation)
                 else -> tr("%s (the device's translator)", translation)

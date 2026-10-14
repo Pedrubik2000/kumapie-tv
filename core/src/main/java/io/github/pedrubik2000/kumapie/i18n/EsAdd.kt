@@ -68,8 +68,6 @@ internal val esAdd: Map<String, String> = mapOf(
     "Add your Real-Debrid token in Settings first." to "Primero agrega tu token de Real-Debrid en Ajustes.",
     "Asking Real-Debrid…" to "Consultando Real-Debrid…",
     "Real-Debrid: %d episode(s) queued" to "Real-Debrid: %d episodio(s) en cola",
-    "Japanese episodes come from Real-Debrid or a video file (subtitles from Jimaku)." to
-        "Los episodios en japonés vienen de Real-Debrid o de un archivo de video (subtítulos de Jimaku).",
     "Add your Jimaku API key in Settings first." to "Primero agrega tu clave de API de Jimaku en Ajustes.",
     "Download the Japanese words dictionary in Settings first." to "Primero descarga el diccionario de palabras japonesas en Ajustes.",
     "Add your Soniox key in Settings first." to "Primero agrega tu clave de Soniox en Ajustes.",
@@ -107,6 +105,11 @@ internal val esAdd: Map<String, String> = mapOf(
     "Transcribing on this device: %d%%" to "Transcribiendo en este dispositivo: %d%%",
     "File %1\$d of %2\$d" to "Archivo %1\$d de %2\$d",
     "the speech model (Parakeet)" to "el modelo de voz (Parakeet)",
+    "the Japanese speech model (Parakeet)" to "el modelo de voz japonés (Parakeet)",
+    "Download the Japanese speech model (Parakeet) in Settings first." to "Primero descarga el modelo de voz japonés (Parakeet) en Ajustes.",
+    "First: Settings > the Japanese words dictionary, and Parakeet ja." to "Primero: Ajustes > el diccionario de palabras japonesas y Parakeet ja.",
+    "Download → the video's Japanese subtitles, else Parakeet ja on this device (free) → " to
+        "Descarga → los subtítulos japoneses del video, si no Parakeet ja en este dispositivo (gratis) → ",
     "the translation model (Gemma)" to "el modelo de traducción (Gemma)",
     " (to the video's English subtitles)" to " (con los subtítulos en inglés del video)",
     " (one offset: parts looked like songs)" to " (un solo desfase: algunas partes parecían canciones)",

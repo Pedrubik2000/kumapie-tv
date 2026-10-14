@@ -11,7 +11,9 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
+import com.k2fsa.sherpa.onnx.OfflineNemoEncDecCtcModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OfflineTransducerModelConfig
@@ -36,18 +38,55 @@ var Settings.transcriber: String
  * new episodes. Tested on the Tab S7+ with a 60 s German Short: 10x faster than real time, 11.8 % of words different
  * from Soniox (which stays the most accurate). Files (~640 MB) come once from Hugging Face; Silero VAD splits the
  * audio at pauses.
+ *
+ * [japanese]: NVIDIA's Parakeet TDT-CTC 0.6B ja (CTC head, int8; CC-BY-4.0) for Japanese YouTube, its own ~655 MB. The best
+ * free model in a 2026-10-14 test on Japanese YouTube with human captions (16 % of characters different; Kitsune, ReazonSpeech
+ * and SenseVoice did worse).
  */
-class Parakeet(private val context: Context) {
-    val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, "models/parakeet")
-    val isReady: Boolean get() = FILES.all { File(dir, it.first).exists() }
+class Parakeet(private val context: Context, val japanese: Boolean = false) {
+    val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, if (japanese) "models/parakeet-ja" else "models/parakeet")
+    private val files get() = if (japanese) FILES_JA else FILES
+    val isReady: Boolean get() = files.all { File(dir, it.first).exists() }
     private val work get() = WorkManager.getInstance(context)
+    private val workName get() = if (japanese) "$WORK-ja" else WORK
 
     fun download() {
-        work.enqueueUniqueWork(WORK, ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<ParakeetWorker>()
+        work.enqueueUniqueWork(workName, ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<ParakeetWorker>()
+            .setInputData(workDataOf(JA to japanese))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build())
     }
 
-    fun state(): Flow<String?> = AssetWorker.state(work, WORK)
+    fun state(): Flow<String?> = AssetWorker.state(work, workName)
+
+    /**
+     * Japanese: an audio file -> cues [[start, end, text]] as Jimaku's give them, one per stretch of speech (at most 8 s,
+     * cut at pauses: lines to read, and a little better than 20 s pieces in the test). No word times: Japanese words
+     * come from the splitter, as for subtitles.
+     */
+    suspend fun cuesJa(audio: File, progress: suspend (String) -> Unit): String {
+        progress(tr("Reading the audio…"))
+        val rec = OfflineRecognizer(null, OfflineRecognizerConfig(modelConfig = OfflineModelConfig(
+            nemo = OfflineNemoEncDecCtcModelConfig(model = f("model")), tokens = f("tokens.txt"), numThreads = 4, modelType = "nemo_ctc")))
+        val cues = JSONArray()
+        var shown = -1
+        try {
+            speech(audio, maxSeconds = 8f) { start, pcm, done ->
+                val percent = (done * 100).toInt()
+                if (percent != shown) { shown = percent; progress(tr("Transcribing on this device: %d%%", percent)) }
+                val st = rec.createStream()
+                st.acceptWaveform(pcm, 16000)
+                rec.decode(st)
+                val text = rec.getResult(st).text.trim()
+                st.release()
+                if (text.isNotEmpty()) cues.put(JSONArray().put(round(start / 16000.0)).put(round((start + pcm.size) / 16000.0)).put(text))
+            }
+        } finally {
+            rec.release()
+        }
+        return cues.toString()
+    }
+
+    private fun round(t: Double) = "%.3f".format(java.util.Locale.ROOT, t).toDouble()
 
     /**
      * An audio file (any format Android decodes) -> the same JSON the Soniox path gives newepisode.cues:
@@ -99,10 +138,10 @@ class Parakeet(private val context: Context) {
      * [audio]'s speech stretches (start sample, 16 kHz samples) of at most 20 s, cut at pauses (Silero VAD), handed to
      * [onSpeech] with the share of the audio read so far, while decoding.
      */
-    internal suspend fun speech(audio: File, vadModel: File = File(dir, "silero_vad.onnx"),
+    internal suspend fun speech(audio: File, vadModel: File = File(dir, "silero_vad.onnx"), maxSeconds: Float = 20f,
                                 onSpeech: suspend (start: Int, pcm: FloatArray, done: Float) -> Unit) {
         val vad = Vad(null, VadModelConfig(sileroVadModelConfig = SileroVadModelConfig(model = vadModel.path,
-            threshold = 0.5f, minSilenceDuration = 0.3f, minSpeechDuration = 0.25f, windowSize = 512, maxSpeechDuration = 20f),
+            threshold = 0.5f, minSilenceDuration = 0.3f, minSpeechDuration = 0.25f, windowSize = 512, maxSpeechDuration = maxSeconds),
             sampleRate = 16000, numThreads = 1))
         try {
             var done = 0f
@@ -190,6 +229,8 @@ class Parakeet(private val context: Context) {
 
     companion object {
         private const val WORK = "parakeet-model"
+        internal const val JA = "ja"
+        private const val HF_JA = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt_ctc-0.6b-ja-35000-int8/resolve/main/"
         private const val BLOCK = 512 * 1024 // ~33 s
         private const val HF = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/"
         /** (file, URL): the model from Hugging Face, Silero VAD from sherpa-onnx's releases. */
@@ -200,22 +241,24 @@ class Parakeet(private val context: Context) {
             "tokens.txt" to HF + "tokens.txt",
             "silero_vad.onnx" to "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
         )
+        val FILES_JA = listOf("model.int8.onnx" to HF_JA + "model.int8.onnx", "tokens.txt" to HF_JA + "tokens.txt", FILES.last())
     }
 }
 
 /** Downloads Parakeet's files (resumable), each to a .part then renamed. */
 class ParakeetWorker(context: Context, params: WorkerParameters) : AssetWorker(context, params) {
-    private val parakeet = Parakeet(context)
-    override val what = tr("the speech model (Parakeet)")
-    override val notificationId = 996
+    private val parakeet = Parakeet(context, params.inputData.getBoolean(Parakeet.JA, false))
+    override val what = if (parakeet.japanese) tr("the Japanese speech model (Parakeet)") else tr("the speech model (Parakeet)")
+    override val notificationId = if (parakeet.japanese) 997 else 996
 
     override suspend fun run() {
         parakeet.dir.mkdirs()
-        Parakeet.FILES.forEachIndexed { i, (name, url) ->
+        val files = if (parakeet.japanese) Parakeet.FILES_JA else Parakeet.FILES
+        files.forEachIndexed { i, (name, url) ->
             val out = File(parakeet.dir, name)
             if (out.exists()) return@forEachIndexed
             val part = File(parakeet.dir, "$name.part")
-            report(tr("File %1\$d of %2\$d", i + 1, Parakeet.FILES.size), i.toFloat() / Parakeet.FILES.size)
+            report(tr("File %1\$d of %2\$d", i + 1, files.size), i.toFloat() / files.size)
             fetch(url, part, share = 1f)
             part.renameTo(out)
         }

@@ -111,6 +111,10 @@ internal val esSettings: Map<String, String> = mapOf(
         "Parakeet: listo. Más errores que Soniox (alrededor de 1 palabra de cada 9 cambió en una prueba).",
     "Parakeet: %s" to "Parakeet: %s",
     "Download Parakeet (about 640 MB, once)" to "Descargar Parakeet (unos 640 MB, una vez)",
+    "Japanese YouTube: Parakeet ja ready (free, offline). About 1 character in 6 differs from people's subtitles." to
+        "YouTube en japonés: Parakeet ja listo (gratis, sin conexión). Cerca de 1 carácter de cada 6 difiere de los subtítulos hechos por personas.",
+    "Parakeet ja: %s" to "Parakeet ja: %s",
+    "Download Parakeet ja for Japanese YouTube (about 655 MB, once)" to "Descargar Parakeet ja para YouTube en japonés (unos 655 MB, una vez)",
     "Soniox API key" to "Clave API de Soniox",
     "Real-Debrid token (real-debrid.com/apitoken)" to "Token de Real-Debrid (real-debrid.com/apitoken)",
     "Jimaku API key (jimaku.cc > Account), Japanese subtitles" to "Clave API de Jimaku (jimaku.cc > Account), subtítulos en japonés",

@@ -349,28 +349,35 @@ data class Word(
     val card: String? = null,
     /**
      * Japanese: each way the episode writes this word (届いた, 届かない for 届く) -> its own card's state as in [card],
-     * "" while kuma3's queue isn't known. The subtitles colour each by its own card ([shownFor]).
+     * "" while kuma3's queue isn't known. Only a fallback when the dictionary form has no card ([formCard]).
      */
     val forms: Map<String, String>? = null,
 ) {
     /** The colour to draw: white when marked known, else [card]'s when known ("n" draws like "u"), else [status]. */
     val shown: String get() = if (marked) "k" else when (card) { null -> status; "n" -> "u"; else -> card }
 
-    /** The colour of the word written as [text] in a subtitle: marked known white, its own form's card (Japanese), else [shown]. */
+    /**
+     * Japanese: the card that colours [text]: the dictionary form's (躱し by 躱す, user 2026-10-13), else the written form's
+     * own (a card mined as 届いた); null for [card].
+     */
+    fun formCard(text: String): String? =
+        if (card != null && card != "u") null else forms?.get(text)?.takeIf { it.isNotEmpty() }
+
+    /** The colour of the word written as [text] in a subtitle: marked known white, else [shown] by [formCard]. */
     fun shownFor(text: String): String =
-        if (marked) "k" else forms?.get(text)?.takeIf { it.isNotEmpty() }?.let { if (it == "n") "u" else it } ?: shown
+        if (marked) "k" else formCard(text)?.let { if (it == "n") "u" else it } ?: shown
 }
 
 /**
  * A scene's level (i+N), null when it isn't in the target language: its different words drawn red ([Word.shownFor]:
- * no card of their own or new / learning, not marked known; without card states, never studied). Words with written
- * forms (Japanese) count by the form written: 届いた and 届く are two.
+ * no card of their own or new / learning, not marked known; without card states, never studied). Japanese counts by
+ * dictionary form: 届いた and 届く are one.
  */
 fun levelOf(scene: Scene, words: Map<String, Word>): Int? = if (!scene.target) null else unknownIn(scene.cues, words)
 
 /** The different red words of [cues] ([levelOf]'s count; "Cards that don't stick" orders sentences by it). */
 fun unknownIn(cues: List<Cue>, words: Map<String, Word>): Int = cues.flatMap { it.segments }
-    .mapNotNull { seg -> seg.word?.let { k -> words[k]?.takeIf { it.shownFor(seg.text).let { s -> s == "u" || s == "b" } }?.let { w -> if (w.forms != null) seg.text else k } } }
+    .mapNotNull { seg -> seg.word?.let { k -> words[k]?.takeIf { it.shownFor(seg.text).let { s -> s == "u" || s == "b" } }?.let { k } } }
     .toSet().size
 
 fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }

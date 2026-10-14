@@ -7,7 +7,7 @@ import io.github.pedrubik2000.kumapie.data.unknownIn
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** Scene levels by card colours (plan step 5): red words count, each once; Japanese by the form written. */
+/** Scene levels by card colours (plan step 5): red words count, each once; Japanese by dictionary form. */
 class LevelTest {
     private fun cue(vararg segs: Pair<String, String?>) = Cue(0.0, 1.0, segs.map { Segment(it.first, it.second) })
 
@@ -27,6 +27,9 @@ class LevelTest {
     @Test fun japanese() {
         val words = mapOf("届く" to Word("u", "", card = "k", forms = mapOf("届いた" to "u", "届く" to "k", "届かない" to "n")))
         val c = cue("届いた" to "届く", "届く" to "届く", "届かない" to "届く", "届いた" to "届く")
-        assertEquals(2, unknownIn(listOf(c), words)) // 届いた and 届かない; 届く has its card
+        assertEquals(0, unknownIn(listOf(c), words)) // all coloured by 届く's card
+        // No card for 躱す: a card mined as 躱した colours only that form; the rest counts once.
+        val noLemma = mapOf("躱す" to Word("u", "", card = "u", forms = mapOf("躱した" to "k", "躱し" to "u", "躱す" to "u")))
+        assertEquals(1, unknownIn(listOf(cue("躱した" to "躱す", "躱し" to "躱す", "躱す" to "躱す")), noLemma))
     }
 }

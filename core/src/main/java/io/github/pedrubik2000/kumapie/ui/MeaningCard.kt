@@ -76,8 +76,8 @@ fun MeaningCard(
             // With the dictionaries the footer starts at the word chips and header (user, 2026-10-13): no title or status here.
             if (ownMeaning) {
                 if (def != null) DefinitionParts(ctl, picker, segment.text, def, onTapDef) else ShortMeaning(ctl, key, segment.text, word)
-                // Japanese: the tapped form's own card (届いた), not its dictionary form's (届く), as the subtitle colours it.
-                val (status, color) = statusLine(word.forms?.get(segment.text)?.takeIf { it.isNotEmpty() }?.let { word.copy(card = it) } ?: word)
+                // Japanese: the card that colours the tapped form ([Word.formCard]), as the subtitle does.
+                val (status, color) = statusLine(word.formCard(segment.text)?.let { word.copy(card = it) } ?: word)
                 Text(status + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
             }
             // The word picked inside the German definition: its own short meaning and status.

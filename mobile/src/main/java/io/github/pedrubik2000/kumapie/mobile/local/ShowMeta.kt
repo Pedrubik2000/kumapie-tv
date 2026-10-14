@@ -38,7 +38,7 @@ class ShowMeta(private val context: Context) {
         local.setKind(showId, kind)
     }
 
-    /** The pick's details as `meta.json` + `poster.jpg` in [dir] (a show's, a manga series'). */
+    /** The pick's details as `meta.json` + `poster.jpg` in [dir]. */
     fun save(dir: File, source: String, id: String, langs: List<String>) {
         val py = py()
         val d = JSONObject(py.getModule("json").callAttr("dumps",

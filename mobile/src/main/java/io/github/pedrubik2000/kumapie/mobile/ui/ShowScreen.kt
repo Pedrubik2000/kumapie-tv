@@ -339,8 +339,7 @@ private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, sta
 internal fun MatchDialog(meta: io.github.pedrubik2000.kumapie.mobile.local.ShowMeta, startKind: String, startQuery: String, title: String,
                          onPick: suspend (String, org.json.JSONObject) -> Unit, onDismiss: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val kinds = if (startKind == "manga") listOf("manga" to tr("Manga"))
-        else listOf("anime" to tr("Anime"), "shows" to tr("Shows"), "movies" to tr("Movies"), "visual_novels" to tr("Visual novels"))
+    val kinds = listOf("anime" to tr("Anime"), "shows" to tr("Shows"), "movies" to tr("Movies"), "visual_novels" to tr("Visual novels"))
     var kind by remember { mutableStateOf(startKind.takeIf { k -> kinds.any { it.first == k } } ?: "shows") }
     var query by remember { mutableStateOf(startQuery) }
     var found by remember { mutableStateOf<List<org.json.JSONObject>?>(null) }

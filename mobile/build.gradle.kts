@@ -1,5 +1,3 @@
-import java.security.MessageDigest
-import java.util.zip.ZipFile
 
 plugins {
     id("com.android.application")
@@ -110,44 +108,11 @@ if (!sherpaAar.exists()) {
     sherpaAar.writeBytes(url.readBytes())
 }
 
-// Manga OCR (read/MangaOcr.kt) runs ONNX Runtime's Java API on the libonnxruntime.so sherpa-onnx ships (1.28.2, its
-// symbols tagged VERS_1.28.2), so the Java bridge (libonnxruntime4j_jni.so) must be built for that very version: it comes
-// from the zip sherpa-onnx builds from (csukuangfj/onnxruntime-libs). Maven's newest is 1.28.0: only its Java classes are
-// used (same API). Fetched once into build/, checksums pinned. Moving sherpa-onnx to another ONNX Runtime means moving
-// ortVersion with it (the device log says "cannot locate symbol OrtGetApiBase" otherwise).
-val ortVersion = "1.28.2"
-fun fetch(url: String, to: File, sha256: String) {
-    if (to.exists()) return
-    val bytes = uri(url).toURL().readBytes()
-    val got = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-    check(got == sha256) { "$url: SHA-256 $got, expected $sha256" }
-    to.parentFile.mkdirs()
-    to.writeBytes(bytes)
-}
-fun unzip(zip: File, entry: String, to: File) {
-    if (to.exists()) return
-    to.parentFile.mkdirs()
-    ZipFile(zip).use { z -> to.writeBytes(z.getInputStream(z.getEntry(entry)).readBytes()) }
-}
-val ortZip = layout.buildDirectory.file("libs/onnxruntime-android-$ortVersion.zip").get().asFile
-fetch("https://github.com/csukuangfj/onnxruntime-libs/releases/download/v$ortVersion/onnxruntime-android-$ortVersion.zip", ortZip,
-    "01518867f78241138b6aa25925802e843a4fa9085af8d303d49e35bbb52aff4d")
-val ortJniLibs = layout.buildDirectory.dir("ortjni").get().asFile
-unzip(ortZip, "jni/arm64-v8a/libonnxruntime4j_jni.so", File(ortJniLibs, "arm64-v8a/libonnxruntime4j_jni.so"))
-val ortAar = layout.buildDirectory.file("libs/onnxruntime-android-1.28.0.aar").get().asFile
-fetch("https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.28.0/onnxruntime-android-1.28.0.aar", ortAar,
-    "f351a0638696f54b35184290dbc001d66daae17281ad0b548d2c70347d53b8a9")
-val ortClasses = layout.buildDirectory.file("libs/onnxruntime-java-1.28.0.jar").get().asFile
-unzip(ortAar, "classes.jar", ortClasses)
-android.sourceSets.getByName("main").jniLibs.srcDir(ortJniLibs)
-
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.json:json:20240303") // Android's org.json is a stub in plain JVM tests (MangaTest)
     implementation(project(":core"))
     implementation(project(":lang")) // the language layer (Languages)
     implementation(files(sherpaAar))
-    implementation(files(ortClasses)) // manga OCR: ONNX Runtime's Java API (its bridge and runtime: see ortVersion)
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
     implementation("androidx.activity:activity-compose:1.13.0")

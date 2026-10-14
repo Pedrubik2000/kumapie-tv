@@ -14,7 +14,6 @@ import androidx.work.WorkerParameters
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.data.Settings
-import io.github.pedrubik2000.kumapie.mobile.read.Books
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -123,8 +122,6 @@ class Sync(private val context: Context) {
             runCatching { download(base, e, video = false); add(onPc, id); if (id !in skip) done += "↓ ${e.getString("title")}" }
                 .onFailure { Log.w("kumapie", "sync down $id: $it") }
         }
-        done += runCatching { runBooks(server, owner, gone?.let { g -> (0 until g.length()).map { g.getString(it) }.toSet() }.orEmpty()) }
-            .onFailure { Log.w("kumapie", "sync books: $it") }.getOrDefault(emptyList())
         return done
     }
 
@@ -166,46 +163,6 @@ class Sync(private val context: Context) {
                 offset = JSONObject(String(c.inputStream.use { it.readBytes() })).getLong("size")
             }
         }
-    }
-
-    /**
-     * Books and manga (book_sync.py on the PC): the ones added here go up (pages, then book.json with "done"); the
-     * ones on the PC that aren't here come down as their book.json only (pages read from the PC, or "Download").
-     */
-    private fun runBooks(server: String, owner: String, gone: Set<String>): List<String> {
-        val base = "$server/api/sync/$owner/books"
-        val books = Books(context)
-        val done = ArrayList<String>()
-        for (id in gone) books.load(id)?.let { books.delete(id); done += "✕ ${it.title}" }
-        for (b in books.all()) {
-            if (books.onPc(b.id) || books.missing(b).isNotEmpty()) continue
-            runCatching {
-                val url = "$base/${b.id}"
-                val got = JSONObject(String(open("$url/status").inputStream.use { it.readBytes() }))
-                b.pages.orEmpty().forEachIndexed { i, p ->
-                    progress("↑ ${b.title}", i.toFloat() / b.pages!!.size)
-                    put("$url/${p.image}", File(b.dir, p.image), got.optLong(p.image, 0L))
-                }
-                val meta = JSONObject().put("title", b.title).put("series", Books.seriesOf(b.title)).put("lang", b.lang.code)
-                    .put("book", JSONObject(File(b.dir, "book.json").readText()))
-                val c = open("$url/done", "POST")
-                c.doOutput = true
-                c.setRequestProperty("Content-Type", "application/json")
-                c.outputStream.use { it.write(meta.toString().toByteArray()) }
-                if (c.responseCode != 200) throw IOException("upload done: HTTP ${c.responseCode}")
-                books.markOnPc(b.id)
-                done += "↑ ${b.title}"
-            }.onFailure { Log.w("kumapie", "sync book up ${b.id}: $it") }
-        }
-        val list = JSONArray(String(open(base).inputStream.use { it.readBytes() }))
-        for (i in 0 until list.length()) {
-            val e = list.getJSONObject(i)
-            val id = e.getString("id")
-            if (books.has(id) || id in gone) { if (books.has(id)) books.markOnPc(id); continue }
-            runCatching { books.fetchBook("$base/$id", id); done += "↓ ${e.getString("title")}" }
-                .onFailure { Log.w("kumapie", "sync book down $id: $it") }
-        }
-        return done
     }
 
     /** "Download" on an episode that streams from the PC: its video here, so it plays offline (and is kept). */

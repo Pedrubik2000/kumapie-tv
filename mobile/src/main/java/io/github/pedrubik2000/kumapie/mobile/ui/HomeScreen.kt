@@ -19,12 +19,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.Home
@@ -88,7 +85,7 @@ private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "
 fun io.github.pedrubik2000.kumapie.data.Settings.learning(): Set<String> =
     prefs.getStringSet("learning", null)?.takeIf { it.isNotEmpty() } ?: io.github.pedrubik2000.kumapie.data.Lang.ALL.map { it.code }.toSet()
 
-private class Dest(val icon: ImageVector, val label: String, val go: () -> Unit, val badge: Int = 0, val section: String? = null)
+private class Dest(val icon: ImageVector, val label: String, val go: () -> Unit, val badge: Int = 0)
 
 /**
  * Home: the language switch, then rows of posters (streaming-app style): "Continue watching", then one row per category.
@@ -108,12 +105,6 @@ fun HomeScreen(
     onSettings: () -> Unit,
     onSearch: () -> Unit = {},
     onDownloads: () -> Unit = {},
-    books: io.github.pedrubik2000.kumapie.mobile.read.Books,
-    /** What Home shows, the rail keeping its place: "home", "books", "manga" or "manga/<series>". */
-    section: String = "home",
-    onSection: (String) -> Unit = {},
-    /** A book or manga volume: the reader. */
-    onRead: (String) -> Unit = {},
     /** An episode of "Continue watching": straight to the player, where it was left. */
     onPlay: (Show, Episode) -> Unit = { s, _ -> onShow(s) },
     /** The language Home, the feed and i+1 show ([io.github.pedrubik2000.kumapie.data.Lang.code]). */
@@ -148,15 +139,7 @@ fun HomeScreen(
             .onFailure { error = it.message ?: it.toString() }
     }
 
-    androidx.activity.compose.BackHandler(enabled = section != "home") { onSection(if (section.startsWith("manga/")) "manga" else "home") }
-    val shelf = section.substringBefore('/')
-    val series = section.substringAfter("manga/", "").ifEmpty { null }
-    val title = series ?: when (shelf) { "books" -> tr("Books"); "manga" -> tr("Manga"); else -> null }
-    val back = if (series != null) ({ onSection("manga") }) else null
     val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
-    // A manga series: full screen, like a show.
-    if (series != null) return MangaSeriesScreen(books, io.github.pedrubik2000.kumapie.data.Lang.of(homeLang), series,
-        onBack = { onSection("manga") }, onOpen = onRead)
     val main = listOf(
         Dest(Icons.Default.Swipe, tr("Feed"), onFeed),
         Dest(Icons.Default.AutoAwesome, tr("i+1 scenes"), onIPlusOne),
@@ -167,8 +150,6 @@ fun HomeScreen(
         Dest(Icons.Default.BarChart, tr("Stats"), onStats),
         Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove),
         Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch).takeIf { homeLang == "ja" },
-        Dest(Icons.Default.Book, tr("Books"), { onSection("books") }, section = "books"),
-        Dest(Icons.Default.AutoStories, tr("Manga"), { onSection("manga") }, section = "manga").takeIf { homeLang == "ja" }, // the OCR model reads Japanese
         Dest(Icons.Default.Settings, tr("Settings"), onSettings),
     )
 
@@ -185,9 +166,6 @@ fun HomeScreen(
             }
             Box(Modifier.fillMaxSize()) {
                 when {
-                    // On the device: no PC needed.
-                    shelf == "books" -> BooksShelf(books, io.github.pedrubik2000.kumapie.data.Lang.of(lang), posterWidth(wide), onRead)
-                    shelf == "manga" -> MangaShelf(books, io.github.pedrubik2000.kumapie.data.Lang.of(lang), posterWidth(wide), onSeries = { onSection(if (it == null) "manga" else "manga/$it") }, onOpen = onRead)
                     error != null && shows == null -> Column(Modifier.align(Alignment.Center).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(tr("Can't reach the PC"), fontSize = 20.sp)
@@ -205,18 +183,18 @@ fun HomeScreen(
         NavigationRail(header = {
             FloatingActionButton(onClick = { adding = true }, modifier = Modifier.padding(vertical = 8.dp)) { Icon(Icons.Default.Add, tr("Add an episode")) }
         }) {
-            NavigationRailItem(selected = shelf == "home", onClick = { onSection("home") }, icon = { Icon(Icons.Default.Home, null) }, label = { Text(tr("Home")) })
+            NavigationRailItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, null) }, label = { Text(tr("Home")) })
             (main + extra).forEach { d ->
-                NavigationRailItem(selected = d.section == shelf, onClick = d.go, label = { Text(d.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                NavigationRailItem(selected = false, onClick = d.go, label = { Text(d.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     icon = { BadgedBox(badge = { if (d.badge > 0) Badge { Text("${d.badge}") } }) { Icon(d.icon, d.label) } })
             }
         }
-        Scaffold(topBar = { HomeBar(offline, title, back) { attempt++ } }) { content(it) }
+        Scaffold(topBar = { HomeBar(offline) { attempt++ } }) { content(it) }
     } else Scaffold(
-        topBar = { HomeBar(offline, title, back, onAdd = { adding = true }) { attempt++ } },
+        topBar = { HomeBar(offline, onAdd = { adding = true }) { attempt++ } },
         bottomBar = {
             NavigationBar {
-                NavigationBarItem(selected = shelf == "home", onClick = { onSection("home") }, icon = { Icon(Icons.Default.Home, null) }, label = { Text(tr("Home")) })
+                NavigationBarItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, null) }, label = { Text(tr("Home")) })
                 main.forEach { d ->
                     NavigationBarItem(selected = false, onClick = d.go, label = { Text(d.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         icon = { BadgedBox(badge = { if (d.badge > 0) Badge { Text("${d.badge}") } }) { Icon(d.icon, d.label) } })
@@ -241,10 +219,9 @@ fun HomeScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeBar(offline: Boolean, title: String?, onBack: (() -> Unit)?, onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
+private fun HomeBar(offline: Boolean, onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
     TopAppBar(
-        title = { Text(title ?: if (offline) tr("kumapie · offline") else "kumapie", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        navigationIcon = { onBack?.let { IconButton(onClick = it) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } } },
+        title = { Text(if (offline) tr("kumapie · offline") else "kumapie", maxLines = 1, overflow = TextOverflow.Ellipsis) },
         actions = {
             if (onAdd != null) IconButton(onClick = onAdd) { Icon(Icons.Default.Add, tr("Add an episode")) }
             IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, tr("Refresh")) }
@@ -297,7 +274,7 @@ private fun ShelfRow(title: String, items: androidx.compose.foundation.lazy.Lazy
 
 internal fun posterWidth(wide: Boolean) = if (wide) 150.dp else 118.dp
 
-/** A poster with its title and [sub] below (and [progress] over it): shows, books and manga look the same. */
+/** A poster with its title and [sub] below (and [progress] over it): shows and episodes look the same. */
 @Composable
 internal fun Poster(image: Any?, title: String, sub: String, width: Dp, progress: Float? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     Column(Modifier.width(width).combinedClickable(onLongClick = onLongClick, onClick = onClick)) {

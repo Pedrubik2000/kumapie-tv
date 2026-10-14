@@ -36,7 +36,7 @@ class Library(context: Context, val settings: Settings) {
     val pending = Pending(context)
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
     val yomitan = YomitanDictionaries.get(context).also {
-        // Episodes and books to and from the PC (the hub), when this device has an owner: hourly, and once now.
+        // Episodes to and from the PC (the hub), when this device has an owner: hourly, and once now.
         if (settings.owner.isNotBlank()) io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.run { schedule(context); now(context) }
         io.github.pedrubik2000.kumapie.lang.YomitanUpdateWorker.schedule(context)
         if (io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).all().isNotEmpty()) io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.schedule(context)

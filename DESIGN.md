@@ -143,7 +143,7 @@ A dark, desaturated violet field with one warm brown accent and a small, strictl
 - **Muted Lilac** (muted-lilac): secondary lines (episode, time left, easy share), unselected tabs, Material onSurfaceVariant.
 
 ### Tertiary (semantic only)
-- **Learning Orange** (word-learning-orange): a word in Anki but below the known threshold.
+- **Highlight Orange** (word-learning-orange): never a word colour (subtitle words are only white, red, green, blue; a learning word is red). Marks counts and "today" in stats and help.
 - **Unknown Red** (word-unknown-red): a never-studied word; also the i+2-and-up level badge.
 - **Due Green** (word-due-green): a word whose own card is due today.
 - **Mined Blue** (word-mined-blue): mined, never reviewed.
@@ -152,7 +152,7 @@ A dark, desaturated violet field with one warm brown accent and a small, strictl
 ### Named Rules
 **The One Brown Rule.** Bear brown means "act here / you are here / how far along": play, progress, the current selection, focus. Nothing decorative is brown, and secondary actions (the tablet rail's "+") stay surface-coloured so play is the first brown on screen.
 
-**The Colour Means Something Rule.** Green, yellow, red, blue and orange are reserved for word state and level/ease. They never appear as decoration, category colour or chrome.
+**The Colour Means Something Rule.** Green, yellow, red and blue are reserved for word state and level/ease; orange only marks counts and "today" in stats and help. They never appear as decoration, category colour or chrome.
 
 ## Typography
 
@@ -243,7 +243,7 @@ Every other show in progress, one row each.
 - **Do** leave room for TV focus growth (10%) in row padding.
 
 ### Don't:
-- **Don't** use green, yellow, red, blue or orange for anything but word state and level/ease.
+- **Don't** use green, yellow, red or blue for anything but word state and level/ease, or orange as a word colour.
 - **Don't** show an episode frame where a poster is missing; unseen episode pictures stay blurred.
 - **Don't** add drop shadows; depth is tonal.
 - **Don't** let the resume card grow past 600dp wide in one column.

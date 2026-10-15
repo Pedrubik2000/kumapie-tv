@@ -176,22 +176,24 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 ("soniox" to tr("Soniox (with the transcription)")).takeIf { !japanese && !parakeet && sonioxKey },
                 ("gemma" to tr("Gemma (good, ~3 s a line)")).takeIf { gemmaDownloaded },
                 "device" to tr("Google's translator (instant)"),
-                "none" to tr("None (fastest)"),
+                "none" to tr("None"),
             ).forEach { (value, label) ->
                 androidx.compose.material3.FilterChip(selected = englishNow == value, label = { Text(label) },
                     onClick = { english = value; library.settings.englishSource = value })
             }
         }
         }
-        Text(tr("Video quality"), fontSize = 14.sp, color = Colors.dim)
-        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(360, 480, 720, 1080).forEach { h ->
-                androidx.compose.material3.FilterChip(selected = height == h, label = { Text("${h}p") },
-                    onClick = { height = h; library.settings.videoHeight = h })
+        // Only yt-dlp downloads (YouTube, TikTok) pick a quality; magnets and files come as they are.
+        if (links.any(ProcessWorker::viaYtDlp)) {
+            Text(tr("Video quality"), fontSize = 14.sp, color = Colors.dim)
+            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(360, 480, 720, 1080).forEach { h ->
+                    androidx.compose.material3.FilterChip(selected = height == h, label = { Text("${h}p") },
+                        onClick = { height = h; library.settings.videoHeight = h })
+                }
             }
+            Text(tr("Higher takes more space: roughly 5 / 8 / 15 / 30 MB a minute."), fontSize = 12.sp, color = Colors.dim)
         }
-        Text(tr("For YouTube. Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p."),
-            fontSize = 12.sp, color = Colors.dim)
         // What blocks the button, with the way out: Settings, or (for the device's own models and keys) the PC.
         val blocker = when {
             pcOnly -> null
@@ -228,8 +230,14 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 }) { Text(if (links.size > 1) tr("Make them episodes") else tr("Make it an episode")) }
             androidx.compose.material3.OutlinedButton(enabled = ready || onPc, onClick = { pick.launch(arrayOf("video/*")) }) { Text(tr("Video files…")) }
         }
+        // One plain line; the pipeline (Jimaku, Parakeet, MKV...) only for whoever asks.
+        Text(if (pcOnly) tr("The PC makes it; it comes to this device on Wi-Fi when it's ready.")
+            else tr("Takes a few minutes. Each episode shows up on Home when it's ready."), fontSize = 13.sp)
+        var how by remember { mutableStateOf(false) }
+        androidx.compose.material3.TextButton(onClick = { how = !how }) { Text(tr(if (how) "Hide how it works" else "How it works")) }
         val noEnglish = englishNow == "none"
-        if (pcOnly) Unit
+        if (!how) Unit
+        else if (pcOnly) Unit
         else if (japanese) Text((if (youtube) tr("Download → the video's Japanese subtitles, else Parakeet ja on this device (free) → ")
             else tr("Download → Japanese subtitles from Jimaku, fitted to the audio → ")) + when {
                 noEnglish -> tr("no %s (Settings)", translation)
@@ -246,10 +254,10 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 else -> tr("%s (the device's translator)", translation)
             } + tr(" → scenes. A season (magnet) becomes one episode per file; MKV files keep their %s audio. Jobs run " +
             "one after another in the background; each episode appears on the home screen when done.", spoken), color = Colors.dim, fontSize = 13.sp)
-        if (onPc) Text(tr("On the PC: it downloads (video files are sent there first), uses the video's own subtitles, else " +
+        if (onPc) { if (how) Text(tr("On the PC: it downloads (video files are sent there first), uses the video's own subtitles, else " +
             "Jimaku's for Japanese, else transcribes it with Parakeet (free); the line under it only from subtitles. The " +
             "episode comes to this device with the PC's shows, on Wi-Fi. Jobs run there one after another."),
-            color = Colors.dim, fontSize = 13.sp)
+            color = Colors.dim, fontSize = 13.sp) }
         else if (aniworld.isNotEmpty()) Text(if (pc) tr("AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to " +
             "its shows, a few minutes an episode. A season link brings the whole season.", spoken)
             else tr("AniWorld links need the PC: Settings > server and whose device it is."), color = Colors.dim, fontSize = 13.sp)

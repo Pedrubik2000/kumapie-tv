@@ -57,6 +57,11 @@ internal val esAdd: Map<String, String> = mapOf(
         "Enviado al PC. Cada episodio llega a este dispositivo con Wi-Fi cuando esté listo.",
     "Added. Each episode appears on Home when it's done; progress is below." to
         "Agregado. Cada episodio aparece en Inicio cuando esté listo; el progreso está abajo.",
+    "Higher takes more space: roughly 5 / 8 / 15 / 30 MB a minute." to "Más calidad ocupa más espacio: unos 5 / 8 / 15 / 30 MB por minuto.",
+    "The PC makes it; it comes to this device on Wi-Fi when it's ready." to "El PC lo hace; llega a este dispositivo con Wi-Fi cuando esté listo.",
+    "Takes a few minutes. Each episode shows up on Home when it's ready." to "Tarda unos minutos. Cada episodio aparece en Inicio cuando esté listo.",
+    "How it works" to "Cómo funciona",
+    "Hide how it works" to "Ocultar cómo funciona",
     "Make them episodes" to "Convertirlos en episodios",
     "Make it an episode" to "Convertirlo en episodio",
     "Video files…" to "Archivos de video…",

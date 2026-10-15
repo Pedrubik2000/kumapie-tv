@@ -97,6 +97,8 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
             f.label?.let {
                 Text(it, fontSize = 15.sp, color = when (state) { "d" -> Colors.due; "k" -> Colors.text; "b" -> Colors.mined; else -> Colors.unknown })
             }
+            // Said before the tap: a rating here makes a card in the Mined deck first (user, 2026-10-14).
+            if (state == "u" && ratings[f.key] == null) Text(tr("No card yet: a rating adds one."), color = Colors.dim, fontSize = 13.sp)
             val r = ratings[f.key]?.rated
             val answered = ratings[f.key]?.label.orEmpty()
             // Filled and the card's whole width (user, 2026-10-13): red, gray, green, blue.

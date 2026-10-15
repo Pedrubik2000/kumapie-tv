@@ -232,6 +232,19 @@ class SceneController(
         settings.subtitles = value
     }
 
+    /** The player's position right now, for drawing every frame (tick() only updates [position] every 40 ms). */
+    fun livePosition(): Double {
+        // Audio only, ExoPlayer moves currentPosition in ~250 ms steps: run it on from the clock between steps.
+        val p = player.currentPosition / 1000.0
+        val now = SystemClock.uptimeMillis()
+        // Restarted while not playing: after a seek the clock runs from when the audio starts, not from the seek
+        // (counting the load skipped a line's 0.2 s expression fade).
+        if (p != clockPos || !player.isPlaying) { clockPos = p; clockAt = now }
+        return clockPos + (now - clockAt) / 1000.0 * player.playbackParameters.speed
+    }
+    private var clockPos = -1.0
+    private var clockAt = 0L
+
     fun showBanner(ms: Long = 3_000) { bannerUntil = SystemClock.uptimeMillis() + ms }
 
     // ------------------------------------------------------------ every frame or so

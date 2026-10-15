@@ -272,7 +272,9 @@ class SceneController(
         // this scene's end pause, so Skip nothing played through (2026-10-15). Paused at the end: stay on this scene.
         if (!atSceneEnd && (!pausesAtEnd(scene) || (newStraight && !episode.novel))) { // playing on: follow the video into the next scene
             val i = scenes.indexOfLast { it.start <= position }
-            if (i > index) {
+            // Scenes often overlap by ~0.2 s (their padding): move on only once this one has ended, unless its end
+            // doesn't pause anyway; moving on early dropped every end pause (2026-10-15, 74 of 133 in an episode).
+            if (i > index && (position >= scene.end || !pausesAtEnd(scene))) {
                 index = i
                 if (pausesAtStart(scene) && playing) { // wait on the new scene's start to read it
                     player.pause()

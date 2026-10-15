@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
  * the channel / the file name's). Below: every job's progress.
  */
 @Composable
-fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "de") {
+fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "de", onSettings: () -> Unit = {}) {
     val context = LocalContext.current
     var link by remember { mutableStateOf(sharedLink?.let { Regex("""(https?://|magnet:)\S+""").findAll(it).joinToString("\n") { m -> m.value } } ?: "") }
     var show by remember { mutableStateOf("") }
@@ -102,6 +102,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             ProcessWorker.start(context, uri.toString(), show.takeIf { it.isNotBlank() }, height, lang, transcriber, englishNow,
                 type = type, match = matchKey, pc = onPc)
         }
+        if (uris.isNotEmpty()) added(context, onPc)
     }
     val ready = gemmaReady && when {
         japanese -> library.languages.japanese.model.isReady && (if (youtube) parakeetJaReady else library.settings.jimakuKey.isNotBlank())
@@ -191,17 +192,25 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
         }
         Text(tr("For YouTube. Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p."),
             fontSize = 12.sp, color = Colors.dim)
-        if (!pcOnly) {
-        if (!gemmaReady) Text(tr("First: Settings > download the translation model (Gemma), or pick another %s source.", translation),
-            color = Colors.unknown, fontSize = 14.sp)
-        else if (!ready && japanese) Text(if (youtube) tr("First: Settings > the Japanese words dictionary, and Parakeet ja.")
-            else tr("First: Settings > the Japanese words dictionary, and your Jimaku API key."),
-            color = Colors.unknown, fontSize = 14.sp)
-        else if (!ready) Text(if (parakeet) tr("First: Settings > the %s model and the speech model (Parakeet).", spoken)
-            else tr("First: Settings > the %s model, and your Soniox key.", spoken), color = Colors.unknown, fontSize = 14.sp)
+        // What blocks the button, with the way out: Settings, or (for the device's own models and keys) the PC.
+        val blocker = when {
+            pcOnly -> null
+            !gemmaReady -> tr("First: Settings > download the translation model (Gemma), or pick another %s source.", translation)
+            !ready && japanese -> if (youtube) tr("First: Settings > the Japanese words dictionary, and Parakeet ja.")
+                else tr("First: Settings > the Japanese words dictionary, and your Jimaku API key.")
+            !ready -> if (parakeet) tr("First: Settings > the %s model and the speech model (Parakeet).", spoken)
+                else tr("First: Settings > the %s model, and your Soniox key.", spoken)
+            else -> null
+        }?.let { if (pc) it + " " + tr("Or make it on the PC.") else it }
+        val rdBlocker = (needsRd && library.settings.rdToken.isBlank())
+            .takeIf { it }?.let { tr("For magnets and Real-Debrid links: Settings > your Real-Debrid token.") }
+        listOfNotNull(blocker, rdBlocker).forEach { Text(it, color = Colors.unknown, fontSize = 14.sp) }
+        if (blocker != null || rdBlocker != null) androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.OutlinedButton(onClick = onSettings) { Text(tr("Open Settings")) }
+            if (blocker != null && pc) androidx.compose.material3.OutlinedButton(onClick = {
+                onPcChoice = true; library.settings.prefs.edit().putBoolean(MAKE_ON_PC, true).apply()
+            }) { Text(tr("Make it on the PC")) }
         }
-        if (needsRd && library.settings.rdToken.isBlank()) Text(tr("For magnets and Real-Debrid links: Settings > your Real-Debrid token."),
-            color = Colors.unknown, fontSize = 14.sp)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(enabled = links.isNotEmpty() && (ready || onDevice.isEmpty()) && (pc || aniworld.isEmpty()) &&
                     !(needsRd && library.settings.rdToken.isBlank()),
@@ -214,6 +223,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                         ProcessWorker.start(context, l, show.takeIf { it.isNotBlank() }, height, lang, transcriber, englishNow,
                             kind, ytCount.toIntOrNull()?.coerceIn(1, 200) ?: 10, type = type, match = matchKey, pc = toPc)
                     }
+                    added(context, onDevice.isEmpty())
                     link = ""
                 }) { Text(if (links.size > 1) tr("Make them episodes") else tr("Make it an episode")) }
             androidx.compose.material3.OutlinedButton(enabled = ready || onPc, onClick = { pick.launch(arrayOf("video/*")) }) { Text(tr("Video files…")) }
@@ -249,6 +259,11 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
 }
 
 private const val MAKE_ON_PC = "make_on_pc"
+
+/** The tap's feedback: the field clears and the job list is below the fold, so say it was added and where it shows up. */
+private fun added(context: android.content.Context, onPc: Boolean) = android.widget.Toast.makeText(context,
+    if (onPc) tr("Sent to the PC. Each episode comes to this device on Wi-Fi when it's done.")
+    else tr("Added. Each episode appears on Home when it's done; progress is below."), android.widget.Toast.LENGTH_LONG).show()
 
 private fun isAniWorld(link: String) = Regex("""^https://(aniworld\.to|s\.to|serienstream\.to)/""").containsMatchIn(link)
 

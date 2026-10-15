@@ -50,6 +50,13 @@ internal val esAdd: Map<String, String> = mapOf(
     "First: Settings > the %s model, and your Soniox key." to "Primero: Ajustes > el modelo de %s y tu clave de Soniox.",
     "For magnets and Real-Debrid links: Settings > your Real-Debrid token." to
         "Para magnets y enlaces de Real-Debrid: Ajustes > tu token de Real-Debrid.",
+    "Or make it on the PC." to "O hazlo en el PC.",
+    "Open Settings" to "Abrir Ajustes",
+    "Make it on the PC" to "Hacerlo en el PC",
+    "Sent to the PC. Each episode comes to this device on Wi-Fi when it's done." to
+        "Enviado al PC. Cada episodio llega a este dispositivo con Wi-Fi cuando esté listo.",
+    "Added. Each episode appears on Home when it's done; progress is below." to
+        "Agregado. Cada episodio aparece en Inicio cuando esté listo; el progreso está abajo.",
     "Make them episodes" to "Convertirlos en episodios",
     "Make it an episode" to "Convertirlo en episodio",
     "Video files…" to "Archivos de video…",

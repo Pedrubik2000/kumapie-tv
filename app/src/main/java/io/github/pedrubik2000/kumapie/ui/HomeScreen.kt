@@ -1,7 +1,12 @@
 package io.github.pedrubik2000.kumapie.ui
 
 import io.github.pedrubik2000.kumapie.i18n.tr
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import io.github.pedrubik2000.kumapie.data.resumeLine
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -116,11 +121,13 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
     val rows = KINDS.map { (k, label) -> tr(label) to shows.filter { it.kind == k } } + listOf(tr("Other") to other)
     val first = remember { FocusRequester() }
     LazyColumn {
+        // As on the phone: the last episode as a big card (focused first, OK plays it), the other shows in progress
+        // beside it as small cards (user, 2026-10-15: Home is for resuming fast). Novels are read: they count too.
         if (going.isNotEmpty()) item(key = "going") {
-            Shelf(tr("Continue")) { // as on the phone: novels are read
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Bottom,
+                contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 20.dp, bottom = 24.dp)) { // room for the focused card to grow 10%
                 itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
-                    Poster(s.poster, shortTitle(s.title), e.title, ((e.resume ?: 0.0) / e.duration).toFloat(),
-                        if (i == 0) Modifier.focusRequester(first) else Modifier) { onPlay(s, e) }
+                    ResumeCard(s, e, if (i == 0) Modifier.focusRequester(first) else Modifier, width = if (i == 0) 360.dp else 220.dp) { onPlay(s, e) }
                 }
             }
         }
@@ -164,6 +171,25 @@ private fun Poster(image: String, title: String, line: String, progress: Float?,
             modifier = Modifier.padding(top = 10.dp))
         Text(line, color = Colors.dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (progress != null) ProgressBar(progress, Modifier.fillMaxWidth().padding(top = 4.dp))
+    }
+}
+
+/** An episode left partway: the show's poster cropped wide, then where it was left and how easy it is. */
+@Composable
+private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, onClick: () -> Unit) {
+    Column(Modifier.width(width)) {
+        Card(onClick = onClick, modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+            Box(Modifier.fillMaxSize()) {
+                NeutralPoster(s.title, Modifier.fillMaxSize(), showTitle = false)
+                AsyncImage(model = s.poster, contentDescription = s.title, contentScale = ContentScale.Crop,
+                    alignment = Alignment.TopCenter, modifier = Modifier.fillMaxSize())
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Colors.background.copy(alpha = 0.85f))))
+                ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp))
+            }
+        }
+        Text(shortTitle(s.title), color = Colors.text, fontSize = if (width > 300.dp) 22.sp else 16.sp, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 18.dp))
+        Text("${e.title} · ${resumeLine(e)}", color = Colors.dim, fontSize = if (width > 300.dp) 15.sp else 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

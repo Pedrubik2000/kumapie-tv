@@ -4,7 +4,24 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import io.github.pedrubik2000.kumapie.data.resumeLine
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -245,45 +262,110 @@ private fun HomeBar(onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
     )
 }
 
-/** "Continue" (episodes left partway), then a row per category (a wrapping grid on a tablet). */
+/**
+ * What you were watching owns the top: the last episode as a big card (one tap plays it where it was left), the other
+ * shows in progress as small tiles. Then the library, one media type per tab, easiest first. A tablet puts the
+ * library beside the resume column (user, 2026-10-15: Home is for resuming fast).
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Rows(library: Library, shows: List<Show>, states: Map<String, DownloadState>, wide: Boolean,
                  onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit) {
-    val width = posterWidth(wide)
-    val going = io.github.pedrubik2000.kumapie.data.continueRow(shows)
+    val going = io.github.pedrubik2000.kumapie.data.continueRow(shows) // novels are read, not watched: they count too
     val other = shows.filter { s -> s.kind != "reels" && KINDS.none { it.first == s.kind } }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        if (going.isNotEmpty()) item(key = "going") {
-            ShelfRow(tr("Continue")) { // novels are read, not watched
-                items(going, key = { it.second.id }) { (s, e) ->
-                    Poster(library.poster(s.id, s.poster), s.title, e.title, width, progress = ((e.resume ?: 0.0) / e.duration).toFloat(),
-                        more = tr("%s left", minutes(e.duration - (e.resume ?: 0.0)))) { onPlay(s, e) }
+    // Easiest first, finished last; no easy count yet (not synced) between them.
+    val kinds = (KINDS + listOf("" to "Other")).map { (k, label) ->
+        tr(label) to (if (k.isEmpty()) other else shows.filter { it.kind == k })
+            .sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
+    }.filter { it.second.isNotEmpty() }
+    var tab by rememberSaveable(shows.firstOrNull()?.lang) { mutableIntStateOf(0) }
+    val picked = tab.coerceIn(0, (kinds.size - 1).coerceAtLeast(0))
+    val tabs = @Composable {
+        if (kinds.size > 1) PrimaryScrollableTabRow(selectedTabIndex = picked, edgePadding = 16.dp, containerColor = Color.Transparent,
+            divider = { HorizontalDivider(color = Colors.surface) }) {
+            kinds.forEachIndexed { i, (label, _) ->
+                Tab(selected = i == picked, onClick = { tab = i }, text = { Text(label) }, unselectedContentColor = Colors.dim)
+            }
+        } else kinds.firstOrNull()?.let { Text(it.first, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) }
+    }
+    val grid = @Composable { width: Dp ->
+        FlowRow(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            kinds.getOrNull(picked)?.second?.forEach { s -> Poster(library.poster(s.id, s.poster), s.title, levelLine(s), width) { onShow(s) } }
+        }
+    }
+    val resume = @Composable {
+        val (s, e) = going[0]
+        ResumeCard(library.poster(s.id, s.poster), s, e) { onPlay(s, e) }
+    }
+
+    if (wide && going.isNotEmpty()) Row(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.weight(0.42f).fillMaxHeight()) {
+        // A phone on its side is short: the card narrows until its art and text fit the height (~110 dp under the art).
+        val cardWidth = minOf(maxWidth, (maxHeight - 126.dp) * 16f / 9f + 32.dp)
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.width(cardWidth)) { resume() }
+            going.drop(1).forEach { (s, e) -> Tile(library.poster(s.id, s.poster), s, e, Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { onPlay(s, e) } }
+        }
+        }
+        Column(Modifier.weight(0.58f).fillMaxHeight().verticalScroll(rememberScrollState())) { tabs(); grid(posterWidth(true)) }
+    } else BoxWithConstraints(Modifier.fillMaxSize()) {
+        // A phone: three posters across; a tablet with nothing in progress: the tablet's poster size.
+        val width = if (wide) posterWidth(true) else (maxWidth - 32.dp - 24.dp) / 3
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
+            if (going.isNotEmpty()) item(key = "resume") { resume() }
+            if (going.size > 1) item(key = "going") {
+                LazyRow(Modifier.padding(top = 12.dp), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(going.drop(1), key = { it.second.id }) { (s, e) -> Tile(library.poster(s.id, s.poster), s, e, Modifier.width(264.dp)) { onPlay(s, e) } }
                 }
             }
+            item(key = "tabs") { Column(Modifier.padding(top = if (going.isEmpty()) 0.dp else 20.dp)) { tabs() } }
+            item(key = "grid-$picked") { grid(width) }
         }
-        (KINDS + listOf("" to "Other")).forEach { (k, label) ->
-            // Easiest first, finished last; no easy count yet (not synced) between them.
-            val list = (if (k.isEmpty()) other else shows.filter { it.kind == k })
-                .sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
-            if (list.isNotEmpty()) item(key = "kind-$k") {
-                val poster = @Composable { s: Show -> Poster(library.poster(s.id, s.poster), s.title, levelLine(s), width) { onShow(s) } }
-                // A tablet: the whole type at once, wrapping, so its easy lines can be compared (user, 2026-10-14).
-                if (wide) Column {
-                    Text(tr(label), fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-                    FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)) { list.forEach { poster(it) } }
-                } else ShelfRow(tr(label)) { items(list, key = { it.id }) { poster(it) } }
+    }
+}
+
+/** The episode left most recently: the show's poster cropped wide, where it was left and how easy it is. */
+@Composable
+private fun ResumeCard(image: Any?, s: Show, e: Episode, onPlay: () -> Unit) {
+    Surface(onClick = onPlay, shape = RoundedCornerShape(16.dp), color = Colors.surface, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Column {
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
+                AsyncImage(image, null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
+                // The art fades into the card, so the title under it reads as part of it.
+                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Colors.surface)))
+                FilledIconButton(onClick = onPlay, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).size(64.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = Colors.accent, contentColor = Color.Black)) {
+                    Icon(Icons.Default.PlayArrow, tr("Play"), Modifier.size(36.dp))
+                }
+            }
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                Text(s.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${e.title} · ${resumeLine(e)}", style = MaterialTheme.typography.bodyMedium, color = Colors.dim,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.fillMaxWidth().padding(top = 12.dp))
             }
         }
     }
 }
 
+/** Another show in progress: a small poster, the episode, time left; one tap plays it. */
 @Composable
-private fun ShelfRow(title: String, items: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
-    Column {
-        Text(title, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), content = items)
+private fun Tile(image: Any?, s: Show, e: Episode, modifier: Modifier, onPlay: () -> Unit) {
+    Surface(onClick = onPlay, shape = RoundedCornerShape(12.dp), color = Colors.surface, modifier = modifier) {
+        Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(48.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(8.dp))) {
+                NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
+                AsyncImage(image, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            }
+            Column(Modifier.weight(1f)) {
+                Text(s.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(e.title, style = MaterialTheme.typography.bodySmall, color = Colors.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(resumeLine(e), style = MaterialTheme.typography.bodySmall, color = Colors.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.fillMaxWidth().padding(top = 6.dp))
+            }
+        }
     }
 }
 

@@ -34,3 +34,10 @@ fun continueRow(shows: List<Show>): List<Pair<Show, Episode>> = shows.filter { i
 
 /** A title cut at its subtitle for one-line places (the TV): "BOFURI: I Don't Want to Get Hurt…" -> "BOFURI". */
 fun shortTitle(title: String): String = title.substringBefore(": ").ifBlank { title }
+
+/** Home's resume card: "14 min left · 61% easy" (the episode's share of i+0 / i+1 scenes, when the PC counted it). */
+fun resumeLine(e: Episode): String {
+    val left = tr("%d min left", ((e.duration - (e.resume ?: 0.0)) / 60).toInt().coerceAtLeast(1))
+    val easy = if (e.easy > 0 && e.scenes > 0) e.easy * 100 / e.scenes else null
+    return easy?.let { "$left · " + tr("%d%% easy", it) } ?: left
+}

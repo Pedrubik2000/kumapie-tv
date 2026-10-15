@@ -21,6 +21,8 @@ fun MobileTheme(content: @Composable () -> Unit) {
         colorScheme = darkColorScheme(
             primary = Colors.accent,
             onPrimary = Color.Black,
+            primaryContainer = Colors.accent, // the tablet's "+" (FAB): Material's default was purple
+            onPrimaryContainer = Color.Black,
             secondary = Colors.accent,
             background = Colors.background,
             onBackground = Colors.text,

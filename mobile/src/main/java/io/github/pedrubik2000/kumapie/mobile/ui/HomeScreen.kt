@@ -49,6 +49,7 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -166,6 +167,10 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 langs.forEach { l -> FilterChip(selected = lang == l.code, onClick = { onHomeLang(l.code) }, label = { Text(tr(l.name)) }) }
             }
+            if (offline) Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(tr("Offline: only episodes on this device play."), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { attempt++ }) { Text(tr("Try again")) }
+            }
             Box(Modifier.fillMaxSize()) {
                 when {
                     error != null && shows == null -> Column(Modifier.align(Alignment.Center).padding(24.dp),
@@ -175,6 +180,12 @@ fun HomeScreen(
                         Button(onClick = { attempt++ }) { Text(tr("Try again")) }
                     }
                     shows == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    all.isEmpty() -> Column(Modifier.align(Alignment.Center).padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(tr("No episodes yet"), fontSize = 20.sp)
+                        Text(tr("Add a YouTube link or a video file."), color = Colors.dim, fontSize = 14.sp)
+                        Button(onClick = { adding = true }) { Text(tr("Add an episode")) }
+                    }
                     else -> Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay)
                 }
             }
@@ -191,9 +202,9 @@ fun HomeScreen(
                     icon = { BadgedBox(badge = { if (d.badge > 0) Badge { Text("${d.badge}") } }) { Icon(d.icon, d.label) } })
             }
         }
-        Scaffold(topBar = { HomeBar(offline) { attempt++ } }) { content(it) }
+        Scaffold(topBar = { HomeBar { attempt++ } }) { content(it) }
     } else Scaffold(
-        topBar = { HomeBar(offline, onAdd = { adding = true }) { attempt++ } },
+        topBar = { HomeBar(onAdd = { adding = true }) { attempt++ } },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, null) }, label = { Text(tr("Home")) })
@@ -221,9 +232,9 @@ fun HomeScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeBar(offline: Boolean, onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
+private fun HomeBar(onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
     TopAppBar(
-        title = { Text(if (offline) tr("kumapie · offline") else "kumapie", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        title = { Text("kumapie", maxLines = 1, overflow = TextOverflow.Ellipsis) },
         actions = {
             if (onAdd != null) IconButton(onClick = onAdd) { Icon(Icons.Default.Add, tr("Add an episode")) }
             IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, tr("Refresh")) }

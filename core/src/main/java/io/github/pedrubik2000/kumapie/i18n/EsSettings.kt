@@ -23,6 +23,25 @@ internal val esSettings: Map<String, String> = mapOf(
     "Couldn't check: %s" to "No se pudo comprobar: %s",
     "Check for updates" to "Buscar actualizaciones",
     "Version %s" to "Versión %s",
+    "Remove all downloads?" to "¿Borrar todas las descargas?",
+    "This deletes %.1f GB of episodes saved on this device. You can download them again on Wi-Fi." to
+        "Esto borra %.1f GB de episodios guardados en este dispositivo. Puedes volver a descargarlos con Wi-Fi.",
+    "Remove downloads" to "Borrar descargas",
+    "Keep them" to "Conservarlas",
+    "Check for a new kumapie version" to "Buscar una versión nueva de kumapie",
+    "Check dictionaries for updates" to "Buscar actualizaciones de los diccionarios",
+    "%d words known (as on Home: cards, words marked known and imported lists)." to
+        "%d palabras conocidas (como en Inicio: tarjetas, palabras marcadas como conocidas y listas importadas).",
+    "From your cards: %s" to "De tus tarjetas: %s",
+    "%1\$d an hour · up to %2\$d a night" to "%1\$d por hora · hasta %2\$d por noche",
+    "Stop syncing this device?" to "¿Dejar de sincronizar este dispositivo?",
+    "Make this %s's device?" to "¿Hacer este dispositivo de %s?",
+    "Episodes made here stay on this device, and the PC's new episodes stop coming here." to
+        "Los episodios hechos aquí se quedan en este dispositivo, y los episodios nuevos de la PC dejan de llegar.",
+    "Episodes made here will go to %1\$s's library on the PC, and this device's known words will count as %1\$s's." to
+        "Los episodios hechos aquí irán a la biblioteca de %1\$s en la PC, y las palabras conocidas de este dispositivo contarán como de %1\$s.",
+    "Stop syncing" to "Dejar de sincronizar",
+    "Yes, it's %s's" to "Sí, es de %s",
 
     // Word colours
     "Word colours from Anki" to "Colores de palabras desde Anki",

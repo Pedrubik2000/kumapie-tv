@@ -135,7 +135,13 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text(tr("On this device"), color = Colors.accent)
                 Text(tr("Downloads: %.1f GB", used / 1e9), fontSize = 15.sp)
-                OutlinedButton(onClick = { library.downloads.deleteAll(); refresh++ }) { Text(tr("Remove all downloads")) }
+                var confirmRemove by remember { mutableStateOf(false) }
+                OutlinedButton(enabled = used > 0, onClick = { confirmRemove = true }) { Text(tr("Remove all downloads")) }
+                if (confirmRemove) androidx.compose.material3.AlertDialog(onDismissRequest = { confirmRemove = false },
+                    title = { Text(tr("Remove all downloads?")) },
+                    text = { Text(tr("This deletes %.1f GB of episodes saved on this device. You can download them again on Wi-Fi.", used / 1e9)) },
+                    confirmButton = { androidx.compose.material3.TextButton(onClick = { library.downloads.deleteAll(); refresh++; confirmRemove = false }) { Text(tr("Remove downloads")) } },
+                    dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmRemove = false }) { Text(tr("Keep them")) } })
                 Text(if (waiting == 0) tr("Nothing waiting to be sent to the PC.") else tr("%d reports waiting for the PC (sent when it answers).", waiting),
                     fontSize = 15.sp, color = Colors.dim)
                 if (waiting > 0) OutlinedButton(onClick = {
@@ -150,7 +156,7 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
                             .onSuccess { r -> if (r == null) message = tr("This is the newest version.") else { message = ""; onUpdate(r) } }
                             .onFailure { message = tr("Couldn't check: %s", it.message) }
                     }
-                }) { Text(tr("Check for updates")) }
+                }) { Text(tr("Check for a new kumapie version")) }
             }
             Text(tr("Version %s", BuildConfig.VERSION_NAME), color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
         }
@@ -200,7 +206,10 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
     var busy by remember { mutableStateOf(false) }
 
     Text(tr("${language.lang.name} words"), color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
-    Text(status, fontSize = 15.sp)
+    // The total Home shows first; the card count under it says where part of it comes from.
+    val total = remember(status) { known.knownList().size }
+    if (known.ready) Text(tr("%d words known (as on Home: cards, words marked known and imported lists).", total), fontSize = 15.sp)
+    Text(tr("From your cards: %s", status), fontSize = 14.sp, color = Colors.dim)
     when {
         state != null -> Text("${tr(model.label)}: $state", fontSize = 14.sp, color = Colors.dim)
         ready -> {
@@ -336,7 +345,7 @@ private fun YomitanSection(library: Library, learning: Set<String> = emptySet())
     if (all.any { it.updatable }) OutlinedButton(enabled = !busy, onClick = {
         busy = true
         scope.launch { said = dicts.update { said = it }.ifEmpty { listOf(tr("Every dictionary is up to date.")) }.joinToString("\n"); busy = false }
-    }) { Text(tr("Check for updates now")) }
+    }) { Text(tr("Check dictionaries for updates")) }
     Text(tr("Dictionaries that can update themselves are checked weekly on Wi-Fi."), fontSize = 12.sp, color = Colors.dim)
     if (said.isNotEmpty()) Text(said, fontSize = 13.sp, color = Colors.dim)
     deleting?.let { d ->
@@ -471,7 +480,9 @@ private fun FollowedChannels(library: Library) {
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text((s.name.ifBlank { s.url.substringAfter("youtube.com/").substringBefore('?') }) + " · " + (if (s.kind == "shorts") tr("shorts") else tr("videos")), fontSize = 15.sp)
-                Text(tr("%d a night", s.perRun) + " · " + (if (s.lastCheck > 0) tr("checked %s", android.text.format.DateUtils.getRelativeTimeSpanString(s.lastCheck)) else tr("not checked yet")),
+                // Checked hourly inside the download hours: perRun is per check, not per night.
+                val hours = ((to - from) % 24 + 24) % 24
+                Text(tr("%1\$d an hour · up to %2\$d a night", s.perRun, s.perRun * hours) + " · " + (if (s.lastCheck > 0) tr("checked %s", android.text.format.DateUtils.getRelativeTimeSpanString(s.lastCheck)) else tr("not checked yet")),
                     fontSize = 13.sp, color = Colors.dim)
             }
             listOf(1, 5, 10).forEach { n ->
@@ -522,17 +533,31 @@ private fun MenuLanguage(settings: Settings) {
     Text(tr("This device belongs to"), color = Colors.accent)
     Text(tr("Episodes made here go to the PC, and the PC's new episodes come here (on Wi-Fi)."), color = Colors.dim, fontSize = 14.sp)
     var owner by remember { mutableStateOf(settings.owner) }
+    var asking by remember { mutableStateOf<Pair<String, String>?>(null) } // the owner picked, waiting for Yes
+    fun setOwner(key: String) {
+        owner = key
+        settings.owner = key
+        if (key.isNotBlank()) {
+            io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.schedule(context)
+            io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.now(context)
+        }
+    }
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf("pedro" to "Pedro", "giovanna" to "Giovanna", "jackson" to "Jackson", "" to tr("Nobody (no sync)")).forEach { (key, label) ->
             androidx.compose.material3.FilterChip(selected = owner == key, label = { Text(label) }, onClick = {
-                owner = key
-                settings.owner = key
-                if (key.isNotBlank()) {
-                    io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.schedule(context)
-                    io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.now(context)
-                }
+                // A first owner is set at once; moving the device to someone else (or to nobody) asks first.
+                if (owner.isBlank() || key == owner) setOwner(key) else asking = key to label
             })
         }
+    }
+    asking?.let { (key, name) ->
+        androidx.compose.material3.AlertDialog(onDismissRequest = { asking = null },
+            title = { Text(if (key.isBlank()) tr("Stop syncing this device?") else tr("Make this %s's device?", name)) },
+            text = { Text(if (key.isBlank()) tr("Episodes made here stay on this device, and the PC's new episodes stop coming here.")
+                else tr("Episodes made here will go to %1\$s's library on the PC, and this device's known words will count as %1\$s's.", name)) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { setOwner(key); asking = null }) {
+                Text(if (key.isBlank()) tr("Stop syncing") else tr("Yes, it's %s's", name)) } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { asking = null }) { Text(tr("Cancel")) } })
     }
 }
 

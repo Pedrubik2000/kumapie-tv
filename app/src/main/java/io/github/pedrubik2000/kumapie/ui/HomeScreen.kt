@@ -41,6 +41,9 @@ import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
+import io.github.pedrubik2000.kumapie.data.ahead
+import io.github.pedrubik2000.kumapie.data.easyPercent
+import io.github.pedrubik2000.kumapie.data.levelLine
 
 /** Home's rows, in this order (the phone's); reels are feed-only, so the TV never lists them. */
 private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "visual_novels" to "Visual novels")
@@ -124,12 +127,13 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
             }
         }
         rows.forEachIndexed { r, (label, list) ->
+            // Easiest first, finished last, as on the phone.
+            val list = list.sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
             if (list.isNotEmpty()) item(key = "kind-$r") {
                 val top = going.isEmpty() && rows.take(r).all { it.second.isEmpty() }
                 Shelf(label) {
                     itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
-                        val eps = s.episodes.size
-                        Poster(s.poster, s.title, if (eps == 1) tr(label) else tr("%d episodes", eps), null,
+                        Poster(s.poster, s.title, levelLine(s), null,
                             if (top && i == 0) Modifier.focusRequester(first) else Modifier) { onShow(s) }
                     }
                 }

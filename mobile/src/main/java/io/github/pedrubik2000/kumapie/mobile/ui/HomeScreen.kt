@@ -72,6 +72,9 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Show
+import io.github.pedrubik2000.kumapie.data.ahead
+import io.github.pedrubik2000.kumapie.data.easyPercent
+import io.github.pedrubik2000.kumapie.data.levelLine
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.mobile.offline.DownloadState
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
@@ -278,23 +281,6 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
             }
         }
     }
-}
-
-/** The episodes not finished yet. */
-private fun ahead(s: Show) = s.episodes.filterNot { it.watched }
-
-/**
- * Of the scenes ahead, the share at i+0 / i+1 (the PC's count, [io.github.pedrubik2000.kumapie.data.Episode.easy]);
- * null when no episode ahead has a count (made on a device and not synced yet, or no known words sent).
- */
-private fun easyPercent(s: Show): Int? = ahead(s).filter { it.easy > 0 && it.scenes > 0 }.takeIf { it.isNotEmpty() }
-    ?.let { eps -> eps.sumOf { it.easy } * 100 / eps.sumOf { it.scenes } }
-
-/** A show card's second line: "62% easy · 9 left", "9 left" without a count, "Finished" (user, 2026-10-14). */
-private fun levelLine(s: Show): String {
-    val left = ahead(s).size
-    if (left == 0) return tr("Finished")
-    return easyPercent(s)?.let { tr("%1\$d%% easy · %2\$d left", it, left) } ?: tr("%d left", left)
 }
 
 @Composable

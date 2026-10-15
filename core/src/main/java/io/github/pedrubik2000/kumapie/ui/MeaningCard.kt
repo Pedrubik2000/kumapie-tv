@@ -121,6 +121,8 @@ private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: S
 private fun ShortMeaning(ctl: SceneController, key: String, written: String, word: Word) {
     val meaning = withoutSameWord(ctl.scene.meanings[key] ?: word.meaning, written)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Japanese with kanji: the word and its reading first (取る · とる), then the meaning (user, 2026-10-14).
+        if (word.reading.isNotBlank()) Text("${word.lemma.ifBlank { written }}  ·  ${word.reading}", color = Colors.dim, fontSize = 18.sp)
         if (meaning.isNotBlank()) {
             Text(meaning, color = Colors.text, fontSize = 22.sp)
         } else {

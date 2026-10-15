@@ -63,7 +63,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
         val words = e.getJSONObject("words").let { w ->
             w.keys().asSequence().associateWith { k ->
                 w.getJSONObject(k).let {
-                    Word(status = it.optString("s", "u"), meaning = it.optString("g"), lemma = it.optString("lemma"),
+                    Word(status = it.optString("s", "u"), meaning = it.optString("g"), lemma = it.optString("lemma"), reading = it.optString("r"),
                         stability = if (it.isNull("d")) null else it.optDouble("d"), lookups = it.optInt("n"),
                         marked = it.optBoolean("m"))
                 }
@@ -398,6 +398,8 @@ data class Word(
      * "" while kuma3's queue isn't known. Only a fallback when the dictionary form has no card ([formCard]).
      */
     val forms: Map<String, String>? = null,
+    /** Japanese written with kanji: its kana reading, from the PC's dictionaries (the TV card shows it). */
+    val reading: String = "",
 ) {
     /** The colour to draw: white when marked known, else [card]'s when known ("n" draws like "u"), else [status]. */
     val shown: String get() = if (marked) "k" else when (card) { null -> status; "n" -> "u"; else -> card }

@@ -129,7 +129,7 @@ fun HomeScreen(
     onIPlusOne: () -> Unit,
     onFeed: () -> Unit,
     onImprove: () -> Unit,
-    onSettings: () -> Unit,
+    onSettings: (section: String?) -> Unit,
     onSearch: () -> Unit = {},
     onDownloads: () -> Unit = {},
     /** An episode of "Continue watching": straight to the player, where it was left. */
@@ -179,7 +179,7 @@ fun HomeScreen(
         Dest(Icons.Default.BarChart, tr("Stats"), onStats),
         Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove, short = tr("Hard cards")),
         Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch, short = tr("Dictionary")).takeIf { homeLang == "ja" },
-        Dest(Icons.Default.Settings, tr("Settings"), onSettings),
+        Dest(Icons.Default.Settings, tr("Settings"), { onSettings(null) }),
     )
 
     val content = @Composable { padding: PaddingValues ->
@@ -255,7 +255,7 @@ fun HomeScreen(
     }
     if (adding) {
         ModalBottomSheet(onDismissRequest = { adding = false; attempt++ }) {
-            AddEpisodeSheet(library, sharedLink, homeLang, onSettings = { adding = false; onSettings() })
+            AddEpisodeSheet(library, sharedLink, homeLang, onSettings = { adding = false; onSettings(it) })
         }
     }
 }

@@ -42,7 +42,7 @@ sealed interface Screen {
     data object IPlusOne : Screen
     data object Feed : Screen
     data object Improve : Screen
-    data object Settings : Screen
+    data class Settings(val section: String? = null) : Screen
     data object Stats : Screen
     data object Search : Screen
     data object Downloads : Screen
@@ -136,7 +136,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 homeLang = homeLang,
                 onHomeLang = { homeLang = it; settings.prefs.edit().putString("home_lang", it).apply() },
                 sharedLink = sharedLink,
-                onSettings = { stack += Screen.Settings },
+                onSettings = { stack += Screen.Settings(it) },
             )
             is Screen.ShowEpisodes -> shows.firstOrNull { it.id == screen.showId }?.let { show ->
                 ShowScreen(library, show, onPlay = { stack += Screen.Player(show, it) }, onBack = { stack.removeAt(stack.lastIndex) })
@@ -145,8 +145,8 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             Screen.Feed -> FeedScreen(library, langShows, homeLang, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.IPlusOne -> IPlusOneScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server },
-                onUpdate = { update = it }, onBack = { stack.removeAt(stack.lastIndex) })
+            is Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server },
+                onUpdate = { update = it }, onBack = { stack.removeAt(stack.lastIndex) }, section = screen.section)
             Screen.Improve -> ImproveScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Stats -> StatsScreen(library, onBack = { stack.removeAt(stack.lastIndex) })

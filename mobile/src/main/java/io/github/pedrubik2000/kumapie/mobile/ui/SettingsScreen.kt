@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -59,108 +60,215 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** The server address (first run too), downloads on the device, reports waiting, updates and the version. */
+/** Settings' sections, most visited first (kumapie_settings_ia.html, 2026-10-15): key and title. */
+private val SECTIONS = listOf(
+    "episodes" to "Making episodes", "words" to "Known words", "dicts" to "Dictionaries & word audio",
+    "watching" to "Watching", "device" to "You & this device", "storage" to "Storage & updates",
+)
+
+/**
+ * Settings: six sections, each row with a one-line summary; a phone opens one at a time, a wide screen shows the
+ * list and the open section side by side. [section] opens one directly (the Add sheet's "Open Settings").
+ * The first run shows only the language, the PC's address and copying from another device.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit, onBack: () -> Unit) {
+fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit, onBack: () -> Unit,
+                   section: String? = null) {
+    val settings = library.settings
+    if (firstRun) {
+        Scaffold(topBar = { TopAppBar(title = { Text(tr("Welcome to kumapie")) }) }) { padding ->
+            Page(Modifier.padding(padding)) {
+                MenuLanguage(settings)
+                ServerSection(library, onSaved)
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                TransferSection()
+                Version()
+            }
+        }
+        return
+    }
+    var open by remember { mutableStateOf(section) }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = maxWidth >= 840.dp
+        // A phone: Back closes the open section first (registered after the app's own Back, so it wins).
+        androidx.activity.compose.BackHandler(enabled = !wide && open != null) { open = null }
+        val title = if (!wide) open?.let { k -> SECTIONS.first { it.first == k }.second } else null
+        Scaffold(topBar = {
+            TopAppBar(title = { Text(tr(title ?: "Settings")) },
+                navigationIcon = { IconButton(onClick = { if (!wide && open != null) open = null else onBack() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
+        }) { padding ->
+            if (wide) androidx.compose.foundation.layout.Row(Modifier.fillMaxSize().padding(padding)) {
+                Column(Modifier.width(380.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
+                    SectionList(library, open ?: "episodes") { open = it }
+                }
+                Page(Modifier.weight(1f).widthIn(max = 760.dp)) { SectionContent(library, open ?: "episodes", onSaved, onUpdate) }
+            } else when (val k = open) {
+                null -> Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(12.dp)) {
+                    SectionList(library, null) { open = it }
+                }
+                else -> Page(Modifier.padding(padding)) { SectionContent(library, k, onSaved, onUpdate) }
+            }
+        }
+    }
+}
+
+/** A scrolling page of settings. */
+@Composable
+private fun Page(modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) =
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+        content = content)
+
+@Composable
+private fun Version(modifier: Modifier = Modifier) =
+    Text(tr("Version %s", BuildConfig.VERSION_NAME), color = Colors.dim, fontSize = 13.sp, modifier = modifier.padding(top = 12.dp))
+
+/** The six rows: title and what is set now, so a look is often enough. */
+@Composable
+private fun SectionList(library: Library, selected: String?, onOpen: (String) -> Unit) {
+    val summaries = rememberSummaries(library)
+    SECTIONS.forEach { (key, title) ->
+        androidx.compose.material3.Surface(onClick = { onOpen(key) }, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            color = if (key == selected) Colors.surface else androidx.compose.ui.graphics.Color.Transparent,
+            modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text(tr(title), fontSize = 17.sp, color = Colors.text)
+                summaries[key]?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 14.sp, color = Colors.dim) }
+            }
+        }
+    }
+}
+
+/** Each section's one-line summary (read off the IO thread: the known-word lists and the download size take a moment). */
+@Composable
+private fun rememberSummaries(library: Library): Map<String, String> {
+    val settings = library.settings
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dicts by library.yomitan.all.collectAsState()
+    var slow by remember { mutableStateOf(emptyMap<String, String>()) }
+    LaunchedEffect(Unit) {
+        slow = withContext(Dispatchers.IO) {
+            val learning = settings.learning()
+            mapOf(
+                "words" to library.languages.all.filter { it.lang.code in learning && it.known.ready }
+                    .joinToString(" · ") { "${tr(it.lang.name)} %,d".format(it.known.knownList().size) },
+                "storage" to tr("%.1f GB downloaded", library.downloads.bytesUsed() / 1e9) + " · " + tr("version %s", BuildConfig.VERSION_NAME),
+            )
+        }
+    }
+    val followed = remember { io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).all().size }
+    val english = when (settings.englishSource) {
+        "soniox" -> tr("Soniox translation"); "gemma" -> tr("Gemma translation"); "device" -> tr("Google translation"); else -> tr("no translation")
+    }
+    val learning = remember { settings.learning() }
+    return slow + mapOf(
+        "episodes" to listOfNotNull(if (settings.transcriber == "parakeet") "Parakeet" else "Soniox", english,
+            followed.takeIf { it > 0 }?.let { tr("%d followed", it) }).joinToString(" · "),
+        "dicts" to io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { it.code in learning }
+            .map { l -> "${tr(l.name)} ${dicts.count { it.lang == l.code && it.enabled }}" }.joinToString(" · "),
+        "watching" to (if (settings.blurUnwatched) tr("No spoilers on") else tr("No spoilers off")) + " · " +
+            tr("popup %1\$d × %2\$d", settings.popupWidth, settings.popupHeight),
+        "device" to listOf(when (settings.owner) { "" -> tr("Nobody's (no sync)"); else -> tr("%s's", settings.owner.replaceFirstChar(Char::uppercase)) },
+            when (settings.menuLanguage) { "en" -> "English"; "es" -> "Español"; else -> tr("Phone's language") }).joinToString(" · "),
+    )
+}
+
+/** One section's settings: the existing blocks, regrouped. */
+@Composable
+private fun SectionContent(library: Library, key: String, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
+    val settings = library.settings
+    val learning = remember { settings.learning() } // only the languages this device learns (a parent's phone: English)
+    when (key) {
+        "episodes" -> NewEpisodesSection(library, learning)
+        "words" -> KnownWordsSection(library, learning)
+        "dicts" -> {
+            YomitanSection(library, learning)
+            if ("de" in learning) { HorizontalDivider(Modifier.padding(vertical = 8.dp)); DictionarySection(library) }
+        }
+        "watching" -> {
+            var blur by remember { mutableStateOf(settings.blurUnwatched) }
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(tr("Blur pictures of episodes I haven't watched (no spoilers)"), fontSize = 15.sp, modifier = Modifier.weight(1f))
+                androidx.compose.material3.Switch(blur, { blur = it; settings.blurUnwatched = it })
+            }
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            PopupSize(settings)
+        }
+        "device" -> {
+            MenuLanguage(settings)
+            ServerSection(library, onSaved)
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            TransferSection()
+        }
+        "storage" -> StorageSection(library, onUpdate)
+    }
+}
+
+/** The PC's address: saved only once the PC answers. */
+@Composable
+private fun ServerSection(library: Library, onSaved: () -> Unit) {
     val settings = library.settings
     val scope = rememberCoroutineScope()
     var server by remember { mutableStateOf(settings.server) }
     var message by remember { mutableStateOf("") }
+    Text(tr("Server"), color = Colors.accent)
+    OutlinedTextField(server, { server = it }, label = { Text("https://my-pc.my-tailnet.ts.net:8445") },
+        singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
+    Button(onClick = {
+        val url = Settings.normalizeServer(server)
+        message = tr("Checking…")
+        scope.launch {
+            runCatching { Api(url).info() }
+                .onSuccess {
+                    settings.server = url
+                    server = url
+                    message = tr("Connected: %1\$s episodes in %2\$s.", it.episodes, it.language)
+                    onSaved()
+                }
+                .onFailure { message = tr("No answer from %1\$s: %2\$s", url, it.message) }
+        }
+    }) { Text(tr("Save")) }
+    if (message.isNotEmpty()) Text(message, color = Colors.dim, fontSize = 14.sp)
+}
+
+/** Downloads on the device, reports waiting for the PC, the app's updates and version. */
+@Composable
+private fun StorageSection(library: Library, onUpdate: (Updater.Release) -> Unit) {
+    val scope = rememberCoroutineScope()
     var used by remember { mutableLongStateOf(0L) }
     var waiting by remember { mutableIntStateOf(0) }
     var refresh by remember { mutableIntStateOf(0) }
+    var message by remember { mutableStateOf("") }
     LaunchedEffect(refresh) {
         used = withContext(Dispatchers.IO) { library.downloads.bytesUsed() }
         waiting = library.pending.count()
     }
-
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text(if (firstRun) tr("Welcome to kumapie") else tr("Settings")) },
-            navigationIcon = { if (!firstRun) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
-        )
-    }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            MenuLanguage(settings)
-            Text(tr("Server"), color = Colors.accent)
-            OutlinedTextField(server, { server = it }, label = { Text("https://my-pc.my-tailnet.ts.net:8445") },
-                singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
-            Button(onClick = {
-                val url = Settings.normalizeServer(server)
-                message = tr("Checking…")
-                scope.launch {
-                    runCatching { Api(url).info() }
-                        .onSuccess {
-                            settings.server = url
-                            server = url
-                            message = tr("Connected: %1\$s episodes in %2\$s.", it.episodes, it.language)
-                            onSaved()
-                        }
-                        .onFailure { message = tr("No answer from %1\$s: %2\$s", url, it.message) }
-                }
-            }) { Text(tr("Save")) }
-            if (message.isNotEmpty()) Text(message, color = Colors.dim, fontSize = 14.sp)
-
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            TransferSection()
-
-            if (!firstRun) {
-                // Only the languages this device learns (a parent's phone: English).
-                val learning = remember { settings.learning() }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                KnownWordsSection(library, learning)
-                HorizontalDivider()
-                YomitanSection(library, learning)
-
-                if ("de" in learning) {
-                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                    DictionarySection(library)
-                }
-
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                var blur by remember { mutableStateOf(settings.blurUnwatched) }
-                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Text(tr("Blur pictures of episodes I haven't watched (no spoilers)"), fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    androidx.compose.material3.Switch(blur, { blur = it; settings.blurUnwatched = it })
-                }
-
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                PopupSize(settings)
-
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                NewEpisodesSection(library, learning)
-
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Text(tr("On this device"), color = Colors.accent)
-                Text(tr("Downloads: %.1f GB", used / 1e9), fontSize = 15.sp)
-                var confirmRemove by remember { mutableStateOf(false) }
-                OutlinedButton(enabled = used > 0, onClick = { confirmRemove = true }) { Text(tr("Remove all downloads")) }
-                if (confirmRemove) androidx.compose.material3.AlertDialog(onDismissRequest = { confirmRemove = false },
-                    title = { Text(tr("Remove all downloads?")) },
-                    text = { Text(tr("This deletes %.1f GB of episodes saved on this device. You can download them again on Wi-Fi.", used / 1e9)) },
-                    confirmButton = { androidx.compose.material3.TextButton(onClick = { library.downloads.deleteAll(); refresh++; confirmRemove = false }) { Text(tr("Remove downloads")) } },
-                    dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmRemove = false }) { Text(tr("Keep them")) } })
-                Text(if (waiting == 0) tr("Nothing waiting to be sent to the PC.") else tr("%d reports waiting for the PC (sent when it answers).", waiting),
-                    fontSize = 15.sp, color = Colors.dim)
-                if (waiting > 0) OutlinedButton(onClick = {
-                    scope.launch { library.pending.flush(library.api, force = true); refresh++ }
-                }) { Text(tr("Send now")) }
-
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                OutlinedButton(onClick = {
-                    message = tr("Looking for updates…")
-                    scope.launch {
-                        runCatching { Updater.newer() }
-                            .onSuccess { r -> if (r == null) message = tr("This is the newest version.") else { message = ""; onUpdate(r) } }
-                            .onFailure { message = tr("Couldn't check: %s", it.message) }
-                    }
-                }) { Text(tr("Check for a new kumapie version")) }
-            }
-            Text(tr("Version %s", BuildConfig.VERSION_NAME), color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
+    Text(tr("On this device"), color = Colors.accent)
+    Text(tr("Downloads: %.1f GB", used / 1e9), fontSize = 15.sp)
+    var confirmRemove by remember { mutableStateOf(false) }
+    OutlinedButton(enabled = used > 0, onClick = { confirmRemove = true }) { Text(tr("Remove all downloads")) }
+    if (confirmRemove) androidx.compose.material3.AlertDialog(onDismissRequest = { confirmRemove = false },
+        title = { Text(tr("Remove all downloads?")) },
+        text = { Text(tr("This deletes %.1f GB of episodes saved on this device. You can download them again on Wi-Fi.", used / 1e9)) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { library.downloads.deleteAll(); refresh++; confirmRemove = false }) { Text(tr("Remove downloads")) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmRemove = false }) { Text(tr("Keep them")) } })
+    Text(if (waiting == 0) tr("Nothing waiting to be sent to the PC.") else tr("%d reports waiting for the PC (sent when it answers).", waiting),
+        fontSize = 15.sp, color = Colors.dim)
+    if (waiting > 0) OutlinedButton(onClick = {
+        scope.launch { library.pending.flush(library.api, force = true); refresh++ }
+    }) { Text(tr("Send now")) }
+    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+    OutlinedButton(onClick = {
+        message = tr("Looking for updates…")
+        scope.launch {
+            runCatching { Updater.newer() }
+                .onSuccess { r -> if (r == null) message = tr("This is the newest version.") else { message = ""; onUpdate(r) } }
+                .onFailure { message = tr("Couldn't check: %s", it.message) }
         }
-    }
+    }) { Text(tr("Check for a new kumapie version")) }
+    if (message.isNotEmpty()) Text(message, color = Colors.dim, fontSize = 14.sp)
+    Version()
 }
 
 /**
@@ -410,7 +518,6 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
     val gemmaState by remember { gemma.state() }.collectAsState(initial = null)
     var gemmaReady by remember { mutableStateOf(gemma.isReady) }
     LaunchedEffect(gemmaState) { gemmaReady = gemma.isReady }
-    Text(tr("New episodes"), color = Colors.accent)
     Text(tr("Transcription"), fontSize = 15.sp)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         androidx.compose.material3.FilterChip(selected = transcriber == "soniox", label = { Text(tr("Soniox (best, paid)")) },

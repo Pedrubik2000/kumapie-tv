@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
  * the channel / the file name's). Below: every job's progress.
  */
 @Composable
-fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "de", onSettings: () -> Unit = {}) {
+fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "de", onSettings: (section: String) -> Unit = {}) {
     val context = LocalContext.current
     var link by remember { mutableStateOf(sharedLink?.let { Regex("""(https?://|magnet:)\S+""").findAll(it).joinToString("\n") { m -> m.value } } ?: "") }
     var show by remember { mutableStateOf("") }
@@ -208,7 +208,10 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             .takeIf { it }?.let { tr("For magnets and Real-Debrid links: Settings > your Real-Debrid token.") }
         listOfNotNull(blocker, rdBlocker).forEach { Text(it, color = Colors.unknown, fontSize = 14.sp) }
         if (blocker != null || rdBlocker != null) androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            androidx.compose.material3.OutlinedButton(onClick = onSettings) { Text(tr("Open Settings")) }
+            androidx.compose.material3.OutlinedButton(onClick = {
+                // The words model lives in Known words; keys, Parakeet and Gemma in Making episodes.
+                onSettings(if (!library.languages.of(lang).model.isReady) "words" else "episodes")
+            }) { Text(tr("Open Settings")) }
             if (blocker != null && pc) androidx.compose.material3.OutlinedButton(onClick = {
                 onPcChoice = true; library.settings.prefs.edit().putBoolean(MAKE_ON_PC, true).apply()
             }) { Text(tr("Make it on the PC")) }

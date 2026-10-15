@@ -44,7 +44,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 private data class Choice(val label: String, val gloss: String, val example: Pair<String, String>?)
 
 /** A word card's meanings (kumapie's own first, then the dictionaries'), the one picked at first, and monolingual definitions. */
-private class WordChoices(val choices: List<Choice>, val chosen: Int, val monos: List<Choice>)
+private class WordChoices(val choices: List<Choice>, val chosen: Int, val monos: List<Choice>, val fits: Boolean = false)
 
 private suspend fun wordChoices(library: Library, ctl: SceneController, line: Int, surface: String, key: String): WordChoices {
     val scene = ctl.scene
@@ -107,7 +107,9 @@ private fun japaneseChoices(library: Library, hw: io.github.pedrubik2000.kumapie
         g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(6).map { choice(g, it) }
     }.distinctBy { it.gloss }.take(40)
     var chosen = 0
+    var fits = false
     english?.let { SensePick.bestMeaning(choices.map { c -> c.gloss }, it) }?.let { i ->
+        fits = true
         choices = choices.mapIndexed { k, c -> if (k == i) c.copy(label = c.label + tr("  · fits this line")) else c }
         chosen = i
     }
@@ -115,7 +117,13 @@ private fun japaneseChoices(library: Library, hw: io.github.pedrubik2000.kumapie
     val monos = glossaries.filter(isMono).sortedBy { if (encyclopedia.containsMatchIn(it.dict)) 1 else 0 }
         .mapNotNull { g -> g.senses.firstNotNullOfOrNull { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.monolingualDefinition(it) }?.let { choice(g, it) } }
         .distinctBy { it.gloss }.take(8)
-    return WordChoices(choices, chosen, monos)
+    return WordChoices(choices, chosen, monos, fits)
+}
+
+/** The meaning of [hw] that fits the line's English (the word popup's "In this line"), null when none does. */
+internal fun fitsThisLine(library: Library, hw: io.github.pedrubik2000.kumapie.lang.Headword, english: String?): String? {
+    val c = japaneseChoices(library, hw, english ?: return null)
+    return if (c.fits) c.choices.getOrNull(c.chosen)?.gloss else null
 }
 
 /**

@@ -29,6 +29,7 @@ import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.i18n.tr
+import androidx.compose.ui.text.withStyle
 
 /**
  * The picked word in the dictionary, under the card's own meaning: every entry and sense (the first entries and
@@ -66,11 +67,24 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker, 
     // Dictionary entries scroll here; the popup's cards scroll inside it (a second scroller fought with it).
     val scroll = if (found.isEmpty() || !headwords.isNullOrEmpty()) Modifier else Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState())
     Column(modifier.then(scroll), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        // The tapped line, quoted with the word in bold: on a phone the card covers the subtitles (user, 2026-10-14).
+        if (picker.selectedInDef == null) ctl.scene.cues.getOrNull(picker.line)?.let { cue ->
+            Text(androidx.compose.ui.text.buildAnnotatedString {
+                cue.segments.forEachIndexed { i, s ->
+                    if (i == picker.seg) withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Colors.text)) { append(s.text) }
+                    else append(s.text)
+                }
+            }, color = Colors.dim, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(end = 36.dp, bottom = 4.dp)) // clear of the card's ×
+        }
         val hws = headwords
         when {
             missing != null -> Text(missing, color = Colors.dim, fontSize = 14.sp)
             hws == null -> Text(tr("Looking it up…"), color = Colors.dim, fontSize = 14.sp)
-            hws.isNotEmpty() -> YomitanPopup(library, ctl.lang, hws, onSpeak = language::say, compact = true, fit = modifier != Modifier, side = side)
+            hws.isNotEmpty() -> YomitanPopup(library, ctl.lang, hws, onSpeak = language::say, compact = true, fit = modifier != Modifier, side = side,
+                // Japanese: the sense that fits the line's English, as the mine sheet picks it (user, 2026-10-14).
+                fitFor = if (language is io.github.pedrubik2000.kumapie.lang.Japanese && picker.selectedInDef == null)
+                    ({ h -> fitsThisLine(library, h, SensePick.english(ctl.scene, picker.line)) }) else null)
             found.isEmpty() -> Text(
                 if (library.yomitan.of(ctl.lang).any { it.enabled && it.terms > 0 }) tr("Not in the dictionary.")
                 else tr("Download the recommended %s dictionaries in Settings to see meanings here.", ctl.lang.displayName),

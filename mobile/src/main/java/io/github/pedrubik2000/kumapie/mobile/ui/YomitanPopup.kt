@@ -64,6 +64,8 @@ import io.github.pedrubik2000.kumapie.i18n.tr
  */
 @Composable
 fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpeak: (Headword) -> Unit,
+                 /** The word card: the meaning that fits the line, shown under the header ("In this line: to eat"). */
+                 fitFor: ((Headword) -> String?)? = null,
                  /** In the player's word card: a lower card list. */
                  compact: Boolean = false,
                  /** In a column of bounded height: the cards shrink to the height left (the buttons below stay visible). */
@@ -96,6 +98,10 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
             }
         }
         Header(hw, onSpeak)
+        fitFor?.let { f -> remember(hw) { f(hw) } }?.let {
+            Text(tr("In this line: %s", it), color = Colors.text, fontSize = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
         val dicts = remember(hw) { hw.terms.flatMap { it.glossaries }.map { it.dict }.distinct() }
         val groups = remember(hw) { dicts.map { library.yomitan.groupOf(lang, it) }.filter { it.isNotBlank() }.distinct() }
         if (groups.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -31,3 +31,6 @@ fun continueRow(shows: List<Show>): List<Pair<Show, Episode>> = shows.filter { i
         !e.watched && e.duration > 0 && at > 20 && e.duration - at > 120
     }.maxByOrNull { it.resumedAt }?.let { s to it }
 }.sortedByDescending { it.second.resumedAt }
+
+/** A title cut at its subtitle for one-line places (the TV): "BOFURI: I Don't Want to Get Hurt…" -> "BOFURI". */
+fun shortTitle(title: String): String = title.substringBefore(": ").ifBlank { title }

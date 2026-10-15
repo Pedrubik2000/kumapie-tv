@@ -44,6 +44,7 @@ import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.ahead
 import io.github.pedrubik2000.kumapie.data.easyPercent
 import io.github.pedrubik2000.kumapie.data.levelLine
+import io.github.pedrubik2000.kumapie.data.shortTitle
 
 /** Home's rows, in this order (the phone's); reels are feed-only, so the TV never lists them. */
 private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "visual_novels" to "Visual novels")
@@ -118,7 +119,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
         if (going.isNotEmpty()) item(key = "going") {
             Shelf(tr("Continue")) { // as on the phone: novels are read
                 itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
-                    Poster(s.poster, s.title, e.title, ((e.resume ?: 0.0) / e.duration).toFloat(),
+                    Poster(s.poster, shortTitle(s.title), e.title, ((e.resume ?: 0.0) / e.duration).toFloat(),
                         if (i == 0) Modifier.focusRequester(first) else Modifier) { onPlay(s, e) }
                 }
             }
@@ -130,7 +131,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
                 val top = going.isEmpty() && rows.take(r).all { it.second.isEmpty() }
                 Shelf(label) {
                     itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
-                        Poster(s.poster, s.title, levelLine(s), null,
+                        Poster(s.poster, shortTitle(s.title), levelLine(s), null,
                             if (top && i == 0) Modifier.focusRequester(first) else Modifier) { onShow(s) }
                     }
                 }

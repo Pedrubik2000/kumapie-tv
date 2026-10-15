@@ -11,6 +11,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     "↺ scene" to "↺ escena",
     "skip nothing" to "sin saltar",
     "primed" to "preparado",
+    "no pause at scene end" to "sin pausa al final de la escena",
     "plays on" to "sigue",
     "scene %d" to "escena %d",
     "Options" to "Opciones",

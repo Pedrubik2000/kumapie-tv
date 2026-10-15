@@ -56,6 +56,7 @@ import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.keys
 import io.github.pedrubik2000.kumapie.data.Show
+import io.github.pedrubik2000.kumapie.data.shortTitle
 import io.github.pedrubik2000.kumapie.player.Action
 import io.github.pedrubik2000.kumapie.player.KeyHandler
 import io.github.pedrubik2000.kumapie.player.KeyContext
@@ -79,7 +80,7 @@ fun PlayerScreen(api: Api, settings: Settings, show: Show, episode: Episode, onC
             error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onClose)
             detail == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 22.sp,
                 maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.Center))
-            else -> ScenePlayer(api, settings, detail!!, onClose)
+            else -> ScenePlayer(api, settings, detail!!.copy(show = show.title), onClose) // the Home title (metadata, English)
         }
     }
 }
@@ -216,7 +217,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
             },
             modifier = Modifier.fillMaxSize(),
         )
-        if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, picker, hints = settings.showHelp)
+        if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, picker, hints = settings.showHelp, title = shortTitle(ctl.episode.show))
         Subtitles(ctl, picker, onAnchor = { anchor = it }, aboveBox = true)
         if (picker.isOpen && picker.cardOpen) anchor?.let { MeaningCard(ctl, picker, it) }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() },
@@ -228,7 +229,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
 
 /** Show, scene n/N with its level, the modes, and a hint of the keys when paused. */
 @Composable
-private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean) {
+private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean, title: String) {
     val scene = ctl.scene
     Row(
         Modifier.fillMaxWidth()
@@ -237,10 +238,10 @@ private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // One line, cut with "…": a long title must not push the counter and level away (item 13d).
-        Text("${ctl.episode.show} · ${ctl.episode.title}", color = Colors.text, fontSize = 20.sp, maxLines = 1,
+        Text("$title · ${ctl.episode.title}", color = Colors.text, fontSize = 20.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 24.dp))
         val modes = listOfNotNull(
-            if (ctl.pauseAtSceneEnd) tr("pauses at scene end") else tr("plays on"),
+            if (ctl.pauseAtSceneEnd) tr("pauses at scene end") else tr("no pause at scene end"),
             if (ctl.slow) "0.75x" else null,
         ).joinToString(" · ")
         Text(modes, color = Colors.text.copy(alpha = 0.8f), fontSize = 16.sp, modifier = Modifier.padding(end = 24.dp))
@@ -255,6 +256,7 @@ private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean) {
             tr("OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK: replay line   hold ↓: known")
         picker.isOpen -> tr("←→ words   ↑↓ lines   OK: show the meaning   hold OK: replay line   hold ↓: known   Back: close")
         ctl.atSceneEnd -> tr("OK: next scene   ↑: replay line   ↓: pick a word   ←: previous")
+        !ctl.playing -> tr("OK: play   hold OK: pick a word   ↑: replay line   Menu: options")
         else -> null
     }
     if (hint != null && hints) {

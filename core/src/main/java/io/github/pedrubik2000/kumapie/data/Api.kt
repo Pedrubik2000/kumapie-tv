@@ -136,6 +136,8 @@ class Api(private val base: String, private val person: String = "") : Backend {
             },
             markedKnown = o.optInt("marked_known"),
             shows = o.getJSONArray("shows").objects().map { ShowProgress(it.getString("title"), it.getInt("seen"), it.getInt("scenes")) },
+            langs = o.optJSONObject("langs")?.let { l -> l.keys().asSequence().associateWith { k -> l.getJSONObject(k).let {
+                LangTotal(it.optDouble("today"), it.optDouble("week"), it.optDouble("total"), it.optInt("known")) } } }.orEmpty(),
         )
     }
 
@@ -157,6 +159,11 @@ class Api(private val base: String, private val person: String = "") : Backend {
     suspend fun deviceSeen(seen: Map<String, String>, unwatched: Map<String, Long>) {
         post("/api/tv/device_seen", JSONObject().put("person", person).put("seen", JSONObject(seen))
             .put("unwatched", JSONObject(unwatched)).toString())
+    }
+
+    /** This person's devices' own watch time ({lang: {study day: seconds}}), for the TV's Home card. */
+    suspend fun deviceWatch(watch: Map<String, Map<String, Double>>) {
+        post("/api/tv/device_watch", JSONObject().put("person", person).put("watch", JSONObject(watch.mapValues { JSONObject(it.value) })).toString())
     }
 
     /** "Fix match" for a PC show ([show] = its id, the library folder): the PC fetches and keeps the metadata. */
@@ -303,7 +310,11 @@ data class Stats(
     val topLookups: List<TopLookup>,
     val markedKnown: Int,
     val shows: List<ShowProgress>,
+    /** Per language: TV + phones' time and the words known (the TV's Home card). */
+    val langs: Map<String, LangTotal> = emptyMap(),
 )
+
+data class LangTotal(val today: Double, val week: Double, val total: Double, val known: Int)
 
 data class TopLookup(val word: String, val times: Int, val meaning: String)
 

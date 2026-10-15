@@ -109,7 +109,28 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
             error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings)
             shows == null -> Text(tr("Loading…"), color = Colors.dim)
             lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim)
-            else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay)
+            else -> {
+                LangCard(api, lang)
+                Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay)
+            }
+        }
+    }
+}
+
+/** Hours in this language (TV + phones) and words known, above everything (user, 2026-10-15), as on the phone. */
+@Composable
+private fun LangCard(api: Api, lang: String) {
+    var t by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.LangTotal?>(null) }
+    LaunchedEffect(lang) { t = runCatching { api.stats().langs[lang] }.getOrNull() }
+    val s = t ?: return
+    Row(Modifier.padding(bottom = 16.dp).background(Colors.surface, androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+        .padding(horizontal = 24.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
+        listOf(String.format(java.util.Locale.ROOT, "%.1f h", s.total / 3600) to tr("In total"), hoursMinutes(s.week) to tr("Last 7 days"),
+            hoursMinutes(s.today) to tr("Today"), "${s.known}" to tr("Words known")).forEach { (v, l) ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(v, fontSize = 24.sp, color = Colors.accent)
+                Text(l, fontSize = 14.sp, color = Colors.dim)
+            }
         }
     }
 }

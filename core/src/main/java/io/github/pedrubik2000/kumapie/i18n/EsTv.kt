@@ -108,6 +108,8 @@ internal val esTv: Map<String, String> = mapOf(
     "%1\$d min · %2\$d scenes" to "%1\$d min · %2\$d escenas",
     " · %d seen" to " · %d vistas",
     "Today" to "Hoy",
+    "In total" to "En total",
+    "Words known" to "Palabras conocidas",
     "Last 7 days" to "Últimos 7 días",
     "Total" to "Total",
     "Streak" to "Racha",

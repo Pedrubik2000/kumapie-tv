@@ -75,7 +75,29 @@ class Library(context: Context, val settings: Settings) {
         val marked = progress.merged.marked
         languages.all.forEach { l -> l.known.useMarked(marked.mapNotNull(l::wordOfMark).toSet()) }
         sendKnownWords()
+        sendWatch()
     }
+
+    /** The devices' own time per language to the PC (the TV's Home card adds the TV's), when it changed. */
+    private suspend fun sendWatch() {
+        val api = runCatching { api }.getOrNull() ?: return
+        val shows = lastShows.takeIf { it.isNotEmpty() } ?: return
+        val v = progress.devices()
+        val watch = shows.map { it.lang }.toSet().associateWith { Progress.daysIn(it, v, sceneLang(v, shows)) }
+        val hash = watch.hashCode().toString()
+        if (settings.prefs.getString("watch_sent", null) == hash) return
+        runCatching { api.deviceWatch(watch) }.onSuccess { settings.prefs.edit().putString("watch_sent", hash).apply() }
+            .onFailure { android.util.Log.w("kumapie", "watch time not sent: $it") }
+    }
+
+    /** Scene -> the language of its show. */
+    private fun sceneLang(v: Progress.View, shows: List<Show>): Map<String, String> {
+        val epLang = shows.flatMap { s -> s.episodes.map { it.id to s.lang } }.toMap()
+        return v.seen.mapNotNull { (scene, ep) -> epLang[ep]?.let { scene to it } }.toMap()
+    }
+
+    /** The last list [shows] gave (for [sendWatch]). */
+    @Volatile private var lastShows: List<Show> = emptyList()
 
     /**
      * Each language's known words (white or green) to the PC, when they changed since the last send
@@ -131,7 +153,7 @@ class Library(context: Context, val settings: Settings) {
         val mineShown = mine.map { s -> s.copy(episodes = s.episodes.map { e -> e.copy(easy = pcEasy[e.id] ?: e.easy) }) }
             .map { s -> if (s.poster.isNotEmpty()) s else s.copy(poster = s.episodes.firstNotNullOfOrNull { pcPoster[it.id]?.ifEmpty { null } } ?: "") }
         val m = progress.merged
-        return (mineShown + pcOwn).map { s ->
+        return (mineShown + pcOwn).also { lastShows = it }.map { s ->
             // A "not watched" mark: the PC's own count is from before it, only the merged scenes count.
             s.copy(episodes = s.episodes.map { e -> e.copy(resume = m.pos[e.id] ?: e.resume, resumedAt = maxOf(e.resumedAt, m.posAt[e.id] ?: 0),
                 seen = if (e.id in m.unwatched) m.seenIn(e.id) else maxOf(e.seen, m.seenIn(e.id))) })
@@ -207,8 +229,7 @@ class Library(context: Context, val settings: Settings) {
 
     suspend fun langProgress(lang: String, shows: List<Show>): LangProgress = withContext(Dispatchers.IO) {
         val m = progress.merged
-        val epLang = shows.flatMap { s -> s.episodes.map { it.id to s.lang } }.toMap()
-        val days = Progress.daysIn(lang, m, m.seen.mapNotNull { (scene, ep) -> epLang[ep]?.let { scene to it } }.toMap())
+        val days = Progress.daysIn(lang, m, sceneLang(m, shows))
         val today = java.time.LocalDate.parse(Progress.studyDay())
         LangProgress(days[today.toString()] ?: 0.0, (0L..6L).sumOf { days[today.minusDays(it).toString()] ?: 0.0 }, days.values.sum(),
             languages.of(lang).known.knownList().size)

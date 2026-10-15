@@ -75,9 +75,9 @@ private fun StatsContent(s: Stats) {
             Section(Modifier.focusRequester(first)) {
                 Text(tr("Stats"), fontSize = 30.sp, color = Colors.text)
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Tile(tr("Today"), minutes(s.today))
-                    Tile(tr("Last 7 days"), minutes(s.week))
-                    Tile(tr("Total"), minutes(s.total))
+                    Tile(tr("Today"), hoursMinutes(s.today))
+                    Tile(tr("Last 7 days"), hoursMinutes(s.week))
+                    Tile(tr("Total"), hoursMinutes(s.total))
                     Tile(tr("Streak"), if (s.streak == 1) tr("1 day") else tr("%d days", s.streak))
                 }
             }
@@ -207,7 +207,7 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
     val values = (29 downTo 0).map { (days[today.minusDays(it.toLong()).toString()] ?: 0.0) / 60 }
     val max = values.maxOrNull()?.takeIf { it > 0 } ?: 1.0
     Column(modifier) {
-        Text("most: ${minutes(max * 60)}", fontSize = 12.sp, color = Colors.dim)
+        Text("most: ${hoursMinutes(max * 60)}", fontSize = 12.sp, color = Colors.dim)
         Canvas(Modifier.width(840.dp).height(120.dp)) {
             val w = size.width / 30
             values.forEachIndexed { i, v ->
@@ -226,7 +226,7 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
     }
 }
 
-private fun minutes(seconds: Double): String {
+internal fun hoursMinutes(seconds: Double): String {
     val m = (seconds / 60).toInt()
     return when {
         m < 60 -> "$m min"

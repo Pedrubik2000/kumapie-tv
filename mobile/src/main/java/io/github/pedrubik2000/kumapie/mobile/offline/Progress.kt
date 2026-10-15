@@ -146,8 +146,11 @@ class Progress private constructor(context: Context, private val settings: Setti
 
     // ------------------------------------------------------------------ merging
 
-    private fun merge(): View {
-        val parts = listOf(data) + others.keys().asSequence().mapNotNull { others.optJSONObject(it) }.toList()
+    /** This person's devices only, without the PC's history (the TV): what the PC gets as the phones' time. */
+    fun devices(): View = merge(skip = "pc")
+
+    private fun merge(skip: String? = null): View {
+        val parts = listOf(data) + others.keys().asSequence().filter { it != skip }.mapNotNull { others.optJSONObject(it) }.toList()
         val pos = HashMap<String, Pair<Double, Long>>()
         val seen = HashMap<String, String>()
         val seenLast = HashMap<String, Long>() // scene -> latest time seen, on any device

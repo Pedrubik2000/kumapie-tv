@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilledIconButton
@@ -193,22 +195,22 @@ fun HomeScreen(
                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Colors.accent, selectedLabelColor = Color.Black)) }
             }
             if (offline) Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(tr("Offline: only episodes on this device play."), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                Text(tr("Offline: only episodes on this device play."), color = Colors.dim, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 TextButton(onClick = { attempt++ }) { Text(tr("Try again")) }
             }
             Box(Modifier.fillMaxSize()) {
                 when {
                     error != null && shows == null -> Column(Modifier.align(Alignment.Center).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(tr("Can't reach the PC"), fontSize = 20.sp)
-                        Text(error ?: "", color = Colors.dim, fontSize = 14.sp)
+                        Text(tr("Can't reach the PC"), style = MaterialTheme.typography.titleLarge)
+                        Text(error ?: "", color = Colors.dim, style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = { attempt++ }) { Text(tr("Try again")) }
                     }
                     shows == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     all.isEmpty() -> Column(Modifier.align(Alignment.Center).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(tr("No episodes yet"), fontSize = 20.sp)
-                        Text(tr("Add a YouTube link or a video file."), color = Colors.dim, fontSize = 14.sp)
+                        Text(tr("No episodes yet"), style = MaterialTheme.typography.titleLarge)
+                        Text(tr("Add a YouTube link or a video file."), color = Colors.dim, style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = { adding = true }) { Text(tr("Add an episode")) }
                     }
                     else -> Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay)
@@ -219,7 +221,7 @@ fun HomeScreen(
 
     if (wide) Row(Modifier.fillMaxSize()) {
         NavigationRail(header = {
-            FloatingActionButton(onClick = { adding = true }, modifier = Modifier.padding(vertical = 8.dp)) { Icon(Icons.Default.Add, tr("Add an episode")) }
+            FloatingActionButton(onClick = { adding = true }, containerColor = Colors.surface, contentColor = Colors.text, modifier = Modifier.padding(vertical = 8.dp)) { Icon(Icons.Default.Add, tr("Add an episode")) }
         }) {
             NavigationRailItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, null) }, label = { Text(tr("Home")) })
             (main + extra).forEach { d ->
@@ -338,18 +340,18 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
 private fun ResumeCard(image: Any?, s: Show, e: Episode, onPlay: () -> Unit) {
     Surface(onClick = onPlay, shape = RoundedCornerShape(16.dp), color = Colors.surface, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Column {
-            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).zIndex(1f)) { // the play button sits on its bottom edge, over the text
                 NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
                 AsyncImage(image, null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
                 // The art fades into the card, so the title under it reads as part of it.
                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Colors.surface)))
-                FilledIconButton(onClick = onPlay, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).size(64.dp),
+                FilledIconButton(onClick = onPlay, modifier = Modifier.align(Alignment.BottomEnd).offset(y = 32.dp).padding(end = 16.dp).size(64.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = Colors.accent, contentColor = Color.Black)) {
                     Icon(Icons.Default.PlayArrow, tr("Play"), Modifier.size(36.dp))
                 }
             }
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                Text(s.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(s.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 72.dp))
                 // Two lines, so a narrow card never cuts off how easy it is.
                 Text(e.title, style = MaterialTheme.typography.bodyMedium, color = Colors.dim, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))

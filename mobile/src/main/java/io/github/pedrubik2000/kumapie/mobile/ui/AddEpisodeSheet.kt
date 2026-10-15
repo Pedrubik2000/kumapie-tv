@@ -213,8 +213,12 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 onPcChoice = true; library.settings.prefs.edit().putBoolean(MAKE_ON_PC, true).apply()
             }) { Text(tr("Make it on the PC")) }
         }
+        // Disabled buttons stay readable (M3's 38% vanished on the dark sheet); the red line above says why.
+        val offText = Colors.dim.copy(alpha = 0.6f)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(enabled = links.isNotEmpty() && (ready || onDevice.isEmpty()) && (pc || aniworld.isEmpty()) &&
+            Button(colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    disabledContainerColor = Colors.dim.copy(alpha = 0.12f), disabledContentColor = offText),
+                enabled = links.isNotEmpty() && (ready || onDevice.isEmpty()) && (pc || aniworld.isEmpty()) &&
                     !(needsRd && library.settings.rdToken.isBlank()),
                 onClick = {
                     links.forEach { l ->
@@ -228,7 +232,11 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                     added(context, onDevice.isEmpty())
                     link = ""
                 }) { Text(if (links.size > 1) tr("Make them episodes") else tr("Make it an episode")) }
-            androidx.compose.material3.OutlinedButton(enabled = ready || onPc, onClick = { pick.launch(arrayOf("video/*")) }) { Text(tr("Video files…")) }
+            val filesOk = ready || onPc
+            androidx.compose.material3.OutlinedButton(enabled = filesOk, onClick = { pick.launch(arrayOf("video/*")) },
+                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(disabledContentColor = offText),
+                border = if (filesOk) androidx.compose.material3.ButtonDefaults.outlinedButtonBorder(true)
+                    else androidx.compose.foundation.BorderStroke(1.dp, Colors.dim.copy(alpha = 0.35f))) { Text(tr("Video files…")) }
         }
         // One plain line; the pipeline (Jimaku, Parakeet, MKV...) only for whoever asks.
         Text(if (pcOnly) tr("The PC makes it; it comes to this device on Wi-Fi when it's ready.")

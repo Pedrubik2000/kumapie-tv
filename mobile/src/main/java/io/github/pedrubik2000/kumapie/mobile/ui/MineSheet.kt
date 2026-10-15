@@ -104,7 +104,8 @@ private fun japaneseChoices(library: Library, hw: io.github.pedrubik2000.kumapie
     }
     fun choice(g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary, m: String) = Choice("${shortDictName(g.dict)}: $m", m, null)
     var choices = meaningDicts.flatMap { g ->
-        g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(6).map { choice(g, it) }
+        // 12: a Jitendex entry is now one meaning per sense, and the one that fits can be far down (取る "to gather").
+        g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(12).map { choice(g, it) }
     }.distinctBy { it.gloss }.take(40)
     var chosen = 0
     var fits = false

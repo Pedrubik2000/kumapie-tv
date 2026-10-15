@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -127,7 +128,8 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
     val tall = minOf(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp, library.settings.popupHeight)
     // The left column spreads over the cards' height (no empty space under the buttons).
     if (side != null) Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween) { top(); side() }
+        // Scrolls when it doesn't fit (a phone in landscape cut off the second rating row and Mine, 2026-10-14).
+        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.SpaceBetween) { top(); side() }
         // Less the screen margins and the card's padding; the card's height clamps it further.
         cards(Modifier.weight(1.2f), (tall - 76).coerceAtLeast(140))
     } else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

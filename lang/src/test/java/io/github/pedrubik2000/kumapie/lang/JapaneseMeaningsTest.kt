@@ -28,6 +28,8 @@ class JapaneseMeaningsTest {
     @Test fun jitendexSenseMeaningOnly() {
         assertEquals(listOf("to eat"), JapaneseLookup.bilingualMeanings("1-dan transitive; to eat; もっと果物を食べるべきです。; You should eat more fruit."))
         assertEquals(listOf("perfect game"), JapaneseLookup.bilingualMeanings("noun abbr. baseball; perfect game; See also パーフェクトゲーム; perfect game"))
+        // Daijirin-style: the Japanese gloss after the English in the same piece.
+        assertEquals(listOf("To gather; to collect; to harvest"), JapaneseLookup.bilingualMeanings("To gather; to collect; to harvest. 集める。採集する。収穫する。《取り入れる》"))
         assertEquals(listOf("to eat", "to live on (e.g. a salary); to live off"), JapaneseLookup.bilingualMeanings(
             "1-dan transitive; to eat; もっと果物を食べるべきです。; You should eat more fruit.; to live on (e.g. a salary); to live off; 僕は脚本家で食べていく。; I make a living as a playwright."))
     }

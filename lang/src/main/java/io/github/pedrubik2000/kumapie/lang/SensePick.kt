@@ -46,7 +46,14 @@ object SensePick {
     }
 
     private val STOP = ("to a an the of or and be is in on for with by as e g etc someone something one's it that this at from " +
-        "up out not used i you he she we they me my your his her its our their do does have has").split(" ").toSet()
+        "up out not used i you he she we they me my your his her its our their do does have has").split(" ").toSet() + LIGHT
+
+    /**
+     * Light verbs: in subtitles mostly idioms ("Give me a break!" matched 取る's "to pass; to hand; to give"), so they
+     * don't make a match (user, 2026-10-14: a wrong "In this line" is worse than none).
+     * ponytail: a fixed list; a sense whose only English is one of these ("to give") is never picked.
+     */
+    private val LIGHT get() = setOf("give", "get", "take", "make", "go", "come", "put", "let", "keep", "break", "way")
 
     private val STOP_ES = ("a al de del el la los las lo un una unos unas y o u e ni que en con por para se su sus mi mis tu " +
         "es son ser está estar fue era muy más no sí ya le les me te nos yo él ella ellos ellas usted algo alguien como pero").split(" ").toSet()

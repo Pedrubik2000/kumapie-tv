@@ -118,7 +118,7 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             // a Japanese example ends a sense, the piece after it is its translation; no "See also", no tag-only piece.
             val senses = mutableListOf(mutableListOf<String>())
             var translation = false
-            for (p in m.split(';', '；').map { it.trim() }.filter { it.isNotEmpty() }) {
+            for (p in m.split(';', '；').map(::englishPart).filter { it.isNotEmpty() }) {
                 val english = p.any { it in 'a'..'z' || it in 'A'..'Z' }
                 when {
                     !english -> { if (senses.last().isNotEmpty()) senses += mutableListOf<String>(); translation = true }
@@ -129,6 +129,15 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             }
             senses.filter { it.isNotEmpty() }.map { it.joinToString("; ").let { s -> if (s.length > 90) s.take(88).trimEnd() + "…" else s } }
         }.distinct()
+
+        /** A piece cut where Japanese starts after its English ("to harvest. 集める。採集する。" -> "to harvest"). */
+        private fun englishPart(piece: String): String {
+            val p = piece.trim()
+            val latin = p.indexOfFirst { it in 'a'..'z' || it in 'A'..'Z' }
+            if (latin < 0) return p
+            val ja = p.withIndex().indexOfFirst { (i, c) -> i > latin && (c.code in 0x3040..0x30FF || c.code in 0x3400..0x9FFF || c in "《〔「【") }
+            return if (ja < 0) p else p.substring(0, ja).trimEnd(' ', '.', '。')
+        }
 
         /**
          * Grammar and domain tags a Jitendex sense starts with ("noun abbr. baseball", "1-dan transitive"), dropped as pieces.

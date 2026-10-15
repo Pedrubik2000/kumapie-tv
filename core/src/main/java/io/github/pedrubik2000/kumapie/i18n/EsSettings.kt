@@ -22,6 +22,19 @@ internal val esSettings: Map<String, String> = mapOf(
     "popup %1\$d × %2\$d" to "ventana %1\$d × %2\$d",
     "Nobody's (no sync)" to "De nadie (sin sincronizar)",
     "%s's" to "De %s",
+    "Show" to "Mostrar",
+    "Hide" to "Ocultar",
+    "Checking with %s…" to "Comprobando con %s…",
+    "✓ %s accepted it." to "✓ %s la aceptó.",
+    "%1\$s didn't accept this key. Copy it again from %2\$s." to "%1\$s no aceptó esta clave. Cópiala de nuevo desde %2\$s.",
+    "Couldn't reach %s to check it. It's saved and will be tried when you make an episode." to
+        "No se pudo contactar a %s para comprobarla. Está guardada y se probará al crear un episodio.",
+    "%1\$s answered %2\$s. It's saved; try again later." to "%1\$s respondió %2\$s. Está guardada; inténtalo más tarde.",
+    "No hours: the two times are the same, so nothing downloads by itself." to
+        "Sin horas: las dos horas son iguales, así que nada se descarga solo.",
+    "All day: downloads may run at any hour." to "Todo el día: las descargas pueden hacerse a cualquier hora.",
+    "At least 240 wide and 300 high; until then the popup keeps %1\$d × %2\$d." to
+        "Mínimo 240 de ancho y 300 de alto; mientras tanto la ventana sigue en %1\$d × %2\$d.",
     "Back" to "Volver",
     "Menu language" to "Idioma del menú",
     "Phone's language" to "Idioma del teléfono",

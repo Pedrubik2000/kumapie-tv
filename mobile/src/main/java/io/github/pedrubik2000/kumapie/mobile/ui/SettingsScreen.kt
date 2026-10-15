@@ -17,6 +17,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -531,12 +534,9 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
         parakeetState != null -> Text(tr("Parakeet: %s", parakeetState), fontSize = 13.sp, color = Colors.dim)
         else -> OutlinedButton(onClick = { parakeet.download() }) { Text(tr("Download Parakeet (about 640 MB, once)")) }
     }
-    OutlinedTextField(key, { key = it; library.settings.sonioxKey = it }, label = { Text(tr("Soniox API key")) }, singleLine = true,
-        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(rd, { rd = it; library.settings.rdToken = it }, label = { Text(tr("Real-Debrid token (real-debrid.com/apitoken)")) },
-        singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-    if ("ja" in learning) OutlinedTextField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, label = { Text(tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles")) },
-        singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+    KeyField(key, { key = it; library.settings.sonioxKey = it }, tr("Soniox API key"), KeyService.SONIOX)
+    KeyField(rd, { rd = it; library.settings.rdToken = it }, tr("Real-Debrid token (real-debrid.com/apitoken)"), KeyService.REAL_DEBRID)
+    if ("ja" in learning) KeyField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles"), KeyService.JIMAKU)
     // Japanese YouTube without Japanese subtitles: transcribed on the device.
     if ("ja" in learning) when {
         parakeetJaReady -> Text(tr("Japanese YouTube: Parakeet ja ready (free, offline). About 1 character in 6 differs from people's subtitles."),
@@ -601,13 +601,14 @@ private fun FollowedChannels(library: Library) {
     }
     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(tr("Download between"), fontSize = 14.sp)
-        OutlinedTextField(from.toString(), { v -> v.filter(Char::isDigit).take(2).toIntOrNull()?.takeIf { it in 0..23 }?.let { from = it; library.settings.subFrom = it } },
-            singleLine = true, modifier = Modifier.width(70.dp))
+        HourField(from, 0..23) { from = it; library.settings.subFrom = it }
         Text(tr("and"), fontSize = 14.sp)
-        OutlinedTextField(to.toString(), { v -> v.filter(Char::isDigit).take(2).toIntOrNull()?.takeIf { it in 0..24 }?.let { to = it; library.settings.subTo = it } },
-            singleLine = true, modifier = Modifier.width(70.dp))
+        HourField(to, 0..24) { to = it; library.settings.subTo = it }
         Text(tr("o'clock, on Wi-Fi"), fontSize = 14.sp)
     }
+    // From == to is an empty window: SubscriptionWorker.inHours never matches, so nothing would ever download.
+    if (from == to || (from == 0 && to == 24)) Text(if (from == to) tr("No hours: the two times are the same, so nothing downloads by itself.")
+        else tr("All day: downloads may run at any hour."), fontSize = 13.sp, color = Colors.unknown)
     OutlinedButton(onClick = { io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.checkNow(context) }) { Text(tr("Check now")) }
 }
 
@@ -800,10 +801,72 @@ private fun PopupSize(settings: Settings) {
     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(tr("Max width"), fontSize = 14.sp)
         OutlinedTextField(w, { v -> w = v.filter(Char::isDigit).take(4); w.toIntOrNull()?.takeIf { it >= 240 }?.let { settings.popupWidth = it } },
-            singleLine = true, modifier = Modifier.width(80.dp))
+            singleLine = true, isError = (w.toIntOrNull() ?: 0) < 240, modifier = Modifier.width(80.dp))
         Text(tr("height"), fontSize = 14.sp)
         OutlinedTextField(h, { v -> h = v.filter(Char::isDigit).take(4); h.toIntOrNull()?.takeIf { it >= 300 }?.let { settings.popupHeight = it } },
-            singleLine = true, modifier = Modifier.width(80.dp))
+            singleLine = true, isError = (h.toIntOrNull() ?: 0) < 300, modifier = Modifier.width(80.dp))
         Text("dp", fontSize = 14.sp)
     }
+    if ((w.toIntOrNull() ?: 0) < 240 || (h.toIntOrNull() ?: 0) < 300)
+        Text(tr("At least 240 wide and 300 high; until then the popup keeps %1\$d × %2\$d.", settings.popupWidth, settings.popupHeight),
+            fontSize = 13.sp, color = Colors.unknown)
+}
+
+/** The services whose keys Settings checks, with an endpoint that needs the key and answers 401/403 to a wrong one. */
+private enum class KeyService(val label: String, val url: String, val bearer: Boolean, val where: String) {
+    SONIOX("Soniox", "https://api.soniox.com/v1/files?limit=1", true, "soniox.com > API keys"),
+    REAL_DEBRID("Real-Debrid", "https://api.real-debrid.com/rest/1.0/user", true, "real-debrid.com/apitoken"),
+    JIMAKU("Jimaku", "https://jimaku.cc/api/entries/search?query=a", false, "jimaku.cc > Account"),
+}
+
+/** "ok", "rejected", "offline" or "http <code>": the key tried once against [service]. */
+private suspend fun checkKey(service: KeyService, key: String): String = withContext(Dispatchers.IO) {
+    runCatching {
+        val c = java.net.URL(service.url).openConnection() as java.net.HttpURLConnection
+        c.setRequestProperty("Authorization", if (service.bearer) "Bearer $key" else key)
+        c.setRequestProperty("User-Agent", "kumapie")
+        c.connectTimeout = 8000; c.readTimeout = 8000
+        try { c.responseCode } finally { c.disconnect() }
+    }.fold({ code -> when (code) { in 200..299 -> "ok"; 401, 403 -> "rejected"; else -> "http $code" } }, { "offline" })
+}
+
+/**
+ * A key or token: saved as typed (spaces and line breaks from a paste trimmed), hidden unless shown, and checked
+ * against its service when the field is left, so a wrong key shows up here and not as a failed episode later.
+ */
+@Composable
+private fun KeyField(value: String, onChange: (String) -> Unit, label: String, service: KeyService) {
+    val scope = rememberCoroutineScope()
+    var shown by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<String?>(null) } // null: not checked; "checking"; checkKey's answers
+    var checked by remember { mutableStateOf<String?>(null) } // the key the result is for
+    fun check() {
+        if (value.isBlank() || value == checked) return
+        checked = value; result = "checking"
+        scope.launch { result = checkKey(service, value) }
+    }
+    OutlinedTextField(value, { v -> onChange(v.trim()); if (v.trim() != checked) result = null },
+        label = { Text(label) }, singleLine = true, isError = result == "rejected",
+        visualTransformation = if (shown) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        trailingIcon = { IconButton(onClick = { shown = !shown }) {
+            Icon(if (shown) Icons.Default.VisibilityOff else Icons.Default.Visibility, if (shown) tr("Hide") else tr("Show"))
+        } },
+        supportingText = result?.let { r -> { Text(when {
+            r == "checking" -> tr("Checking with %s…", service.label)
+            r == "ok" -> tr("✓ %s accepted it.", service.label)
+            r == "rejected" -> tr("%1\$s didn't accept this key. Copy it again from %2\$s.", service.label, service.where)
+            r == "offline" -> tr("Couldn't reach %s to check it. It's saved and will be tried when you make an episode.", service.label)
+            else -> tr("%1\$s answered %2\$s. It's saved; try again later.", service.label, r.removePrefix("http "))
+        }, color = if (r == "rejected") Colors.unknown else Colors.dim) } },
+        modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused) check() })
+}
+
+/** An hour of the day: free to clear and retype; saved only when it is a valid hour, else says so. */
+@Composable
+private fun HourField(value: Int, range: IntRange, onValid: (Int) -> Unit) {
+    var text by remember { mutableStateOf(value.toString()) }
+    val bad = text.toIntOrNull()?.let { it !in range } ?: true
+    OutlinedTextField(text, { v -> text = v.filter(Char::isDigit).take(2); text.toIntOrNull()?.takeIf { it in range }?.let(onValid) },
+        singleLine = true, isError = bad, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.width(70.dp))
 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -242,6 +243,7 @@ private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean, tit
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 24.dp))
         val modes = listOfNotNull(
             if (ctl.pauseAtSceneEnd) tr("pauses at scene end") else tr("no pause at scene end"),
+            if (ctl.pauseAtSceneEnd && ctl.playThroughKnown) tr("i+0 plays through") else null,
             if (ctl.slow) "0.75x" else null,
         ).joinToString(" · ")
         Text(modes, color = Colors.text.copy(alpha = 0.8f), fontSize = 16.sp, modifier = Modifier.padding(end = 24.dp))
@@ -286,12 +288,17 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
     BackHandler(onBack = onClose)
     Box(Modifier.fillMaxSize().background(Color(0x99000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.CenterEnd) {
         Column(
-            Modifier.padding(48.dp).width(520.dp).background(Colors.surface, RoundedCornerShape(16.dp)).padding(28.dp),
+            // Scrolls: seven buttons are taller than the screen at this size (focus brings each into view).
+            Modifier.padding(48.dp).width(520.dp).background(Colors.surface, RoundedCornerShape(16.dp))
+                .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(tr("Options"), fontSize = 26.sp, color = Colors.text)
             Button(onClick = ctl::togglePauseAtSceneEnd, modifier = Modifier.fillMaxWidth().focusRequester(first)) {
                 Text(tr("At the end of a scene: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")))
+            }
+            Button(onClick = ctl::togglePlayThroughKnown, modifier = Modifier.fillMaxWidth()) {
+                Text(tr("i+0 scenes (no new words): %s", if (ctl.playThroughKnown) tr("play through") else tr("pause")))
             }
             Button(onClick = ctl::toggleNewStraight, modifier = Modifier.fillMaxWidth()) {
                 Text(tr("Skip nothing: %s", if (ctl.newStraight) tr("on, the whole episode") else tr("off, scene by scene")))

@@ -202,6 +202,18 @@ class Library(context: Context, val settings: Settings) {
         )
     }
 
+    /** Home's progress card: time in [lang] (today, 7 days, all) and the words known in it. */
+    class LangProgress(val today: Double, val week: Double, val total: Double, val known: Int)
+
+    suspend fun langProgress(lang: String, shows: List<Show>): LangProgress = withContext(Dispatchers.IO) {
+        val m = progress.merged
+        val epLang = shows.flatMap { s -> s.episodes.map { it.id to s.lang } }.toMap()
+        val days = Progress.daysIn(lang, m, m.seen.mapNotNull { (scene, ep) -> epLang[ep]?.let { scene to it } }.toMap())
+        val today = java.time.LocalDate.parse(Progress.studyDay())
+        LangProgress(days[today.toString()] ?: 0.0, (0L..6L).sumOf { days[today.minusDays(it).toString()] ?: 0.0 }, days.values.sum(),
+            languages.of(lang).known.knownList().size)
+    }
+
     /** Every episode of [shows] with its scenes and word colours (fetched once per app run; unreachable ones skipped). */
     suspend fun allEpisodes(shows: List<Show>, progress: (String) -> Unit = {}): List<Pair<Show, EpisodeDetail>> {
         val list = shows.flatMap { s -> s.episodes.map { s to it } }
@@ -259,7 +271,7 @@ private class OfflineBackend(
      * the TV resumes there; scenes and time would count twice (the PC's history is part of Progress as the "pc" note).
      */
     override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {
-        progress.record(episode, pos, seen, watched)
+        progress.record(episode, pos, seen, watched, lang)
         syncLater()
         pending.add(Pending.progress(episode, pos, emptyList(), 0.0))
         pending.flush(api)

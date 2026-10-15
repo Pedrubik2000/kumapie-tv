@@ -213,7 +213,10 @@ fun HomeScreen(
                         Text(tr("Add a YouTube link or a video file."), color = Colors.dim, style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = { adding = true }) { Text(tr("Add an episode")) }
                     }
-                    else -> Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay)
+                    else -> Column {
+                        LangCard(library, lang, all, onStats)
+                        Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay)
+                    }
                 }
             }
         }
@@ -255,6 +258,32 @@ fun HomeScreen(
             AddEpisodeSheet(library, sharedLink, homeLang, onSettings = { adding = false; onSettings() })
         }
     }
+}
+
+/**
+ * The first thing on Home (user, 2026-10-15): hours in this language and words known, so watching shows up as progress.
+ * One tap opens Stats.
+ */
+@Composable
+private fun LangCard(library: Library, lang: String, shows: List<Show>, onStats: () -> Unit) {
+    var p by remember { mutableStateOf<Library.LangProgress?>(null) }
+    LaunchedEffect(lang, shows) { p = runCatching { library.langProgress(lang, shows) }.getOrNull() }
+    val s = p ?: return
+    Surface(onClick = onStats, shape = RoundedCornerShape(12.dp), color = Colors.surface,
+        modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Stat(String.format(java.util.Locale.ROOT, "%.1f h", s.total / 3600), tr("In total"))
+            Stat(minutes(s.week), tr("Last 7 days"))
+            Stat(minutes(s.today), tr("Today"))
+            Stat("${s.known}", tr("Words known"))
+        }
+    }
+}
+
+@Composable
+private fun Stat(value: String, label: String) = Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Text(value, style = MaterialTheme.typography.titleMedium, color = Colors.accent)
+    Text(label, style = MaterialTheme.typography.bodySmall, color = Colors.dim)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

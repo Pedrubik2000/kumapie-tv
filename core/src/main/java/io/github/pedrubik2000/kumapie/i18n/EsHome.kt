@@ -5,6 +5,8 @@ internal val esHome: Map<String, String> = mapOf(
     "Refresh" to "Actualizar",
     "Cards that don't stick" to "Tarjetas que no se quedan",
     "Stats" to "Estadísticas",
+    "In total" to "En total",
+    "Words known" to "Palabras conocidas",
     "Japanese dictionary" to "Diccionario de japonés",
     "Books" to "Libros",
     "Import a book: EPUB, text or manga (%s)" to "Importar un libro: EPUB, texto o manga (%s)",

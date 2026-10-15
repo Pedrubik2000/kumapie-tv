@@ -48,13 +48,15 @@ class Progress private constructor(context: Context, private val settings: Setti
         val unwatched: Map<String, Long> = emptyMap(),
         /** Episode -> when its position was saved (seconds): "Continue watching" puts the newest first. */
         val posAt: Map<String, Long> = emptyMap(),
+        /** Language code -> study day -> seconds; only since 2026-10-15 ([watch] has all of it). */
+        val langWatch: Map<String, Map<String, Double>> = emptyMap(),
     ) {
         fun seenIn(episode: String) = seen.count { it.value == episode }
     }
 
     // ------------------------------------------------------------------ recording (this device)
 
-    fun record(episode: String, pos: Double?, seen: Collection<String>, watched: Double) = change {
+    fun record(episode: String, pos: Double?, seen: Collection<String>, watched: Double, lang: String? = null) = change {
         val now = now()
         if (pos != null) it.getJSONObject("pos").put(episode, JSONArray().put(pos).put(now))
         val s = it.getJSONObject("seen")
@@ -63,6 +65,11 @@ class Progress private constructor(context: Context, private val settings: Setti
             s.put(scene, JSONArray().put(episode).put(old?.optLong(1) ?: now).put(now).put((old?.optInt(3) ?: 0) + 1))
         }
         if (watched > 0) it.getJSONObject("watch").let { w -> w.put(studyDay(), w.optDouble(studyDay(), 0.0) + minOf(watched, 600.0)) }
+        if (watched > 0 && lang != null) {
+            val lw = it.optJSONObject("lwatch") ?: JSONObject().also { o -> it.put("lwatch", o) }
+            val w = lw.optJSONObject(lang) ?: JSONObject().also { o -> lw.put(lang, o) }
+            w.put(studyDay(), w.optDouble(studyDay(), 0.0) + minOf(watched, 600.0))
+        }
     }
 
     fun lookup(word: String): Int {
@@ -146,6 +153,7 @@ class Progress private constructor(context: Context, private val settings: Setti
         val seenLast = HashMap<String, Long>() // scene -> latest time seen, on any device
         val unwatched = HashMap<String, Long>()
         val watch = HashMap<String, Double>()
+        val langWatch = HashMap<String, HashMap<String, Double>>()
         val lookups = HashMap<String, Int>()
         val marked = HashMap<String, Pair<Boolean, Long>>()
         val gloss = HashMap<String, String>()
@@ -165,6 +173,9 @@ class Progress private constructor(context: Context, private val settings: Setti
             }
             p.optJSONObject("unwatched")?.let { o -> for (k in o.keys()) unwatched[k] = maxOf(unwatched[k] ?: 0, o.getLong(k)) }
             p.optJSONObject("watch")?.let { o -> for (k in o.keys()) watch[k] = (watch[k] ?: 0.0) + o.getDouble(k) }
+            p.optJSONObject("lwatch")?.let { o ->
+                for (l in o.keys()) o.getJSONObject(l).let { w -> val m = langWatch.getOrPut(l) { HashMap() }; for (k in w.keys()) m[k] = (m[k] ?: 0.0) + w.getDouble(k) }
+            }
             p.optJSONObject("lookups")?.let { o -> for (k in o.keys()) lookups[k] = (lookups[k] ?: 0) + o.getInt(k) }
             p.optJSONObject("marked")?.let { o ->
                 for (k in o.keys()) {
@@ -175,7 +186,7 @@ class Progress private constructor(context: Context, private val settings: Setti
             p.optJSONObject("gloss")?.let { o -> for (k in o.keys()) gloss[k] = o.getString(k) }
         }
         return View(pos.mapValues { it.value.first }, stillSeen(seen, seenLast, unwatched), watch, lookups, marked.filterValues { it.first }.keys, gloss, unwatched,
-            pos.mapValues { it.value.second })
+            pos.mapValues { it.value.second }, langWatch)
     }
 
     companion object {
@@ -197,6 +208,20 @@ class Progress private constructor(context: Context, private val settings: Setti
         /** Scenes (-> episode) that still count: seen on some device after their episode's last "not watched" mark. */
         fun stillSeen(seen: Map<String, String>, seenLast: Map<String, Long>, unwatched: Map<String, Long>): Map<String, String> =
             seen.filter { (scene, ep) -> (seenLast[scene] ?: 0) > (unwatched[ep] ?: -1) }
+
+        /**
+         * Seconds per study day in [lang]: its own time, plus its share of the time kept before languages were (and of
+         * the PC's history), split like the scenes seen in each language ([sceneLang]: scene -> language).
+         */
+        // ponytail: old time split by scene share, not real time per language; exact only from 2026-10-15 on
+        fun daysIn(lang: String, v: View, sceneLang: Map<String, String>): Map<String, Double> {
+            val share = if (sceneLang.isEmpty()) 1.0 else sceneLang.values.count { it == lang }.toDouble() / sceneLang.size
+            val own = v.langWatch[lang].orEmpty()
+            return v.watch.mapValues { (day, all) ->
+                val split = v.langWatch.values.sumOf { it[day] ?: 0.0 }
+                (own[day] ?: 0.0) + (all - split).coerceAtLeast(0.0) * share
+            }
+        }
 
         /** The study day (it starts at 4 am, like the PC's and Anki's). */
         fun studyDay(): String = LocalDateTime.now().minusHours(4).toLocalDate().toString()

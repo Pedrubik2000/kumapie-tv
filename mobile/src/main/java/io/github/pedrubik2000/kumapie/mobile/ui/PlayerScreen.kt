@@ -507,7 +507,8 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> 
         if (picker.definition != null) {
             IconButton(onClick = picker::hearDefinition) { Icon(Icons.Default.RecordVoiceOver, tr("Hear the definition"), tint = Colors.text) }
         }
-        IconButton(onClick = onMine) { Icon(Pickaxe, tr("Add to Anki"), tint = Colors.text) }
+        // Labelled: a bare pickaxe was easy to miss next to "Mark known" (user, 2026-10-14).
+        TextButton(onClick = onMine) { Icon(Pickaxe, null, tint = Colors.text); Text(tr("Mine"), color = Colors.text, fontSize = 16.sp, modifier = Modifier.padding(start = 6.dp)) }
         // Known takes the rest of the line (user, 2026-10-13).
         FilterChip(selected = marked, onClick = picker::toggleKnown, modifier = Modifier.weight(1f).height(48.dp),
             label = { Text(if (marked) tr("Known") else tr("Mark known"), fontSize = 16.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth()) },

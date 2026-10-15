@@ -211,7 +211,7 @@ private fun Glossaries(library: Library, lang: Lang, hw: Headword, group: String
             val open = prefs.getBoolean("popup_open_$dict", i < OPEN_FIRST)
             val grp = library.yomitan.groupOf(lang, dict)
             "<details data-dictionary=\"${attr(dict)}\" data-group=\"${attr(grp)}\"${if (open) " open" else ""}>" +
-                "<summary>${GlossaryHtml.esc(dict)}${if (grp.isNotBlank()) " <span class=\"grp\">${GlossaryHtml.esc(grp)}</span>" else ""}</summary>" +
+                "<summary>${GlossaryHtml.esc(shortDictName(dict))}${if (grp.isNotBlank()) " <span class=\"grp\">${GlossaryHtml.esc(grp)}</span>" else ""}</summary>" +
                 "<div class=\"body\">${items.joinToString("<hr>")}</div></details>"
         }.joinToString("") to GlossaryHtml.styles(styles)
     }
@@ -334,3 +334,12 @@ function render(css, html, g) {
   showGroup(g);
 }
 </script></body></html>"""
+
+/**
+ * A dictionary as a reader names it: "sankoku8-gpt-5.6-luna en-jp" -> "Sankoku", "Jitendex.org [2026-10-03]" ->
+ * "Jitendex", "JMdict" stays (the import's name is a file name). A name not in Latin letters stays as it is.
+ */
+internal fun shortDictName(dict: String): String {
+    val word = Regex("^[A-Za-z]+").find(dict)?.value ?: return dict.take(24)
+    return if (word.any { it.isUpperCase() }) word else word.replaceFirstChar { it.uppercase() }
+}

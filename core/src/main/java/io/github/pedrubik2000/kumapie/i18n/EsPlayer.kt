@@ -62,6 +62,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     "No card yet: a rating adds one." to "Aún no tiene tarjeta: calificarla crea una.",
     " · dictionary form" to " · forma del diccionario",
     " · this form" to " · esta forma",
+    "Mine" to "Minar",
     "No recordings: the device voice says it." to "Sin grabaciones: la dice la voz del dispositivo.",
     "The line, its audio, a screenshot and the %s." to "La línea, su audio, una captura y el %s.",
     // Dictionary panel, Yomitan popup

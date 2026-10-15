@@ -102,7 +102,7 @@ private fun japaneseChoices(library: Library, hw: io.github.pedrubik2000.kumapie
     val meaningDicts = glossaries.filter(isBilingual).ifEmpty {
         glossaries.filterNot { isMono(it) || group(it.dict).contains("form", ignoreCase = true) || it.dict.contains("form", ignoreCase = true) }
     }
-    fun choice(g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary, m: String) = Choice("${g.dict.substringBefore(" (").take(24)}: $m", m, null)
+    fun choice(g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary, m: String) = Choice("${shortDictName(g.dict)}: $m", m, null)
     var choices = meaningDicts.flatMap { g ->
         g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(6).map { choice(g, it) }
     }.distinctBy { it.gloss }.take(40)

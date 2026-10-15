@@ -25,6 +25,13 @@ class JapaneseMeaningsTest {
         assertEquals(emptyList<String>(), JapaneseLookup.bilingualMeanings("What will be the end of all this?"))
     }
 
+    @Test fun jitendexSenseMeaningOnly() {
+        assertEquals(listOf("to eat"), JapaneseLookup.bilingualMeanings("1-dan transitive; to eat; もっと果物を食べるべきです。; You should eat more fruit."))
+        assertEquals(listOf("perfect game"), JapaneseLookup.bilingualMeanings("noun abbr. baseball; perfect game; See also パーフェクトゲーム; perfect game"))
+        assertEquals(listOf("to eat", "to live on (e.g. a salary); to live off"), JapaneseLookup.bilingualMeanings(
+            "1-dan transitive; to eat; もっと果物を食べるべきです。; You should eat more fruit.; to live on (e.g. a salary); to live off; 僕は脚本家で食べていく。; I make a living as a playwright."))
+    }
+
     @Test fun monolingualFirstRealDefinition() {
         assertEquals("終わり。最後。", JapaneseLookup.monolingualDefinition("㊀ （名）終わり。最後。；㊁ （副）つまるところ。"))
         assertEquals("いろいろな過程を経て、最後にいきつくところ。", JapaneseLookup.monolingualDefinition("いろいろな過程を経て、最後にいきつくところ。「一のところ、会えなかった」"))

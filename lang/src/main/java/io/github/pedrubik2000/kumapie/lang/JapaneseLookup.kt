@@ -110,9 +110,35 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
          * "①…"), examples (after ► or ・) dropped, headword and tags out ([meaning]), at most 90 characters.
          */
         /** English meanings only: no Japanese example lines, no English example sentences ("What will be the end of all this?"). */
-        fun bilingualMeanings(entry: String): List<String> = meanings(entry).filter { m ->
+        fun bilingualMeanings(entry: String): List<String> = meanings(entry, Int.MAX_VALUE).filter { m ->
             m.any { it in 'a'..'z' } && !(m.first().isUpperCase() && m.count { it == ' ' } >= 4 && m.trimEnd().last() in ".?!")
-        }
+        }.flatMap { m ->
+            // Jitendex packs whole entries into one string: "1-dan transitive; to eat; もっと果物を…; You should eat more fruit.;
+            // to live on; …". Keep the meaning pieces only (user, 2026-10-14: "In this line" and mined cards showed it all):
+            // a Japanese example ends a sense, the piece after it is its translation; no "See also", no tag-only piece.
+            val senses = mutableListOf(mutableListOf<String>())
+            var translation = false
+            for (p in m.split(';', '；').map { it.trim() }.filter { it.isNotEmpty() }) {
+                val english = p.any { it in 'a'..'z' || it in 'A'..'Z' }
+                when {
+                    !english -> { if (senses.last().isNotEmpty()) senses += mutableListOf<String>(); translation = true }
+                    translation -> translation = false
+                    p.startsWith("See also") || p.lowercase().split(' ').all { w -> w in TAGS || w.matches(Regex("""\d*-?dan""")) } -> {}
+                    p.any { it in 'a'..'z' } && p !in senses.last() -> senses.last() += p
+                }
+            }
+            senses.filter { it.isNotEmpty() }.map { it.joinToString("; ").let { s -> if (s.length > 90) s.take(88).trimEnd() + "…" else s } }
+        }.distinct()
+
+        /**
+         * Grammar and domain tags a Jitendex sense starts with ("noun abbr. baseball", "1-dan transitive"), dropped as pieces.
+         * ponytail: a fixed list; add the domains that turn up as meanings.
+         */
+        private val TAGS = setOf("noun", "abbr.", "abbr", "transitive", "intransitive", "na-adj", "no-adj", "i-adj", "adverb", "adv",
+            "suru", "kana", "usually", "colloquial", "honorific", "humble", "polite", "pronoun", "expression", "prefix", "suffix",
+            "counter", "interjection", "conjunction", "particle", "auxiliary", "onomatopoeia", "slang", "archaic", "derogatory",
+            "baseball", "sports", "music", "computing", "medicine", "law", "food", "cooking", "mathematics", "physics", "chemistry",
+            "biology", "buddhism", "shinto", "finance", "business", "grammar", "linguistics", "military", "video", "games", "manga", "anime")
 
         /**
          * The first real definition of a monolingual entry: grammar tags (（名）《副》〔文〕①) and symbols left out, at least
@@ -123,13 +149,13 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
                 .substringBefore('「').substringBefore('；').trim(' ', ';', '：', ':', '・') }
             .firstOrNull { d -> d.count { it.code in 0x3040..0x30FF || it.code in 0x3400..0x9FFF } >= 4 }
 
-        fun meanings(entry: String): List<String> =
+        fun meanings(entry: String, max: Int = 90): List<String> =
             entry.split(Regex("""(?:^|[;；。\s])\s*(?:\d{1,2}|[①-⑳])\s+(?=\S)"""))
                 // Before the first sense number: the headword ("ちょっと"), unless it is a meaning in English.
                 .let { parts -> if (parts.size > 1 && parts[0].none { it in 'a'..'z' } && parts[0].length <= 16) parts.drop(1) else parts }
                 .map { meaning(it.substringBefore('►').substringBefore(" ・").substringBefore("　・")).trimEnd(';', '；', ' ', '.') }
                 .filter { it.length > 1 }
-                .map { if (it.length > 90) it.take(88).trimEnd() + "…" else it }
+                .map { if (it.length > max) it.take(max - 2).trimEnd() + "…" else it }
                 .distinct()
 
         /** A sense as a short meaning: "よばれる【呼ばれる】; 〘v1・vi〙; 1 to be called out." → "to be called out." */

@@ -110,16 +110,13 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
 /** "Continue watching" (episodes left partway, as on the phone), then a row per media type. */
 @Composable
 private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit) {
-    val going = shows.flatMap { s -> s.episodes.map { s to it } }.filter { (_, e) ->
-        val at = e.resume ?: 0.0
-        !e.watched && e.duration > 0 && at > 20 && at < e.duration * 0.95
-    }.sortedByDescending { it.second.resumedAt }
+    val going = io.github.pedrubik2000.kumapie.data.continueRow(shows)
     val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
     val rows = KINDS.map { (k, label) -> tr(label) to shows.filter { it.kind == k } } + listOf(tr("Other") to other)
     val first = remember { FocusRequester() }
     LazyColumn {
         if (going.isNotEmpty()) item(key = "going") {
-            Shelf(tr("Continue watching")) {
+            Shelf(tr("Continue")) { // as on the phone: novels are read
                 itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
                     Poster(s.poster, s.title, e.title, ((e.resume ?: 0.0) / e.duration).toFloat(),
                         if (i == 0) Modifier.focusRequester(first) else Modifier) { onPlay(s, e) }

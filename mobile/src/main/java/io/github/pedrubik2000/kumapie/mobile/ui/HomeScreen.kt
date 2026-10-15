@@ -251,11 +251,7 @@ private fun HomeBar(onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
 private fun Rows(library: Library, shows: List<Show>, states: Map<String, DownloadState>, wide: Boolean,
                  onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit) {
     val width = posterWidth(wide)
-    val going = shows.filter { it.kind != "reels" }.flatMap { s -> s.episodes.map { s to it } }.filter { (_, e) ->
-        val at = e.resume ?: 0.0
-        // Marked watched (or every scene seen): nothing left to continue.
-        !e.watched && e.duration > 0 && at > 20 && at < e.duration * 0.95
-    }.sortedByDescending { it.second.resumedAt }
+    val going = io.github.pedrubik2000.kumapie.data.continueRow(shows)
     val other = shows.filter { s -> s.kind != "reels" && KINDS.none { it.first == s.kind } }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         if (going.isNotEmpty()) item(key = "going") {

@@ -20,3 +20,14 @@ fun levelLine(s: Show): String {
     if (left == 0) return tr("Finished")
     return easyPercent(s)?.let { tr("%1\$d%% easy · %2\$d left", it, left) } ?: tr("%d left", left)
 }
+
+/**
+ * Home's "Continue" row: one card per show, its episode left partway most recently; newest first (user, 2026-10-14:
+ * BOFURI filled 4 of 6 TV cards). Under 2 minutes left counts as watched (credits). Shorts are feed-only.
+ */
+fun continueRow(shows: List<Show>): List<Pair<Show, Episode>> = shows.filter { it.kind != "reels" }.mapNotNull { s ->
+    s.episodes.filter { e ->
+        val at = e.resume ?: 0.0
+        !e.watched && e.duration > 0 && at > 20 && e.duration - at > 120
+    }.maxByOrNull { it.resumedAt }?.let { s to it }
+}.sortedByDescending { it.second.resumedAt }

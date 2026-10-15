@@ -13,8 +13,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * The word picker: a cursor on the words of the paused scene. It lands only on words that are red (never
- * studied), unless the scene has none; then on every word. Moving is silent and shows
+ * The word picker: a cursor on the words of the paused scene. It lands only on coloured words (red, blue, green;
+ * not white), unless the scene has none; then on every word. Moving is silent and shows
  * nothing but the highlight; the card opens only on request:
  *
  * OK opens the selected word's card, plays the word and counts a lookup. While the card is open, OK plays
@@ -55,17 +55,13 @@ class WordPicker(
     /** The word picked inside the definition (only while [inDef]). */
     val selectedInDef: Segment? get() = if (inDef) definition?.target?.getOrNull(defSeg) else null
 
-    /** Pauses and puts the cursor on the first red word of the line being said (else any). */
+    /** Pauses and puts the cursor on the scene's first coloured word (else any). */
     fun open(): Boolean {
         val spots = spots()
         if (spots.isEmpty()) return false
         ctl.pause()
-        val cueIndex = ctl.scene.cues.indexOf(ctl.currentCue()).coerceAtLeast(0)
-        val inLine = spots.filter { it.line == cueIndex }
-        val start = inLine.firstOrNull { status(it) == "u" }
-            ?: spots.firstOrNull { it.line >= cueIndex } ?: spots.first()
         isOpen = true
-        land(start)
+        land(spots.first()) // the first coloured word from the top line down (user, 2026-10-14)
         return true
     }
 
@@ -162,8 +158,9 @@ class WordPicker(
 
     // ------------------------------------------------------------ helpers
 
+    /** The colour drawn ("k" = white), so the cursor lands on the red, blue and green words you see. */
     private fun status(spot: Spot): String? =
-        ctl.scene.cues[spot.line].segments[spot.seg].word?.let { ctl.words[it]?.status ?: "u" }
+        ctl.scene.cues[spot.line].segments[spot.seg].let { s -> s.word?.let { ctl.words[it]?.shownFor(s.text) ?: "u" } }
 
     /** The words the cursor can land on, in reading order (always including where it is now). */
     private fun spots(): List<Spot> {

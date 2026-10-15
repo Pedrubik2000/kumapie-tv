@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -162,7 +164,9 @@ fun HomeScreen(
             .onFailure { error = it.message ?: it.toString() }
     }
 
-    val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
+    // The rail needs height too: a phone on its side (~410 dp tall) keeps the bottom bar, or the rail runs off-screen.
+    val config = androidx.compose.ui.platform.LocalConfiguration.current
+    val wide = config.screenWidthDp >= 600 && config.screenHeightDp >= 560
     val main = listOf(
         Dest(Icons.Default.Swipe, tr("Feed"), onFeed),
         Dest(Icons.Default.AutoAwesome, tr("i+1 scenes"), onIPlusOne),
@@ -185,7 +189,8 @@ fun HomeScreen(
             LaunchedEffect(lang) { if (lang != homeLang) onHomeLang(lang) }
             if (langs.size > 1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                langs.forEach { l -> FilterChip(selected = lang == l.code, onClick = { onHomeLang(l.code) }, label = { Text(tr(l.name)) }) }
+                langs.forEach { l -> FilterChip(selected = lang == l.code, onClick = { onHomeLang(l.code) }, label = { Text(tr(l.name)) },
+                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Colors.accent, selectedLabelColor = Color.Black)) }
             }
             if (offline) Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(tr("Offline: only episodes on this device play."), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.weight(1f))
@@ -272,6 +277,8 @@ private fun HomeBar(onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
 private fun Rows(library: Library, shows: List<Show>, states: Map<String, DownloadState>, wide: Boolean,
                  onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit) {
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows) // novels are read, not watched: they count too
+    // Resume column beside the library only at expanded width (a tablet on its side); upright it's one column.
+    val split = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
     val other = shows.filter { s -> s.kind != "reels" && KINDS.none { it.first == s.kind } }
     // Easiest first, finished last; no easy count yet (not synced) between them.
     val kinds = (KINDS + listOf("" to "Other")).map { (k, label) ->
@@ -298,7 +305,7 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
         ResumeCard(library.poster(s.id, s.poster), s, e) { onPlay(s, e) }
     }
 
-    if (wide && going.isNotEmpty()) Row(Modifier.fillMaxSize()) {
+    if (split && going.isNotEmpty()) Row(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.weight(0.42f).fillMaxHeight()) {
         // A phone on its side is short: the card narrows until its art and text fit the height (~110 dp under the art).
         val cardWidth = minOf(maxWidth, (maxHeight - 126.dp) * 16f / 9f + 32.dp)
@@ -310,13 +317,14 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
         }
         Column(Modifier.weight(0.58f).fillMaxHeight().verticalScroll(rememberScrollState())) { tabs(); grid(posterWidth(true)) }
     } else BoxWithConstraints(Modifier.fillMaxSize()) {
-        // A phone: three posters across; a tablet with nothing in progress: the tablet's poster size.
-        val width = if (wide) posterWidth(true) else (maxWidth - 32.dp - 24.dp) / 3
+        // A phone: three posters across (more on its side); a tablet with nothing in progress: the tablet's poster size.
+        val across = maxOf(3, (maxWidth / 130.dp).toInt())
+        val width = if (wide) posterWidth(true) else (maxWidth - 32.dp - 12.dp * (across - 1)) / across
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
-            if (going.isNotEmpty()) item(key = "resume") { resume() }
+            if (going.isNotEmpty()) item(key = "resume") { Box(Modifier.widthIn(max = 600.dp)) { resume() } } // on its side: not a screen-tall card
             if (going.size > 1) item(key = "going") {
-                LazyRow(Modifier.padding(top = 12.dp), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(going.drop(1), key = { it.second.id }) { (s, e) -> Tile(library.poster(s.id, s.poster), s, e, Modifier.width(264.dp)) { onPlay(s, e) } }
+                Column(Modifier.widthIn(max = 600.dp).padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    going.drop(1).forEach { (s, e) -> Tile(library.poster(s.id, s.poster), s, e, Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { onPlay(s, e) } }
                 }
             }
             item(key = "tabs") { Column(Modifier.padding(top = if (going.isEmpty()) 0.dp else 20.dp)) { tabs() } }
@@ -341,9 +349,11 @@ private fun ResumeCard(image: Any?, s: Show, e: Episode, onPlay: () -> Unit) {
                 }
             }
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                Text(s.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${e.title} · ${resumeLine(e)}", style = MaterialTheme.typography.bodyMedium, color = Colors.dim,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                Text(s.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // Two lines, so a narrow card never cuts off how easy it is.
+                Text(e.title, style = MaterialTheme.typography.bodyMedium, color = Colors.dim, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                Text(resumeLine(e), style = MaterialTheme.typography.bodyMedium, color = Colors.dim, maxLines = 1)
                 ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.fillMaxWidth().padding(top = 12.dp))
             }
         }
@@ -383,8 +393,8 @@ internal fun Poster(image: Any?, title: String, sub: String, width: Dp, progress
             AsyncImage(image, title, contentScale = ContentScale.Crop, modifier = art)
             if (progress != null) ProgressBar(progress, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp))
         }
-        Text(title, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-        Text(sub, fontSize = 12.sp, color = Colors.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        more?.let { Text(it, fontSize = 12.sp, color = Colors.dim, maxLines = 1) }
+        Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+        Text(sub, style = MaterialTheme.typography.bodySmall, color = Colors.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        more?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Colors.dim, maxLines = 1) }
     }
 }

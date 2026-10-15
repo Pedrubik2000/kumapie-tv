@@ -217,7 +217,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
             modifier = Modifier.fillMaxSize(),
         )
         if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, picker, hints = settings.showHelp)
-        Subtitles(ctl, picker, onAnchor = { anchor = it })
+        Subtitles(ctl, picker, onAnchor = { anchor = it }, aboveBox = true)
         if (picker.isOpen && picker.cardOpen) anchor?.let { MeaningCard(ctl, picker, it) }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() },
             onHelp = { options = false; help = true; focus.requestFocus() })

@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -60,7 +61,9 @@ private const val ENGLISH_SCALE = 0.72f
  * and any other tap on the subtitle box as [SubtitleTap.Box]. Without it (the TV) taps do nothing.
  */
 @Composable
-fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Unit, onTap: ((SubtitleTap) -> Unit)? = null) {
+fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Unit, onTap: ((SubtitleTap) -> Unit)? = null,
+              /** The anchor's top is the subtitle box's: the card above it covers no line (the TV, user 2026-10-14). */
+              aboveBox: Boolean = false) {
     val picking = picker.isOpen
     if (!picking && !ctl.showTarget && !ctl.showEnglish) {
         SideEffect { onAnchor(null) }
@@ -124,6 +127,8 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     val range by rememberUpdatedState(selectedRange)
     val ranges by rememberUpdatedState(wordRanges.toList())
     val tapHandler by rememberUpdatedState(onTap)
+    var boxTop by remember { mutableStateOf<Float?>(null) }
+    fun anchored(r: Rect?): Rect? = if (aboveBox && r != null) boxTop?.let { Rect(r.left, it, r.right, it) } ?: r else r
     // Blurred only while it plays: paused (by you, at a scene's end or start) it is readable (user, 2026-10-11).
     val blurred by rememberUpdatedState(ctl.blurTarget && !paused)
 
@@ -147,6 +152,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
         } ?: SIZES.last()
         Column(
             Modifier.align(Alignment.BottomCenter).padding(bottom = bottom).widthIn(max = boxWidth)
+                .onGloballyPositioned { boxTop = it.boundsInRoot().top }
                 .background(Color(0xB3000000), RoundedCornerShape(12.dp))
                 .then(if (onTap == null) Modifier else Modifier.pointerInput(Unit) {
                     detectTapGestures { tapHandler?.invoke(SubtitleTap.Box) }
@@ -168,7 +174,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
                     modifier = Modifier
                         // The box moves when its size changes (opening the picker shrinks the text): report the
                         // word's place again whenever the text is placed, not only when the cursor moves.
-                        .onGloballyPositioned { coords = it; onAnchor(anchorOf(it, layout, range)) }
+                        .onGloballyPositioned { coords = it; onAnchor(anchored(anchorOf(it, layout, range))) }
                         .then(if (onTap == null) Modifier else Modifier.pointerInput(Unit) {
                             detectTapGestures { p ->
                                 val word = if (blurred) null else layout?.let { wordAt(it, p, ranges) }
@@ -185,7 +191,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     }
 
     // Where the selected word is on screen, for the meaning box.
-    SideEffect { onAnchor(coords?.let { anchorOf(it, layout, range) }) }
+    SideEffect { onAnchor(anchored(coords?.let { anchorOf(it, layout, range) })) }
 }
 
 /** The text with every span drawn as a blurred shadow of its colour and no letters. */

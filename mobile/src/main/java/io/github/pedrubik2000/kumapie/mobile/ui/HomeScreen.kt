@@ -6,6 +6,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -85,7 +87,7 @@ private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "
 fun io.github.pedrubik2000.kumapie.data.Settings.learning(): Set<String> =
     prefs.getStringSet("learning", null)?.takeIf { it.isNotEmpty() } ?: io.github.pedrubik2000.kumapie.data.Lang.ALL.map { it.code }.toSet()
 
-private class Dest(val icon: ImageVector, val label: String, val go: () -> Unit, val badge: Int = 0)
+private class Dest(val icon: ImageVector, val label: String, val go: () -> Unit, val badge: Int = 0, val short: String = label)
 
 /**
  * Home: the language switch, then rows of posters (streaming-app style): "Continue watching", then one row per category.
@@ -148,8 +150,8 @@ fun HomeScreen(
     // Cards that don't stick (German Core 1000) only in German; the Japanese dictionary only in Japanese.
     val extra = listOfNotNull(
         Dest(Icons.Default.BarChart, tr("Stats"), onStats),
-        Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove),
-        Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch).takeIf { homeLang == "ja" },
+        Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove, short = tr("Hard cards")),
+        Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch, short = tr("Dictionary")).takeIf { homeLang == "ja" },
         Dest(Icons.Default.Settings, tr("Settings"), onSettings),
     )
 
@@ -185,7 +187,7 @@ fun HomeScreen(
         }) {
             NavigationRailItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, null) }, label = { Text(tr("Home")) })
             (main + extra).forEach { d ->
-                NavigationRailItem(selected = false, onClick = d.go, label = { Text(d.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                NavigationRailItem(selected = false, onClick = d.go, label = { Text(d.short, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     icon = { BadgedBox(badge = { if (d.badge > 0) Badge { Text("${d.badge}") } }) { Icon(d.icon, d.label) } })
             }
         }
@@ -229,7 +231,8 @@ private fun HomeBar(offline: Boolean, onAdd: (() -> Unit)? = null, onRefresh: ()
     )
 }
 
-/** "Continue watching" (episodes left partway), then a row per category. */
+/** "Continue" (episodes left partway), then a row per category (a wrapping grid on a tablet). */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Rows(library: Library, shows: List<Show>, states: Map<String, DownloadState>, wide: Boolean,
                  onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit) {
@@ -244,7 +247,8 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
         if (going.isNotEmpty()) item(key = "going") {
             ShelfRow(tr("Continue")) { // novels are read, not watched
                 items(going, key = { it.second.id }) { (s, e) ->
-                    Poster(library.poster(s.id, s.poster), s.title, e.title, width, progress = ((e.resume ?: 0.0) / e.duration).toFloat()) { onPlay(s, e) }
+                    Poster(library.poster(s.id, s.poster), s.title, e.title, width, progress = ((e.resume ?: 0.0) / e.duration).toFloat(),
+                        more = tr("%s left", minutes(e.duration - (e.resume ?: 0.0)))) { onPlay(s, e) }
                 }
             }
         }
@@ -253,9 +257,13 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
             val list = (if (k.isEmpty()) other else shows.filter { it.kind == k })
                 .sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
             if (list.isNotEmpty()) item(key = "kind-$k") {
-                ShelfRow(tr(label)) {
-                    items(list, key = { it.id }) { s -> Poster(library.poster(s.id, s.poster), s.title, levelLine(s), width) { onShow(s) } }
-                }
+                val poster = @Composable { s: Show -> Poster(library.poster(s.id, s.poster), s.title, levelLine(s), width) { onShow(s) } }
+                // A tablet: the whole type at once, wrapping, so its easy lines can be compared (user, 2026-10-14).
+                if (wide) Column {
+                    Text(tr(label), fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                    FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)) { list.forEach { poster(it) } }
+                } else ShelfRow(tr(label)) { items(list, key = { it.id }) { poster(it) } }
             }
         }
     }
@@ -286,11 +294,13 @@ private fun ShelfRow(title: String, items: androidx.compose.foundation.lazy.Lazy
     }
 }
 
-internal fun posterWidth(wide: Boolean) = if (wide) 150.dp else 118.dp
+// A tablet: a little smaller, so Continue and a whole type's grid fit on the first screen in landscape.
+internal fun posterWidth(wide: Boolean) = if (wide) 112.dp else 118.dp
 
 /** A poster with its title and [sub] below (and [progress] over it): shows and episodes look the same. */
 @Composable
-internal fun Poster(image: Any?, title: String, sub: String, width: Dp, progress: Float? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+internal fun Poster(image: Any?, title: String, sub: String, width: Dp, progress: Float? = null, more: String? = null,
+                    onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     Column(Modifier.width(width).combinedClickable(onLongClick = onLongClick, onClick = onClick)) {
         Box {
             val art = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(10.dp))
@@ -300,5 +310,6 @@ internal fun Poster(image: Any?, title: String, sub: String, width: Dp, progress
         }
         Text(title, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         Text(sub, fontSize = 12.sp, color = Colors.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        more?.let { Text(it, fontSize = 12.sp, color = Colors.dim, maxLines = 1) }
     }
 }

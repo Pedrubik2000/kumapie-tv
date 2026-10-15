@@ -81,7 +81,7 @@
       },
       "word-learning-orange": {
         "role": "tertiary",
-        "displayName": "Learning Orange",
+        "displayName": "Highlight Orange",
         "canonical": "Color(0xFFFFAA4D)",
         "tonalRamp": [
           "#4C2800",
@@ -322,7 +322,7 @@
       },
       {
         "name": "The Colour Means Something Rule",
-        "body": "Green, yellow, red, blue and orange are reserved for word state and level/ease. They never appear as decoration, category colour or chrome.",
+        "body": "Green, yellow, red and blue are reserved for word state and level/ease; orange only marks counts and \"today\" in stats and help. They never appear as decoration, category colour or chrome.",
         "section": "colors"
       },
       {
@@ -344,7 +344,7 @@
       "**Do** leave room for TV focus growth (10%) in row padding."
     ],
     "donts": [
-      "**Don't** use green, yellow, red, blue or orange for anything but word state and level/ease.",
+      "**Don't** use green, yellow, red or blue for anything but word state and level/ease, or orange as a word colour.",
       "**Don't** show an episode frame where a poster is missing; unseen episode pictures stay blurred.",
       "**Don't** add drop shadows; depth is tonal.",
       "**Don't** let the resume card grow past 600dp wide in one column."

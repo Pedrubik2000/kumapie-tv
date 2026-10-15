@@ -246,7 +246,18 @@ class SceneController(
         if (scenes.isEmpty()) return
 
         if (playing && position >= scene.end) { seenNew += scene.id; seenHere += scene.id }
-        if (!pausesAtEnd(scene) || (newStraight && !episode.novel)) { // playing on: follow the video into the next scene
+        stopAt?.let { stop ->
+            if (playing && position >= stop) {
+                player.pause()
+                playing = false
+                atSceneEnd = stopIsSceneEnd
+                stopAt = null
+                if (atSceneEnd) { seenNew += scene.id; seenHere += scene.id }
+            }
+        }
+        // After the stop: a next scene starting at (or within a tick of) this one's end moved on first and replaced
+        // this scene's end pause, so Skip nothing played through (2026-10-15). Paused at the end: stay on this scene.
+        if (!atSceneEnd && (!pausesAtEnd(scene) || (newStraight && !episode.novel))) { // playing on: follow the video into the next scene
             val i = scenes.indexOfLast { it.start <= position }
             if (i > index) {
                 index = i
@@ -259,15 +270,6 @@ class SceneController(
                     stopAtSceneEnd()
                 }
                 showBanner()
-            }
-        }
-        stopAt?.let { stop ->
-            if (playing && position >= stop) {
-                player.pause()
-                playing = false
-                atSceneEnd = stopIsSceneEnd
-                stopAt = null
-                if (atSceneEnd) { seenNew += scene.id; seenHere += scene.id }
             }
         }
         if (now - lastReport > 20_000) report()

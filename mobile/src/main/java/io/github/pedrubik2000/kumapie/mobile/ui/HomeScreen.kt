@@ -242,26 +242,40 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
     val other = shows.filter { s -> s.kind != "reels" && KINDS.none { it.first == s.kind } }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         if (going.isNotEmpty()) item(key = "going") {
-            ShelfRow(tr("Continue watching")) {
+            ShelfRow(tr("Continue")) { // novels are read, not watched
                 items(going, key = { it.second.id }) { (s, e) ->
                     Poster(library.poster(s.id, s.poster), s.title, e.title, width, progress = ((e.resume ?: 0.0) / e.duration).toFloat()) { onPlay(s, e) }
                 }
             }
         }
         (KINDS + listOf("" to "Other")).forEach { (k, label) ->
-            val list = if (k.isEmpty()) other else shows.filter { it.kind == k }
+            // Easiest first, finished last; no easy count yet (not synced) between them.
+            val list = (if (k.isEmpty()) other else shows.filter { it.kind == k })
+                .sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
             if (list.isNotEmpty()) item(key = "kind-$k") {
                 ShelfRow(tr(label)) {
-                    items(list, key = { it.id }) { s ->
-                        val saved = s.episodes.count { states[it.id] == DownloadState.Done }
-                        val n = s.episodes.size
-                        Poster(library.poster(s.id, s.poster), s.title,
-                            (if (n == 1) tr("1 episode") else tr("%d episodes", n)) + if (saved > 0) tr(" · %d saved", saved) else "", width) { onShow(s) }
-                    }
+                    items(list, key = { it.id }) { s -> Poster(library.poster(s.id, s.poster), s.title, levelLine(s), width) { onShow(s) } }
                 }
             }
         }
     }
+}
+
+/** The episodes not finished yet. */
+private fun ahead(s: Show) = s.episodes.filterNot { it.watched }
+
+/**
+ * Of the scenes ahead, the share at i+0 / i+1 (the PC's count, [io.github.pedrubik2000.kumapie.data.Episode.easy]);
+ * null when no episode ahead has a count (made on a device and not synced yet, or no known words sent).
+ */
+private fun easyPercent(s: Show): Int? = ahead(s).filter { it.easy > 0 && it.scenes > 0 }.takeIf { it.isNotEmpty() }
+    ?.let { eps -> eps.sumOf { it.easy } * 100 / eps.sumOf { it.scenes } }
+
+/** A show card's second line: "62% easy · 9 left", "9 left" without a count, "Finished" (user, 2026-10-14). */
+private fun levelLine(s: Show): String {
+    val left = ahead(s).size
+    if (left == 0) return tr("Finished")
+    return easyPercent(s)?.let { tr("%1\$d%% easy · %2\$d left", it, left) } ?: tr("%d left", left)
 }
 
 @Composable

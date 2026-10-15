@@ -69,6 +69,8 @@ class Miner(
         val mono: String? = null,
         /** Japanese: the headword this form is a form of (気にしない -> 気にする), said in Notes. */
         val formOf: String? = null,
+        /** Japanese: the word audio picked in the mine sheet; null: the best recording, else the device voice. */
+        val audio: File? = null,
     )
 
     /** Adds the card; answers a line for the user ("Added to Deutsch Mined"). */
@@ -250,7 +252,7 @@ class Miner(
         fields["Word"] = esc(expression) + (reading?.let { "[${esc(it)}]" } ?: "") + (w.pitch?.let { ":$it-" } ?: "")
         fields[KnownWords.DEF_BI] = esc(w.gloss)
         w.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
-        val recorded = japanese.audio.recording(expression, w.reading.orEmpty())
+        val recorded = w.audio ?: japanese.audio.recording(expression, w.reading.orEmpty())
         val wav = File(dir, "word.wav").apply { delete() }
         val audio = recorded ?: wav.takeIf { japanese.voice.toFile(w.reading ?: expression, it) }
         audio?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-ja-${expression}")}]" }
@@ -295,7 +297,12 @@ class Miner(
     private fun screenshot(source: String, ms: Long): File? = runCatching {
         val out = File(dir, "shot.webp").apply { delete() }
         android.media.MediaMetadataRetriever().use { r ->
-            if (source.startsWith("/")) r.setDataSource(source) else r.setDataSource(context, Uri.parse(source))
+            // A streamed episode: setDataSource(context, uri) takes only file and content URIs (no frame, no Image).
+            when {
+                source.startsWith("/") -> r.setDataSource(source)
+                source.startsWith("http") -> r.setDataSource(source, HashMap())
+                else -> r.setDataSource(context, Uri.parse(source))
+            }
             val sync = android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC
             val frame = (if (android.os.Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(ms * 1000, sync, 854, 480)
                 else r.getFrameAtTime(ms * 1000, sync)) ?: return@use null
@@ -304,7 +311,7 @@ class Miner(
             out.outputStream().use { frame.compress(webp, 80, it) }
             out
         }
-    }.getOrNull()
+    }.onFailure { Log.w("kumapie", "screenshot: $it") }.getOrNull()
 
     /**
      * The scene from [startMs] to [endMs] as WebM like the PC's clips (~360 kbps: VP9 480 p at 280 kbps with a keyframe

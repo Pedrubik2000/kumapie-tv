@@ -126,7 +126,10 @@ class Library(context: Context, val settings: Settings) {
         val pcOwn = pc.map { s -> s.copy(episodes = s.episodes.filterNot { LocalEpisodes.isLocal(it.id) }) }.filter { it.episodes.isNotEmpty() }
         // A device-made show without a match of its own: the PC's poster (the PC looks every show up).
         val pcPoster = pc.flatMap { s -> s.episodes.map { it.id to s.poster } }.toMap()
-        val mineShown = mine.map { s -> if (s.poster.isNotEmpty()) s else s.copy(poster = s.episodes.firstNotNullOfOrNull { pcPoster[it.id]?.ifEmpty { null } } ?: "") }
+        // Its easy scenes too: only the PC counts them (against the known words this phone sent); the device's list has 0.
+        val pcEasy = pc.flatMap { s -> s.episodes.map { it.id to it.easy } }.toMap()
+        val mineShown = mine.map { s -> s.copy(episodes = s.episodes.map { e -> e.copy(easy = pcEasy[e.id] ?: e.easy) }) }
+            .map { s -> if (s.poster.isNotEmpty()) s else s.copy(poster = s.episodes.firstNotNullOfOrNull { pcPoster[it.id]?.ifEmpty { null } } ?: "") }
         val m = progress.merged
         return (mineShown + pcOwn).map { s ->
             // A "not watched" mark: the PC's own count is from before it, only the merged scenes count.

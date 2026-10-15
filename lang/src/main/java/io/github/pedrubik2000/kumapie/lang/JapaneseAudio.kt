@@ -23,27 +23,40 @@ class JapaneseAudio(private val context: Context) {
 
     /** A recording of [expression] read [reading] (hiragana; blank = any), or null. */
     suspend fun recording(expression: String, reading: String): File? = withContext(Dispatchers.IO) {
-        val key = (expression + "|" + reading).hashCode().toUInt().toString(16)
+        val key = key(expression, reading)
         cache.listFiles()?.firstOrNull { it.name.startsWith("$key.") && it.length() > 0 }?.let { return@withContext it }
-        local(expression, reading)?.let { (ext, bytes) -> return@withContext File(cache, "$key.$ext").apply { writeBytes(bytes) } }
+        local(expression, reading).firstOrNull()?.let { (_, ext, bytes) -> return@withContext File(cache, "$key.$ext").apply { writeBytes(bytes) } }
         online(expression, reading)?.let { bytes -> return@withContext File(cache, "$key.mp3").apply { writeBytes(bytes) } }
         null
     }
 
-    /** Plays a recording of the word; false when there is none (say it with the device voice then). */
-    suspend fun play(expression: String, reading: String): Boolean {
-        val f = recording(expression, reading) ?: return false
-        return withContext(Dispatchers.Main) {
-            runCatching {
-                player?.release()
-                player = MediaPlayer().apply { setDataSource(f.path); setOnCompletionListener { it.release(); if (player === it) player = null }; prepare(); start() }
-            }.isSuccess
+    /** Every recording of the word, best first ([recording]'s order): source and file, for the mine sheet to pick from. */
+    suspend fun recordings(expression: String, reading: String): List<Pair<String, File>> = withContext(Dispatchers.IO) {
+        val key = key(expression, reading)
+        val found = local(expression, reading).mapIndexed { i, (source, ext, bytes) ->
+            source to File(cache, "$key-$i.$ext").apply { writeBytes(bytes) }
         }
+        if (found.any { it.first == "jpod" }) found
+        else found + listOfNotNull(online(expression, reading)?.let { "jpod" to File(cache, "$key-online.mp3").apply { writeBytes(it) } })
     }
 
-    private fun local(expression: String, reading: String): Pair<String, ByteArray>? {
-        if (!file.exists()) return null
-        val d = db ?: runCatching { SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY) }.getOrNull()?.also { db = it } ?: return null
+    /** Plays [f] (a recording from [recordings]). */
+    suspend fun play(f: File) = withContext(Dispatchers.Main) {
+        runCatching {
+            player?.release()
+            player = MediaPlayer().apply { setDataSource(f.path); setOnCompletionListener { it.release(); if (player === it) player = null }; prepare(); start() }
+        }.isSuccess
+    }
+
+    /** Plays a recording of the word; false when there is none (say it with the device voice then). */
+    suspend fun play(expression: String, reading: String): Boolean = recording(expression, reading)?.let { play(it) } ?: false
+
+    private fun key(expression: String, reading: String) = (expression + "|" + reading).hashCode().toUInt().toString(16)
+
+    /** Local recordings (source, extension, bytes), best first, at most 8. */
+    private fun local(expression: String, reading: String): List<Triple<String, String, ByteArray>> {
+        if (!file.exists()) return emptyList()
+        val d = db ?: runCatching { SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY) }.getOrNull()?.also { db = it } ?: return emptyList()
         // The written form with this reading first, then the written form, then the reading alone; NHK before Shinmeikai,
         // JapanesePod101 and Forvo.
         val order = "CASE w.source WHEN 'nhk16' THEN 0 WHEN 'shinmeikai8' THEN 1 WHEN 'jpod' THEN 2 ELSE 3 END"
@@ -52,12 +65,13 @@ class JapaneseAudio(private val context: Context) {
             add("w.term = ?" to arrayOf(expression))
             if (reading.isNotBlank() && reading != expression) add("w.term = ?" to arrayOf(reading))
         }
+        val out = LinkedHashMap<String, Triple<String, String, ByteArray>>()
         for ((where, args) in tries) {
-            d.rawQuery("SELECT a.data, w.file FROM words w JOIN audio a ON a.source = w.source AND a.file = w.file WHERE $where ORDER BY $order LIMIT 1", args).use { c ->
-                if (c.moveToFirst()) return c.getString(1).substringAfterLast('.', "opus") to c.getBlob(0)
+            d.rawQuery("SELECT a.data, w.file, w.source FROM words w JOIN audio a ON a.source = w.source AND a.file = w.file WHERE $where ORDER BY $order LIMIT 8", args).use { c ->
+                while (c.moveToNext()) out.getOrPut(c.getString(2) + "/" + c.getString(1)) { Triple(c.getString(2), c.getString(1).substringAfterLast('.', "opus"), c.getBlob(0)) }
             }
         }
-        return null
+        return out.values.take(8)
     }
 
     /** JapanesePod101's own word audio (Yomitan's default source); its "no audio" clip is left out by its size. */

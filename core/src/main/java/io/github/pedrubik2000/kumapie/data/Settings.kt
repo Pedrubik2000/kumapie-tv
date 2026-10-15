@@ -48,6 +48,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("new_straight", false)
         set(value) = prefs.edit().putBoolean("new_straight", value).apply()
 
+    /** i+0 scenes play through: no pause at their start or end. */
+    var playThroughKnown: Boolean
+        get() = prefs.getBoolean("play_through_known", false)
+        set(value) = prefs.edit().putBoolean("play_through_known", value).apply()
+
     /** Play at 0.75x. */
     var slow: Boolean
         get() = prefs.getBoolean("slow", false)

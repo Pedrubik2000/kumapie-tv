@@ -26,6 +26,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Pause at the end of each scene" to "Pausa al final de cada escena",
     "Skip nothing: play the gaps between scenes too" to
         "No saltar nada: también los huecos entre escenas",
+    "Don't stop on i+0 scenes (no new words)" to "No parar en escenas i+0 (sin palabras nuevas)",
     "Slow (0.75x)" to "Lento (0.75x)",
     "Upright: scene by scene, swipe left" to "Vertical: escena por escena, desliza a la izquierda",
     "Subtitle timing" to "Sincronía de subtítulos",
@@ -55,6 +56,10 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Not in your dictionaries: the card gets no meaning." to "No está en tus diccionarios: la tarjeta no lleva significado.",
     "Monolingual definition" to "Definición monolingüe",
     "None" to "Ninguna",
+    "Word audio" to "Audio de la palabra",
+    "Looking for recordings…" to "Buscando grabaciones…",
+    "Hear it" to "Escucharlo",
+    "No recordings: the device voice says it." to "Sin grabaciones: la dice la voz del dispositivo.",
     "The line, its audio, a screenshot and the %s." to "La línea, su audio, una captura y el %s.",
     // Dictionary panel, Yomitan popup
     "Looking it up…" to "Buscando…",

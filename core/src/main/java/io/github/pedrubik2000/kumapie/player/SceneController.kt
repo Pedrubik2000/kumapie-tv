@@ -64,6 +64,9 @@ class SceneController(
     /** Skip nothing: the gaps between scenes play too and scenes don't wait on their start; Pause at scene end still pauses (user, 2026-10-14). */
     var newStraight by mutableStateOf(settings.newStraight)
         private set
+    /** i+0 scenes (no red words) don't pause at their start or end (user, 2026-10-14). */
+    var playThroughKnown by mutableStateOf(settings.playThroughKnown)
+        private set
     var slow by mutableStateOf(settings.slow)
         private set
     /** What the subtitles show. Stays as set from scene to scene and is remembered for next time. */
@@ -135,7 +138,8 @@ class SceneController(
     }
 
     fun nextScene() = playScene(index + 1)
-    fun previousScene() = playScene(index - 1)
+    /** Back in the first scene goes to 00:00, not the scene's start. */
+    fun previousScene() { if (index > 0) playScene(index - 1) else { playScene(0); seek(0.0) } }
     fun replayScene() = playScene(index)
 
     /** The line being said (or the last one said) again, then pause. */
@@ -210,6 +214,13 @@ class SceneController(
         showBanner()
     }
 
+    fun togglePlayThroughKnown() {
+        playThroughKnown = !playThroughKnown
+        settings.playThroughKnown = playThroughKnown
+        if (player.isPlaying) stopAtSceneEnd()
+        showBanner()
+    }
+
     fun togglePauseAtSceneStart() {
         pauseAtSceneStart = !pauseAtSceneStart
         settings.pauseAtSceneStart = pauseAtSceneStart
@@ -243,8 +254,9 @@ class SceneController(
                     player.pause()
                     playing = false
                     seek(scene.start)
-                } else if (playing) {
-                    stopAtSceneEnd() // from a new scene played straight into a seen one: its own end may pause
+                } else {
+                    // Its own end may pause; set even while loading (a streamed episode), or it played on through.
+                    stopAtSceneEnd()
                 }
                 showBanner()
             }
@@ -289,8 +301,9 @@ class SceneController(
     }
 
     // A novel waits after every line until a tap, like the game: the modes don't apply.
-    private fun pausesAtStart(s: Scene) = !episode.novel && pauseAtSceneStart && !newStraight
-    private fun pausesAtEnd(s: Scene) = episode.novel || pauseAtSceneEnd
+    private fun pausesAtStart(s: Scene) = !episode.novel && pauseAtSceneStart && !newStraight && !known(s)
+    private fun pausesAtEnd(s: Scene) = episode.novel || (pauseAtSceneEnd && !known(s))
+    private fun known(s: Scene) = playThroughKnown && levelOf(s) == 0
 
     private fun stopAtSceneEnd() {
         if (pausesAtEnd(scene)) {

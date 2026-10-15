@@ -56,6 +56,10 @@ internal val esHome: Map<String, String> = mapOf(
     "1 episode" to "1 episodio",
     "%d episodes" to "%d episodios",
     " · %d saved" to " · %d guardados",
+    "Continue" to "Continuar",
+    "Finished" to "Terminada",
+    "%d left" to "quedan %d",
+    "%1\$d%% easy · %2\$d left" to "%1\$d%% fácil · quedan %2\$d",
     // Show
     "Back" to "Volver",
     "%s · on this device" to "%s · en este dispositivo",

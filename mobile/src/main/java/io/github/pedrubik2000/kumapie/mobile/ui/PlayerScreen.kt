@@ -414,7 +414,8 @@ internal fun ScenePlayer(
         }
     }
     if (mining) {
-        ModalBottomSheet(onDismissRequest = { mining = false }) { MineSheet(library, episode, ctl, picker, onDone = { mining = false }, ratings, queueScope, queueBusy) }
+        // Opened full: half open hid the Add button under the screen.
+        ModalBottomSheet(onDismissRequest = { mining = false }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) { MineSheet(library, episode, ctl, picker, onDone = { mining = false }) }
     }
 }
 
@@ -503,7 +504,6 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> 
     val marked = word?.let { ctl.words[it]?.marked } == true
     Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = picker::hearWord) { Icon(Icons.AutoMirrored.Filled.VolumeUp, tr("Hear the word"), tint = Colors.text) }
         if (picker.definition != null) {
             IconButton(onClick = picker::hearDefinition) { Icon(Icons.Default.RecordVoiceOver, tr("Hear the definition"), tint = Colors.text) }
         }
@@ -524,6 +524,7 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         OptionRow(tr("Primed Listening: pause at the start of each scene (read, then play)"), ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
         OptionRow(tr("Pause at the end of each scene"), ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
         OptionRow(tr("Skip nothing: play the gaps between scenes too"), ctl.newStraight, ctl::toggleNewStraight)
+        OptionRow(tr("Don't stop on i+0 scenes (no new words)"), ctl.playThroughKnown, ctl::togglePlayThroughKnown)
         OptionRow(tr("Slow (0.75x)"), ctl.slow, ctl::toggleSlow)
         if (onUpright != null) OptionRow(tr("Upright: scene by scene, swipe left"), uprightNow, onUpright)
         if (onShift != null) {

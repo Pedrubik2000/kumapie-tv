@@ -4,12 +4,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -143,10 +148,8 @@ internal fun japaneseRateForms(library: Library, forms: List<io.github.pedrubik2
  * English ([SensePick]) starts chosen. Adds to kuma3 Anki's Deutsch Mined ([Miner]).
  */
 @Composable
-fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit,
-              /** The player's ratings, queue scope and busy flag ([RatingRows]): Undo works in the word card too. */
-              ratings: Ratings, queueScope: kotlinx.coroutines.CoroutineScope, queueBusy: androidx.compose.runtime.MutableState<Boolean>) {
-    if (library.languages.of(ctl.lang) is io.github.pedrubik2000.kumapie.lang.Japanese) return JapaneseMineSheet(library, episode, ctl, picker, onDone, ratings, queueScope, queueBusy)
+fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit) {
+    if (library.languages.of(ctl.lang) is io.github.pedrubik2000.kumapie.lang.Japanese) return JapaneseMineSheet(library, episode, ctl, picker, onDone)
     val scope = rememberCoroutineScope()
     val scene = ctl.scene
     val line = picker.line
@@ -177,8 +180,10 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
         looked = true
     }
 
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
-        .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // The choices scroll; Add and its status stay at the bottom (user, 2026-10-14). A set height: the sheet sizes
+    // itself on opening, before the meanings load, and doesn't grow after (Add went under the screen).
+    Column(Modifier.fillMaxWidth().fillMaxHeight(0.8f).padding(horizontal = 24.dp).navigationBarsPadding().padding(bottom = 16.dp)) {
+    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(tr("Add to Anki · %s", ctl.lang.deck), color = Colors.accent, fontSize = 18.sp)
         Text(Miner.sentence(scene, line).first, color = Colors.text, fontSize = 18.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -211,13 +216,8 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
         } else {
             Text(tr("The sentence, a video clip of the whole scene and the %s.", translationName()), color = Colors.dim, fontSize = 14.sp)
         }
-        // Rate the exact form here too (the word card's row); without a card, the meanings picked above make it.
-        if (segment != null && key != null) RatingRows(known, library.settings.prefs, listOf(RateForm(key, null) { p ->
-            val pick = choices.getOrNull(chosen) // none: the card is made without a meaning
-            library.miner.mine(Miner.Request(episode, scene, line, Miner.Word(segment.text, key, lemma, pick?.gloss.orEmpty(), pick?.example, def,
-                mono = monos.getOrNull(monoChosen)?.gloss)), p)
-        }), ratings, queueScope, queueBusy, Miner.Request(episode, scene, line, Miner.Word(segment.text, key, null, ""))) { repaintWords(ctl, known) }
-        Button(enabled = !busy && !done && (!wordCard || looked), onClick = {
+    }
+        Button(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), enabled = !busy && !done && (!wordCard || looked), onClick = {
             busy = true
             val pick = choices.getOrNull(chosen)
             val request = Miner.Request(episode, scene, line, if (wordCard && segment != null) {
@@ -247,8 +247,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
  * from the monolingual ones (国語 dictionaries before encyclopedias; or none). Into Japanese Mined.
  */
 @Composable
-private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit,
-                              ratings: Ratings, queueScope: kotlinx.coroutines.CoroutineScope, queueBusy: androidx.compose.runtime.MutableState<Boolean>) {
+private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, picker: WordPicker, onDone: () -> Unit) {
     val ja = io.github.pedrubik2000.kumapie.data.Lang.JAPANESE
     val scope = rememberCoroutineScope()
     val scene = ctl.scene
@@ -264,6 +263,9 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
     var chosen by remember { mutableIntStateOf(0) }
     var looked by remember { mutableStateOf(false) }
     var forms by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form>>(emptyList()) }
+    val japanese = library.languages.japanese
+    var audios by remember { mutableStateOf<List<Pair<String, java.io.File>>?>(null) }
+    var audioChosen by remember { mutableIntStateOf(0) }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf(false) }
@@ -280,6 +282,8 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
     }
     LaunchedEffect(headword) {
         val hw = headword ?: return@LaunchedEffect
+        audios = null; audioChosen = 0
+        launch { audios = japanese.audio.recordings(hw.expression, hw.reading).map { (source, f) -> sourceName(source) to f } }
         val c = japaneseChoices(library, hw, SensePick.english(scene, line))
         monos = c.monos
         chosen = c.chosen
@@ -287,11 +291,13 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         looked = true
     }
 
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
-        .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val hw = headword
+    // The choices scroll; Add and its status stay at the bottom (user, 2026-10-14). A set height: the sheet sizes
+    // itself on opening, before the meanings load, and doesn't grow after (Add went under the screen).
+    Column(Modifier.fillMaxWidth().fillMaxHeight(0.8f).padding(horizontal = 24.dp).navigationBarsPadding().padding(bottom = 16.dp)) {
+    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(tr("Add to Anki · %s", ja.deck), color = Colors.accent, fontSize = 18.sp)
         Text(cue.text, color = Colors.text, fontSize = 20.sp)
-        val hw = headword
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text(tr("Sentence card")) })
             // One chip per headword the rows have (気 and 気にする), else the word as written.
@@ -323,15 +329,30 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         } else {
             Text(tr("The line, its audio, a screenshot and the %s.", translationName()), color = Colors.dim, fontSize = 14.sp)
         }
-        // Rate each form here too (the word card's rows): a missing one's card is made from its own headword.
-        if (forms.isNotEmpty()) RatingRows(known, library.settings.prefs, japaneseRateForms(library, forms, SensePick.english(scene, line)) { w, p ->
-            library.miner.mine(Miner.Request(episode, scene, line, w), p)
-        }, ratings, queueScope, queueBusy, segment?.let { Miner.Request(episode, scene, line, Miner.Word(it.text, it.word, null, "")) }) { repaintWords(ctl, known) }
-        Button(enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
+        if (wordCard && hw != null) {
+            Text(tr("Word audio"), color = Colors.accent, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp))
+            if (audios == null) Text(tr("Looking for recordings…"), color = Colors.dim, fontSize = 14.sp)
+            else if (audios!!.isEmpty()) Text(tr("No recordings: the device voice says it."), color = Colors.dim, fontSize = 14.sp)
+            audios?.let { list ->
+                list.map { it.first }.forEachIndexed { i, name ->
+                    Row(Modifier.fillMaxWidth().clickable { audioChosen = i }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = audioChosen == i, onClick = { audioChosen = i })
+                        Text(name, color = Colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        IconButton(onClick = {
+                            audioChosen = i
+                            scope.launch { japanese.audio.play(list[i].second) }
+                        }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, tr("Hear it"), tint = Colors.text) }
+                    }
+                }
+            }
+        }
+    }
+        Button(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
             busy = true
             val pick = choices.getOrNull(chosen)
             val w = if (wordCard && segment != null && pick != null && hw != null) Miner.Word(segment.text, segment.word, hw.expression,
-                pick.gloss, reading = hw.reading.takeIf { it.isNotBlank() }, pitch = hw.pitches.flatMap { it.second }.firstOrNull(), mono = monos.getOrNull(monoChosen)?.gloss)
+                pick.gloss, reading = hw.reading.takeIf { it.isNotBlank() }, pitch = hw.pitches.flatMap { it.second }.firstOrNull(), mono = monos.getOrNull(monoChosen)?.gloss,
+                audio = audios?.getOrNull(audioChosen)?.second)
             else null
             scope.launch {
                 runCatching { library.miner.mine(Miner.Request(episode, scene, line, w)) { status = it } }
@@ -343,6 +364,14 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         if (status.isNotEmpty()) Text(status, color = if (done) Colors.levelZero else Colors.dim, fontSize = 14.sp)
         if (done) LaunchedEffect(Unit) { kotlinx.coroutines.delay(1200); onDone() }
     }
+}
+
+/** A recording's source as the sheet names it. */
+private fun sourceName(source: String) = when (source) {
+    "nhk16" -> "NHK"
+    "shinmeikai8" -> "Shinmeikai"
+    "jpod" -> "JapanesePod101"
+    else -> source.replaceFirstChar { it.uppercase() }
 }
 
 /** The person's translation language mid-sentence: "English", or "español" in Spanish menus. */

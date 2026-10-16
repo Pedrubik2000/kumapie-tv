@@ -21,6 +21,7 @@ android {
         versionName = appVersion
         // Where the app looks for new releases (Settings > Check for updates, and on start).
         buildConfigField("String", "UPDATE_REPO", "\"Pedrubik2000/kumapie-tv\"")
+        manifestPlaceholders["prepareScheme"] = "kumapie" // kumapie://prepare links (StreamActivity)
     }
 
     // Release key: never in the repo. CI gets it from the repository secrets; a local release build
@@ -48,6 +49,7 @@ android {
             // Debug builds install next to the release app instead of clashing with its signature.
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            manifestPlaceholders["prepareScheme"] = "kumapie-debug" // a second kumapie:// handler would bring back the chooser
         }
     }
 

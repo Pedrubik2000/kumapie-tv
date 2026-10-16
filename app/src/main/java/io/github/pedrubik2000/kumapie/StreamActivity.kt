@@ -32,6 +32,7 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.ui.KumapieTheme
 import io.github.pedrubik2000.kumapie.ui.ScenePlayer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.URL
 
@@ -62,9 +63,12 @@ class StreamActivity : ComponentActivity() {
         val api = remember { Api(settings.server, settings.profile) }
         var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
-        val title = intent.getStringExtra("title") ?: Uri.parse(video).lastPathSegment.orEmpty()
+        var step by remember { mutableStateOf("") }
+        val link = Uri.parse(video)
+        val title = intent.getStringExtra("title") ?: link.lastPathSegment.orEmpty()
         LaunchedEffect(Unit) {
             runCatching {
+                if (link.scheme?.startsWith("kumapie") == true) return@runCatching prepared(api, link) { step = it }
                 val subs = subtitles()
                 val (lang, spoken) = SPOKEN.firstNotNullOfOrNull { l -> subs[l]?.let { l to it } }
                     ?: error(tr("NuvioTV sent no Japanese, German or English subtitles: pick an add-on that has them"))
@@ -78,6 +82,7 @@ class StreamActivity : ComponentActivity() {
             val shown = detail
             when {
                 error != null -> Message(error!!)
+                shown == null && link.scheme?.startsWith("kumapie") == true -> Message(tr("The PC is making the episode: %1\$s", step.ifEmpty { "…" }))
                 shown == null -> Message(tr("%1\$s: getting its words from the PC (a new subtitle file: about a minute)…", title))
                 else -> ScenePlayer(api, settings, shown, onClose = ::finish, onPlayer = { player = it })
             }
@@ -87,6 +92,23 @@ class StreamActivity : ComponentActivity() {
     @Composable
     private fun Message(text: String) = Box(Modifier.fillMaxSize().padding(48.dp), contentAlignment = Alignment.Center) {
         Text(text, color = Colors.dim, fontSize = 22.sp)
+    }
+
+    /**
+     * kumapie://prepare?person&lang&type&id (the kumapie add-on's stream in NuvioTV): the PC downloads the title and
+     * makes it a library episode (services\feed\stremio.py); asks every 3 s until it's ready, [shown] gets the step.
+     */
+    private suspend fun prepared(api: Api, link: Uri, shown: (String) -> Unit): EpisodeDetail {
+        val query = link.queryParameterNames.associateWith { link.getQueryParameter(it).orEmpty() }
+        while (true) {
+            val r = api.prepare(query)
+            when (r.optString("state")) {
+                "ready" -> return api.episode(r.getString("id"))
+                "failed" -> error(tr("The PC couldn't make it: %1\$s", r.optString("error")))
+                else -> shown(r.optString("step").ifEmpty { tr("waiting for the job before it") })
+            }
+            delay(3_000)
+        }
     }
 
     /** Where it was, for NuvioTV (MX Player's result: position and duration in ms, end_by). */

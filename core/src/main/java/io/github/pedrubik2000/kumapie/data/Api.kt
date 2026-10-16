@@ -191,6 +191,13 @@ class Api(private val base: String, private val person: String = "") : Backend {
         JSONObject(post("/api/tv/stream", JSONObject().put("person", person).put("lang", lang).put("title", title)
             .put("subs", subs).put("english", english.orEmpty()).toString(), readTimeout = 180_000)).getString("id")
 
+    /**
+     * A NuvioTV title the PC makes into a library episode (POST /api/tv/prepare, from the kumapie add-on's
+     * kumapie://prepare link): {"state": "ready", "id"} or {"state": queued/running/failed, "step", "error"}.
+     */
+    suspend fun prepare(query: Map<String, String>): JSONObject =
+        JSONObject(post("/api/tv/prepare", JSONObject(query).toString(), readTimeout = 120_000))
+
     suspend fun aniworldJobs() = JSONArray(get("/api/aniworld"))
 
     /**

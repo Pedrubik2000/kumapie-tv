@@ -49,6 +49,14 @@
                 <data android:scheme="https" />
                 <data android:mimeType="video/*" />
             </intent-filter>
+            <!-- The kumapie add-on's streams in NuvioTV: kumapie://prepare?... (the PC makes the episode first). One
+                 handler means no "Open with" menu, which hides kumapie on the TCL TV. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${prepareScheme}" android:host="prepare" />
+            </intent-filter>
         </activity>
 
         <service

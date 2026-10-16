@@ -119,6 +119,22 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
     }
     // A whole reel counts as watched (its scenes seen): which reels come next goes by that.
     val reelBackend = remember { library.backend(lang) }
+    // The next page's video, opened and buffered at its scene while this one plays, so a swipe starts at once
+    // (user, 2026-10-15: "takes too much time from video to video"). One at a time: each holds a decoder.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val warm = remember { HashMap<Int, androidx.media3.exoplayer.ExoPlayer>() }
+    fun warmUp(list: List<FeedItem>, page: Int) {
+        warm.keys.filter { it != page + 1 }.forEach { warm.remove(it)?.release() }
+        val next = list.getOrNull(page + 1) ?: return
+        if (page + 1 in warm) return
+        val start = next.scene?.start ?: next.episode.scenes.first().start
+        warm[page + 1] = androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+            setMediaItem(androidx.media3.common.MediaItem.fromUri(next.episode.video), (start * 1000).toLong())
+            playWhenReady = false
+            prepare()
+        }
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { warm.values.forEach { it.release() }; warm.clear() } }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         val list = items
@@ -126,7 +142,7 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
             Text(loading, color = Colors.dim, fontSize = 16.sp, modifier = Modifier.align(Alignment.Center))
         } else {
             val pager = rememberPagerState(initialPage = FeedKept.page.coerceIn(0, list.lastIndex)) { list.size }
-            LaunchedEffect(pager.settledPage) { FeedKept.page = pager.settledPage }
+            LaunchedEffect(pager.settledPage) { FeedKept.page = pager.settledPage; warmUp(list, pager.settledPage) }
             VerticalPager(state = pager, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 0) { page ->
                 val item = list[page]
                 if (page == pager.settledPage) {
@@ -138,11 +154,13 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
                             if (m == w.marked) w else w.copy(marked = m, status = if (m) "k" else known.status(k) ?: "u")
                         }
                         val scene = item.scene
+                        val ready = remember { warm.remove(page) } // buffered while the page before played
                         if (scene == null) ScenePlayer(library, settings, reelBackend,
-                            item.episode.copy(resume = item.episode.scenes.first().start, words = words), startPaused = false, onBack = onBack)
+                            item.episode.copy(resume = item.episode.scenes.first().start, words = words), startPaused = false, onBack = onBack,
+                            preloaded = ready)
                         else ScenePlayer(library, settings, backend,
                             item.episode.copy(scenes = listOf(scene), resume = scene.start, words = words),
-                            startPaused = false, onBack = onBack)
+                            startPaused = false, onBack = onBack, preloaded = ready)
                     }
                 } else {
                     // Neighbours while swiping: the scene's words, no player.

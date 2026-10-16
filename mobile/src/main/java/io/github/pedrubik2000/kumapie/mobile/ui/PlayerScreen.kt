@@ -183,11 +183,13 @@ internal fun ScenePlayer(
     uprightNow: Boolean = false,
     /** Shifts the subtitles by (seconds), then reloads at (position); null when the episode isn't made here. */
     onShift: ((Double, Double) -> Unit)? = null,
+    /** A player already opened on [episode] (the feed's next page, buffered while the last one played); released here. */
+    preloaded: ExoPlayer? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val player = remember {
-        ExoPlayer.Builder(context).build().apply {
+        preloaded ?: ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(episode.video))
             prepare()
         }

@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -82,6 +83,16 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             var blur by remember { mutableStateOf(settings.blurUnwatched) }
             Button(onClick = { blur = !blur; settings.blurUnwatched = blur }) {
                 Text(tr("Blur episodes I haven't watched: %s", if (blur) tr("on") else tr("off")))
+            }
+            // OK steps through the fonts; the sample line shows the one picked (fetched the first time it's drawn).
+            Text(tr("Japanese subtitles"), fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            var font by remember { mutableStateOf(settings.japaneseFont) }
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = {
+                    font = JapaneseFonts.NAMES[(JapaneseFonts.NAMES.indexOf(font) + 1) % JapaneseFonts.NAMES.size]
+                    settings.japaneseFont = font
+                }) { Text(tr("Font: %s", JapaneseFonts.label(font))) }
+                Text(JapaneseFonts.SAMPLE, fontSize = 26.sp, color = Colors.text, fontFamily = JapaneseFonts.family(font))
             }
             Text(tr("Updates"), fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {

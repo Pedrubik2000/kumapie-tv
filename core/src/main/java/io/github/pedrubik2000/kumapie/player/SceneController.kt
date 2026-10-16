@@ -34,7 +34,7 @@ val AppScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 class SceneController(
     val episode: EpisodeDetail,
     private val player: Player,
-    private val settings: Settings,
+    val settings: Settings,
     private val api: Backend,
 ) {
     val scenes: List<Scene> = episode.scenes

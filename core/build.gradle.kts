@@ -28,5 +28,6 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     api(composeBom)
     api("androidx.compose.foundation:foundation")
+    api("androidx.compose.ui:ui-text-google-fonts") // Japanese subtitle fonts (JapaneseFonts.kt)
     api("androidx.media3:media3-common:1.11.1")
 }

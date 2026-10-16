@@ -141,7 +141,12 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
         val share = if (picking) 0.55f else if (paused) 2f / 3f else 1f / 3f
         val budget = maxHeight * share - bottom - padV * 2
         val (textWidth, budgetPx) = with(density) { (boxWidth - padH * 2).roundToPx() to budget.toPx() }
-        fun germanStyle(size: Int) = TextStyle(fontSize = size.sp, lineHeight = (size * 1.22f).sp, textAlign = TextAlign.Center)
+        // Japanese lines in the font picked in Settings (JapaneseFonts); other languages keep the system's.
+        val jaFont = remember(ctl.lang) {
+            if (ctl.lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) JapaneseFonts.family(ctl.settings.japaneseFont) else null
+        }
+        fun germanStyle(size: Int) = TextStyle(fontSize = size.sp, lineHeight = (size * 1.22f).sp, textAlign = TextAlign.Center,
+            fontFamily = jaFont)
         fun englishStyle(size: Int) = TextStyle(fontSize = (size * ENGLISH_SCALE).sp,
             lineHeight = (size * ENGLISH_SCALE * 1.22f).sp, textAlign = TextAlign.Center)
         val size = SIZES.firstOrNull { s ->

@@ -197,6 +197,7 @@ private fun SectionContent(library: Library, key: String, onSaved: () -> Unit, o
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             PopupSize(settings)
+            if ("ja" in learning) { HorizontalDivider(Modifier.padding(vertical = 8.dp)); JapaneseFont(settings) }
         }
         "device" -> {
             MenuLanguage(settings)
@@ -613,6 +614,22 @@ private fun FollowedChannels(library: Library) {
     OutlinedButton(onClick = { io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.checkNow(context) }) { Text(tr("Check now")) }
 }
 
+
+/** Japanese subtitles' font (JapaneseFonts): each chip in its own font, the sample line in the one picked. */
+@Composable
+private fun JapaneseFont(settings: Settings) {
+    var font by remember { mutableStateOf(settings.japaneseFont) }
+    Text(tr("Japanese subtitle font"), color = Colors.accent)
+    Text(io.github.pedrubik2000.kumapie.ui.JapaneseFonts.SAMPLE, fontSize = 22.sp,
+        fontFamily = io.github.pedrubik2000.kumapie.ui.JapaneseFonts.family(font))
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        io.github.pedrubik2000.kumapie.ui.JapaneseFonts.NAMES.forEach { name ->
+            androidx.compose.material3.FilterChip(selected = font == name, onClick = { font = name; settings.japaneseFont = name },
+                label = { Text(io.github.pedrubik2000.kumapie.ui.JapaneseFonts.label(name),
+                    fontFamily = io.github.pedrubik2000.kumapie.ui.JapaneseFonts.family(name)) })
+        }
+    }
+}
 
 /** The menus' language: the phone's, English or Spanish. The screen restarts so every text redraws. */
 @Composable

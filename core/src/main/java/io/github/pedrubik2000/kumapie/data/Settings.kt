@@ -83,6 +83,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("show_help", true)
         set(value) = prefs.edit().putBoolean("show_help", value).apply()
 
+    /** Japanese subtitles' font: a Google Fonts name ([io.github.pedrubik2000.kumapie.ui.JapaneseFonts]); "" = the system's. */
+    var japaneseFont: String
+        get() = prefs.getString("ja_font", "") ?: ""
+        set(value) = prefs.edit().putString("ja_font", value).apply()
+
     companion object {
         fun normalizeServer(value: String): String {
             val v = value.trim().trimEnd('/')

@@ -54,6 +54,7 @@ import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
+import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.keys
 import io.github.pedrubik2000.kumapie.data.Show
@@ -86,15 +87,16 @@ fun PlayerScreen(api: Api, settings: Settings, show: Show, episode: Episode, onC
     }
 }
 
+/** [onPlayer]: the player, once made (StreamActivity hands its position back to NuvioTV). */
 @Composable
-private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: () -> Unit) {
+fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: () -> Unit, onPlayer: (ExoPlayer) -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val player = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(episode.video))
             prepare()
-        }
+        }.also(onPlayer)
     }
     val ctl = remember { SceneController(episode, player, settings, api) }
     val picker = remember { WordPicker(ctl, api, scope) }
@@ -222,7 +224,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
         )
         if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, picker, hints = settings.showHelp, title = shortTitle(ctl.episode.show))
         Subtitles(ctl, picker, onAnchor = { anchor = it }, aboveBox = true)
-        if (picker.isOpen && picker.cardOpen) anchor?.let { MeaningCard(ctl, picker, it) }
+        if (picker.isOpen && picker.cardOpen) anchor?.let { JapaneseText(ctl.lang == Lang.JAPANESE) { MeaningCard(ctl, picker, it) } }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() },
             onHelp = { options = false; help = true; focus.requestFocus() })
         if (help) HelpOverlay(settings, ctl.lang)

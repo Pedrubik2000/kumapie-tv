@@ -186,6 +186,11 @@ class Api(private val base: String, private val person: String = "") : Backend {
      */
     suspend fun makeOnPc(lang: String, job: JSONObject) = post("/api/aniworld", job.put("person", person).put("lang", lang).toString())
 
+    /** A NuvioTV stream's episode id from its subtitle files (POST /api/tv/stream): the PC splits them once, Japanese ~1 min. */
+    suspend fun stream(lang: String, title: String, subs: String, english: String?): String =
+        JSONObject(post("/api/tv/stream", JSONObject().put("person", person).put("lang", lang).put("title", title)
+            .put("subs", subs).put("english", english.orEmpty()).toString(), readTimeout = 180_000)).getString("id")
+
     suspend fun aniworldJobs() = JSONArray(get("/api/aniworld"))
 
     /**
@@ -229,10 +234,10 @@ class Api(private val base: String, private val person: String = "") : Backend {
             "$id/$name"
         }
 
-    private suspend fun post(path: String, body: String): String = withContext(Dispatchers.IO) {
+    private suspend fun post(path: String, body: String, readTimeout: Int = 20_000): String = withContext(Dispatchers.IO) {
         val conn = URL(url(path)).openConnection() as HttpURLConnection
         conn.connectTimeout = 8_000
-        conn.readTimeout = 20_000
+        conn.readTimeout = readTimeout
         conn.requestMethod = "POST"
         conn.doOutput = true
         conn.setRequestProperty("Content-Type", "application/json")

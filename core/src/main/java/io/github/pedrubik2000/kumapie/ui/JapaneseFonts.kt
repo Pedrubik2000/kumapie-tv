@@ -1,6 +1,9 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.googlefonts.Font
 import androidx.compose.ui.text.googlefonts.GoogleFont
@@ -37,4 +40,12 @@ object JapaneseFonts {
 
     /** What Settings shows for [name]. */
     fun label(name: String): String = name.ifEmpty { io.github.pedrubik2000.kumapie.i18n.tr("System font") }
+
+    /** Kanji in their Japanese shapes: Android picks them by the text's locale, so a TV not set to Japanese draws Chinese ones. */
+    val LOCALE = LocaleList("ja-JP")
 }
+
+/** [content]'s text in Japanese glyphs when [on] (a Japanese episode): see [JapaneseFonts.LOCALE]. */
+@Composable
+fun JapaneseText(on: Boolean, content: @Composable () -> Unit) =
+    if (on) CompositionLocalProvider(LocalTextLocale provides JapaneseFonts.LOCALE, content = content) else content()

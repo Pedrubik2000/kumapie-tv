@@ -252,7 +252,9 @@ private val images = ConcurrentHashMap<String, ImageBitmap>()
 /** A server image (poster, thumb), fetched once per run; [fallback] while loading or when there is none. */
 @Composable
 fun UrlImage(path: String, modifier: Modifier, fallback: @Composable () -> Unit) {
+    // Keyed by the path, starting empty: a card reused for another episode (a tab switch) must not keep the old picture.
     val bitmap by produceState(images[path], path) {
+        value = images[path] // null while a new one loads: the fallback, not the last episode's picture
         if (value == null) value = withContext(Dispatchers.IO) {
             runCatching {
                 val bytes = URI(if (path.startsWith("http")) path else SERVER + path).toURL().readBytes()

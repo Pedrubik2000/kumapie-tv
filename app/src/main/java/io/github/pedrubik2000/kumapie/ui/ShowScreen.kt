@@ -37,12 +37,24 @@ import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import androidx.compose.ui.draw.blur
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.Color
+import androidx.tv.material3.Button
+import kotlinx.coroutines.launch
 
-/** A show's poster and its episodes. Focus starts on the episode played most recently (or the first one). */
+/**
+ * A show's poster and its episodes. Focus starts on the episode played most recently (or the first one). Holding OK on
+ * an episode: mark it, or its whole season, watched or not watched (every device).
+ */
 @Composable
 fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Episode) -> Unit) {
     var show by remember { mutableStateOf(initial) }
-    LaunchedEffect(initial.id) { // fresh progress after coming back from the player
+    var menu by remember { mutableStateOf<Episode?>(null) }
+    var marked by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(initial.id, marked) { // fresh progress after coming back from the player, or after a mark
         runCatching { api.shows() }.getOrNull()?.firstOrNull { it.id == initial.id }?.let { show = it }
     }
     val episodes = show.episodes.filter { it.scenes > 0 } // nothing to play scene by scene (a reel without speech)
@@ -65,18 +77,54 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
             contentPadding = PaddingValues(horizontal = 40.dp, vertical = 16.dp)) { // room for the focused card's 10%
             itemsIndexed(episodes, key = { _, e -> e.id }) { i, ep ->
                 EpisodeCard(ep, blur = settings.blurUnwatched && !ep.watched, onClick = { onEpisode(show, ep) },
-                    modifier = if (i == start) Modifier.focusRequester(focus) else Modifier)
+                    onLongClick = { menu = ep }, modifier = if (i == start) Modifier.focusRequester(focus) else Modifier)
             }
         }
     }
     LaunchedEffect(show.id, start) { // the episode must be laid out before it can take the focus
         if (episodes.isNotEmpty()) { list.scrollToItem(start); focus.focusSoon() }
     }
+    menu?.let { ep ->
+        val season = episodes.filter { it.season == ep.season }
+        MarkMenu(ep, season.size, onClose = { menu = null }) { whole, watched ->
+            menu = null
+            scope.launch {
+                runCatching { api.mark((if (whole) season else listOf(ep)).map { it.id }, watched) }
+                marked++
+            }
+        }
+    }
+}
+
+/** Mark an episode, or every episode of its season ([count]), watched or not watched. Back closes it. */
+@Composable
+private fun MarkMenu(ep: Episode, count: Int, onClose: () -> Unit, onMark: (whole: Boolean, watched: Boolean) -> Unit) {
+    val focus = remember { FocusRequester() }
+    val season = ep.season?.let { tr("Season %d", it) } ?: tr("All episodes")
+    Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
+        Column(Modifier.width(560.dp).background(Colors.surface, RoundedCornerShape(16.dp)).padding(32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(ep.title, fontSize = 24.sp, color = Colors.text)
+            Button(onClick = { onMark(false, !ep.watched) }, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
+                Text(if (ep.watched) tr("Mark as not watched") else tr("Mark as watched"))
+            }
+            if (count > 1) {
+                Button(onClick = { onMark(true, true) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(tr("%1\$s: mark all %2\$d as watched", season, count))
+                }
+                Button(onClick = { onMark(true, false) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(tr("%1\$s: mark all %2\$d as not watched", season, count))
+                }
+            }
+        }
+    }
+    BackHandler(onBack = onClose)
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }
 
 @Composable
-private fun EpisodeCard(ep: Episode, blur: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Card(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+private fun EpisodeCard(ep: Episode, blur: Boolean, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier = Modifier) {
+    Card(onClick = onClick, onLongClick = onLongClick, modifier = modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(model = ep.thumb, contentDescription = null, contentScale = ContentScale.Crop,
                 // No spoilers: an episode's picture stays blurred until it is watched (as on the phone).

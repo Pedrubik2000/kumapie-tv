@@ -198,6 +198,11 @@ class Api(private val base: String, private val person: String = "") : Backend {
     suspend fun prepare(query: Map<String, String>): JSONObject =
         JSONObject(post("/api/tv/prepare", JSONObject(query).toString(), readTimeout = 120_000))
 
+    /** Marks [episodes] watched (all their scenes seen) or not watched (from the beginning), on every device. */
+    suspend fun mark(episodes: List<String>, watched: Boolean) {
+        post("/api/tv/mark", JSONObject().put("episodes", JSONArray(episodes)).put("watched", watched).toString())
+    }
+
     suspend fun aniworldJobs() = JSONArray(get("/api/aniworld"))
 
     /**

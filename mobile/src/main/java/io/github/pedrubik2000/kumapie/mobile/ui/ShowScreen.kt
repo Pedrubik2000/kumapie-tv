@@ -131,9 +131,13 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
                     reload++
                 }
             }.takeIf { !hasCopy(ep) && sync.onPc(ep.id) && !offline },
-            onMarkWatched = { watched ->
+            seasonSize = show.episodes.count { it.season == ep.season },
+            onMarkWatched = { watched, whole ->
                 scope.launch {
-                    runCatching { if (watched) library.markWatched(ep.id) else library.markUnwatched(ep.id) }
+                    runCatching {
+                        for (e in if (whole) show.episodes.filter { it.season == ep.season } else listOf(ep))
+                            if (watched) library.markWatched(e.id) else library.markUnwatched(e.id)
+                    }
                         .onSuccess { reload++ }
                         .onFailure { android.widget.Toast.makeText(context, it.message ?: it.toString(), android.widget.Toast.LENGTH_LONG).show() }
                 }
@@ -289,13 +293,13 @@ private fun ShowHeader(library: Library, show: Show, meta: org.json.JSONObject?,
 
 /**
  * Long press: "Mark as watched" (seen elsewhere: the feed may use its scenes, its picture is no longer blurred) and
- * "Mark as not watched" (back to unseen, from the beginning).
+ * "Mark as not watched" (back to unseen, from the beginning), for the episode or its whole season ([seasonSize]).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, state: DownloadState, playable: Boolean, copy: Boolean, offline: Boolean, wide: Boolean,
                        onPlay: () -> Unit, onDownload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit, onListen: () -> Unit,
-                       onMarkWatched: (Boolean) -> Unit, fetched: Float? = null, onFetch: (() -> Unit)? = null) {
+                       seasonSize: Int, onMarkWatched: (watched: Boolean, wholeSeason: Boolean) -> Unit, fetched: Float? = null, onFetch: (() -> Unit)? = null) {
     val onDevice = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) // made here
     var menu by remember { mutableStateOf(false) }
     Row(
@@ -309,8 +313,13 @@ private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, sta
                 modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
                     .then(if (hide) Modifier.blur(16.dp) else Modifier))
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                if (!ep.watched) DropdownMenuItem(text = { Text(tr("Mark as watched")) }, onClick = { menu = false; onMarkWatched(true) })
-                if (ep.seen > 0 || (ep.resume ?: 0.0) > 0) DropdownMenuItem(text = { Text(tr("Mark as not watched")) }, onClick = { menu = false; onMarkWatched(false) })
+                if (!ep.watched) DropdownMenuItem(text = { Text(tr("Mark as watched")) }, onClick = { menu = false; onMarkWatched(true, false) })
+                if (ep.seen > 0 || (ep.resume ?: 0.0) > 0) DropdownMenuItem(text = { Text(tr("Mark as not watched")) }, onClick = { menu = false; onMarkWatched(false, false) })
+                if (seasonSize > 1) {
+                    val season = ep.season?.let { tr("Season %d", it) } ?: tr("All episodes")
+                    DropdownMenuItem(text = { Text(tr("%1\$s: mark all %2\$d as watched", season, seasonSize)) }, onClick = { menu = false; onMarkWatched(true, true) })
+                    DropdownMenuItem(text = { Text(tr("%1\$s: mark all %2\$d as not watched", season, seasonSize)) }, onClick = { menu = false; onMarkWatched(false, true) })
+                }
             }
             val resume = ep.resume
             if (resume != null && resume > 0 && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(),

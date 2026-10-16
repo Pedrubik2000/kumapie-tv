@@ -115,6 +115,9 @@ internal val esHome: Map<String, String> = mapOf(
     // Feed
     "Mark as watched" to "Marcar como visto",
     "Mark as not watched" to "Marcar como no visto",
+    "All episodes" to "Todos los episodios",
+    "%1\$s: mark all %2\$d as watched" to "%1\$s: marcar los %2\$d como vistos",
+    "%1\$s: mark all %2\$d as not watched" to "%1\$s: marcar los %2\$d como no vistos",
     "Blur pictures of episodes I haven't watched (no spoilers)" to "Difuminar las imágenes de episodios que no he visto (sin spoilers)",
     "No scenes yet: the feed only shows scenes you've already watched, so nothing is spoiled." to "Aún no hay escenas: el feed solo muestra escenas que ya viste, para no arruinarte nada.",
     "Feed levels" to "Niveles del feed",

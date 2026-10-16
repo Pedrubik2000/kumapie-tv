@@ -5,10 +5,13 @@ import json
 import os
 import struct
 import sys
+import zlib
 
 # EBML element ids
 SEGMENT, CLUSTER, TRACKS, TRACK_ENTRY, INFO, BLOCK_GROUP = 0x18538067, 0x1F43B675, 0x1654AE6B, 0xAE, 0x1549A966, 0xA0
-CONTAINERS = {SEGMENT, CLUSTER, TRACKS, TRACK_ENTRY, INFO, BLOCK_GROUP}
+# A track's ContentEncodings: its blocks zlib-compressed (algo 0, the default) or with header bytes stripped (algo 3)
+ENCODINGS, ENCODING, COMPRESSION, COMP_ALGO, COMP_SETTINGS, ENC_SCOPE = 0x6D80, 0x6240, 0x5034, 0x4254, 0x4255, 0x5032
+CONTAINERS = {SEGMENT, CLUSTER, TRACKS, TRACK_ENTRY, INFO, BLOCK_GROUP, ENCODINGS, ENCODING, COMPRESSION}
 TRACK_NUMBER, TRACK_TYPE, CODEC_ID, CODEC_PRIVATE, LANGUAGE, LANGUAGE_BCP47, NAME, FORCED = (
     0xD7, 0x83, 0x86, 0x63A2, 0x22B59C, 0x22B59D, 0x536E, 0x55AA)
 TIMESTAMP_SCALE, CLUSTER_TIME, SIMPLE_BLOCK, BLOCK, BLOCK_DURATION = 0x2AD7B1, 0xE7, 0xA3, 0xA1, 0x9B
@@ -60,7 +63,8 @@ def read(path, want_track=None):
         end = os.path.getsize(path)
         for eid, size, start in _elements(f, end):
             if eid == TRACK_ENTRY:
-                entry = {"number": 0, "type": 0, "codec": "", "lang": "eng", "name": "", "forced": False, "private": b""}
+                entry = {"number": 0, "type": 0, "codec": "", "lang": "eng", "name": "", "forced": False, "private": b"",
+                         "comp": None, "strip": b"", "scope": 1}
                 tracks.append(entry)
             elif entry is not None and eid in (TRACK_NUMBER, TRACK_TYPE, CODEC_ID, CODEC_PRIVATE, LANGUAGE, LANGUAGE_BCP47, NAME, FORCED):
                 data = f.read(size)
@@ -68,6 +72,16 @@ def read(path, want_track=None):
                        LANGUAGE: "lang", LANGUAGE_BCP47: "lang", NAME: "name", FORCED: "forced"}[eid]
                 entry[key] = _uint(data) if key in ("number", "type") else bool(_uint(data)) if key == "forced" \
                     else data if key == "private" else data.decode("utf-8", "replace").rstrip("\0")
+            elif entry is not None and eid == COMPRESSION:
+                entry["comp"] = 0  # zlib unless ContentCompAlgo says otherwise
+            elif entry is not None and eid in (COMP_ALGO, COMP_SETTINGS, ENC_SCOPE):
+                data = f.read(size)
+                if eid == COMP_ALGO:
+                    entry["comp"] = _uint(data)
+                elif eid == COMP_SETTINGS:
+                    entry["strip"] = data
+                else:
+                    entry["scope"] = _uint(data)
             elif eid == TIMESTAMP_SCALE:
                 scale = _uint(f.read(size))
             elif eid == CLUSTER:
@@ -81,7 +95,7 @@ def read(path, want_track=None):
                 if track == want_track:
                     head = f.read(3)
                     rel = struct.unpack(">h", head[:2])[0]
-                    payload = f.read(size - (f.tell() - start))
+                    payload = _decoded(tracks, want_track, f.read(size - (f.tell() - start)))
                     last = [(cluster + rel) * scale / 1e9, None, payload]
                     events.append(last)
                 else:
@@ -91,7 +105,22 @@ def read(path, want_track=None):
                 duration = _uint(f.read(size))
                 if last is not None:
                     last[1] = duration * scale / 1e9
+    for t in tracks:
+        if t["scope"] & 2:  # its CodecPrivate (the ASS header) is compressed too
+            t["private"] = _decoded([t], t["number"], t["private"])
     return {"tracks": [t for t in tracks if t["type"] == 0x11], "events": events}
+
+
+def _decoded(tracks, number, data):
+    """A block of track [number] as written: zlib-inflated or its stripped header bytes put back."""
+    t = next((t for t in tracks if t["number"] == number), None)
+    if not t or t["comp"] is None or not t["scope"] & 1 and data is not t["private"]:
+        return data
+    if t["comp"] == 0:
+        return zlib.decompress(data)
+    if t["comp"] == 3:
+        return t["strip"] + data
+    return data  # bzlib / lzo1x: not seen in subtitle tracks
 
 
 def pick(tracks, lang):

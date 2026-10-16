@@ -18,10 +18,11 @@ import java.nio.ByteBuffer
 /**
  * Lets Media3 Transformer write WebM (VP9/VP8 + Opus/Vorbis) through Android's MediaMuxer: the card template shows a
  * clip as video only when it is a .webm (like the PC's clips, VP9 480p + Opus); Transformer itself writes only MP4.
+ * With `ogg` it writes Ogg Opus instead (mined audio, Android 10+).
  */
 @OptIn(UnstableApi::class)
-class WebmMuxer private constructor(path: String) : Muxer {
-    private val muxer = MediaMuxer(path, MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM)
+class WebmMuxer private constructor(path: String, ogg: Boolean) : Muxer {
+    private val muxer = MediaMuxer(path, if (ogg) MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG else MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM)
     private var started = false
 
     override fun addTrack(format: Format): Int = try {
@@ -55,12 +56,12 @@ class WebmMuxer private constructor(path: String) : Muxer {
         }
     }
 
-    class Factory : Muxer.Factory {
-        override fun create(path: String): Muxer = WebmMuxer(path)
+    class Factory(private val ogg: Boolean = false) : Muxer.Factory {
+        override fun create(path: String): Muxer = WebmMuxer(path, ogg)
 
         override fun getSupportedSampleMimeTypes(trackType: Int): ImmutableList<String> = when (trackType) {
-            C.TRACK_TYPE_VIDEO -> ImmutableList.of(MimeTypes.VIDEO_VP9, MimeTypes.VIDEO_VP8)
-            C.TRACK_TYPE_AUDIO -> ImmutableList.of(MimeTypes.AUDIO_OPUS, MimeTypes.AUDIO_VORBIS)
+            C.TRACK_TYPE_VIDEO -> if (ogg) ImmutableList.of() else ImmutableList.of(MimeTypes.VIDEO_VP9, MimeTypes.VIDEO_VP8)
+            C.TRACK_TYPE_AUDIO -> if (ogg) ImmutableList.of(MimeTypes.AUDIO_OPUS) else ImmutableList.of(MimeTypes.AUDIO_OPUS, MimeTypes.AUDIO_VORBIS)
             else -> ImmutableList.of()
         }
     }

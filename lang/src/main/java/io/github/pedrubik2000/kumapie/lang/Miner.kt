@@ -8,6 +8,8 @@ import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.C
+import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.Presentation
 import androidx.media3.transformer.AudioEncoderSettings
@@ -88,7 +90,7 @@ class Miner(
         val fields = sceneFields(r, pkg, fieldNames, "Mined", progress = progress)
         val tags = mutableListOf(slug, "kumapie")
         r.word?.let { w ->
-            val audio = wordAudio(w.surface, language)?.let { anki.addMedia(pkg, it, "kumapie-${slug(w.surface)}") }
+            val audio = wordAudio(w.surface, language)?.let { addAudio(pkg, it, "kumapie-${slug(w.surface)}") }
             val written = w.key?.takeIf { ' ' in it } ?: w.surface
             fields["Word"] = esc(written) + (w.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
             if (audio != null) fields["Word Audio"] = "[audio:$audio]"
@@ -149,9 +151,9 @@ class Miner(
         val startMs = ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
         val endMs = ((cues.last().end + 0.25) * 1000).toLong()
         progress(tr("Cutting the line's audio…"))
-        val lineFile = File(dir, "line.m4a").apply { delete() }
+        val lineFile = File(dir, if (opus) "line.ogg" else "line.m4a").apply { delete() }
         audioClip(r.episode.video, startMs, endMs, lineFile)
-        val line = anki.addMedia(pkg, lineFile, "${slug}_$startMs-$endMs")
+        val line = addAudio(pkg, lineFile, "${slug}_$startMs-$endMs")
         lineFile.delete()
         if ("Video" in fieldNames) {
             // The front plays word audio -> sentence audio -> video.
@@ -203,7 +205,7 @@ class Miner(
             is Spaced -> {
                 val written = word.key?.takeIf { ' ' in it } ?: word.surface
                 fields["Word"] = esc(written) + (word.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
-                wordAudio(word.surface, language)?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-${slug(word.surface)}")}]" }
+                wordAudio(word.surface, language)?.let { fields["Word Audio"] = "[audio:${addAudio(pkg, it, "kumapie-${slug(word.surface)}")}]" }
                 fields[KnownWords.DEF_BI] = definition(written, word)
                 word.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
             }
@@ -255,11 +257,33 @@ class Miner(
         val recorded = w.audio ?: japanese.audio.recording(expression, w.reading.orEmpty())
         val wav = File(dir, "word.wav").apply { delete() }
         val audio = recorded ?: wav.takeIf { japanese.voice.toFile(w.reading ?: expression, it) }
-        audio?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-ja-${expression}")}]" }
+        audio?.let { fields["Word Audio"] = "[audio:${addAudio(pkg, it, "kumapie-ja-${expression}")}]" }
         return expression to reading
     }
 
-    /** [startMs]..[endMs] of the episode's audio alone, as AAC in .m4a. */
+    /** Opus (Ogg) can be written here: Android 10+ with an Opus encoder. */
+    @OptIn(UnstableApi::class)
+    val opus by lazy { android.os.Build.VERSION.SDK_INT >= 29 && EncoderUtil.getSupportedEncoders(MimeTypes.AUDIO_OPUS).isNotEmpty() }
+
+    /**
+     * Puts an audio file into kuma3 [pkg] as Opus (32 kbps .ogg, about half an MP3's size); answers Anki's name. A file
+     * that is .ogg already goes as it is; when Opus can't be made, the file itself (a card beats a small file).
+     */
+    suspend fun addAudio(pkg: String, file: File, name: String): String {
+        if (file.extension == "ogg" || !opus) return anki.addMedia(pkg, file, name)
+        val ogg = File(dir.apply { mkdirs() }, "audio.ogg").apply { delete() }
+        return try {
+            audioClip(file.path, 0, C.TIME_END_OF_SOURCE, ogg)
+            anki.addMedia(pkg, ogg, name)
+        } catch (e: Exception) {
+            Log.w("kumapie", "opus: $e")
+            anki.addMedia(pkg, file, name)
+        } finally {
+            ogg.delete()
+        }
+    }
+
+    /** [startMs]..[endMs] of [source]'s audio alone: Opus 32 kbps 48 kHz when [out] is .ogg, else AAC in .m4a. */
     @OptIn(UnstableApi::class)
     suspend fun audioClip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
@@ -267,8 +291,13 @@ class Miner(
             val item = MediaItem.Builder().setUri(uri).setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build(),
             ).build()
+            val ogg = out.extension == "ogg"
             val transformer = Transformer.Builder(context)
-                .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                .setAudioMimeType(if (ogg) MimeTypes.AUDIO_OPUS else MimeTypes.AUDIO_AAC)
+                .apply {
+                    if (ogg) setMuxerFactory(WebmMuxer.Factory(ogg = true)).setEncoderFactory(DefaultEncoderFactory.Builder(context)
+                        .setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(32_000).build()).build())
+                }
                 .addListener(object : Transformer.Listener {
                     override fun onCompleted(composition: Composition, result: ExportResult) {
                         if (cont.isActive) cont.resume(Unit)
@@ -280,7 +309,9 @@ class Miner(
                     }
                 })
                 .build()
-            transformer.start(EditedMediaItem.Builder(item).setRemoveVideo(true).build(), out.path)
+            // Opus takes 8-48 kHz only: episodes at 44.1 kHz and TTS wavs go to 48 kHz.
+            val resample = if (ogg) listOf(SonicAudioProcessor().apply { setOutputSampleRateHz(48_000) }) else listOf()
+            transformer.start(EditedMediaItem.Builder(item).setRemoveVideo(true).setEffects(Effects(resample, listOf())).build(), out.path)
             cont.invokeOnCancellation { transformer.cancel() }
         }
     }

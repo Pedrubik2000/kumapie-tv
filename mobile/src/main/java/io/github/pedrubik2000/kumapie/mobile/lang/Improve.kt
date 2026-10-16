@@ -120,7 +120,7 @@ class Improve(private val library: Library, lang: String) {
         if (monolingual != s.monolingual) fields[KnownWords.DEF_MONO] = monolingual
         if (recording) {
             progress(tr("Getting the recording…"))
-            recording(s)?.let { fields["Word Audio"] = "[audio:${anki.addMedia(pkg, it, "kumapie-${library.miner.slug(s.word)}")}]" }
+            recording(s)?.let { fields["Word Audio"] = "[audio:${library.miner.addAudio(pkg, it, "kumapie-${library.miner.slug(s.word)}")}]" }
         }
         progress(tr("Saving…"))
         if (fields != s.note.fields) anki.updateNote(pkg, s.note.id, s.note.tags, fields.values.toList())

@@ -34,7 +34,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -43,6 +42,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -61,6 +62,7 @@ import io.github.pedrubik2000.kumapie.data.Word
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.ui.MeaningCard
 import io.github.pedrubik2000.kumapie.ui.SubtitleTap
 import io.github.pedrubik2000.kumapie.ui.Subtitles
 import io.github.pedrubik2000.kumapie.ui.Text
@@ -114,6 +116,9 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
     var status by remember { mutableStateOf<Status?>(null) }
     var mining by remember { mutableStateOf(false) }
     var looked by remember { mutableIntStateOf(0) }
+    var transcript by remember { mutableStateOf(settings.prefs.getBoolean("desktop_transcript", false)) }
+    var anchor by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) } // the picked word on screen
+    var now by remember { mutableStateOf(android.os.SystemClock.uptimeMillis()) }
 
     /** kuma3's card states onto the episode's words (KnownWords.paint): a word with its own card gets its state. */
     suspend fun reloadCards() {
@@ -171,11 +176,11 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
 
     LaunchedEffect(Unit) {
         player.open(api.url(episode.video))
-        while (!player.component.mediaPlayer().status().isSeekable) delay(50) // VLC seeks once the media has started
+        while (!player.seekable) delay(50) // VLC seeks once the media has started
         ctl.begin()
         reloadCards()
     }
-    LaunchedEffect(Unit) { while (true) { ctl.tick(); delay(40) } }
+    LaunchedEffect(Unit) { while (true) { ctl.tick(); now = android.os.SystemClock.uptimeMillis(); delay(40) } }
     // A new word picked: the card starts clean.
     LaunchedEffect(picker.line, picker.seg, picker.cardOpen) { status = null; mining = false; if (picker.cardOpen) looked++ }
     DisposableEffect(Unit) {
@@ -197,6 +202,7 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
                 Key.M -> startMine()
                 Key.K -> picker.toggleKnown()
                 Key.A -> picker.hearWord()
+                Key.T -> { transcript = !transcript; settings.prefs.edit().putBoolean("desktop_transcript", transcript).apply() }
                 Key.Escape -> picker.close()
                 else -> return@handler false
             }
@@ -211,44 +217,49 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
         }
     }
 
-    Row(Modifier.fillMaxSize().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f).fillMaxSize()) {
-            TopRow(ctl, onClose)
-            Box(Modifier.fillMaxWidth().weight(1f).background(Color.Black)) {
-                SwingPanel(factory = { player.component }, modifier = Modifier.fillMaxSize())
+    // The tablet in landscape: the picture fills the window, the lines over its bottom, the word's card right above the
+    // word (rate, mine and the mine form in it: the eyes stay where the word is). The transcript is a side panel (T).
+    Row(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f).fillMaxSize()) {
+            VideoFrame(player, Modifier.fillMaxSize().pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { if (picker.isOpen) picker.close() else ctl.togglePlay() },
+                    onDoubleTap = { p -> picker.close(); if (p.x < size.width / 2) ctl.replayLine() else ctl.replayScene() },
+                )
+            })
+            if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) {
+                TopRow(ctl, transcript, onTranscript = { transcript = !transcript; settings.prefs.edit().putBoolean("desktop_transcript", transcript).apply() }, onClose)
             }
-            // Under the video, never over it: nothing covers the picture or the lines.
-            Box(Modifier.fillMaxWidth().height(260.dp).background(Colors.background)) {
-                Subtitles(ctl, picker, onAnchor = {}, onTap = { tap ->
-                    when (tap) {
-                        is SubtitleTap.Word -> picker.tap(tap.line, tap.seg)
-                        SubtitleTap.Box -> ctl.togglePlay()
-                    }
+            Subtitles(ctl, picker, onAnchor = { anchor = it }, onTap = { tap ->
+                when (tap) {
+                    is SubtitleTap.Word -> picker.tap(tap.line, tap.seg)
+                    SubtitleTap.Box -> if (picker.isOpen) picker.close() else ctl.togglePlay()
+                }
+            })
+            val k = key()
+            if (picker.isOpen && picker.cardOpen && k != null) anchor?.let { a ->
+                MeaningCard(ctl, picker, a, maxWidth = 620.dp, onTapDef = picker::tapInDef, ownMeaning = false, onClose = { picker.close() }, footer = {
+                    WordCard(ctl, picker, backend, k, ankiUp, canRate(), status, mining,
+                        onRate = ::rate, onMine = ::startMine, onAdd = ::mine, onCancel = { mining = false },
+                        onStatusAction = { act -> scope.launch { act() } })
                 })
             }
-        }
-        Column(Modifier.width(400.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).clip(RoundedCornerShape(8.dp)).background(Colors.surface)
-                .verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                val last = ctl.index == ctl.scenes.lastIndex && ctl.atSceneEnd
-                when {
-                    last && !picker.cardOpen -> EpisodeDone(ctl, looked, onNext)
-                    picker.isOpen && picker.cardOpen && key() != null ->
-                        WordCard(ctl, picker, backend, key()!!, ankiUp, canRate(), status, mining, scope,
-                            onRate = ::rate, onMine = ::startMine, onAdd = ::mine, onCancel = { mining = false },
-                            onStatusAction = { a -> scope.launch { a() } })
-                    else -> Text("Click a coloured word  ·  Tab picks one, Enter opens it", color = Colors.dim, fontSize = 14.sp)
-                }
+            if (ctl.index == ctl.scenes.lastIndex && ctl.atSceneEnd && !picker.isOpen) {
+                Column(Modifier.align(Alignment.Center).background(Colors.surface, RoundedCornerShape(12.dp)).padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) { EpisodeDone(ctl, looked, onNext) }
             }
-            Transcript(ctl, Modifier.weight(1f))
         }
+        if (transcript) Transcript(ctl, Modifier.width(380.dp).fillMaxSize())
     }
 }
 
 @Composable
-private fun TopRow(ctl: SceneController, onClose: () -> Unit) {
+private fun TopRow(ctl: SceneController, transcript: Boolean, onTranscript: () -> Unit, onClose: () -> Unit) {
     val lv = ctl.levelOf(ctl.scene)
-    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.fillMaxWidth()
+        .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xF0000000), Color(0x99000000), Color.Transparent)))
+        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 36.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("←", fontSize = 20.sp, modifier = Modifier.clickable(onClick = onClose).padding(horizontal = 6.dp))
         androidx.compose.foundation.text.BasicText("${io.github.pedrubik2000.kumapie.data.shortTitle(ctl.episode.show)} · ${ctl.episode.title}",
             Modifier.weight(1f), TextStyle(color = Colors.text, fontSize = 16.sp), maxLines = 1,
@@ -261,19 +272,19 @@ private fun TopRow(ctl: SceneController, onClose: () -> Unit) {
         Chip("Skip nothing", on = ctl.newStraight) { ctl.toggleNewStraight() }
         Chip("Don't stop on i+0", on = ctl.playThroughKnown) { ctl.togglePlayThroughKnown() }
         Chip("Pause at scene end", on = ctl.pauseAtSceneEnd) { ctl.togglePauseAtSceneEnd() }
+        Chip("T Transcript", on = transcript, onClick = onTranscript)
     }
 }
 
 @Composable
 private fun ColumnScope.WordCard(
     ctl: SceneController, picker: WordPicker, backend: DesktopBackend, key: String, ankiUp: Boolean, canRate: Boolean,
-    status: Status?, mining: Boolean, scope: CoroutineScope,
+    status: Status?, mining: Boolean,
     onRate: (Int) -> Unit, onMine: () -> Unit, onAdd: (Boolean, String, String) -> Unit, onCancel: () -> Unit,
     onStatusAction: (suspend () -> Unit) -> Unit,
 ) {
     val seg = picker.selected ?: return
     val word = ctl.words[key] ?: Word("u", "")
-    val cue = ctl.scene.cues.getOrNull(picker.line)
     // The sense that fits this line first (the phone's "In this line"), then every sense from the dictionaries.
     val senses = (listOf(ctl.scene.meanings[key], word.meaning.takeIf { it.isNotBlank() }) + backend.senses[key].orEmpty())
         .filterNotNull().distinct()
@@ -283,11 +294,8 @@ private fun ColumnScope.WordCard(
     }
     val shown = word.shownFor(seg.text)
     Text((STATE[word.card ?: shown] ?: "") + if (word.lookups > 0) "  ·  looked up ${word.lookups}×" else "", color = colorOf(shown), fontSize = 13.sp)
-    senses.ifEmpty { listOf("No meaning in the dictionaries") }.forEachIndexed { i, s -> Text("${i + 1}. $s", fontSize = 15.sp) }
-    cue?.let { c ->
-        Text(buildAnnotatedString {
-            c.segments.forEachIndexed { i, sg -> if (i == picker.seg) withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Colors.text)) { append(sg.text) } else append(sg.text) }
-        }, color = Colors.dim, fontSize = 15.sp, modifier = Modifier.padding(vertical = 4.dp))
+    Column(Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        senses.ifEmpty { listOf("No meaning in the dictionaries") }.forEachIndexed { i, s -> Text("${i + 1}. $s", fontSize = 15.sp) }
     }
     val why = when { !ankiUp -> "Open kuma3 to rate and mine"; !canRate -> "No card yet: mine it to rate it"; else -> null }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

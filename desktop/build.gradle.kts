@@ -25,5 +25,8 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "io.github.pedrubik2000.kumapie.desktop.MainKt"
+        // createDistributable: build/compose/binaries/main/app/kumapie/kumapie.exe, a runnable app with its own JRE
+        // (started from there, it doesn't keep a Gradle build open the way `run` does).
+        nativeDistributions { packageName = "kumapie" }
     }
 }

@@ -203,7 +203,7 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
                 Key.K -> picker.toggleKnown()
                 Key.A -> picker.hearWord()
                 Key.T -> { transcript = !transcript; settings.prefs.edit().putBoolean("desktop_transcript", transcript).apply() }
-                Key.Escape -> picker.close()
+                Key.Escape -> if (picker.isOpen) picker.close() else return@handler false // else: leaves fullscreen
                 else -> return@handler false
             }
             true
@@ -273,6 +273,7 @@ private fun TopRow(ctl: SceneController, transcript: Boolean, onTranscript: () -
         Chip("Don't stop on i+0", on = ctl.playThroughKnown) { ctl.togglePlayThroughKnown() }
         Chip("Pause at scene end", on = ctl.pauseAtSceneEnd) { ctl.togglePauseAtSceneEnd() }
         Chip("T Transcript", on = transcript, onClick = onTranscript)
+        Chip("⛶ Full screen") { toggleFullscreen() }
     }
 }
 

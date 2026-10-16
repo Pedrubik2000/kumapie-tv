@@ -42,6 +42,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Settings
@@ -66,11 +71,26 @@ fun main() {
 
 @Composable
 private fun androidx.compose.ui.window.ApplicationScope.KumapieWindow() {
-    Window(onCloseRequest = ::exitApplication, title = "kumapie", state = rememberWindowState(width = 1500.dp, height = 950.dp),
-        onPreviewKeyEvent = { keys?.invoke(it) ?: false }) {
+    val state = rememberWindowState(width = 1500.dp, height = 950.dp)
+    var before by remember { mutableStateOf(WindowPlacement.Floating) }
+    toggleFullscreen = {
+        if (state.placement == WindowPlacement.Fullscreen) state.placement = before
+        else { before = state.placement; state.placement = WindowPlacement.Fullscreen }
+    }
+    Window(onCloseRequest = ::exitApplication, title = "kumapie", state = state, onPreviewKeyEvent = { e ->
+        // The player's keys first; then F11 toggles fullscreen and Esc leaves it.
+        keys?.invoke(e) == true || e.type == KeyEventType.KeyDown && when {
+            e.key == Key.F11 -> { toggleFullscreen(); true } // not F: it would fire while typing in the mine form
+            e.key == Key.Escape && state.placement == WindowPlacement.Fullscreen -> { toggleFullscreen(); true }
+            else -> false
+        }
+    }) {
         App()
     }
 }
+
+/** Fullscreen on / off (F11, the player's ⛶ button); set by the window. */
+var toggleFullscreen: () -> Unit = {}
 
 /** The open player's keys (the window hands every key to it first); null elsewhere. */
 var keys: ((androidx.compose.ui.input.key.KeyEvent) -> Boolean)? = null

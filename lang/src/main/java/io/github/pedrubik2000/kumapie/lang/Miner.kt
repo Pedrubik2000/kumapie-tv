@@ -55,6 +55,8 @@ class Miner(
         val scene: Scene,
         val line: Int,
         val word: Word? = null,
+        /** A picture already taken (the TV: the frame on screen), else one is cut from the video. */
+        val picture: File? = null,
     )
 
     /** A word card's word: as written, its morph key ("steht auf"), dictionary form, and the meaning picked. */
@@ -74,6 +76,9 @@ class Miner(
         /** Japanese: the word audio picked in the mine sheet; null: the best recording, else the device voice. */
         val audio: File? = null,
     )
+
+    /** The note [mine] added last (the TV opens it in kuma3's previewer). */
+    @Volatile var lastNote: Long = 0
 
     /** Adds the card; answers a line for the user ("Added to Deutsch Mined"). */
     suspend fun mine(r: Request, progress: (String) -> Unit): String = withContext(Dispatchers.IO) {
@@ -104,7 +109,7 @@ class Miner(
             .filter { it !in fieldNames }
         if (missing.isNotEmpty()) error(tr("The note type has no field %s.", missing.joinToString()))
         val deck = anki.deck(pkg, lang.deck)
-        anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, deck)
+        lastNote = anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, deck)
         tr("Added to %s", lang.deck) + (r.word?.let { ": ${it.surface}" } ?: "")
     }
 
@@ -130,7 +135,7 @@ class Miner(
         w?.formOf?.let { fields["Notes"] = fields["Notes"].orEmpty() + "<br>" + esc("form of $it") }
         val missing = listOf("Sentence", "Sentence Audio", KnownWords.DEF_BI).filter { it !in fieldNames }
         if (missing.isNotEmpty()) error(tr("The Japanese note type has no field %s.", missing.joinToString()))
-        anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, anki.deck(pkg, ja.deck))
+        lastNote = anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, anki.deck(pkg, ja.deck))
         return tr("Added to %s", ja.deck) + (w?.let { ": ${it.lemma ?: it.surface}" } ?: "")
     }
 
@@ -167,7 +172,8 @@ class Miner(
         } else {
             fields["Sentence Audio"] = "[audio:$line]"
             // A novel kumapie draws has no picture video: the screen itself (item 46).
-            (r.scene.picAt((startMs + endMs) / 2000.0)?.let(::picture) ?: screenshot(r.episode.video, (startMs + endMs) / 2))?.let {
+            (r.picture?.takeIf { it.exists() } ?: r.scene.picAt((startMs + endMs) / 2000.0)?.let(::picture)
+                ?: screenshot(r.episode.video, (startMs + endMs) / 2))?.let {
                 fields["Image"] = "<img src=\"${anki.addMedia(pkg, it, "${slug}_$startMs")}\">"
                 it.delete()
             }

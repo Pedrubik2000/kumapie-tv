@@ -100,6 +100,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
     val picker = remember { WordPicker(ctl, api, scope) }
     var options by remember { mutableStateOf(false) }
     var anchor by remember { mutableStateOf<Rect?>(null) } // the selected word, in screen coordinates
+    var playerView by remember { mutableStateOf<PlayerView?>(null) } // its frame is a mined Japanese card's picture
     val focus = remember { FocusRequester() }
     fun openPicker() {
         if (!picker.open()) Toast.makeText(context, tr("No words in this scene"), Toast.LENGTH_SHORT).show()
@@ -136,6 +137,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
                 Action.PICK_AUDIO -> picker.hearAgain()
                 Action.PICK_REPLAY_LINE -> picker.replayLine()
                 Action.PICK_MARK_KNOWN -> picker.toggleKnown()
+                Action.PICK_MINE -> mineWord(context, settings, ctl, picker, scope, playerView)
                 Action.PICK_CLOSE -> picker.close()
             }
         }
@@ -214,7 +216,7 @@ private fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, on
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                     this.player = player
-                }
+                }.also { playerView = it }
             },
             modifier = Modifier.fillMaxSize(),
         )
@@ -255,8 +257,8 @@ private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean, tit
     val hint = when {
         picker.isOpen && picker.inDef -> tr("←→ words of the definition   ↓ back to the line   OK: hear the word (twice: definition)   hold ↓: known   Back: close")
         picker.isOpen && picker.cardOpen ->
-            tr("OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK: replay line   hold ↓: known")
-        picker.isOpen -> tr("←→ words   ↑↓ lines   OK: show the meaning   hold OK: replay line   hold ↓: known   Back: close")
+            tr("OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK: replay line   hold ↓: known   hold ↑: add to Anki")
+        picker.isOpen -> tr("←→ words   ↑↓ lines   OK: show the meaning   hold OK: replay line   hold ↓: known   hold ↑: add to Anki   Back: close")
         ctl.atSceneEnd -> tr("OK: next scene   ↑: replay line   ↓: pick a word   ←: previous")
         !ctl.playing -> tr("OK: play   hold OK: pick a word   ↑: replay line   Menu: options")
         else -> null

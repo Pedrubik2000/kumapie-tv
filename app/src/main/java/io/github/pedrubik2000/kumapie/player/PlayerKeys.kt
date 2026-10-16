@@ -30,6 +30,7 @@ enum class Action(val label: String, val context: KeyContext = KeyContext.WATCH)
     PICK_AUDIO("Show the meaning; then hear the word (twice: the definition)", KeyContext.PICKER),
     PICK_REPLAY_LINE("Replay the word's line", KeyContext.PICKER),
     PICK_MARK_KNOWN("Mark known / undo", KeyContext.PICKER),
+    PICK_MINE("Add the word to Anki", KeyContext.PICKER),
     PICK_CLOSE("Close the picker", KeyContext.PICKER);
 
     /** The label in the menu language, with the episode's language names ([lang]; none: "the episode's language"). */
@@ -92,6 +93,7 @@ class KeyMap(
                 KeyEvent.KEYCODE_DPAD_CENTER to Action.PICK_REPLAY_LINE,
                 KeyEvent.KEYCODE_ENTER to Action.PICK_REPLAY_LINE,
                 KeyEvent.KEYCODE_DPAD_DOWN to Action.PICK_MARK_KNOWN,
+                KeyEvent.KEYCODE_DPAD_UP to Action.PICK_MINE,
             ),
         )
     }

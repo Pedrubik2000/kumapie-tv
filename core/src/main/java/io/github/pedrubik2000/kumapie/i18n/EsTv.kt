@@ -19,10 +19,10 @@ internal val esTv: Map<String, String> = mapOf(
     "on, the whole episode" to "sí, el episodio entero",
     "off, scene by scene" to "no, escena por escena",
     "OK: next scene   ↑: replay line   ↓: pick a word   ←: previous" to "OK: siguiente escena   ↑: repetir   ↓: elegir una palabra   ←: anterior",
-    "←→ words   ↑↓ lines   OK: show the meaning   hold OK: replay line   hold ↓: known   Back: close" to
-        "←→ palabras   ↑↓ líneas   OK: ver el significado   mantener OK: repetir   mantener ↓: conocida   Atrás: cerrar",
-    "OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK: replay line   hold ↓: known" to
-        "OK: escuchar (dos veces: la definición)   ↑ a la definición   ←→ otras palabras   mantener OK: repetir   mantener ↓: conocida",
+    "←→ words   ↑↓ lines   OK: show the meaning   hold OK: replay line   hold ↓: known   hold ↑: add to Anki   Back: close" to
+        "←→ palabras   ↑↓ líneas   OK: ver el significado   mantener OK: repetir   mantener ↓: conocida   mantener ↑: a Anki   Atrás: cerrar",
+    "OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK: replay line   hold ↓: known   hold ↑: add to Anki" to
+        "OK: escuchar (dos veces: la definición)   ↑ a la definición   ←→ otras palabras   mantener OK: repetir   mantener ↓: conocida   mantener ↑: a Anki",
     "←→ words of the definition   ↓ back to the line   OK: hear the word (twice: definition)   hold ↓: known   Back: close" to
         "←→ palabras de la definición   ↓ volver a la línea   OK: escuchar la palabra (dos veces: la definición)   mantener ↓: conocida   Atrás: cerrar",
     // the list of buttons (help) and Settings > Change buttons
@@ -50,6 +50,15 @@ internal val esTv: Map<String, String> = mapOf(
     "Show the meaning; then hear the word (twice: the definition)" to "Ver el significado; luego escuchar la palabra (dos veces: la definición)",
     "Replay the word's line" to "Repetir la línea de la palabra",
     "Mark known / undo" to "Marcar como conocida / deshacer",
+    "Add the word to Anki" to "Agregar la palabra a Anki",
+    "Pick a word first" to "Primero elige una palabra",
+    "Getting the Japanese dictionaries from the PC…" to "Descargando los diccionarios de japonés del PC…",
+    "Getting the Japanese dictionaries from the PC (%1\$d/%2\$d)…" to "Descargando los diccionarios de japonés del PC (%1\$d/%2\$d)…",
+    "Getting the Japanese dictionaries from the PC (once, a few minutes): hold ↑ again after" to
+        "Descargando los diccionarios de japonés del PC (una vez, unos minutos): luego vuelve a mantener ↑",
+    "Allow kumapie to use Anki, then hold ↑ again" to "Permite que kumapie use Anki y vuelve a mantener ↑",
+    "Adding to Anki…" to "Agregando a Anki…",
+    " · hold ↑ again: see the card" to " · mantén ↑ otra vez: ver la tarjeta",
     "Close the picker" to "Cerrar",
     "Back: close the picker" to "Atrás: cerrar",
     "Speed, pause at scene end, subtitles and this list: Options (Menu, or hold ↓)." to

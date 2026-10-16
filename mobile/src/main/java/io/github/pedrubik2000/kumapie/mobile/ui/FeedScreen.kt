@@ -40,8 +40,25 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.i18n.tr
 
-/** One page of the feed: a scene, played alone from its episode. */
-private data class FeedItem(val show: Show, val episode: EpisodeDetail, val scene: Scene)
+/** One page of the feed: a scene, played alone from its episode; or ([scene] null) a whole reel. */
+private data class FeedItem(val show: Show, val episode: EpisodeDetail, val scene: Scene?)
+
+/** A whole reel after every [REEL_EVERY] scenes (user, 2026-10-15). */
+private const val REEL_EVERY = 3
+
+/**
+ * [scenes] with a whole reel after every [REEL_EVERY] of them, whatever its level: reels never watched first (random),
+ * then the ones with the most scenes not seen yet, then, all watched, any reel at random.
+ */
+private fun withReels(scenes: List<FeedItem>, reels: List<Pair<Show, EpisodeDetail>>): List<FeedItem> {
+    if (reels.isEmpty()) return scenes
+    fun unseen(e: EpisodeDetail) = e.scenes.count { !it.seen }
+    val (fresh, started) = reels.filter { (_, e) -> unseen(e) > 0 }.partition { (_, e) -> e.scenes.none { it.seen } }
+    val queue = ArrayDeque(fresh.shuffled() + started.sortedByDescending { (_, e) -> unseen(e) })
+    fun next() = (queue.removeFirstOrNull() ?: reels.random()).let { (show, e) -> FeedItem(show, e, null) }
+    if (scenes.isEmpty()) return List(reels.size) { next() }
+    return scenes.chunked(REEL_EVERY).flatMap { chunk -> if (chunk.size == REEL_EVERY) chunk + next() else chunk }
+}
 
 /** The feed as last shuffled, kept while the app runs (coming back keeps the place). */
 private object FeedKept {
@@ -74,17 +91,20 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
         if (items != null && kept()) return@LaunchedEffect
         items = null
         // No spoilers: only scenes already watched to the end (reels are short clips, nothing to spoil).
-        val found = library.allEpisodes(shows) { loading = it }.flatMap { (show, ep) ->
-            ep.scenes.filter { it.target && it.level != null && it.level!!.coerceAtMost(2) in levels && (it.seen || show.kind == "reels") }
+        val all = library.allEpisodes(shows) { loading = it }
+        // Reels come whole, every few pages (withReels), not as single scenes.
+        val scenes = all.filter { (show, _) -> show.kind != "reels" }.flatMap { (show, ep) ->
+            ep.scenes.filter { it.target && it.level != null && it.level!!.coerceAtMost(2) in levels && it.seen }
                 .map { FeedItem(show, ep, it) }
         }.shuffled()
+        val found = withReels(scenes, all.filter { (show, ep) -> show.kind == "reels" && ep.scenes.isNotEmpty() })
         FeedKept.lang = lang
         FeedKept.levels = levels
         FeedKept.seen = seenNow
         FeedKept.items = found
         // Which episodes the feed drew from (adb logcat -s kumapie): checks the no-spoiler rule against "N seen".
         android.util.Log.i("kumapie", "feed: ${found.size} scenes, levels $levels: " +
-            found.groupingBy { "${it.show.title} / ${it.episode.title}" }.eachCount().entries.joinToString { "${it.key} ${it.value}" })
+            found.groupingBy { "${it.show.title} / ${it.episode.title}" + if (it.scene == null) " (whole)" else "" }.eachCount().entries.joinToString { "${it.key} ${it.value}" })
         FeedKept.page = 0
         items = found
         loading = if (found.isEmpty()) tr("No scenes yet: the feed only shows scenes you've already watched, so nothing is spoiled.") else ""
@@ -97,6 +117,8 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
             override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {}
         }
     }
+    // A whole reel counts as watched (its scenes seen): which reels come next goes by that.
+    val reelBackend = remember { library.backend(lang) }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         val list = items
@@ -108,21 +130,24 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
             VerticalPager(state = pager, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 0) { page ->
                 val item = list[page]
                 if (page == pager.settledPage) {
-                    key(item.scene.id) {
+                    key(item.scene?.id ?: item.episode.id) {
                         // The feed's episodes were read once: words marked known (or unmarked) since keep their colour.
                         val known = library.languages.of(item.episode.lang).known
                         val words = item.episode.words.mapValues { (k, w) ->
                             val m = k in known.markedWords
                             if (m == w.marked) w else w.copy(marked = m, status = if (m) "k" else known.status(k) ?: "u")
                         }
-                        ScenePlayer(library, settings, backend,
-                            item.episode.copy(scenes = listOf(item.scene), resume = item.scene.start, words = words),
+                        val scene = item.scene
+                        if (scene == null) ScenePlayer(library, settings, reelBackend,
+                            item.episode.copy(resume = item.episode.scenes.first().start, words = words), startPaused = false, onBack = onBack)
+                        else ScenePlayer(library, settings, backend,
+                            item.episode.copy(scenes = listOf(scene), resume = scene.start, words = words),
                             startPaused = false, onBack = onBack)
                     }
                 } else {
                     // Neighbours while swiping: the scene's words, no player.
                     Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                        Text(item.scene.cues.joinToString(" ") { it.text }, color = Colors.dim, fontSize = 20.sp,
+                        Text(item.scene?.cues?.joinToString(" ") { it.text } ?: "${item.show.title} · ${item.episode.title}", color = Colors.dim, fontSize = 20.sp,
                             textAlign = TextAlign.Center, modifier = Modifier.padding(32.dp))
                     }
                 }

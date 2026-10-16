@@ -586,7 +586,8 @@ private fun FollowedChannels(library: Library) {
     list.forEach { s ->
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text((s.name.ifBlank { s.url.substringAfter("youtube.com/").substringBefore('?') }) + " · " + (if (s.kind == "shorts") tr("shorts") else tr("videos")), fontSize = 15.sp)
+                Text((s.name.ifBlank { s.url.substringAfter("youtube.com/").substringBefore('?') }) + " · " + (if (s.kind == "shorts") tr("shorts") else tr("videos"))
+                    + if (s.here) "" else " · " + tr("downloads on %s", s.device), fontSize = 15.sp)
                 // Checked hourly inside the download hours: perRun is per check, not per night.
                 val hours = ((to - from) % 24 + 24) % 24
                 Text(tr("%1\$d an hour · up to %2\$d a night", s.perRun, s.perRun * hours) + " · " + (if (s.lastCheck > 0) tr("checked %s", android.text.format.DateUtils.getRelativeTimeSpanString(s.lastCheck)) else tr("not checked yet")),
@@ -594,7 +595,7 @@ private fun FollowedChannels(library: Library) {
             }
             listOf(1, 5, 10).forEach { n ->
                 androidx.compose.material3.FilterChip(selected = s.perRun == n, label = { Text("$n") }, modifier = Modifier.padding(start = 4.dp),
-                    onClick = { subs.save(subs.all().map { if (it == s) it.copy(perRun = n) else it }); list = subs.all() })
+                    onClick = { subs.add(s.copy(perRun = n)); list = subs.all() }) // add replaces it in place, and shares the change
             }
             androidx.compose.material3.TextButton(onClick = { subs.remove(s); list = subs.all() }) { Text(tr("Remove")) }
         }

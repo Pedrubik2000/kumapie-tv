@@ -192,6 +192,7 @@ internal val esSettings: Map<String, String> = mapOf(
     "videos" to "videos",
     "%d a night" to "%d por noche",
     "checked %s" to "revisado %s",
+    "downloads on %s" to "se descarga en %s",
     "not checked yet" to "aún sin revisar",
     "Remove" to "Quitar",
     "Download between" to "Descargar entre las",

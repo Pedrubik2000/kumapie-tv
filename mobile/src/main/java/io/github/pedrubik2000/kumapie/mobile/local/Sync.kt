@@ -94,6 +94,16 @@ class Sync(private val context: Context) {
             runCatching { retime(base, e.id); local.retimed(e.id).delete(); done += "↑ ${e.title} (" + tr("subtitle timing") + ")" }
                 .onFailure { Log.w("kumapie", "sync retime ${e.id}: $it") }
         }
+        // Followed channels: this device's changes up, the shared list back.
+        runCatching {
+            val subs = Subscriptions(context)
+            val c = open("$base/follows", "POST")
+            c.doOutput = true
+            c.setRequestProperty("Content-Type", "application/json")
+            c.outputStream.use { it.write(subs.changes().toString().toByteArray()) }
+            if (c.responseCode != 200) throw IOException("follows: HTTP ${c.responseCode}")
+            subs.shared(JSONObject(String(c.inputStream.use { it.readBytes() })))
+        }.onFailure { Log.w("kumapie", "sync follows: $it") }
         // Deleted everywhere on another device: gone here too.
         val gone = runCatching { JSONArray(String(open("$base/deleted").inputStream.use { it.readBytes() })) }.getOrNull()
         val listed = local.entries().associateBy { it.id }

@@ -58,7 +58,8 @@ class WordColours : ContentProvider() {
         fresh(known)
         background.launch { known.refreshDue() }
         for (t in words(text)) {
-            val w = known.paint(t.base, Word(status = known.status(t.base) ?: "u", meaning = "", forms = mapOf(t.surface to "")))
+            val w = known.paint(t.base, Word(status = known.status(t.base) ?: "u", meaning = "", forms = mapOf(t.surface to ""),
+                marked = t.base in known.markedWords)) // marked known draws white whatever its card says, as in the player
             out.addRow(arrayOf<Any>(t.begin, t.surface.length, w.shownFor(t.surface)))
         }
         return out
@@ -89,7 +90,8 @@ class WordColours : ContentProvider() {
     /**
      * The word card's rating row for other apps (Hoshi's popup), as [io.github.pedrubik2000.kumapie.mobile.ui.RatingRows]:
      * extras `word` + `reading` name a Japanese word (its card key). Methods: "split" (+ `text`) splits a chapter ahead
-     * for [query]; "state" -> `state` (d/k/b/n/u, absent without kuma3); "rate" (+ `ease` 1..4, `ms`) -> `notes`, `cards`, `undo` (empty: kuma3 took none); "undo" (+ the
+     * for [query]; "state" -> `state` (d/k/b/n/u, absent without kuma3) + `marked` (marked known);
+     * "mark" (+ `known`) marks the word known or unmarks it -> `marked`; "rate" (+ `ease` 1..4, `ms`) -> `notes`, `cards`, `undo` (empty: kuma3 took none); "undo" (+ the
      * rate's answer) -> `undone`; "reload" (after the caller mined a card) re-reads the Mined deck. Callers need
      * READ_WORDS, and kuma3's own permission to rate or undo (only apps you let into kuma3 change its cards).
      */
@@ -105,13 +107,31 @@ class WordColours : ContentProvider() {
         runBlocking {
             if (known.lastReading == null) known.refresh()
             if (method == "state") fresh(known)
+            if (method == "mark") known.reloadLists() // the app's marks since, so this one doesn't drop them
             if (method == "rate" || method == "undo") {
                 val pkg = known.ankiApp() ?: return@runBlocking
                 ctx.enforceCallingPermission(known.permission(pkg), "rating kuma3 cards")
             }
-            val key = CardIndex.japaneseKey(extras?.getString("word").orEmpty(), extras?.getString("reading").orEmpty())
+            val word = extras?.getString("word").orEmpty()
+            val key = CardIndex.japaneseKey(word, extras?.getString("reading").orEmpty())
+            // The word and, from `text` (the page's matched text: となり for the dictionary's 隣), the word [query]
+            // colours there: marking both turns the page's word white too.
+            val forms = { listOfNotNull(word.ifEmpty { null }, pageWord(extras?.getString("text").orEmpty())).distinct() }
             when (method) {
-                "state" -> known.cardIndex.state(key)?.let { out.putString("state", it) }
+                "state" -> {
+                    known.cardIndex.state(key)?.let { out.putString("state", it) }
+                    out.putBoolean("marked", forms().any { it in known.markedWords })
+                }
+                "mark" -> {
+                    // As the app's own mark (Library.markKnown): kept in progress too, so the next sync keeps it.
+                    val markKnown = extras!!.getBoolean("known")
+                    val progress = io.github.pedrubik2000.kumapie.mobile.offline.Progress.of(ctx)
+                    for (f in forms()) {
+                        progress.mark(japanese.markKey(f), markKnown)
+                        known.mark(f, markKnown)
+                    }
+                    out.putBoolean("marked", forms().any { it in known.markedWords })
+                }
                 "reload" -> known.reloadCards()
                 "rate" -> known.rate(key, extras!!.getInt("ease"), extras.getLong("ms"))?.let {
                     out.putLongArray("notes", it.notes.toLongArray()); out.putInt("cards", it.cards); out.putString("undo", it.undoLabel)
@@ -122,6 +142,10 @@ class WordColours : ContentProvider() {
         }
         return out
     }
+
+    /** [text]'s first word as [query] splits it (its dictionary form), or null. */
+    private fun pageWord(text: String): String? =
+        if (text.isEmpty() || !japanese.model.isReady) null else words(text).firstOrNull()?.base
 
     private companion object { const val CACHED = 2000 }
 

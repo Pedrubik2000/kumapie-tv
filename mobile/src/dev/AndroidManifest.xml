@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dev builds only: simpleperf can profile them from adb (simpleperf record, app option). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <profileable android:shell="true" />
+    </application>
+</manifest>

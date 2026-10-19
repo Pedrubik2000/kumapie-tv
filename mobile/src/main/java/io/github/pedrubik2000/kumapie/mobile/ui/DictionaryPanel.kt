@@ -56,8 +56,11 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker, 
     var all by remember(tap) { mutableStateOf(false) }
     LaunchedEffect(tap, missing) {
         if (missing != null) return@LaunchedEffect
+        val t0 = android.os.SystemClock.uptimeMillis()
         entries = language.entries(tap)
+        val t1 = android.os.SystemClock.uptimeMillis()
         headwords = runCatching { language.lookup(tap) }.getOrDefault(emptyList())
+        android.util.Log.i("kumapie", "lookup ${tap.word}: entries ${t1 - t0} ms, dictionaries ${android.os.SystemClock.uptimeMillis() - t1} ms")
     }
 
     if (headwords.isNullOrEmpty()) HorizontalDivider(Modifier.padding(top = 8.dp, bottom = 4.dp), color = Colors.dim.copy(alpha = 0.3f))

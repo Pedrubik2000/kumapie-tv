@@ -158,6 +158,8 @@ fun HomeScreen(
 
     LaunchedEffect(attempt) {
         error = null
+        // The saved list at once, then the PC's: the PC answers in ~0.3 s at home, 8 s when it can't be reached.
+        if (shows == null) runCatching { library.shows(saved = true) }.onSuccess { (s, _) -> shows = s; onShows(s) }
         runCatching { library.shows() }
             .onSuccess { (s, off) ->
                 shows = s; offline = off; onShows(s)

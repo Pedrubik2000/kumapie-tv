@@ -129,21 +129,24 @@ class Library(context: Context, val settings: Settings) {
 
     val api: Api get() = Api(settings.server, settings.owner)
 
-    /** The shows, and whether they came from the saved copy (offline). */
-    suspend fun shows(): Pair<List<Show>, Boolean> {
+    /** The shows, and whether they came from the saved copy (offline); [saved]: the saved copy at once, without the PC. */
+    suspend fun shows(saved: Boolean = false): Pair<List<Show>, Boolean> {
         showMeta // starts the YouTube pictures fill once
         val api = api
         val mine = withContext(Dispatchers.IO) { local.shows() }
+        val t0 = android.os.SystemClock.uptimeMillis()
         val (pc, offline) = runCatching {
+            check(!saved)
             val json = api.showsJson()
             pending.flush(api, force = true)
             withContext(Dispatchers.IO) { showsCache.writeText(json) }
             api.parseShows(json) to false
         }.getOrElse { e ->
-            val saved = withContext(Dispatchers.IO) { if (showsCache.exists()) showsCache.readText() else null }
-            if (saved == null && mine.isEmpty()) throw e
-            (saved?.let { api.parseShows(it) } ?: emptyList()) to true
+            val cached = withContext(Dispatchers.IO) { if (showsCache.exists()) showsCache.readText() else null }
+            if (cached == null && mine.isEmpty()) throw e
+            (cached?.let { api.parseShows(it) } ?: emptyList()) to true
         }
+        if (!saved) android.util.Log.i("kumapie", "shows: PC ${android.os.SystemClock.uptimeMillis() - t0} ms${if (offline) " (no answer)" else ""}")
         // The PC lists episodes made on devices too (for the TV); here they come through Sync, so only once.
         val pcOwn = pc.map { s -> s.copy(episodes = s.episodes.filterNot { LocalEpisodes.isLocal(it.id) }) }.filter { it.episodes.isNotEmpty() }
         // A device-made show without a match of its own: the PC's poster (the PC looks every show up).
@@ -160,12 +163,19 @@ class Library(context: Context, val settings: Settings) {
         } to offline
     }
 
-    /** An episode to play: fresh from the PC if it answers, else its download. A downloaded video plays from the device. */
+    /**
+     * An episode to play: its download at once (the PC's fresher copy is saved for the next time), else fresh from the
+     * PC. A downloaded video plays from the device.
+     */
     suspend fun episode(id: String): EpisodeDetail {
         val api = api
+        // Parsed off the main thread: a long episode's JSON and its word colours held the first frames.
+        suspend fun parse(json: String) = withContext(Dispatchers.Default) {
+            withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.run { refreshDue(); apply(it) } })
+        }
         if (LocalEpisodes.isLocal(id)) {
             val json = withContext(Dispatchers.IO) { local.json(id).readText() }
-            val detail = withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.run { refreshDue(); apply(it) } })
+            val detail = parse(json)
             // Its copy deleted here: streamed from the PC (sync keeps every device episode there).
             val video = local.video(id).takeIf { it.exists() }?.let { Uri.fromFile(it).toString() }
                 ?: "${settings.server}/api/sync/${settings.owner}/$id/video.mp4"
@@ -173,15 +183,17 @@ class Library(context: Context, val settings: Settings) {
         }
         val downloaded = downloads.isComplete(id)
         // When the PC answers, send what waited, then fetch again so the episode has that progress in it.
-        val fresh = runCatching {
+        suspend fun fetch() = runCatching {
             val first = api.episodeJson(id)
             if (pending.count() > 0 && pending.flush(api, force = true)) api.episodeJson(id) else first
         }.getOrNull()
-        val json = withContext(Dispatchers.IO) {
-            if (fresh != null && downloaded) downloads.episodeJson(id).writeText(fresh) // fresher word colours offline
-            fresh ?: if (downloaded) downloads.episodeJson(id).readText() else null
-        } ?: throw IOException(tr("The PC doesn't answer and this episode isn't downloaded."))
-        val detail = withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.run { refreshDue(); apply(it) } })
+        // A download doesn't wait for the PC (8 s when it can't be reached); the fresher colours come next time.
+        if (downloaded) background.launch {
+            fetch()?.let { json -> downloads.episodeJson(id).let { f -> File(f.path + ".new").apply { writeText(json) }.renameTo(f) } }
+        }
+        val json = (if (downloaded) withContext(Dispatchers.IO) { downloads.episodeJson(id).readText() } else fetch())
+            ?: throw IOException(tr("The PC doesn't answer and this episode isn't downloaded."))
+        val detail = parse(json)
         return detail.copy(
             video = if (downloaded) Uri.fromFile(downloads.video(id)).toString() else detail.video,
             scenes = if (!downloaded || !detail.novel) detail.scenes else detail.scenes.map { s ->

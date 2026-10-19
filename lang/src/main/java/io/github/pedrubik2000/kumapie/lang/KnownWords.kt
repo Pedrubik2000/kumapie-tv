@@ -34,6 +34,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     private val dir = File(context.filesDir, if (lang == Lang.GERMAN) "known" else "known-${lang.code}").apply { mkdirs() }
     private val savedFile = File(dir, "words.json")
     private val parseCache = File(dir, "parses.json")
+    private val keysCache = File(dir, "cardkeys.json")
     private val markedFile = File(dir, "marked.txt")
     /** Words imported as known (Jiten's lists for Japanese): known while the word has no card of its own. */
     private val importedFile = File(dir, "imported.txt")
@@ -158,7 +159,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** The word cards again without parsing (a card was just mined here); kuma3's queue as it was (a new card isn't due). */
     suspend fun reloadCards() = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext
-        cardIndex.build(anki.notes(pkg, search), anki.cards(pkg, search), cardIndex.due, language::cardKeys)
+        val notes = anki.notes(pkg, search)
+        cardIndex.build(notes, anki.cards(pkg, search), cardIndex.due, cardKeys(notes))
     }
 
     /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
@@ -306,7 +308,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
                 }
                 lastReading = Reading(pkg, notes, cards, morphs.mapValues { it.value.toList() }, defMorphs.mapValues { it.value.toList() })
                 // Word cards by form, for the colours and ratings.
-                cardIndex.build(notes, cards, anki.due(pkg), language::cardKeys).also { dueAt = System.currentTimeMillis() }
+                cardIndex.build(notes, cards, anki.due(pkg), cardKeys(notes)).also { dueAt = System.currentTimeMillis() }
                 val snap = Snapshot(words, System.currentTimeMillis(), pkg, notes.size, cards.size)
                 save(snap)
                 snapshot = snap
@@ -344,6 +346,25 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         cache.keys().asSequence().toList().filter { it.toLong() !in fields }.forEach { cache.remove(it) }
         parseCache.writeText(cache.toString())
         return out
+    }
+
+    /**
+     * [Language.cardKeys] of each note, from the cache when its Word and Reading and the parser are the same as last
+     * time: Japanese keys load Jiten's lexicon (~3 s of CPU and ~95 MB on a Pixel 8a), now only for new or edited notes.
+     */
+    @Synchronized
+    private fun cardKeys(notes: List<AnkiCards.Note>): (AnkiCards.Note) -> List<String> {
+        val cache = runCatching { JSONObject(keysCache.readText()) }.getOrDefault(JSONObject())
+        val out = HashMap<Long, List<String>>()
+        for (n in notes) {
+            val hash = "${language.parserId}:${(n.fields["Word"] + "\u0001" + n.fields["Reading"]).hashCode()}"
+            val hit = cache.optJSONObject("${n.id}")
+            out[n.id] = if (hit != null && hit.optString("h") == hash) hit.getJSONArray("k").let { a -> List(a.length()) { a.getString(it) } }
+                else language.cardKeys(n).also { cache.put("${n.id}", JSONObject().put("h", hash).put("k", JSONArray(it))) }
+        }
+        cache.keys().asSequence().toList().filter { it.toLong() !in out }.forEach { cache.remove(it) }
+        keysCache.writeText(cache.toString())
+        return { out[it.id].orEmpty() }
     }
 
     /**

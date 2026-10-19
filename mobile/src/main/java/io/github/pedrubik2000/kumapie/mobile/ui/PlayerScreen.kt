@@ -92,6 +92,7 @@ import io.github.pedrubik2000.kumapie.ui.MeaningCard
 import io.github.pedrubik2000.kumapie.ui.SubtitleTap
 import io.github.pedrubik2000.kumapie.ui.Subtitles
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** Loads the episode (from the PC, or its download), then plays it scene by scene, full screen in landscape. */
@@ -123,7 +124,9 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
             }
             d == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 18.sp,
                 modifier = Modifier.align(Alignment.Center))
-            else -> key(d) {
+            // By identity: key(d) hashed the whole episode (every scene, line and word) on each recomposition, ~15% of
+            // the main thread while playing (Pixel 8a, simpleperf).
+            else -> key(System.identityHashCode(d)) {
                 ScenePlayer(library, library.settings, library.backend(d.lang), d, startPaused = startAt != null, onBack,
                     onUpright = { upright = !upright; library.settings.upright = upright }, uprightNow = upright,
                     // Subtitle timing (episodes made here): moves every line, then reloads the episode where it was.
@@ -270,10 +273,15 @@ internal fun ScenePlayer(
     }
     var now by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = SystemClock.uptimeMillis(); delay(250) } }
-    // Japanese: the dictionary popup's WebView and Sudachi (and Jiten's splitter, a few seconds) ready before the first tap.
+    // The dictionary popup's WebView ready before the first tap (any language with dictionaries: German's first tap
+    // started Chromium, a 200 ms frame on a Pixel 8a); Japanese: Sudachi and Jiten's splitter too (a few seconds).
+    // Made at the first pause after the player's first frames: making it (~150 ms on the main thread) while they drew
+    // doubled the janky frames of opening an episode, and during playback it held the subtitles; paused, nothing moves.
     LaunchedEffect(Unit) {
+        delay(3_000)
+        androidx.compose.runtime.snapshotFlow { ctl.playing }.first { !it }
+        if (library.yomitan.of(ctl.lang).any { it.enabled && it.terms > 0 }) prewarmPopup(context)
         if (ctl.lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) {
-            prewarmPopup(context)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                 runCatching { library.languages.japanese.model.words(listOf("準備")) }
             }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.Cue
+import io.github.pedrubik2000.kumapie.data.Line
 import io.github.pedrubik2000.kumapie.data.Word
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
@@ -64,37 +66,18 @@ private const val ENGLISH_SCALE = 0.72f
 fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Unit, onTap: ((SubtitleTap) -> Unit)? = null,
               /** The anchor's top is the subtitle box's: the card above it covers no line (the TV, user 2026-10-14). */
               aboveBox: Boolean = false) {
+    // The position moves every 40 ms, the lines shown a few times a scene: read inside derivedStateOf, the subtitles
+    // recompose (and measure their text) only when their lines change, not 25 times a second.
+    val lines by remember(ctl, picker) { derivedStateOf { shown(ctl, picker) } }
+    val shown = lines
+    if (shown == null) {
+        SideEffect { onAnchor(null) }
+        return
+    }
+    val (german, english, current) = shown
     val picking = picker.isOpen
-    if (!picking && !ctl.showTarget && !ctl.showEnglish) {
-        SideEffect { onAnchor(null) }
-        return
-    }
     val scene = ctl.scene
-    val current = if (picking) scene.cues.getOrNull(picker.line) else ctl.currentCue()
-    val pos = ctl.position
-    // A novel's scene starts with the game's transition into the line (fades, wipes, waits): no text box yet.
-    if (ctl.episode.novel && !picking &&scene.cues.firstOrNull()?.let { pos < it.start - 0.05 } == true) {
-        SideEffect { onAnchor(null) }
-        return
-    }
-    // A novel's scene is one line: shown whole from its text on (no flicker while the voice catches up).
     val paused = !ctl.playing || picking || ctl.episode.novel
-    val german: List<Cue> = when {
-        picking -> scene.cues
-        !ctl.showTarget -> emptyList()
-        paused -> scene.cues
-        current != null && pos <= current.end + 0.6 -> listOf(current)
-        else -> emptyList()
-    }
-    val english = when {
-        !ctl.showEnglish -> emptyList()
-        paused -> scene.english
-        else -> scene.english.filter { it.start - 0.1 <= pos && pos <= it.end + 0.6 }.takeLast(1)
-    }
-    if (german.isEmpty() && english.isEmpty()) {
-        SideEffect { onAnchor(null) }
-        return
-    }
 
     // The German as one text; remember where the picker's word starts and ends in it.
     var selectedRange: IntRange? = null
@@ -198,6 +181,35 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
 
     // Where the selected word is on screen, for the meaning box.
     SideEffect { onAnchor(anchored(coords?.let { anchorOf(it, layout, range) })) }
+}
+
+/** The lines [Subtitles] shows: the German, the English, the line being said. */
+private data class Shown(val german: List<Cue>, val english: List<Line>, val current: Cue?)
+
+/** What the subtitles show now; null for nothing. */
+private fun shown(ctl: SceneController, picker: WordPicker): Shown? {
+    val picking = picker.isOpen
+    if (!picking && !ctl.showTarget && !ctl.showEnglish) return null
+    val scene = ctl.scene
+    val current = if (picking) scene.cues.getOrNull(picker.line) else ctl.currentCue()
+    val pos = ctl.position
+    // A novel's scene starts with the game's transition into the line (fades, wipes, waits): no text box yet.
+    if (ctl.episode.novel && !picking && scene.cues.firstOrNull()?.let { pos < it.start - 0.05 } == true) return null
+    // A novel's scene is one line: shown whole from its text on (no flicker while the voice catches up).
+    val paused = !ctl.playing || picking || ctl.episode.novel
+    val german: List<Cue> = when {
+        picking -> scene.cues
+        !ctl.showTarget -> emptyList()
+        paused -> scene.cues
+        current != null && pos <= current.end + 0.6 -> listOf(current)
+        else -> emptyList()
+    }
+    val english = when {
+        !ctl.showEnglish -> emptyList()
+        paused -> scene.english
+        else -> scene.english.filter { it.start - 0.1 <= pos && pos <= it.end + 0.6 }.takeLast(1)
+    }
+    return if (german.isEmpty() && english.isEmpty()) null else Shown(german, english, current)
 }
 
 /** The text with every span drawn as a blurred shadow of its colour and no letters. */

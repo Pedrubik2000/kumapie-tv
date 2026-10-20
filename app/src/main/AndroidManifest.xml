@@ -23,6 +23,9 @@
         android:theme="@style/Theme.Kumapie"
         android:usesCleartextTraffic="true">
 
+        <!-- simpleperf can profile release builds from adb (the TV runs the release build). -->
+        <profileable android:shell="true" />
+
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"

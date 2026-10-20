@@ -1,0 +1,6 @@
+Lio/github/pedrubik2000/kumapie/**;
+HSPLio/github/pedrubik2000/kumapie/**;->**(**)**
+Landroidx/media3/**;
+HSPLandroidx/media3/**;->**(**)**
+Lkotlinx/coroutines/**;
+HSPLkotlinx/coroutines/**;->**(**)**

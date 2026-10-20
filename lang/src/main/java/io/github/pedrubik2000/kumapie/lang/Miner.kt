@@ -28,6 +28,8 @@ import io.github.pedrubik2000.kumapie.data.LineDef
 import io.github.pedrubik2000.kumapie.data.Scene
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
@@ -48,6 +50,8 @@ class Miner(
 ) {
     private val anki = AnkiCards(context)
     private val dir = File(context.cacheDir, "mining")
+    /** One card at a time: mines share [dir]'s files (clip.webm, line.ogg); two at once broke a clip ("Muxer error"). */
+    private val lock = Mutex()
 
     /** The line mined; [word] set for a word card. */
     data class Request(
@@ -81,7 +85,7 @@ class Miner(
     @Volatile var lastNote: Long = 0
 
     /** Adds the card; answers a line for the user ("Added to Deutsch Mined"). */
-    suspend fun mine(r: Request, progress: (String) -> Unit): String = withContext(Dispatchers.IO) {
+    suspend fun mine(r: Request, progress: (String) -> Unit): String = lock.withLock { withContext(Dispatchers.IO) {
         // German and English cards share the layout (🐻 German / 🐻 English); Japanese has Kaishi's.
         val language = when (val l = languages.of(r.episode.lang)) { is Japanese -> return@withContext mineJapanese(r, l, progress); is Spaced -> l }
         val lang = language.lang
@@ -92,7 +96,7 @@ class Miner(
         val (mid, fieldNames) = anki.noteType(pkg, known.noteTypes) ?: anki.addBundledNoteType(pkg, lang)
             ?: error(tr("The %s note type isn't in Anki.", lang.displayName))
         val slug = slug(r.episode.show)
-        val fields = sceneFields(r, pkg, fieldNames, "Mined", progress = progress)
+        val fields = cutScene(r, pkg, fieldNames, "Mined", progress = progress)
         val tags = mutableListOf(slug, "kumapie")
         r.word?.let { w ->
             val audio = wordAudio(w.surface, language)?.let { addAudio(pkg, it, "kumapie-${slug(w.surface)}") }
@@ -111,7 +115,7 @@ class Miner(
         val deck = anki.deck(pkg, lang.deck)
         lastNote = anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, deck)
         tr("Added to %s", lang.deck) + (r.word?.let { ": ${it.surface}" } ?: "")
-    }
+    } }
 
     /**
      * A 🐻 Japanese card (the Kaishi 1.5k layout): the tapped subtitle line with the word in bold, that line's audio cut
@@ -131,7 +135,7 @@ class Miner(
         val w = r.word
         // The word's own fields first: the sentence shows its reading in bold when written as in the dictionary (Kaishi: 私[わたし]).
         val reading = w?.let { japaneseWord(fields, it, japanese, pkg) }?.let { (expression, reading) -> reading?.takeIf { w.surface == expression } }
-        fields += sceneFields(r, pkg, fieldNames, "Mined", reading, progress)
+        fields += cutScene(r, pkg, fieldNames, "Mined", reading, progress)
         w?.formOf?.let { fields["Notes"] = fields["Notes"].orEmpty() + "<br>" + esc("form of $it") }
         val missing = listOf("Sentence", "Sentence Audio", KnownWords.DEF_BI).filter { it !in fieldNames }
         if (missing.isNotEmpty()) error(tr("The Japanese note type has no field %s.", missing.joinToString()))
@@ -147,7 +151,11 @@ class Miner(
      * `Context` ("[how] in kumapie: show · episode, scene N."). The media go into kuma3 [pkg].
      */
     suspend fun sceneFields(r: Request, pkg: String, fieldNames: Collection<String>, how: String, reading: String? = null,
-                            progress: (String) -> Unit = {}): HashMap<String, String> = withContext(Dispatchers.IO) {
+                            progress: (String) -> Unit = {}): HashMap<String, String> =
+        lock.withLock { cutScene(r, pkg, fieldNames, how, reading, progress) }
+
+    private suspend fun cutScene(r: Request, pkg: String, fieldNames: Collection<String>, how: String, reading: String? = null,
+                                 progress: (String) -> Unit = {}): HashMap<String, String> = withContext(Dispatchers.IO) {
         val japanese = languages.of(r.episode.lang) is Japanese
         val (sentence, cues) = if (japanese) r.scene.cues[r.line].text.trim() to listOf(r.scene.cues[r.line]) else sentence(r.scene, r.line)
         val slug = slug(r.episode.show)
@@ -194,7 +202,7 @@ class Miner(
      * [picture] (a manga page) where the note type has an Image field, and Context naming [source]. Into the Mined deck.
      */
     suspend fun mineText(lang: io.github.pedrubik2000.kumapie.data.Lang, sentence: String, word: Word?, source: String,
-                         picture: File? = null): String = withContext(Dispatchers.IO) {
+                         picture: File? = null): String = lock.withLock { withContext(Dispatchers.IO) {
         val language = languages.of(lang)
         val known = language.known
         val pkg = known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
@@ -226,13 +234,13 @@ class Miner(
         anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, listOf(slug(source), "kumapie", lang.tag(if (word != null) "word" else "sentence")),
             anki.deck(pkg, lang.deck))
         tr("Added to %s", lang.deck) + (word?.let { ": ${it.lemma ?: it.surface}" } ?: "")
-    }
+    } }
 
     /**
      * A 🐻 Japanese word card from the Japanese dictionary screen: word, reading, meaning, word audio; no sentence or
      * clip (the card's front is the Word). Into Japanese Mined.
      */
-    suspend fun mineJapaneseWord(w: Word): String = withContext(Dispatchers.IO) {
+    suspend fun mineJapaneseWord(w: Word): String = lock.withLock { withContext(Dispatchers.IO) {
         val japanese = languages.japanese
         val pkg = japanese.known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
         if (!japanese.known.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
@@ -247,7 +255,7 @@ class Miner(
         val ja = japanese.lang
         anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, listOf("kumapie", ja.tag("word")), anki.deck(pkg, ja.deck))
         tr("Added to %s", ja.deck) + ": ${w.lemma ?: w.surface}"
-    }
+    } }
 
     /**
      * A Japanese word card's Word (`届く[とどく]:0-`: reading when it has kanji, pitch), meanings and word audio (a person's

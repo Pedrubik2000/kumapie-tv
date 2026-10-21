@@ -24,6 +24,7 @@ android {
         buildConfigField("String", "UPDATE_REPO", "\"Pedrubik2000/kumapie-tv\"")
         // Python (spaCy) is built for 64-bit ARM only: every phone and tablet it runs on.
         ndk { abiFilters += "arm64-v8a" }
+        manifestPlaceholders["prepareScheme"] = "kumapie" // kumapie://prepare links (the kumapie Stremio add-on)
     }
 
     val keystore = System.getenv("KUMAPIE_KEYSTORE")
@@ -48,6 +49,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            manifestPlaceholders["prepareScheme"] = "kumapie-debug" // a second kumapie:// handler would bring up a chooser
         }
         // Quick test builds: the release app id and key, so they install over the real app and keep its data, but
         // without R8 and the release lint (~80 s -> seconds). Never published: releases and their last check use

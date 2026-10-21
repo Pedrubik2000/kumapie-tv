@@ -28,6 +28,7 @@ import io.github.pedrubik2000.kumapie.mobile.ui.HomeScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.IPlusOneScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.MobileTheme
 import io.github.pedrubik2000.kumapie.mobile.ui.PlayerScreen
+import io.github.pedrubik2000.kumapie.mobile.ui.PrepareScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.SettingsScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.ShowScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.StatsScreen
@@ -46,6 +47,8 @@ sealed interface Screen {
     data object Stats : Screen
     data object Search : Screen
     data object Downloads : Screen
+    /** A kumapie://prepare link's query: the PC makes the episode, then it plays. */
+    data class Prepare(val query: Map<String, String>) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -62,9 +65,12 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         enableEdgeToEdge()
         val library = Library(applicationContext, settings)
+        // kumapie://prepare?person&lang&type&id (the kumapie add-on's stream in Stremio): the PC makes the episode, then it plays.
+        val prepare = intent?.takeIf { it.action == android.content.Intent.ACTION_VIEW }?.data?.takeIf { it.host == "prepare" }
+            ?.let { u -> u.queryParameterNames.associateWith { u.getQueryParameter(it).orEmpty() } }
         // A link shared to kumapie, or a magnet link opened in the browser, opens "Add an episode" with it.
         val shared = intent?.takeIf { it.action == android.content.Intent.ACTION_SEND }?.getStringExtra(android.content.Intent.EXTRA_TEXT)
-            ?: intent?.takeIf { it.action == android.content.Intent.ACTION_VIEW }?.dataString
+            ?: intent?.takeIf { it.action == android.content.Intent.ACTION_VIEW && prepare == null }?.dataString
         // Japanese text to look up (other apps' "share" or `am start ... --es search 本当に`): opens the dictionary search.
         val search = intent?.getStringExtra("search")
             ?: intent?.takeIf { it.action == android.content.Intent.ACTION_PROCESS_TEXT }?.getCharSequenceExtra(android.content.Intent.EXTRA_PROCESS_TEXT)?.toString()
@@ -75,12 +81,17 @@ class MainActivity : ComponentActivity() {
         if (improve != 0L) settings.prefs.edit().putLong("improve_note", improve).apply()
         val improveWord = intent?.getStringExtra("improve_word")
         improveWord?.let { settings.prefs.edit().putString("improve_word", it).apply() }
-        setContent { MobileTheme { App(library, shared, openSearch = search != null, openImprove = improve != 0L || improveWord != null) } }
+        setContent { MobileTheme { App(library, shared, openSearch = search != null, openImprove = improve != 0L || improveWord != null, prepare = prepare) } }
     }
 
-    /** A server address sent while the app is already open: save it and start over with it. */
+    /** A server address sent while the app is already open: save it and start over with it. A prepare link too. */
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        if (intent.data?.host == "prepare") {
+            setIntent(intent)
+            recreate()
+            return
+        }
         intent.getStringExtra("server")?.let {
             Settings(this).server = it
             recreate()
@@ -89,10 +100,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = false, openImprove: Boolean = false) {
+fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = false, openImprove: Boolean = false, prepare: Map<String, String>? = null) {
     val settings = library.settings
     var server by remember { mutableStateOf(settings.server) }
-    val stack = remember { mutableStateListOf<Screen>(Screen.Home).apply { if (openSearch) add(Screen.Search); if (openImprove) add(Screen.Improve) } }
+    val stack = remember { mutableStateListOf<Screen>(Screen.Home).apply { if (openSearch) add(Screen.Search); if (openImprove) add(Screen.Improve); if (prepare != null) add(Screen.Prepare(prepare)) } }
     val context = androidx.compose.ui.platform.LocalContext.current
     var update by remember { mutableStateOf<Updater.Release?>(null) }
     // The show list, kept here so the episode list and the player see the same (refreshed) shows.
@@ -142,6 +153,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 ShowScreen(library, show, onPlay = { stack += Screen.Player(show, it) }, onBack = { stack.removeAt(stack.lastIndex) })
             }
             is Screen.Player -> PlayerScreen(library, screen.show, screen.episode, screen.startAt, onBack = { stack.removeAt(stack.lastIndex) })
+            is Screen.Prepare -> PrepareScreen(library, screen.query, onPlay = { s, e -> stack[stack.lastIndex] = Screen.Player(s, e) }, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Feed -> FeedScreen(library, langShows, homeLang, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.IPlusOne -> IPlusOneScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })

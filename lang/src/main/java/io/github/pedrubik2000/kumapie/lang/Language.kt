@@ -157,12 +157,26 @@ class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionarie
 
     /** Kaishi and mined words: the card's word when it has one, else its sentence. */
     override fun judgedField(note: AnkiCards.Note): String? = if (note.fields["Word"].isNullOrBlank()) "Sentence" else "Word"
-    /** [CardIndex.japaneseKeys], and the same for the word's other spellings ([JitenSplitter.spellings]) once Jiten's here. */
+    /**
+     * [CardIndex.japaneseKeys], the same for the word's other spellings ([JitenSplitter.spellings]) once Jiten's here,
+     * and the word bold in its sentence as the subtitles key it ([tapped]).
+     */
     override fun cardKeys(note: AnkiCards.Note): List<String> {
         val keys = CardIndex.japaneseKeys(note)
         val (spelling, reading) = keys.firstOrNull()?.split('	') ?: return keys
         val other = runCatching { model.splitter()?.spellings(spelling, reading) }.getOrNull().orEmpty()
-        return keys + other.flatMap { listOf(CardIndex.japaneseKey(it, reading), it) }
+        return (keys + other.flatMap { listOf(CardIndex.japaneseKey(it, reading), it) } + tapped(note)).distinct()
+    }
+
+    /**
+     * The word bold in the card's sentence (mined: what was tapped, `<b>ワナ</b>` on a 罠[わな] card) and its dictionary
+     * form as [JapaneseModel.words] splits it, when it is one word: a word the subtitles write in kana finds its card.
+     */
+    private fun tapped(note: AnkiCards.Note): List<String> {
+        val bold = Regex("""<b>([^<\[]+)""").find(note.fields["Sentence"].orEmpty())?.groupValues?.get(1)?.trim()
+            ?.takeIf { it.isNotEmpty() } ?: return emptyList()
+        val word = runCatching { model.words(listOf(bold)).first().filter { it.isWord }.singleOrNull() }.getOrNull() ?: return emptyList()
+        return listOf(bold, word.base)
     }
 
     private val auto = java.util.concurrent.ConcurrentHashMap<String, Boolean>()

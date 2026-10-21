@@ -21,10 +21,12 @@ class CardIndexTest {
         assertEquals("k", index.state("gehen")) // studied, not due
         assertEquals("u", index.state("gehst")) // the exact form only: gehen's card doesn't count
         assertEquals("d", index.state("Tante")) // one of its cards is due
-        assertEquals("n", index.state("schlägt")) // learning, even though it's in today's queue
+        assertEquals("d", index.state("schlägt")) // learning and in today's queue: due (green)
         assertEquals("b", index.state("Hausnummer")) // mined, never reviewed: blue
         assertEquals(listOf(20L), index.toAnswer("tante").map { it.id }) // only the due one
         assertEquals(listOf(10L), index.toAnswer("gehen").map { it.id }) // none due: the first (early review)
+        index.update(emptyList(), mapOf(20L to "review"))
+        assertEquals("k", index.state("schlägt")) // learning, not due: white
         index.update(emptyList(), null)
         assertEquals(null, index.state("gehen")) // kuma3's queue unknown: old colours
     }

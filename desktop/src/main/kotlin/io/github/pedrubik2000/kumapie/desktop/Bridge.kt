@@ -14,7 +14,7 @@ import java.net.URI
 class Bridge(private val base: String) {
     class Closed : IOException("kuma3 is closed")
 
-    /** A word's card state by form ("d" due, "k" studied, "b" mined, "n" learning) and its note, for one language. */
+    /** A word's card state by form ("d" due, "k" studied, "b" mined) and its note, for one language. */
     data class Cards(val forms: Map<String, String>, val notes: Map<String, Long>)
     data class Mined(val note: Long, val deck: String)
 

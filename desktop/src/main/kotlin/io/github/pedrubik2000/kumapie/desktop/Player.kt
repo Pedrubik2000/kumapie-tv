@@ -71,7 +71,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val STATE = mapOf("k" to "known", "u" to "new word", "d" to "due today", "b" to "mined, not reviewed yet", "n" to "learning")
+private val STATE = mapOf("k" to "known", "u" to "new word", "d" to "due today", "b" to "mined, not reviewed yet")
 private val DECKS = mapOf("de" to "Deutsch Mined", "en" to "English Mined", "ja" to "Japanese Mined")
 private val RATINGS = listOf("Again", "Hard", "Good", "Easy")
 

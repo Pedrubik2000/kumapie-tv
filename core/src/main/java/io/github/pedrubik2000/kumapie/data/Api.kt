@@ -417,7 +417,7 @@ data class Word(
     val marked: Boolean = false,
     /**
      * The word's own Anki card, when the phone knows it (kumapie_anki_review_plan.md): "d" due by kuma3's queue
-     * (green), "k" studied and not due (white), "b" mined, never reviewed (blue), "n" still learning (blue too), "u" no card of its own (red).
+     * (green), "k" studied and not due (white), "b" mined, never reviewed (blue), "u" no card of its own (red).
      * The subtitles and the word card colour by it; scene levels still go by [status].
      */
     val card: String? = null,
@@ -429,8 +429,8 @@ data class Word(
     /** Japanese written with kanji: its kana reading, from the PC's dictionaries (the TV card shows it). */
     val reading: String = "",
 ) {
-    /** The colour to draw: white when marked known, else [card]'s when known ("n" draws like "b"), else [status]. */
-    val shown: String get() = if (marked) "k" else when (card) { null -> status; "n" -> "b"; else -> card }
+    /** The colour to draw: white when marked known, else [card]'s when known, else [status]. */
+    val shown: String get() = if (marked) "k" else card ?: status
 
     /**
      * Japanese: the card that colours [text]: the dictionary form's (躱し by 躱す, user 2026-10-13), else the written form's
@@ -441,7 +441,7 @@ data class Word(
 
     /** The colour of the word written as [text] in a subtitle: marked known white, else [shown] by [formCard]. */
     fun shownFor(text: String): String =
-        if (marked) "k" else formCard(text)?.let { if (it == "n") "b" else it } ?: shown
+        if (marked) "k" else formCard(text) ?: shown
 }
 
 /**

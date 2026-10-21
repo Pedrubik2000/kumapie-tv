@@ -91,7 +91,9 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
         if (items != null && kept()) return@LaunchedEffect
         items = null
         // No spoilers: only scenes already watched to the end (reels are short clips, nothing to spoil).
-        val all = library.allEpisodes(shows) { loading = it }
+        // Only episodes with a scene watched to the end can give a scene (reels come whole): the rest aren't read.
+        val wanted = shows.map { s -> if (s.kind == "reels") s else s.copy(episodes = s.episodes.filter { it.seen > 0 }) }.filter { it.episodes.isNotEmpty() }
+        val all = library.allEpisodes(wanted) { loading = it }
         // Reels come whole, every few pages (withReels), not as single scenes.
         val scenes = all.filter { (show, _) -> show.kind != "reels" }.flatMap { (show, ep) ->
             ep.scenes.filter { it.target && it.level != null && it.level!!.coerceAtMost(2) in levels && it.seen }

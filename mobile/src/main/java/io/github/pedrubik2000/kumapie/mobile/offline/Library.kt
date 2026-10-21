@@ -17,6 +17,9 @@ import io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -248,13 +251,22 @@ class Library(context: Context, val settings: Settings) {
     }
 
     /** Every episode of [shows] with its scenes and word colours (fetched once per app run; unreachable ones skipped). */
-    suspend fun allEpisodes(shows: List<Show>, progress: (String) -> Unit = {}): List<Pair<Show, EpisodeDetail>> {
+    suspend fun allEpisodes(shows: List<Show>, progress: (String) -> Unit = {}): List<Pair<Show, EpisodeDetail>> = kotlinx.coroutines.coroutineScope {
         val list = shows.flatMap { s -> s.episodes.map { s to it } }
-        return list.mapIndexedNotNull { i, (show, ep) ->
-            progress(tr("Reading episodes %1\$d of %2\$d…", i + 1, list.size))
-            val detail = episodeCache[ep.id]?.let(::withSeen) ?: runCatching { episode(ep.id) }.getOrNull()?.also { episodeCache[ep.id] = it }
-            detail?.let { show to it }
-        }
+        // The due cards once here, not from each episode's parse at the same time.
+        shows.map { it.lang }.toSet().forEach { languages.of(it).known.refreshDue() }
+        // Four at a time: each is a PC round trip (~800 KB) and a parse; the feed read 151 one by one in 15 s on the tablet.
+        val sem = kotlinx.coroutines.sync.Semaphore(4)
+        val n = java.util.concurrent.atomic.AtomicInteger()
+        list.map { (show, ep) ->
+            async {
+                sem.withPermit {
+                    progress(tr("Reading episodes %1\$d of %2\$d…", n.incrementAndGet(), list.size))
+                    val detail = episodeCache[ep.id]?.let(::withSeen) ?: runCatching { episode(ep.id) }.getOrNull()?.also { episodeCache[ep.id] = it }
+                    detail?.let { show to it }
+                }
+            }
+        }.awaitAll().filterNotNull()
     }
 
     /** Counts an episode as watched (seen before kumapie, or elsewhere): all its scenes become seen, on every device. */

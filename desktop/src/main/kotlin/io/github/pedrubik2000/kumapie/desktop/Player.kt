@@ -3,6 +3,7 @@ package io.github.pedrubik2000.kumapie.desktop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -230,12 +231,24 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
             if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) {
                 TopRow(ctl, transcript, onTranscript = { transcript = !transcript; settings.prefs.edit().putBoolean("desktop_transcript", transcript).apply() }, onClose)
             }
+            // Hover = the word's short gloss, no click, no pause (kumapie_pc_plan.md: the PC's one new gesture).
+            var hover by remember { mutableStateOf<Pair<String, androidx.compose.ui.geometry.Rect>?>(null) }
             Subtitles(ctl, picker, onAnchor = { anchor = it }, onTap = { tap ->
                 when (tap) {
                     is SubtitleTap.Word -> picker.tap(tap.line, tap.seg)
                     SubtitleTap.Box -> if (picker.isOpen) picker.close() else ctl.togglePlay()
                 }
+            }, onHover = { w, r ->
+                val seg = w?.let { ctl.scene.cues.getOrNull(it.line)?.segments?.getOrNull(it.seg) }
+                val word = seg?.word?.let { ctl.words[it] }
+                hover = if (r == null || seg == null || word == null || word.meaning.isBlank()) null
+                else "${word.lemma.ifEmpty { seg.text }}: ${word.meaning}" to r
             })
+            hover?.takeIf { !picker.isOpen }?.let { (text, r) ->
+                Text(text, color = Colors.text, fontSize = 15.sp,
+                    modifier = Modifier.offset { androidx.compose.ui.unit.IntOffset(r.left.toInt(), (r.top - 30.dp.toPx()).toInt()) }
+                        .background(Colors.surface, RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+            }
             val k = key()
             if (picker.isOpen && picker.cardOpen && k != null) anchor?.let { a ->
                 MeaningCard(ctl, picker, a, maxWidth = 620.dp, onTapDef = picker::tapInDef, ownMeaning = false, onClose = { picker.close() }, footer = {

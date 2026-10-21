@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
@@ -65,7 +66,9 @@ private const val ENGLISH_SCALE = 0.72f
 @Composable
 fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Unit, onTap: ((SubtitleTap) -> Unit)? = null,
               /** The anchor's top is the subtitle box's: the card above it covers no line (the TV, user 2026-10-14). */
-              aboveBox: Boolean = false) {
+              aboveBox: Boolean = false,
+              /** A mouse over a word (the PC): the word and its screen rectangle, null when it leaves; only on a change. */
+              onHover: ((SubtitleTap.Word?, Rect?) -> Unit)? = null) {
     // The position moves every 40 ms, the lines shown a few times a scene: read inside derivedStateOf, the subtitles
     // recompose (and measure their text) only when their lines change, not 25 times a second.
     val lines by remember(ctl, picker) { derivedStateOf { shown(ctl, picker) } }
@@ -110,6 +113,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     val range by rememberUpdatedState(selectedRange)
     val ranges by rememberUpdatedState(wordRanges.toList())
     val tapHandler by rememberUpdatedState(onTap)
+    val hoverHandler by rememberUpdatedState(onHover)
     var boxTop by remember { mutableStateOf<Float?>(null) }
     fun anchored(r: Rect?): Rect? = if (aboveBox && r != null) boxTop?.let { Rect(r.left, it, r.right, it) } ?: r else r
     // Blurred only while it plays: paused (by you, at a scene's end or start) it is readable (user, 2026-10-11).
@@ -168,6 +172,21 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
                             detectTapGestures { p ->
                                 val word = if (blurred) null else layout?.let { wordAt(it, p, ranges) }
                                 tapHandler?.invoke(word ?: SubtitleTap.Box)
+                            }
+                        })
+                        .then(if (onHover == null) Modifier else Modifier.pointerInput(Unit) {
+                            var last: SubtitleTap.Word? = null
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val e = awaitPointerEvent()
+                                    if (e.type != PointerEventType.Move && e.type != PointerEventType.Exit) continue
+                                    val p = e.changes.first().position
+                                    val word = if (e.type == PointerEventType.Exit || blurred) null else layout?.let { wordAt(it, p, ranges) }
+                                    if (word == last) continue
+                                    last = word
+                                    val r = word?.let { w -> ranges.firstOrNull { it.second == w }?.first }
+                                    hoverHandler?.invoke(word, coords?.let { c -> anchorOf(c, layout, r) })
+                                }
                             }
                         }))
                 }

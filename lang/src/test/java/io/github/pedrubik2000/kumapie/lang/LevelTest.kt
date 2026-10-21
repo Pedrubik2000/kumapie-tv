@@ -16,12 +16,13 @@ class LevelTest {
             "gehst" to Word("k", "", card = "u"),          // known by stability, but no card of its own: red
             "tante" to Word("u", "", card = "k"),          // studied card: white
             "hier" to Word("u", "", card = "d"),           // due card: green
-            "neu" to Word("u", "", card = "n"),            // new card: red
+            "neu" to Word("u", "", card = "n"),            // learning card: blue, still counts
             "ja" to Word("u", "", card = "u", marked = true), // marked known: white
             "alt" to Word("u", ""),                        // no card states (old Anki): never studied
         )
         val c = cue("Gehst" to "gehst", " " to null, "gehst" to "gehst", "Tante" to "tante", "hier" to "hier", "neu" to "neu", "ja" to "ja", "alt" to "alt")
         assertEquals(3, unknownIn(listOf(c), words)) // gehst (once), neu, alt
+        assertEquals("b", words["neu"]!!.shownFor("neu"))
     }
 
     @Test fun japanese() {

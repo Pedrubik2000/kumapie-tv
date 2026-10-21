@@ -234,7 +234,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
             val request = Miner.Request(episode, scene, line, if (wordCard && segment != null) {
                 Miner.Word(segment.text, key, lemma, pick?.gloss.orEmpty(), pick?.example, def, mono = monos.getOrNull(monoChosen)?.gloss)
             } else null)
-            scope.launch {
+            mining.launch { // not the sheet's scope: going back to the video mid-mine must not cancel it or its repaint
                 runCatching { library.miner.mine(request) { status = it } }
                     .onSuccess {
                         status = it; done = true
@@ -365,7 +365,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
                 pick.gloss, reading = hw.reading.takeIf { it.isNotBlank() }, pitch = hw.pitches.flatMap { it.second }.firstOrNull(), mono = monos.getOrNull(monoChosen)?.gloss,
                 audio = audios?.getOrNull(audioChosen)?.second)
             else null
-            scope.launch {
+            mining.launch {
                 runCatching { library.miner.mine(Miner.Request(episode, scene, line, w)) { status = it } }
                     .onSuccess { status = it; done = true; known.reloadCards(); repaintWords(ctl, known) }
                     .onFailure { status = it.message ?: it.toString() }
@@ -388,3 +388,6 @@ private fun sourceName(source: String) = when (source) {
 /** The person's translation language mid-sentence: "English", or "español" in Spanish menus. */
 private fun translationName(): String = io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationDisplayName
     .let { if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) it.lowercase() else it }
+
+/** Mining outlives the sheet: closing it before "Added" still adds the card and colours the word. */
+private val mining = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)

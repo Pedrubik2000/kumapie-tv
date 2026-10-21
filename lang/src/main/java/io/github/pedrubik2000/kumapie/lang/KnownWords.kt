@@ -131,10 +131,10 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         else -> null
     }
 
-    /** The colour to draw [word] in, as the player does ([io.github.pedrubik2000.kumapie.data.Word.shown]): "k" white, "d" green, "b" blue, "u" red. */
+    /** The colour to draw [word] in, as the player does ([io.github.pedrubik2000.kumapie.data.Word.shown]): "k" white, "d" green, "b" blue (new or learning), "u" red. */
     fun shown(word: String): String = if (word in marked) "k" else when (val c = cardIndex.state(word)) {
         null -> status(word) ?: "u"
-        "n" -> "u"
+        "n" -> "b"
         "u" -> if (extraKnown(word)) "k" else "u"
         else -> c
     }

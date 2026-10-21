@@ -468,7 +468,7 @@ private fun YomitanSection(library: Library, learning: Set<String> = emptySet())
     }
 }
 
-/** The offline dictionary (download / update), the device's German voice, and the data's attribution. */
+/** The offline dictionary (download / update), the device's voices, and the data's attribution. */
 @Composable
 private fun DictionarySection(library: Library) {
     val dictionary = library.dictionary
@@ -477,10 +477,11 @@ private fun DictionarySection(library: Library) {
     var built by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(state) { built = withContext(Dispatchers.IO) { dictionary.built() } }
     var voice by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) {
-        library.languages.german.voice // starts the speech engine
+    LaunchedEffect(Unit) { // every language in use, not only German (kumapie_plan.md item 32)
+        val langs = library.languages.all
+        langs.forEach { it.voice } // starts the speech engines
         kotlinx.coroutines.delay(1500)
-        voice = library.languages.german.voice.describe()
+        voice = langs.joinToString(separator = "\n") { it.voice.describe() }
     }
 
     Text(tr("Word audio"), color = Colors.accent)

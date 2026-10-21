@@ -35,6 +35,7 @@ import io.github.pedrubik2000.kumapie.mobile.ui.StatsScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.UpdateDialog
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.update.Updater
+import kotlinx.coroutines.launch
 
 sealed interface Screen {
     data object Home : Screen
@@ -80,6 +81,15 @@ class MainActivity : ComponentActivity() {
         val improve = intent?.getLongExtra("improve_note", 0L) ?: 0L
         if (improve != 0L) settings.prefs.edit().putLong("improve_note", improve).apply()
         val improveWord = intent?.getStringExtra("improve_word")
+        // A voice test from the PC (`--es say_to_file "ja|箸|はし"`): each text said into files/tts/<n>.wav (item 32).
+        intent?.getStringExtra("say_to_file")?.let { spec ->
+            val parts = spec.split("|")
+            val l = library.languages.of(parts[0])
+            val dir = java.io.File(getExternalFilesDir(null), "tts").apply { mkdirs() }
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                parts.drop(1).forEachIndexed { i, t -> android.util.Log.i("kumapie", "say_to_file $i: ${l.voice.toFile(t, java.io.File(dir, "$i.wav"))}") }
+            }
+        }
         improveWord?.let { settings.prefs.edit().putString("improve_word", it).apply() }
         setContent { MobileTheme { App(library, shared, openSearch = search != null, openImprove = improve != 0L || improveWord != null, prepare = prepare) } }
     }

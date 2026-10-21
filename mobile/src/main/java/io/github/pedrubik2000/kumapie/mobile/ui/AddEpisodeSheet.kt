@@ -73,12 +73,13 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
     // Several links at once (one per line, or pasted together).
     val links = Regex("""(https?://|magnet:)\S+""").findAll(link).map { it.value }.toList()
     // "Make it on: the PC" (remembered): every link and video file goes to the PC's job queue (dojo-feed
-    // /api/aniworld), which downloads, transcribes and lists it with its shows; AniWorld / s.to links always do.
+    // /api/aniworld), which downloads, transcribes and lists it with its shows; AniWorld / s.to links always do, and
+    // TikTok ones (TikTok wants a browser's TLS fingerprint: the PC's yt-dlp has curl_cffi, this device's Python can't).
     // Else it is made on this device.
     val pc = library.settings.server.isNotBlank() && library.settings.owner.isNotBlank()
     var onPcChoice by remember { mutableStateOf(library.settings.prefs.getBoolean(MAKE_ON_PC, false)) }
     val onPc = pc && onPcChoice
-    val aniworld = links.filter(::isAniWorld)
+    val aniworld = links.filter { isAniWorld(it) || ProcessWorker.isTikTok(it) }
     val pcLinks = if (onPc) links else aniworld
     val onDevice = links - pcLinks.toSet()
     val pcOnly = onPc || (links.isNotEmpty() && onDevice.isEmpty()) // the device's own choices below don't apply
@@ -269,9 +270,9 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             "Jimaku's for Japanese, else transcribes it with Parakeet (free); the line under it only from subtitles. The " +
             "episode comes to this device with the PC's shows, on Wi-Fi. Jobs run there one after another."),
             color = Colors.dim, fontSize = 13.sp) }
-        else if (aniworld.isNotEmpty()) Text(if (pc) tr("AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to " +
+        else if (links.any(::isAniWorld)) Text(if (pc) tr("AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to " +
             "its shows, a few minutes an episode. A season link brings the whole season.", spoken)
-            else tr("AniWorld links need the PC: Settings > server and whose device it is."), color = Colors.dim, fontSize = 13.sp)
+            else tr("AniWorld and TikTok links need the PC: Settings > server and whose device it is."), color = Colors.dim, fontSize = 13.sp)
         pcJobs.forEach { Text(it, fontSize = 14.sp) }
         jobs.forEach { Text(it.stage, fontSize = 14.sp) }
     }

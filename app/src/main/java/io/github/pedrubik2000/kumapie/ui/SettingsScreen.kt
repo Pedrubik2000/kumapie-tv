@@ -2,6 +2,8 @@ package io.github.pedrubik2000.kumapie.ui
 
 import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,7 +57,8 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    // Scrolls: the D-pad brings the focused button into view (Font and Updates were below the screen).
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(if (firstRun) tr("Welcome to kumapie") else tr("Settings"), fontSize = 32.sp, color = Colors.text)
         if (firstRun) {
             Text(tr("Type the address of the dojo server on the PC (Tailscale), e.g. https://my-pc.tailnet.ts.net:8445"),

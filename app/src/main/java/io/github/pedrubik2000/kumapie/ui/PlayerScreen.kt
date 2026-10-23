@@ -111,6 +111,8 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
     val scope = rememberCoroutineScope()
     remember { onPlayer(player) }
     val ctl = remember { SceneController(episode, player, settings, api) }
+    // This TV's kuma3 colours the words it has cards for (a word mined here stays blue the next day, not red).
+    LaunchedEffect(Unit) { paintCards(context, settings, ctl) }
     val picker = remember { WordPicker(ctl, api, scope) }
     var options by remember { mutableStateOf(false) }
     var anchor by remember { mutableStateOf<Rect?>(null) } // the selected word, in screen coordinates

@@ -162,6 +162,17 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         cardIndex.build(notes, anki.cards(pkg, search), cardIndex.due, cardKeys(notes))
     }
 
+    /**
+     * Only the word cards and kuma3's queue, no sentences parsed (the TV has no parser; it colours by the PC's words):
+     * [paint] works after it. False without kuma3 or its permission.
+     */
+    suspend fun readCards(): Boolean = withContext(Dispatchers.IO) {
+        val pkg = ankiApp()?.takeIf { hasPermission(it) } ?: return@withContext false
+        val notes = whileAnkiStarts { anki.notes(pkg, search) }
+        cardIndex.build(notes, anki.cards(pkg, search), anki.due(pkg), cardKeys(notes))
+        true
+    }
+
     /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
     suspend fun refreshDue(force: Boolean = false) = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext

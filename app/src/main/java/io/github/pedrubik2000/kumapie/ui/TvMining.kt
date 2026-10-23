@@ -37,7 +37,10 @@ import java.io.File
 import java.net.URL
 import kotlin.coroutines.resume
 
-/** The TV's mining: built on the first hold ↑ (no spaCy, no Sudachi: the PC's word data is the card's). */
+/**
+ * The TV's mining (no spaCy, no Sudachi: the PC's word data is the card's): [languages] when a player opens
+ * ([paintCards]), the miner on the first hold ↑.
+ */
 private object TvMining {
     private var miner: Miner? = null
     lateinit var languages: Languages
@@ -49,14 +52,23 @@ private object TvMining {
     /** What the Japanese dictionaries' download is doing; null when it isn't running. */
     @Volatile var fetching: String? = null
 
-    fun miner(context: Context, settings: Settings): Miner = miner ?: run {
-        val app = context.applicationContext
-        yomitan = YomitanDictionaries.get(app)
-        val dictionary = Dictionary(app).also { d -> if (Dictionary.RECORDINGS.any { !d.recordingsFile(it).exists() }) d.download() }
-        languages = Languages(app, settings, yomitan, dictionary) { _, _ -> error("no spaCy on the TV") }
-        Miner(app, languages, dictionary).also { miner = it }
+    private var dictionary: Dictionary? = null
+
+    fun languages(context: Context, settings: Settings): Languages {
+        if (dictionary == null) {
+            val app = context.applicationContext
+            yomitan = YomitanDictionaries.get(app)
+            dictionary = Dictionary(app)
+            languages = Languages(app, settings, yomitan, dictionary!!) { _, _ -> error("no spaCy on the TV") }
+        }
+        return languages
     }
 
+    fun miner(context: Context, settings: Settings): Miner = miner ?: run {
+        val languages = languages(context, settings)
+        val d = dictionary!!.also { d -> if (Dictionary.RECORDINGS.any { !d.recordingsFile(it).exists() }) d.download() }
+        Miner(context.applicationContext, languages, d).also { miner = it }
+    }
     /** Once: the PC's Japanese Yomitan zips (state\dicts\yomitan-ja, the phone's set) into this TV's dictionaries. */
     fun fetchJapanese(context: Context, server: String) {
         if (fetching != null) return
@@ -185,5 +197,24 @@ fun mineWord(context: Context, settings: Settings, ctl: SceneController, picker:
                 ctl.words[key]?.let { w -> ctl.words[key] = w.copy(card = "b") }
             }
             .onFailure { say(it.message ?: it.toString()) }
+    }
+}
+
+/**
+ * The words coloured by this TV's kuma3 (blue mined, green due, white studied), as the phone colours them; the PC's
+ * colours stay (red) without kuma3 or its permission. Japanese: each written form by its own card too.
+ */
+suspend fun paintCards(context: Context, settings: Settings, ctl: SceneController) {
+    val language = TvMining.languages(context, settings).of(ctl.lang)
+    val known = language.known
+    if (!runCatching { known.readCards() }.onFailure { Log.w("kumapie", "cards: $it") }.getOrDefault(false)) return
+    val written = if (language !is Japanese) emptyMap() else ctl.episode.scenes.asSequence().flatMap { it.cues }.flatMap { it.segments }
+        .filter { it.word != null }.groupBy({ it.word!! }, { it.text })
+    // "u" (no card of its own) keeps the PC's colour: the PC knows words without cards (Jiten lists, marked, the
+    // phone's parses); the TV has none of those, so "u" drew せっかく, のに... red (user, 2026-10-22).
+    for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w ->
+        known.paint(k, w.copy(forms = written[k]?.associateWith { "" }))
+            .let { p -> p.copy(card = p.card?.takeUnless { it == "u" }, forms = p.forms?.mapValues { (_, s) -> if (s == "u") "" else s }) }
+            .let { n -> if (n != w) ctl.words[k] = n }
     }
 }

@@ -139,6 +139,24 @@ def cues(transcript_json: str) -> str:
 
 # ---------------------------------------------------------------- scenes (tools/feed/feed.py)
 
+def unsplit(cues):
+    """Subtitles converted from styled ones cut a line that overlaps another into slices, each a cue with the same
+    text, the next starting the ms the last ends (BOFURI 11: ホーリージャベリン 7:09.908-7:10.325, 7:10.325-7:11.618);
+    kumapie's scene box listed each. -> (the kept cues' indices, the cues with each line once, its end the last
+    slice's). Only for Japanese ([build]): its subtitles are downloaded ones; German and English are mostly our
+    transcripts, whose cues touch, so "What?" "What?" there is said twice."""
+    kept, out, last = [], [], {}  # last: text -> its cue in out
+    for i, (a, b, t) in enumerate(cues):
+        j = last.get(t)
+        if j is not None and abs(a - out[j][1]) <= 0.001:
+            out[j] = (out[j][0], b, t)
+            continue
+        last[t] = len(out)
+        kept.append(i)
+        out.append((a, b, t))
+    return kept, out
+
+
 def split_run(run, max_secs):
     if len(run) == 1 or run[-1][1] - run[0][0] <= max_secs:
         return [run]
@@ -224,7 +242,9 @@ def build(model_dir: str, episode_id: str, show: str, title: str, duration: floa
     [[surface, offset, dictionary form or None, None]]: Sudachi for Japanese)."""
     cues = [tuple(c) for c in json.loads(cues_json)]
     english = json.loads(english_json)
-    given = iter(json.loads(parsed_json)) if parsed_json else None
+    kept, cues = unsplit(cues) if lang == "ja" else (range(len(cues)), cues)
+    given = json.loads(parsed_json) if parsed_json else None
+    given = iter([given[i] for i in kept]) if given is not None else None
     mz = _morphemizer(model_dir) if given is None else None
     scenes, words, lemmas = [], {}, {}
     plan = []
@@ -261,3 +281,9 @@ def text_segments(model_dir: str, texts_json: str) -> str:
     texts = json.loads(texts_json)
     mz = _morphemizer(model_dir)
     return json.dumps([segments(t, toks) for t, toks in zip(texts, parse(mz, texts))], ensure_ascii=False)
+
+
+if __name__ == "__main__":  # self-check: .venv python newepisode.py (kumapie-server's venv has spaCy)
+    assert unsplit([(1, 2, "a"), (1.5, 2.5, "b"), (2, 3, "a"), (3.04, 4, "a")]) == \
+        ([0, 1, 3], [(1, 3, "a"), (1.5, 2.5, "b"), (3.04, 4, "a")])
+    print("ok")

@@ -70,6 +70,8 @@ import kotlinx.coroutines.delay
 /** Loads the episode's scenes, then plays it scene by scene. */
 @Composable
 fun PlayerScreen(api: Api, settings: Settings, show: Show, episode: Episode, onClose: () -> Unit) {
+    // The video loads (index, first seconds) while the scenes are fetched and parsed, not after.
+    val player = rememberPlayer(api.videoUrl(episode.id), episode.resume)
     var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -82,22 +84,32 @@ fun PlayerScreen(api: Api, settings: Settings, show: Show, episode: Episode, onC
             error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onClose)
             detail == null -> Text("${show.title} · ${episode.title}", color = Colors.dim, fontSize = 22.sp,
                 maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.Center))
-            else -> ScenePlayer(api, settings, detail!!.copy(show = show.title), onClose) // the Home title (metadata, English)
+            else -> ScenePlayer(api, settings, detail!!.copy(show = show.title), onClose, player = player) // the Home title (metadata, English)
         }
     }
 }
 
-/** [onPlayer]: the player, once made (StreamActivity hands its position back to NuvioTV). */
+/** A player loading [video] from [resume] seconds (the start without), released with the composition. */
 @Composable
-fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: () -> Unit, onPlayer: (ExoPlayer) -> Unit = {}) {
+fun rememberPlayer(video: String, resume: Double?): ExoPlayer {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val player = remember {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(episode.video))
+            setMediaItem(MediaItem.fromUri(video), ((resume ?: 0.0) * 1000).toLong())
             prepare()
-        }.also(onPlayer)
+        }
     }
+    DisposableEffect(Unit) { onDispose { player.release() } }
+    return player
+}
+
+/** [onPlayer]: the player, once made (StreamActivity hands its position back to NuvioTV). */
+@Composable
+fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: () -> Unit, onPlayer: (ExoPlayer) -> Unit = {},
+                player: ExoPlayer = rememberPlayer(episode.video, episode.resume)) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    remember { onPlayer(player) }
     val ctl = remember { SceneController(episode, player, settings, api) }
     val picker = remember { WordPicker(ctl, api, scope) }
     var options by remember { mutableStateOf(false) }
@@ -151,8 +163,7 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
         onDispose {
             ctl.tick()
             ctl.report()
-            picker.release()
-            player.release()
+            picker.release() // the player: rememberPlayer's dispose, after this one
             view.keepScreenOn = false
         }
     }

@@ -53,7 +53,11 @@ class Api(private val base: String, private val person: String = "") : Backend {
         }
     }
 
-    suspend fun episode(id: String): EpisodeDetail = parseEpisode(episodeJson(id))
+    /** Parsed off the main thread: an episode is ~800 KB of JSON, a second on a TV's CPU. */
+    suspend fun episode(id: String): EpisodeDetail = withContext(Dispatchers.Default) { parseEpisode(episodeJson(id)) }
+
+    /** The episode's video, known before its scenes are: the player starts loading it meanwhile. */
+    fun videoUrl(id: String): String = url("/api/tv/video/$id")
 
     /** An episode as the server sends it (the phone saves it with a downloaded episode). */
     suspend fun episodeJson(id: String): String = get("/api/tv/episode/$id")

@@ -247,6 +247,12 @@ private object PopupWeb {
     fun get(context: Context): WebView = web ?: WebView(context.applicationContext).apply {
         setBackgroundColor(0)
         settings.javaScriptEnabled = true
+        // A drag that starts on the cards scrolls the cards: the feed's pager (or any scroll around the card) mustn't take
+        // it (user, 2026-10-24: in the feed a drag on a meaning moved the page half way and back; the cards never scrolled).
+        setOnTouchListener { v, e ->
+            if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) v.parent?.requestDisallowInterceptTouchEvent(true)
+            false
+        }
         addJavascriptInterface(object {
             @JavascriptInterface fun toggled(dict: String, open: Boolean) = onToggle(dict, open)
             /** A word in a card (form-of "... of denken"): show its tab. */

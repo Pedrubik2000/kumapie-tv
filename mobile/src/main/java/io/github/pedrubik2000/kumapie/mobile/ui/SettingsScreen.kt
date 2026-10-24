@@ -494,6 +494,21 @@ private fun DictionarySection(library: Library) {
         Text(if (built == null) tr("Download the recordings list") else tr("Update the recordings list"))
     }
     if (voice.isNotEmpty()) Text(voice, fontSize = 14.sp, color = Colors.dim)
+    // Better offline voices than the device's (local/NeuralVoices.kt), one download each, on Wi-Fi.
+    val voices = remember { io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices(context) }
+    library.languages.all.map { it.lang }.filter { it in io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices.VOICES }.forEach { l ->
+        val spec = io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices.VOICES.getValue(l)
+        val vState by remember(l) { voices.state(l) }.collectAsState(initial = null)
+        var vReady by remember(l) { mutableStateOf(voices.isReady(l)) }
+        LaunchedEffect(vState) { vReady = voices.isReady(l) }
+        when {
+            vReady -> Text(tr("%1\$s words without a recording: %2\$s's voice, on this device.", l.displayName, spec.name), fontSize = 14.sp)
+            vState != null -> Text(tr("%1\$s voice: %2\$s", l.displayName, vState), fontSize = 14.sp, color = Colors.dim)
+            else -> OutlinedButton(onClick = { voices.download(l) }) {
+                Text(tr("Download %1\$s's %2\$s voice (about %3\$d MB, on Wi-Fi)", spec.name, l.displayName, spec.mb))
+            }
+        }
+    }
     OutlinedButton(onClick = {
         runCatching { context.startActivity(android.content.Intent("com.android.settings.TTS_SETTINGS")) }
     }) { Text(tr("Speech settings")) }

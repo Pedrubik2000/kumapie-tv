@@ -17,6 +17,8 @@ import kotlin.coroutines.resume
  * engine's settings).
  */
 class Voice(context: Context, private val lang: Lang = Lang.GERMAN) {
+    private val cache = File(context.cacheDir, "voice").apply { mkdirs() }
+    private var player: android.media.MediaPlayer? = null
     @Volatile private var ready = false
     private var pending: String? = null
     private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
@@ -28,6 +30,25 @@ class Voice(context: Context, private val lang: Lang = Lang.GERMAN) {
     }
 
     fun speak(text: String) {
+        val n = neural
+        if (n != null) { // the downloaded voice says it into a file (kept), played here; else the device's voice
+            Thread {
+                val f = File(cache, "${lang.code}-${text.hashCode().toUInt()}.wav")
+                if (f.exists() || runCatching { n(lang, text, f) }.getOrDefault(false)) play(f) else speakDevice(text)
+            }.start()
+            return
+        }
+        speakDevice(text)
+    }
+
+    private fun play(f: File) = android.os.Handler(android.os.Looper.getMainLooper()).post {
+        player?.release()
+        player = android.media.MediaPlayer().apply {
+            runCatching { setDataSource(f.path); prepare(); start() }.onFailure { f.delete() }
+        }
+    }
+
+    private fun speakDevice(text: String) {
         if (!ready) {
             pending = text
             return
@@ -37,6 +58,9 @@ class Voice(context: Context, private val lang: Lang = Lang.GERMAN) {
 
     /** Says [text] into a WAV file (a mined card's word audio); false if the voice can't. */
     suspend fun toFile(text: String, out: File): Boolean {
+        neural?.let { n ->
+            if (kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { n(lang, text, out) }.getOrDefault(false) }) return true
+        }
         repeat(20) { if (!ready) delay(150) } // the engine may still be starting
         if (!ready) return false
         val id = "file-" + System.nanoTime()
@@ -56,6 +80,12 @@ class Voice(context: Context, private val lang: Lang = Lang.GERMAN) {
 
     fun stop() {
         tts.stop()
+        player?.stop()
+    }
+
+    companion object {
+        /** A better offline voice the app has downloaded (kumapie mobile's NeuralVoices): text into a WAV, false when it has none. */
+        @Volatile var neural: ((Lang, String, File) -> Boolean)? = null
     }
 
     /** For Settings: whether a German voice works without internet. */

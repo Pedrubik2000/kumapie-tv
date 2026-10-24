@@ -274,7 +274,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             "its shows, a few minutes an episode. A season link brings the whole season.", spoken)
             else tr("AniWorld and TikTok links need the PC: Settings > server and whose device it is."), color = Colors.dim, fontSize = 13.sp)
         pcJobs.forEach { Text(it, fontSize = 14.sp) }
-        jobs.forEach { Text(it.stage, fontSize = 14.sp) }
+        // Only jobs still going: finished and failed ones (an old failure's text stayed here) are in Downloads.
+        jobs.filter { it.state == "running" || it.state == "waiting" }.forEach { Text(it.stage, fontSize = 14.sp) }
     }
 }
 

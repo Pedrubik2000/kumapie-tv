@@ -620,6 +620,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
         fun isYouTube(url: String) = Regex("""^https?://([\w-]+\.)?(youtube\.com|youtu\.be)/""").containsMatchIn(url)
         fun isTikTok(url: String) = Regex("""^https?://([\w-]+\.)?tiktok\.com/""").containsMatchIn(url)
+        /** A TikTok account (not one video): the PC makes its newest videos, and following it goes through the PC. */
+        fun isTikTokAccount(url: String) = Regex("""^https://((www|m)\.)?tiktok\.com/@[\w.-]+/?(\?[\w=&.%-]*)?$""").matches(url.trim())
         /** Downloaded by yt-dlp (python/youtube.py), not Real-Debrid: YouTube, and single TikTok videos (reels). */
         fun viaYtDlp(url: String) = isYouTube(url) || isTikTok(url)
 

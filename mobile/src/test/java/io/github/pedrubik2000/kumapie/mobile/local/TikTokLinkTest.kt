@@ -12,4 +12,11 @@ class TikTokLinkTest {
         assertEquals("reels", LocalEpisodes.category(link, "de", null))
         assertEquals("youtube", LocalEpisodes.category("https://www.youtube.com/watch?v=jNQXAC9IVRw", "de", null))
     }
+
+    @Test fun anAccountIsNotAVideo() {
+        assertTrue(ProcessWorker.isTikTokAccount("https://www.tiktok.com/@tagesschau"))
+        assertTrue(ProcessWorker.isTikTokAccount("https://www.tiktok.com/@ard.de/?lang=de"))
+        assertTrue(!ProcessWorker.isTikTokAccount("https://www.tiktok.com/@tagesschau/video/7695816255625874710"))
+        assertTrue(!ProcessWorker.isTikTokAccount("https://www.youtube.com/@tagesschau"))
+    }
 }

@@ -89,6 +89,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
     }
     val needsRd = links.any { !ProcessWorker.viaYtDlp(it) && !isAniWorld(it) } // the PC gets this device's token too
     val youtube = links.any { ProcessWorker.isYouTube(it) }
+    val tiktokAccount = links.any { ProcessWorker.isTikTokAccount(it) }
     val channelLink = links.any { Regex("""youtube\.com/(@|channel/|c/|user/)""").containsMatchIn(it) }
     val playlistLink = links.any { "list=" in it }
     // YouTube: this video, or the newest shorts / videos of its channel, or the playlist.
@@ -141,13 +142,15 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                     androidx.compose.material3.FilterChip(selected = ytKind == k, onClick = { ytKind = k }, label = { Text(label) })
                 }
             }
-            if (ytKind != "video") OutlinedTextField(ytCount, { ytCount = it.filter(Char::isDigit).take(3) },
-                label = { Text(tr("How many (newest first)")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            if (ytKind == "shorts" || ytKind == "videos") androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text(tr("Follow: new ones (and older ones not here) download by themselves, at night (Settings)"), fontSize = 14.sp,
-                    modifier = Modifier.weight(1f))
-                androidx.compose.material3.Switch(checked = follow, onCheckedChange = { follow = it })
-            }
+        }
+        // A channel's (or a TikTok account's: always its videos) newest few, and following it.
+        val listKind = if (youtube) ytKind else if (tiktokAccount) "videos" else "video"
+        if (listKind != "video") OutlinedTextField(ytCount, { ytCount = it.filter(Char::isDigit).take(3) },
+            label = { Text(tr("How many (newest first)")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        if (listKind == "shorts" || listKind == "videos") androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(tr("Follow: new ones (and older ones not here) download by themselves, at night (Settings)"), fontSize = 14.sp,
+                modifier = Modifier.weight(1f))
+            androidx.compose.material3.Switch(checked = follow, onCheckedChange = { follow = it })
         }
         OutlinedTextField(show, { show = it; match = null }, label = { Text(tr("Show (blank: the channel's / file's name)")) }, singleLine = true,
             modifier = Modifier.fillMaxWidth(),
@@ -226,7 +229,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                     !(needsRd && library.settings.rdToken.isBlank()),
                 onClick = {
                     links.forEach { l ->
-                        val kind = if (ProcessWorker.isYouTube(l) && ytKind != "video") ytKind else null
+                        val kind = if (ProcessWorker.isYouTube(l) && ytKind != "video") ytKind
+                            else if (ProcessWorker.isTikTokAccount(l)) "videos" else null
                         val toPc = l in pcLinks
                         if (follow && (kind == "shorts" || kind == "videos")) io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).add(
                             io.github.pedrubik2000.kumapie.mobile.local.Subscriptions.Sub(l, show, kind, lang.code, 5, pc = toPc))

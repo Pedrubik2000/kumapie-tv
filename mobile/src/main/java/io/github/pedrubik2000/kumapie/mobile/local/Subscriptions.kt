@@ -132,6 +132,14 @@ class SubscriptionWorker(context: Context, params: WorkerParameters) : Coroutine
         // Videos already here or already queued (made here: their source link).
         val have = (local.entries().map { ProcessWorker.idFor(it.source) } + subs.sentToPc()).toMutableSet()
         for (sub in subs.all().filter { it.here }) runCatching { // the others download on their own device
+            if (ProcessWorker.isTikTok(sub.url)) { // this device's Python can't list TikTok: the PC does, once a night
+                // ponytail: only the newest [perRun] (the PC skips those it has); older ones aren't fetched back
+                if (System.currentTimeMillis() - sub.lastCheck < 20 * 3_600_000L) return@runCatching
+                ProcessWorker.start(applicationContext, sub.url, sub.name.ifBlank { null }, settings.videoHeight, Lang.of(sub.lang),
+                    settings.transcriber, settings.englishSource, kind = "videos", count = sub.perRun, pc = true)
+                subs.save(subs.all().map { if (it.key == sub.key) it.copy(lastCheck = System.currentTimeMillis()) else it })
+                return@runCatching
+            }
             // Look a bit deeper than one run's share, so older videos are found once the newest are here.
             val urls = JSONArray(yt.callAttr("listing", sub.url, sub.kind, 200, qjs).toString())
             var queued = 0

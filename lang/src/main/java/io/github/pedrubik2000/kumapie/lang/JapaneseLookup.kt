@@ -89,7 +89,12 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             ?: Headword(term.expression, readingOf(term), listOf(term))
         out += Form(matched, model.parse(listOf(matched)).first().joinToString("") { hiragana(it.reading) }, head)
         out += Form(term.expression, head.reading, head)
-        return out.filterNot { written != w.surface && it.written == w.surface }.distinctBy { it.key }
+        // A conjugated form is never a row of its own (user, 2026-10-24): 離れてて and 気にしない rate as 離れる and
+        // 気にする, when that dictionary form has a row.
+        val dictionary = setOf(w.base, term.expression)
+        val conjugated = { f: Form -> f.written !in dictionary && out.any { it.written in dictionary } &&
+            (f.written == written || f.written == matched) && (w.surface != w.base || matched != term.expression) }
+        return out.filterNot { written != w.surface && it.written == w.surface }.filterNot(conjugated).distinctBy { it.key }
     }
 
     /** The term has a bilingual dictionary's entry (an English meaning for a card). */

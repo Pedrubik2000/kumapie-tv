@@ -74,7 +74,7 @@ android {
 
     // libqjs.so (QuickJS, tools/quickjs/build.sh) is a program, run from the native library folder: it must be
     // unpacked there at install.
-    packaging { jniLibs { useLegacyPackaging = true } }
+    packaging { jniLibs { useLegacyPackaging = true; pickFirsts += "lib/**/libc++_shared.so" } }
 
     dependenciesInfo {
         includeInApk = false
@@ -110,8 +110,33 @@ if (!sherpaAar.exists()) {
     sherpaAar.writeBytes(url.readBytes())
 }
 
+// VOICEVOX core (ずんだもん's word audio, local/NeuralVoices.kt; Pedro agreed to VOICEVOX's terms 2026-10-24): its
+// Android AAR from the release's java_packages.zip, and VOICEVOX's ONNX Runtime build (the voice models need it), fetched
+// once into build/. The voice model and Open JTalk's dictionary are downloaded on the device.
+val vvVersion = "0.17.1"
+val vvOrtVersion = "1.23.2"
+val vvAar = layout.buildDirectory.file("libs/voicevoxcore-android-$vvVersion.aar").get().asFile
+val vvOrt = layout.buildDirectory.dir("vvort").get().asFile
+if (!vvAar.exists() || !File(vvOrt, "arm64-v8a/libvoicevox_onnxruntime.so").exists()) {
+    val tmp = layout.buildDirectory.dir("tmp/vv").get().asFile.apply { mkdirs() }
+    val zip = File(tmp, "java_packages.zip").apply {
+        writeBytes(uri("https://github.com/VOICEVOX/voicevox_core/releases/download/$vvVersion/java_packages.zip").toURL().readBytes())
+    }
+    copy { from(zipTree(zip)); include("**/voicevoxcore-android-$vvVersion.aar"); eachFile { path = name }; into(vvAar.parentFile) }
+    val tgz = File(tmp, "ort.tgz").apply {
+        writeBytes(uri("https://github.com/VOICEVOX/onnxruntime-builder/releases/download/voicevox_onnxruntime-$vvOrtVersion/" +
+            "voicevox_onnxruntime-android-arm64-$vvOrtVersion.tgz").toURL().readBytes())
+    }
+    copy { from(tarTree(resources.gzip(tgz))); include("**/libvoicevox_onnxruntime.so"); eachFile { path = "arm64-v8a/$name" }; into(vvOrt) }
+}
+android.sourceSets.getByName("main").jniLibs.srcDir(vvOrt)
+
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    implementation(files(vvAar))
+    implementation("com.google.code.gson:gson:2.10.1") // VOICEVOX's Java API needs these three (its .module file)
+    implementation("jakarta.annotation:jakarta.annotation-api:2.1.1")
+    implementation("jakarta.validation:jakarta.validation-api:3.0.2")
     implementation(project(":core"))
     implementation(project(":lang")) // the language layer (Languages)
     implementation(files(sherpaAar))

@@ -666,7 +666,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             val url = input.getString(URL) ?: return
             enqueue(context, url, input.getString(SHOW), input.getInt(HEIGHT, 720), Lang.of(input.getString(LANG)),
                 input.getString(TRANSCRIBER) ?: "soniox", input.getString(ENGLISH) ?: "device", input.getBoolean(PART, false),
-                input.getString(KIND), input.getInt(COUNT, 10), input.getString(LABEL), input.getString(TYPE), input.getString(MATCH))
+                input.getString(KIND), input.getInt(COUNT, 10), input.getString(LABEL), input.getString(TYPE), input.getString(MATCH),
+                pc = input.getBoolean(PC, false)) // a PC job goes to the PC again (a TikTok account can't be listed here)
         }
 
         /** The connection was gone (no DNS, no route): worth waiting for, unlike a real failure. */

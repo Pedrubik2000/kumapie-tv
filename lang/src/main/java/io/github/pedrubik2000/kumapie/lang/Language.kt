@@ -217,7 +217,8 @@ class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionarie
     override fun wordOfMark(key: String) = markWord(key, null)
 
     override fun say(hw: Headword) {
-        scope.launch { if (!audio.play(hw.expression, hw.reading)) voice.speak(hw.reading.ifBlank { hw.expression }) }
+        // Said as written: the voice picks the reading and the accent (箸 vs 橋; Pedro 2026-10-24).
+        scope.launch { if (!audio.play(hw.expression, hw.reading)) voice.speak(hw.expression) }
     }
 }
 

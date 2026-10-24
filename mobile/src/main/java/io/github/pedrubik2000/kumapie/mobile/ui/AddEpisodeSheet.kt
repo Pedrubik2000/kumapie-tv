@@ -275,7 +275,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             "episode comes to this device with the PC's shows, on Wi-Fi. Jobs run there one after another."),
             color = Colors.dim, fontSize = 13.sp) }
         else if (links.any(::isAniWorld)) Text(if (pc) tr("AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to " +
-            "its shows, a few minutes an episode. A season link brings the whole season.", spoken)
+            "its shows, a few minutes an episode. A season link brings the whole season, the show's own link every season.", spoken)
             else tr("AniWorld and TikTok links need the PC: Settings > server and whose device it is."), color = Colors.dim, fontSize = 13.sp)
         pcJobs.forEach { Text(it, fontSize = 14.sp) }
         // Only jobs still going: finished and failed ones (an old failure's text stayed here) are in Downloads.

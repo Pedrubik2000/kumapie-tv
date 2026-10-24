@@ -4,8 +4,8 @@ internal val esAdd: Map<String, String> = mapOf(
     // Add an episode (AddEpisodeSheet)
     "Add an episode" to "Agregar un episodio",
     "YouTube, TikTok, AniWorld, magnet or Real-Debrid links (one or several)" to "Enlaces de YouTube, TikTok, AniWorld, magnet o Real-Debrid (uno o varios)",
-    "AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to its shows, a few minutes an episode. A season link brings the whole season." to
-        "AniWorld: el PC descarga el doblaje en %s, lo transcribe (Parakeet) y lo añade a sus series, unos minutos por episodio. Un enlace de temporada trae la temporada entera.",
+    "AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to its shows, a few minutes an episode. A season link brings the whole season, the show's own link every season." to
+        "AniWorld: el PC descarga el doblaje en %s, lo transcribe (Parakeet) y lo añade a sus series, unos minutos por episodio. Un enlace de temporada trae la temporada entera; el de la serie, todas las temporadas.",
     "AniWorld links need the PC: Settings > server and whose device it is." to "Los enlaces de AniWorld necesitan el PC: Ajustes > servidor y de quién es el dispositivo.",
     "Make it on" to "Hacerlo en",
     "This device" to "Este dispositivo",

@@ -137,7 +137,13 @@ class SceneController(
         showBanner()
     }
 
-    fun nextScene() = playScene(index + 1)
+    /** "Next" from the last scene: the show's next episode (the phone/tablet player); null: the last scene again. */
+    var onEpisodeEnd: (() -> Unit)? = null
+
+    fun nextScene() {
+        val next = onEpisodeEnd
+        if (index >= scenes.lastIndex && next != null) next() else playScene(index + 1)
+    }
     /** Back in the first scene goes to 00:00, not the scene's start. */
     fun previousScene() { if (index > 0) playScene(index - 1) else { playScene(0); seek(0.0) } }
     fun replayScene() = playScene(index)
@@ -165,7 +171,7 @@ class SceneController(
             atSceneEnd && newStraight && !episode.novel && index < scenes.lastIndex -> { // play on through the gap into the next scene
                 atSceneEnd = false; stopAt = null; player.play(); playing = true
             }
-            atSceneEnd -> if (index < scenes.lastIndex) nextScene() else replayScene()
+            atSceneEnd -> if (index < scenes.lastIndex || onEpisodeEnd != null) nextScene() else replayScene()
             else -> { stopAtSceneEnd(); player.play(); playing = true }
         }
         showBanner()

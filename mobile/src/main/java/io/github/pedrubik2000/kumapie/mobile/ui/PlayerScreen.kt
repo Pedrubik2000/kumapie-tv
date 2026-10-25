@@ -97,7 +97,10 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** Loads the episode (from the PC, or its download), then plays it scene by scene, full screen in landscape. */
 @Composable
-fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double? = null, onBack: () -> Unit) {
+fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double? = null, onBack: () -> Unit,
+                 onNextEpisode: ((Episode) -> Unit)? = null) {
+    // "Next" from the last scene opens the show's next episode (user, 2026-10-25: it replayed the last scene).
+    val nextEpisode = show.episodes.indexOfFirst { it.id == episode.id }.takeIf { it >= 0 }?.let { show.episodes.getOrNull(it + 1) }
     var upright by remember { mutableStateOf(library.settings.upright) }
     // Upright: the same player (one video for the episode), held upright, swipe left/right for the scenes.
     key(upright) { FullScreen(if (upright) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) }
@@ -129,6 +132,7 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
             else -> key(System.identityHashCode(d)) {
                 ScenePlayer(library, library.settings, library.backend(d.lang), d, startPaused = startAt != null, onBack,
                     onUpright = { upright = !upright; library.settings.upright = upright }, uprightNow = upright,
+                    onEpisodeEnd = if (nextEpisode == null || onNextEpisode == null) null else ({ onNextEpisode(nextEpisode) }),
                     // Subtitle timing (episodes made here): moves every line, then reloads the episode where it was.
                     onShift = if (!io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(d.id)) null else ({ secs, at ->
                         library.local.shift(d.id, secs)
@@ -188,6 +192,8 @@ internal fun ScenePlayer(
     onShift: ((Double, Double) -> Unit)? = null,
     /** A player already opened on [episode] (the feed's next page, buffered while the last one played); released here. */
     preloaded: ExoPlayer? = null,
+    /** "Next" from the last scene ([SceneController.onEpisodeEnd]); null: the last scene again. */
+    onEpisodeEnd: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -198,6 +204,7 @@ internal fun ScenePlayer(
         }
     }
     val ctl = remember { SceneController(episode, player, settings, backend) }
+    ctl.onEpisodeEnd = onEpisodeEnd
     // A novel's music: its own player, so it goes on while a line waits for the tap; quiet under the voices (0.4 was too loud).
     val bgm = remember { if (!episode.novel) null else ExoPlayer.Builder(context).build().apply { repeatMode = Player.REPEAT_MODE_ONE; volume = 0.25f } }
     val track = if (bgm == null) null else ctl.scene.bgm

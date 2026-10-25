@@ -28,7 +28,8 @@ class CardIndexTest {
         index.update(emptyList(), mapOf(20L to "review"))
         assertEquals("k", index.state("schlägt")) // learning, not due: white
         index.update(emptyList(), null)
-        assertEquals(null, index.state("gehen")) // kuma3's queue unknown: old colours
+        assertEquals("b", index.state("Hausnummer")) // a queue read that failed keeps the last one (mined words stay blue)
+        assertEquals(null, CardIndex().state("gehen")) // kuma3's queue never read: old colours
     }
 
     @Test fun japanese() {

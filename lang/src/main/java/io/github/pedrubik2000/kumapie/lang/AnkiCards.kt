@@ -68,7 +68,7 @@ class AnkiCards(private val context: Context) {
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/kuma3/due"), null, null, null, null)?.use { c ->
             HashMap<Long, String>().apply { while (c.moveToNext()) put(c.getLong(0), c.getString(1)) }
         }
-    }.getOrNull()
+    }.onFailure { android.util.Log.w("kumapie", "kuma3 queue not read: $it") }.getOrNull()
 
     /** Answers a card as kuma3's reviewer does (FSRS-7, RWKV and the review log see it); [ease] 1 Again .. 4 Easy. */
     fun answer(pkg: String, noteId: Long, ord: Int, ease: Int, ms: Long) {

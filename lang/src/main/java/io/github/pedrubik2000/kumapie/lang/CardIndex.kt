@@ -16,14 +16,15 @@ class CardIndex {
         val keysOf = notes.associate { it.id to keys(it) }.filterValues { it.isNotEmpty() }
         byForm = cards.filter { it.noteId in keysOf }.flatMap { c -> keysOf[c.noteId]!!.map { it to c } }
             .groupBy({ it.first }, { it.second })
-        this.due = due
+        this.due = due ?: this.due
     }
 
     /** Cards read again (after a rating or Undo; none: only the queue) and kuma3's queue now. */
     fun update(fresh: List<AnkiCards.Card>, due: Map<Long, String>?) {
         val byId = fresh.associateBy { it.id }
         byForm = byForm.mapValues { (_, cs) -> cs.map { byId[it.id] ?: it } }
-        this.due = due
+        // A read that failed (null) keeps the last queue: null here drew every mined and due word red (2026-10-25).
+        this.due = due ?: this.due
     }
 
     /**

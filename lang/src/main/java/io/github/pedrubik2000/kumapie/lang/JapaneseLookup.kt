@@ -115,7 +115,9 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
          * "①…"), examples (after ► or ・) dropped, headword and tags out ([meaning]), at most 90 characters.
          */
         /** English meanings only: no Japanese example lines, no English example sentences ("What will be the end of all this?"). */
-        fun bilingualMeanings(entry: String): List<String> = meanings(entry, Int.MAX_VALUE).filter { m ->
+        // The English Sankoku/Daijirin: "ゆ きり ［湯切 り ］ ｟名 ・他サ ｠; 〘料 〙 The act of draining〔＝よけいな…〕 hot water…":
+        // its part of speech ｟…｠ holds a " ・" (an example's start for [meanings]) and its 〔…〕 notes sit inside the English.
+        fun bilingualMeanings(entry: String): List<String> = meanings(entry.replace(Regex("""｟[^｠]*｠|〔[^〕]*〕"""), ""), Int.MAX_VALUE).filter { m ->
             m.any { it in 'a'..'z' } && !(m.first().isUpperCase() && m.count { it == ' ' } >= 4 && m.trimEnd().last() in ".?!")
         }.flatMap { m ->
             // Jitendex packs whole entries into one string: "1-dan transitive; to eat; もっと果物を…; You should eat more fruit.;
@@ -123,10 +125,12 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             // a Japanese example ends a sense, the piece after it is its translation; no "See also", no tag-only piece.
             val senses = mutableListOf(mutableListOf<String>())
             var translation = false
+            var seenEnglish = false // Japanese before any English is the headword ("ゆ きり"), not an example
             for (p in m.split(';', '；').map(::englishPart).filter { it.isNotEmpty() }) {
                 val english = p.any { it in 'a'..'z' || it in 'A'..'Z' }
+                if (english) seenEnglish = true
                 when {
-                    !english -> { if (senses.last().isNotEmpty()) senses += mutableListOf<String>(); translation = true }
+                    !english -> { if (senses.last().isNotEmpty()) senses += mutableListOf<String>(); translation = seenEnglish }
                     translation -> translation = false
                     p.startsWith("See also") || p.lowercase().split(' ').all { w -> w in TAGS || w.matches(Regex("""\d*-?dan""")) } -> {}
                     p.any { it in 'a'..'z' } && p !in senses.last() -> senses.last() += p
@@ -141,7 +145,9 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             val latin = p.indexOfFirst { it in 'a'..'z' || it in 'A'..'Z' }
             if (latin < 0) return p
             val ja = p.withIndex().indexOfFirst { (i, c) -> i > latin && (c.code in 0x3040..0x30FF || c.code in 0x3400..0x9FFF || c in "《〔「【") }
-            return if (ja < 0) p else p.substring(0, ja).trimEnd(' ', '.', '。')
+            // The headword's kana before the English ("ゆ きり The act of…") is not part of the meaning.
+            val start = if (p.take(latin).any { it.code in 0x3040..0x30FF || it.code in 0x3400..0x9FFF }) latin else 0
+            return (if (ja < 0) p.substring(start) else p.substring(start, ja)).replace(Regex(" {2,}"), " ").trimEnd(' ', '.', '。')
         }
 
         /**

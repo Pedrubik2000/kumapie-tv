@@ -60,10 +60,8 @@ fun IPlusOneScreen(library: Library, shows: List<Show>, lang: String, onPlay: (S
     LaunchedEffect(Unit) {
         if (scenes != null) return@LaunchedEffect
         val found = ArrayList<Easy>()
-        val episodes = shows.flatMap { s -> s.episodes.map { s to it } }
-        episodes.forEachIndexed { i, (show, ep) ->
-            loading = tr("Reading episodes %1\$d of %2\$d…", i + 1, episodes.size)
-            val detail = runCatching { library.episode(ep.id) }.getOrNull() ?: return@forEachIndexed
+        for ((show, detail) in library.allEpisodes(shows) { loading = it }) { // four at a time, cached with the feed
+            val ep = show.episodes.firstOrNull { it.id == detail.id } ?: continue
             for (sc in detail.scenes) {
                 if (!sc.target || sc.level != 1) continue
                 val red = sc.cues.flatMap { it.segments }.firstOrNull { s -> s.word != null && detail.words[s.word]?.status == "u" }

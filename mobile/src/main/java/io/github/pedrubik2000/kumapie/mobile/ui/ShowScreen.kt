@@ -254,7 +254,8 @@ private fun ShowHeader(library: Library, show: Show, meta: org.json.JSONObject?,
         NeutralPoster(show.title, art, showTitle = false) // the header writes the title itself
         AsyncImage(image, null, contentScale = ContentScale.Crop, modifier = art)
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(
-            0f to Color.Transparent, 0.45f to Colors.background.copy(alpha = 0.35f), 1f to Colors.background)))
+            // Dark enough under the title and info: on a white poster (Nicos Weg) they were unreadable.
+            0f to Color.Transparent, 0.3f to Colors.background.copy(alpha = 0.55f), 0.6f to Colors.background.copy(alpha = 0.9f), 1f to Colors.background)))
         IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(8.dp)
             .background(Color.Black.copy(alpha = 0.4f), CircleShape)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Color.White)
@@ -374,7 +375,7 @@ internal fun MatchDialog(meta: io.github.pedrubik2000.kumapie.mobile.local.ShowM
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     kinds.forEach { (k, label) ->
                         androidx.compose.material3.FilterChip(selected = kind == k, label = { Text(label) },
                             onClick = { kind = k; find() })

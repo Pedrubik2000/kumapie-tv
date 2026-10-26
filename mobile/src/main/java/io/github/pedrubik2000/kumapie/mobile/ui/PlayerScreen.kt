@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -157,8 +158,12 @@ internal fun FullScreen(orientation: Int) {
         val bars = WindowCompat.getInsetsController(activity.window, view)
         bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         bars.hide(WindowInsetsCompat.Type.systemBars())
+        // A sheet (⋮, feed levels) is its own window and brings the bars back; they stayed over the top bar after it.
+        val refocus = android.view.ViewTreeObserver.OnWindowFocusChangeListener { if (it) bars.hide(WindowInsetsCompat.Type.systemBars()) }
+        view.viewTreeObserver.addOnWindowFocusChangeListener(refocus)
         view.keepScreenOn = true
         onDispose {
+            view.viewTreeObserver.removeOnWindowFocusChangeListener(refocus)
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             bars.show(WindowInsetsCompat.Type.systemBars())
             view.keepScreenOn = false
@@ -549,7 +554,8 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
             Text(tr("− shows the subtitles earlier, + later. Every line of the episode moves."), color = Colors.dim, fontSize = 12.sp)
         }
         Text(tr("Subtitles"), color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Scrolls: on a phone "German + English" was squeezed into three lines.
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(SubtitleMode.HIDDEN, SubtitleMode.BLURRED, SubtitleMode.TARGET, SubtitleMode.BOTH).forEach { m ->
                 FilterChip(selected = ctl.subtitles == m, onClick = { ctl.changeSubtitles(m) }, label = { Text(m.label(ctl.lang), fontSize = 12.sp) })
             }

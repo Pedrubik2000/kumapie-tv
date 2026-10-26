@@ -92,6 +92,8 @@ class SceneController(
     fun wasSeen(s: Scene) = s.seen || s.id in seenHere
     /** The position last sent to the server, so a paused player doesn't send the same one every 20 s. */
     private var reportedPos = episode.resume
+    /** Something played since the episode opened (a scene opened from i+1 and left at once didn't). */
+    private var played = false
     private var watchedMs = 0L
     private var lastTick = SystemClock.uptimeMillis()
     private var lastReport = SystemClock.uptimeMillis()
@@ -303,13 +305,17 @@ class SceneController(
         return cues.lastOrNull { it.start <= position + 0.05 } ?: cues.first()
     }
 
-    /** Sends where the episode is, new scenes seen and time watched. Also called when the player closes. */
+    /**
+     * Sends where the episode is, new scenes seen and time watched. Also called when the player closes. Nothing until
+     * something played: opening a scene from i+1 or Improve and leaving must not put the episode in "Continue watching".
+     */
     fun report() {
         lastReport = SystemClock.uptimeMillis()
         val seen = seenNew.toList()
         val watched = watchedMs / 1000.0
         val pos = position
-        if (seen.isEmpty() && watched < 1 && reportedPos == pos) return
+        if (watched >= 1 || seen.isNotEmpty()) played = true
+        if (!played || (seen.isEmpty() && watched < 1 && reportedPos == pos)) return
         reportedPos = pos
         seenNew.clear()
         watchedMs = 0

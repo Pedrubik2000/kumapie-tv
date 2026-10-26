@@ -215,10 +215,7 @@ fun HomeScreen(
                         Text(tr("Add a YouTube link or a video file."), color = Colors.dim, style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = { adding = true }) { Text(tr("Add an episode")) }
                     }
-                    else -> Column {
-                        LangCard(library, lang, all, onStats)
-                        Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay)
-                    }
+                    else -> Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay) { LangCard(library, lang, all, onStats) }
                 }
             }
         }
@@ -308,7 +305,7 @@ private fun HomeBar(onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Rows(library: Library, shows: List<Show>, states: Map<String, DownloadState>, wide: Boolean,
-                 onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit) {
+                 onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit, header: @Composable () -> Unit) {
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows) // novels are read, not watched: they count too
     // Resume column beside the library only at expanded width (a tablet on its side); upright it's one column.
     val split = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
@@ -338,7 +335,7 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
         ResumeCard(library.poster(s.id, s.poster), s, e) { onPlay(s, e) }
     }
 
-    if (split && going.isNotEmpty()) Row(Modifier.fillMaxSize()) {
+    if (split && going.isNotEmpty()) Column { header(); Row(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.weight(0.42f).fillMaxHeight()) {
         // A phone on its side is short: the card narrows until its art and text fit the height (~110 dp under the art).
         val cardWidth = minOf(maxWidth, (maxHeight - 126.dp) * 16f / 9f + 32.dp)
@@ -349,11 +346,13 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
         }
         }
         Column(Modifier.weight(0.58f).fillMaxHeight().verticalScroll(rememberScrollState())) { tabs(); grid(posterWidth(true)) }
-    } else BoxWithConstraints(Modifier.fillMaxSize()) {
+    } } else BoxWithConstraints(Modifier.fillMaxSize()) {
         // A phone: three posters across (more on its side); a tablet with nothing in progress: the tablet's poster size.
         val across = maxOf(3, (maxWidth / 130.dp).toInt())
-        val width = if (wide) posterWidth(true) else (maxWidth - 32.dp - 12.dp * (across - 1)) / across
+        // 1 dp spare: rounded to pixels the exact fit was 1 px too wide on the Pixel 8a, so only two went across.
+        val width = if (wide) posterWidth(true) else (maxWidth - 33.dp - 12.dp * (across - 1)) / across
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
+            item(key = "card") { header() } // scrolls away: pinned, it took a third of a phone's list
             if (going.isNotEmpty()) item(key = "resume") { Box(Modifier.widthIn(max = 600.dp)) { resume() } } // on its side: not a screen-tall card
             if (going.size > 1) item(key = "going") {
                 Column(Modifier.widthIn(max = 600.dp).padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

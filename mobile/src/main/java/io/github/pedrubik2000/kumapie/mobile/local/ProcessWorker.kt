@@ -405,7 +405,8 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         report(tr("Sending to the PC…"), 1f)
         api.makeOnPc(lang.code, job)
         Subscriptions(applicationContext).markSent(idFor(url))
-        shown = tr("Sent to the PC: %s", what)
+        // The language it goes in as (the link is the row's title): a Japanese channel sent as German went unseen.
+        shown = tr("Sent to the PC as %s", tr(lang.name))
         return "Sent to the PC: $what"
     }
 

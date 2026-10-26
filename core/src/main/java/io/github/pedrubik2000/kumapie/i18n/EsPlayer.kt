@@ -86,6 +86,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Improve: %s" to "Mejorar: %s",
     "Cards that don't stick" to "Tarjetas que no se quedan",
     "%d lapses" to "%d fallos",
+    "1 lapse" to "1 fallo",
     " · stability %.1f days" to " · estabilidad %.1f días",
     "Now: %s" to "Ahora: %s",
     "Sentence" to "Frase",

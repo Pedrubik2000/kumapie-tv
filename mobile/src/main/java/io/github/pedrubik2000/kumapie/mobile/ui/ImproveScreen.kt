@@ -88,6 +88,8 @@ fun ImproveScreen(library: Library, shows: List<Show>, lang: String, onPlay: (Sh
         ImproveKept.lang = lang; ImproveKept.cards = cards; ImproveKept.card = card; ImproveKept.candidates = candidates; ImproveKept.chosen = chosen
         ImproveKept.sentence = sentence; ImproveKept.bilingual = bilingual; ImproveKept.monolingual = monolingual; ImproveKept.recording = recording
     }
+    // The card's fields in the boxes at once: filled only by the search's effect, Save in the moment before blanked them.
+    fun fill(c: io.github.pedrubik2000.kumapie.mobile.lang.Improve.Struggling) { sentence = c.sentence; bilingual = c.bilingual; monolingual = c.monolingual }
     fun leave() { ImproveKept.cards = null; ImproveKept.card = null; onBack() }
 
     LaunchedEffect(Unit) {
@@ -100,7 +102,7 @@ fun ImproveScreen(library: Library, shows: List<Show>, lang: String, onPlay: (Sh
                 val asked = withContext(Dispatchers.IO) {
                     runCatching { if (wanted != 0L) improve.forNote(wanted) else wantedWord?.let { w -> improve.forWord(w) } }.getOrNull()
                 }
-                if (asked != null) card = asked
+                if (asked != null) { card = asked; fill(asked) }
                 else if (wanted != 0L || wantedWord != null) said = tr("That card isn't in %s.", lang.let { io.github.pedrubik2000.kumapie.data.Lang.of(it).deck })
             }
             .onFailure { said = it.message ?: it.toString() }
@@ -131,10 +133,10 @@ fun ImproveScreen(library: Library, shows: List<Show>, lang: String, onPlay: (Sh
             if (c == null) {
                 items(cards.orEmpty(), key = { it.note.id }) { s ->
                     Column(Modifier.fillMaxWidth().background(Colors.surface, RoundedCornerShape(12.dp))
-                        .clickable { card = s; candidates = null }.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        .clickable { card = s; candidates = null; fill(s) }.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(s.word, fontSize = 18.sp, color = Colors.accent)
                         Text(s.sentence, fontSize = 15.sp)
-                        Text(tr("%d lapses", s.lapses) + (s.stability?.let { tr(" · stability %.1f days", it) } ?: ""), fontSize = 12.sp, color = Colors.dim)
+                        Text((if (s.lapses == 1) tr("1 lapse") else tr("%d lapses", s.lapses)) +(s.stability?.let { tr(" · stability %.1f days", it) } ?: ""), fontSize = 12.sp, color = Colors.dim)
                     }
                 }
                 return@LazyColumn

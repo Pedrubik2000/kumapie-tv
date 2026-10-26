@@ -603,7 +603,9 @@ private fun FollowedChannels(library: Library) {
     list.forEach { s ->
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text((s.name.ifBlank { s.url.substringAfter("youtube.com/").substringBefore('?') }) + " · " + (if (s.kind == "shorts") tr("shorts") else tr("videos"))
+                // Its language too: Yamanobori 0 was followed as German, which wasn't visible here (2026-10-26).
+                Text((s.name.ifBlank { s.url.substringAfter("youtube.com/").substringBefore('?') }) + " · " + tr(io.github.pedrubik2000.kumapie.data.Lang.of(s.lang).name) +
+                    " · " + (if (s.kind == "shorts") tr("shorts") else tr("videos"))
                     + if (s.here) "" else " · " + tr("downloads on %s", s.device), fontSize = 15.sp)
                 // Checked hourly inside the download hours: perRun is per check, not per night.
                 val hours = ((to - from) % 24 + 24) % 24

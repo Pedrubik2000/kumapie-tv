@@ -259,14 +259,17 @@ fun HomeScreen(
     }
 }
 
+private val shownProgress = mutableMapOf<String, Library.LangProgress>()
+
 /**
  * The first thing on Home (user, 2026-10-15): hours in this language and words known, so watching shows up as progress.
  * One tap opens Stats.
  */
 @Composable
 private fun LangCard(library: Library, lang: String, shows: List<Show>, onStats: () -> Unit) {
-    var p by remember { mutableStateOf<Library.LangProgress?>(null) }
-    LaunchedEffect(lang, shows) { p = runCatching { library.langProgress(lang, shows) }.getOrNull() }
+    // This language's last numbers while fresh ones load (~2 s): not the other language's, and the list doesn't jump.
+    var p by remember(lang) { mutableStateOf(shownProgress[lang]) }
+    LaunchedEffect(lang, shows) { p = runCatching { library.langProgress(lang, shows) }.getOrNull()?.also { shownProgress[lang] = it } }
     val s = p ?: return
     Surface(onClick = onStats, shape = RoundedCornerShape(12.dp), color = Colors.surface,
         modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {

@@ -17,6 +17,7 @@ internal val esAdd: Map<String, String> = mapOf(
     "Sending to the PC: %d%%" to "Enviando al PC: %d%%",
     "Sending to the PC…" to "Enviando al PC…",
     "Sent to the PC: %s" to "Enviado al PC: %s",
+    "Sent to the PC as %s" to "Enviado al PC en %s",
     "done" to "listo",
     "failed: %s" to "falló: %s",
     "waiting" to "en espera",

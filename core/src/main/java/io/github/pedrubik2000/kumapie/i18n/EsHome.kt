@@ -111,6 +111,7 @@ internal val esHome: Map<String, String> = mapOf(
     // i+1 scenes
     "Reading episodes %1\$d of %2\$d…" to "Leyendo episodios %1\$d de %2\$d…",
     "No i+1 scenes (episodes that can't be reached offline are skipped)." to "No hay escenas i+1 (se omiten los episodios que no se pueden abrir sin conexión).",
+    "No spoilers is on: only scenes you've watched." to "Sin spoilers está activado: solo escenas que ya viste.",
     "Shuffle" to "Mezclar",
     // Feed
     "Mark as watched" to "Marcar como visto",

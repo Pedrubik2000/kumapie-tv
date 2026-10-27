@@ -60,17 +60,23 @@ fun IPlusOneScreen(library: Library, shows: List<Show>, lang: String, onPlay: (S
     LaunchedEffect(Unit) {
         if (scenes != null) return@LaunchedEffect
         val found = ArrayList<Easy>()
-        for ((show, detail) in library.allEpisodes(shows) { loading = it }) { // four at a time, cached with the feed
+        // No spoilers on: only scenes already watched to the end, as in the feed (user, 2026-10-26: a Higurashi Day 5
+        // line showed while on Day 1); reels are short clips, nothing to spoil. Episodes with none seen aren't read.
+        val noSpoilers = library.settings.blurUnwatched
+        val wanted = if (!noSpoilers) shows else shows.map { s -> if (s.kind == "reels") s else s.copy(episodes = s.episodes.filter { it.seen > 0 }) }
+            .filter { it.episodes.isNotEmpty() }
+        for ((show, detail) in library.allEpisodes(wanted) { loading = it }) { // four at a time, cached with the feed
             val ep = show.episodes.firstOrNull { it.id == detail.id } ?: continue
             for (sc in detail.scenes) {
-                if (!sc.target || sc.level != 1) continue
+                if (!sc.target || sc.level != 1 || (noSpoilers && show.kind != "reels" && !sc.seen)) continue
                 val red = sc.cues.flatMap { it.segments }.firstOrNull { s -> s.word != null && detail.words[s.word]?.status == "u" }
                     ?: continue
                 found += Easy(show, ep, sc, red.word!!, sc.english.joinToString(" ") { it.text })
             }
         }
         scenes = found.shuffled().also { Kept.scenes = it; Kept.lang = lang }
-        loading = if (found.isEmpty()) tr("No i+1 scenes (episodes that can't be reached offline are skipped).") else ""
+        loading = if (found.isEmpty()) tr("No i+1 scenes (episodes that can't be reached offline are skipped).") +
+            (if (noSpoilers) " " + tr("No spoilers is on: only scenes you've watched.") else "") else ""
     }
     LaunchedEffect(shuffle) { if (shuffle > 0) scenes = scenes?.shuffled()?.also { Kept.scenes = it } }
 

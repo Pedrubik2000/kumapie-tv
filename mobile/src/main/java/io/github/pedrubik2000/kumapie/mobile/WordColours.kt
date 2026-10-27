@@ -149,6 +149,23 @@ class WordColours : ContentProvider() {
 
     private companion object { const val CACHED = 2000 }
 
+    /**
+     * `content://<app id>.words/say?text=…`: the Japanese text said by the downloaded ずんだもん into a WAV (Sentence
+     * Audio for cards chimahon mines from manga). Kept in the cache dir; no file when the voice isn't downloaded.
+     */
+    override fun openFile(uri: Uri, mode: String): android.os.ParcelFileDescriptor {
+        val ctx = context!!
+        val text = uri.getQueryParameter("text")
+        if (uri.lastPathSegment != "say" || text.isNullOrBlank()) throw java.io.FileNotFoundException(uri.toString())
+        val f = File(File(ctx.cacheDir, "say").apply { mkdirs() }, "ja-${text.hashCode().toUInt()}.wav")
+        if (!f.exists() && !io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices(ctx.applicationContext)
+                .say(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE, text, f)) {
+            f.delete()
+            throw java.io.FileNotFoundException("ずんだもん isn't downloaded (kumapie Settings > Word audio)")
+        }
+        return android.os.ParcelFileDescriptor.open(f, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
+    }
+
     override fun getType(uri: Uri): String? = null
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
     override fun delete(uri: Uri, selection: String?, args: Array<out String>?) = 0

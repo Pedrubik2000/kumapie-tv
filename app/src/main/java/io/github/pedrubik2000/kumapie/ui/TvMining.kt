@@ -60,6 +60,8 @@ private object TvMining {
             yomitan = YomitanDictionaries.get(app)
             dictionary = Dictionary(app)
             languages = Languages(app, settings, yomitan, dictionary!!) { _, _ -> error("no spaCy on the TV") }
+            // A TV that mines Japanese gets the zips added on the PC since, in the background.
+            if (yomitan.of(Lang.JAPANESE).isNotEmpty() && settings.server.isNotEmpty()) fetchJapanese(context, settings)
         }
         return languages
     }
@@ -69,27 +71,35 @@ private object TvMining {
         val d = dictionary!!.also { d -> if (Dictionary.RECORDINGS.any { !d.recordingsFile(it).exists() }) d.download() }
         Miner(context.applicationContext, languages, d).also { miner = it }
     }
-    /** Once: the PC's Japanese Yomitan zips (state\dicts\yomitan-ja, the phone's set) into this TV's dictionaries. */
-    fun fetchJapanese(context: Context, server: String) {
+    /**
+     * The PC's Japanese Yomitan zips (state\dicts\yomitan-ja, the phone's set) this TV hasn't imported yet (by file
+     * name), into its dictionaries: all of them the first time, then the ones added on the PC (the card dictionaries,
+     * 2026-10-30). A zip already here by title is replaced in place.
+     */
+    fun fetchJapanese(context: Context, settings: Settings) {
         if (fetching != null) return
         fetching = tr("Getting the Japanese dictionaries from the PC…")
         val app = context.applicationContext
+        val prefs = settings.prefs
         work.launch {
             runCatching {
-                val names = JSONArray(URL("$server/api/models/ja-dicts").readText())
-                for (i in 0 until names.length()) {
-                    val name = names.getString(i)
-                    fetching = tr("Getting the Japanese dictionaries from the PC (%1\$d/%2\$d)…", i + 1, names.length())
+                val all = JSONArray(URL("${settings.server}/api/models/ja-dicts").readText())
+                val names = (0 until all.length()).map { all.getString(it) } - prefs.getStringSet(FETCHED, emptySet()).orEmpty()
+                names.forEachIndexed { i, name ->
+                    fetching = tr("Getting the Japanese dictionaries from the PC (%1\$d/%2\$d)…", i + 1, names.size)
                     // Named as on the PC: "[Bilingual] JMdict….zip" gives the import its group.
                     val zip = File(app.cacheDir, name)
-                    URL("$server/api/models/ja-dicts/${Uri.encode(name)}").openStream().use { input -> zip.outputStream().use { input.copyTo(it) } }
+                    URL("${settings.server}/api/models/ja-dicts/${Uri.encode(name)}").openStream().use { input -> zip.outputStream().use { input.copyTo(it) } }
                     yomitan.import(listOf(Uri.fromFile(zip)), Lang.JAPANESE) {}.forEach { Log.i("kumapie", "ja dictionary: $it") }
                     zip.delete()
+                    prefs.edit().putStringSet(FETCHED, prefs.getStringSet(FETCHED, emptySet()).orEmpty() + name).apply()
                 }
             }.onFailure { Log.w("kumapie", "Japanese dictionaries: $it") }
             fetching = null
         }
     }
+
+    private const val FETCHED = "ja_dicts_fetched"
 }
 
 /**
@@ -155,7 +165,7 @@ fun mineWord(context: Context, settings: Settings, ctl: SceneController, picker:
     if (japanese) {
         TvMining.fetching?.let { return say(it) }
         if (TvMining.yomitan.of(Lang.JAPANESE).isEmpty()) {
-            TvMining.fetchJapanese(context, settings.server)
+            TvMining.fetchJapanese(context, settings)
             return say(tr("Getting the Japanese dictionaries from the PC (once, a few minutes): hold ↑ again after"))
         }
     }

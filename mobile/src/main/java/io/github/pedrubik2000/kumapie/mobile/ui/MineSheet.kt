@@ -272,6 +272,8 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
     var monos by remember { mutableStateOf<List<Choice>>(emptyList()) }
     var monoChosen by remember { mutableIntStateOf(0) }
     var chosen by remember { mutableIntStateOf(0) }
+    // The dictionary whose whole entry the card gets ([CardDefinition]); null: the meaning picked below.
+    var entry by remember { mutableStateOf<String?>(null) }
     var looked by remember { mutableStateOf(false) }
     var forms by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form>>(emptyList()) }
     val japanese = library.languages.japanese
@@ -296,6 +298,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         audios = null; audioChosen = 0
         launch { audios = japanese.audio.recordings(hw.expression, hw.reading).map { (source, f) -> sourceName(source) to f } }
         val c = japaneseChoices(library, hw, SensePick.english(scene, line))
+        entry = io.github.pedrubik2000.kumapie.lang.CardDefinition.find(japanese.yomitan, hw.expression, hw.reading)?.first
         monos = c.monos
         chosen = c.chosen
         choices = c.choices
@@ -320,9 +323,10 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         if (wordCard) {
             when {
                 !looked -> Text(tr("Looking up meanings…"), color = Colors.dim, fontSize = 14.sp)
+                entry != null -> Text(tr("Definition: the whole %s entry", shortDictName(entry!!)), color = Colors.text, fontSize = 15.sp)
                 choices.isEmpty() -> Text(tr("Not in your Japanese dictionaries: a sentence card is still possible."), color = Colors.dim, fontSize = 14.sp)
             }
-            choices.forEachIndexed { i, c ->
+            if (entry == null) choices.forEachIndexed { i, c ->
                 Row(Modifier.fillMaxWidth().clickable { chosen = i }, verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = chosen == i, onClick = { chosen = i })
                     Text(c.label, color = Colors.text, fontSize = 15.sp)
@@ -358,11 +362,11 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
             }
         }
     }
-        Button(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), enabled = !busy && !done && (!wordCard || choices.isNotEmpty()), onClick = {
+        Button(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), enabled = !busy && !done && (!wordCard || choices.isNotEmpty() || entry != null), onClick = {
             busy = true
             val pick = choices.getOrNull(chosen)
-            val w = if (wordCard && segment != null && pick != null && hw != null) Miner.Word(segment.text, segment.word, hw.expression,
-                pick.gloss, reading = hw.reading.takeIf { it.isNotBlank() }, pitch = hw.pitches.flatMap { it.second }.firstOrNull(), mono = monos.getOrNull(monoChosen)?.gloss,
+            val w = if (wordCard && segment != null && (pick != null || entry != null) && hw != null) Miner.Word(segment.text, segment.word, hw.expression,
+                pick?.gloss.orEmpty(), reading = hw.reading.takeIf { it.isNotBlank() }, pitch = hw.pitches.flatMap { it.second }.firstOrNull(), mono = monos.getOrNull(monoChosen)?.gloss,
                 audio = audios?.getOrNull(audioChosen)?.second)
             else null
             mining.launch {

@@ -52,6 +52,7 @@ internal val esPlayer: Map<String, String> = mapOf(
         "La frase, un clip de video de toda la escena y el %s.",
     "Added" to "Añadida",
     "Add" to "Añadir",
+    "Definition: the whole %s entry" to "Definición: la entrada completa de %s",
     "Not in your Japanese dictionaries: a sentence card is still possible." to
         "No está en tus diccionarios de japonés: aún puedes hacer una tarjeta de frase.",
     "Not in your dictionaries: the card gets no meaning." to "No está en tus diccionarios: la tarjeta no lleva significado.",

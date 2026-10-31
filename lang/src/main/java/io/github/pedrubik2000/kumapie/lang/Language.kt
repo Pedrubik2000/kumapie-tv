@@ -142,7 +142,7 @@ class Spaced(context: Context, settings: Settings, override val lang: Lang, priv
 }
 
 /** Japanese: Sudachi's word at the tap, then Yomitan's longest match ([JapaneseLookup]); recordings from JapanesePod101. */
-class Japanese(context: Context, settings: Settings, yomitan: YomitanDictionaries, private val scope: CoroutineScope) : Language {
+class Japanese(context: Context, settings: Settings, val yomitan: YomitanDictionaries, private val scope: CoroutineScope) : Language {
     private val appContext = context.applicationContext
     override val lang: Lang = Lang.JAPANESE
     /** Sudachi. */

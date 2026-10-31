@@ -266,7 +266,9 @@ class Miner(
         val kanji = expression.any { it.code in 0x3400..0x9FFF }
         val reading = w.reading?.takeIf { kanji && it.isNotBlank() }
         fields["Word"] = esc(expression) + (reading?.let { "[${esc(it)}]" } ?: "") + (w.pitch?.let { ":$it-" } ?: "")
-        fields[KnownWords.DEF_BI] = esc(w.gloss)
+        // The whole Daijirin/Sankoku (Spanish), JMdict Spanish or Jitendex entry (user, 2026-10-30); else the meaning picked.
+        fields[KnownWords.DEF_BI] = (CardDefinition.find(japanese.yomitan, expression, w.reading)
+            ?: w.formOf?.let { CardDefinition.find(japanese.yomitan, it, null) })?.second ?: esc(w.gloss)
         w.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
         val recorded = w.audio ?: japanese.audio.recording(expression, w.reading.orEmpty())
         val wav = File(dir, "word.wav").apply { delete() }

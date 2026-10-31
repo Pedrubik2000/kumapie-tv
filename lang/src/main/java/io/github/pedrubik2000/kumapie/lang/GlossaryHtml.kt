@@ -13,19 +13,19 @@ object GlossaryHtml {
     private val tags = setOf("br", "ruby", "rt", "rp", "table", "thead", "tbody", "tfoot", "tr", "td", "th", "span", "div",
         "ol", "ul", "li", "details", "summary", "a", "img")
 
-    /** One dictionary's glossary items (the raw JSON array) as a list. */
-    fun glossary(raw: String, dict: String): String = runCatching {
+    /** One dictionary's glossary items (the raw JSON array) as a list; [card]: for an Anki card ([CardDefinition]). */
+    fun glossary(raw: String, dict: String, card: Boolean = false): String = runCatching {
         val a = JSONArray(raw)
         val items = (0 until a.length()).map { i ->
             val sb = StringBuilder()
-            item(a.get(i), dict, sb)
+            item(a.get(i), dict, sb, card)
             sb.toString()
         }.filter { it.isNotBlank() }
         if (items.size == 1) "<div class=\"glossary-item\">${items[0]}</div>"
         else items.joinToString("", "<ol class=\"glossary-list\">", "</ol>") { "<li class=\"glossary-item\">$it</li>" }
     }.getOrDefault(esc(raw))
 
-    private fun item(node: Any?, dict: String, sb: StringBuilder) {
+    private fun item(node: Any?, dict: String, sb: StringBuilder, card: Boolean) {
         // A form-of item: [dictionary form, [inflection rules]].
         if (node is JSONArray && node.length() == 2 && node.opt(0) is String && node.opt(1) is JSONArray) {
             val rules = node.getJSONArray(1)
@@ -33,28 +33,28 @@ object GlossaryHtml {
                 .append("<span class=\"form-of\" onclick=\"kumapie.open(this.textContent)\">").append(esc(node.getString(0))).append("</span>")
             return
         }
-        content(node, dict, sb)
+        content(node, dict, sb, card)
     }
 
-    private fun content(node: Any?, dict: String, sb: StringBuilder) {
+    private fun content(node: Any?, dict: String, sb: StringBuilder, card: Boolean) {
         when (node) {
             null, JSONObject.NULL -> {}
             is String -> sb.append(esc(node).replace("\n", "<br>"))
-            is JSONArray -> for (i in 0 until node.length()) content(node.get(i), dict, sb)
+            is JSONArray -> for (i in 0 until node.length()) content(node.get(i), dict, sb, card)
             is JSONObject -> when (node.optString("type")) {
                 "text" -> sb.append(esc(node.optString("text")).replace("\n", "<br>"))
-                "structured-content" -> content(node.opt("content"), dict, sb)
-                "image" -> image(node, dict, sb)
-                else -> element(node, dict, sb)
+                "structured-content" -> content(node.opt("content"), dict, sb, card)
+                "image" -> image(node, dict, sb, card)
+                else -> element(node, dict, sb, card)
             }
             else -> sb.append(esc(node.toString()))
         }
     }
 
-    private fun element(node: JSONObject, dict: String, sb: StringBuilder) {
+    private fun element(node: JSONObject, dict: String, sb: StringBuilder, card: Boolean) {
         val tag = node.optString("tag")
-        if (tag == "img") return image(node, dict, sb)
-        if (tag !in tags) return content(node.opt("content"), dict, sb)
+        if (tag == "img") return image(node, dict, sb, card)
+        if (tag !in tags) return content(node.opt("content"), dict, sb, card)
         val out = if (tag == "a") "span" else tag // links would leave the popup
         sb.append('<').append(out).append(" class=\"gloss-sc-").append(tag).append('"')
         node.optJSONObject("data")?.let { d -> d.keys().forEach { k -> sb.append(" data-sc-").append(attr(k)).append("=\"").append(attr(d.optString(k))).append('"') } }
@@ -68,11 +68,14 @@ object GlossaryHtml {
         if (tag == "details" && node.optBoolean("open")) sb.append(" open")
         if (tag == "br") { sb.append('>'); return }
         sb.append('>')
-        content(node.opt("content"), dict, sb)
+        content(node.opt("content"), dict, sb, card)
         sb.append("</").append(out).append('>')
     }
 
-    private fun image(node: JSONObject, dict: String, sb: StringBuilder) {
+    private fun image(node: JSONObject, dict: String, sb: StringBuilder, card: Boolean) {
+        // ponytail: a card has no dictionary to serve images from: Daijirin's 漢/呉 marks and Sankoku's ［慣用句］ logos
+        // become their title, untitled ones (Sankoku's pitch graphs, pictures) are left out. Copy them to Anki if missed.
+        if (card) { node.optString("title").takeIf { it.isNotBlank() }?.let { sb.append("<span class=\"gloss-image-title\">").append(esc(it)).append("</span>") }; return }
         val path = node.optString("path").takeIf { it.isNotBlank() } ?: return
         sb.append("<img class=\"gloss-image\" src=\"kumapie-media://media/").append(attr(android.net.Uri.encode(dict))).append('/')
             .append(attr(android.net.Uri.encode(path, "/"))).append('"')
@@ -88,9 +91,9 @@ object GlossaryHtml {
         sb.append('>')
     }
 
-    /** {"fontSize": "0.8em", "marginLeft": 1} -> "font-size:0.8em;margin-left:1". */
+    /** {"fontSize": "0.8em", "marginLeft": 1} -> "font-size:0.8em;margin-left:1em" (a number is em, as in Yomitan). */
     private fun css(st: JSONObject): String = st.keys().asSequence().joinToString(";") { k ->
-        k.replace(Regex("[A-Z]")) { "-" + it.value.lowercase() } + ":" + st.optString(k)
+        k.replace(Regex("[A-Z]")) { "-" + it.value.lowercase() } + ":" + st.opt(k).let { if (it is Number) "${it}em" else it.toString() }
     }
 
     /** Every dictionary's CSS, each inside its own [data-dictionary="..."] block (CSS nesting). */

@@ -15,9 +15,17 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -159,17 +167,40 @@ private fun tvHeadword(y: YomitanDictionaries, text: String, offset: Int, lemma:
 }
 
 /**
- * The picked Japanese word in this TV's Yomitan dictionaries (the phone's set, fetched from the PC), under the word
- * card as on the phone and in chimahon (user, 2026-11-01): one box per dictionary, the card's order first (Daijirin
- * es, Sankoku es, JMdict Spanish, Jitendex), then the rest in import order. ↑↓ scroll it ([scrollTvDictionaries]).
+ * The TV's Japanese word card (user, 2026-11-01: the phone's and chimahon's dictionaries, then a better look), two
+ * columns over the room above the picked line: the word (reading with its pitch, the PC's short meaning, Anki state)
+ * left; right its entries in this TV's Yomitan dictionaries (the phone's set, fetched from the PC), the card's order
+ * first (Daijirin es, Sankoku es, JMdict Spanish, Jitendex), then the rest in import order, with a tab per
+ * dictionary that follows the scroll. ↑↓ go a dictionary or a page at a time ([scrollTvDictionaries]).
  */
 @Composable
-fun TvDictionaries(settings: Settings, ctl: SceneController, picker: WordPicker, height: Int) {
+fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker, height: Int) {
     val context = LocalContext.current
     val segment = picker.selected ?: return
     val key = segment.word ?: return
+    val word = ctl.words[key] ?: io.github.pedrubik2000.kumapie.data.Word("u", "")
+    var hw by remember(picker.line, picker.seg) { mutableStateOf<Headword?>(null) }
     var html by remember(picker.line, picker.seg) { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
+    Row(Modifier.width(860.dp).height(height.dp)) {
+        Column(Modifier.width(230.dp).fillMaxHeight().padding(end = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val kana = hw?.reading?.takeIf { it.isNotBlank() } ?: word.reading
+            val expression = hw?.expression ?: word.lemma.ifBlank { segment.text }
+            if (kana.isNotBlank() && kana != expression) PitchReading(kana, hw?.pitches?.flatMap { it.second }?.firstOrNull())
+            Text(expression, color = Colors.text, fontSize = 40.sp, lineHeight = 46.sp)
+            if (segment.text != expression) Text(segment.text, color = Colors.dim, fontSize = 16.sp)
+            (ctl.scene.meanings[key] ?: word.meaning).substringAfter(" = ").takeIf { it.isNotBlank() }?.let {
+                Text(it, color = Colors.text, fontSize = 19.sp, maxLines = 5, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+            val (state, color) = statusLine(word.formCard(segment.text)?.let { word.copy(card = it) } ?: word)
+            Text(state + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
+        }
+        Box(Modifier.width(1.dp).fillMaxHeight().background(Colors.dim.copy(alpha = 0.2f)))
+        val message = status ?: when (html) { null -> tr("Looking it up…"); "" -> tr("Not in your %s dictionaries.", ctl.lang.displayName); else -> null }
+        if (message != null) Text(message, color = Colors.dim, fontSize = 17.sp, modifier = Modifier.padding(start = 20.dp, top = 4.dp))
+        else DictionaryWeb(html!!, Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp))
+    }
     LaunchedEffect(picker.line, picker.seg) {
         TvMining.languages(context, settings)
         val y = TvMining.yomitan
@@ -181,25 +212,59 @@ fun TvDictionaries(settings: Settings, ctl: SceneController, picker: WordPicker,
         val offset = cue.segments.take(picker.seg).sumOf { it.text.length }
         val word = ctl.words[key]
         val lemma = ctl.scene.def(picker.line, key)?.lemma?.takeIf { it.isNotBlank() } ?: word?.lemma?.takeIf { it.isNotBlank() }
-        html = withContext(Dispatchers.IO) {
-            val hw = tvHeadword(y, cue.text, offset, lemma, word?.reading.orEmpty()) ?: return@withContext ""
+        val found = withContext(Dispatchers.IO) { tvHeadword(y, cue.text, offset, lemma, word?.reading.orEmpty()) }
+        hw = found
+        html = if (found == null) "" else withContext(Dispatchers.IO) {
             val byDict = LinkedHashMap<String, MutableList<String>>()
-            for (t in hw.terms) for (g in t.glossaries) byDict.getOrPut(g.dict) { ArrayList() }.let { if (g.raw !in it) it += g.raw }
+            for (t in found.terms) for (g in t.glossaries) byDict.getOrPut(g.dict) { ArrayList() }.let { if (g.raw !in it) it += g.raw }
             val dicts = byDict.keys.sortedBy { CardDefinition.rank(it) ?: Int.MAX_VALUE } // stable: the rest keep their order
             val css = GlossaryHtml.styles(y.styles(Lang.JAPANESE).filterKeys { it in byDict })
-            val head = GlossaryHtml.esc(hw.expression) + if (hw.reading.isNotBlank() && hw.reading != hw.expression) "【${GlossaryHtml.esc(hw.reading)}】" else ""
-            "<style>$css</style><div class=\"hw\">$head</div>" + dicts.joinToString("") { d ->
-                "<div class=\"box\" data-dictionary=\"${GlossaryHtml.esc(d).replace("\"", "&quot;")}\"><div class=\"name\">${GlossaryHtml.esc(d)}</div>" +
-                    byDict.getValue(d).joinToString("<hr>") { GlossaryHtml.glossary(it, d) } + "</div>"
+            val tabs = dicts.joinToString("") { "<span>${GlossaryHtml.esc(dictLabel(it))}</span>" }
+            "<style>$css</style><nav id=\"tabs\">$tabs</nav>" + dicts.joinToString("") { d ->
+                "<section data-dictionary=\"${GlossaryHtml.esc(d).replace("\"", "&quot;")}\"><h3>${GlossaryHtml.esc(dictLabel(d))}</h3>" +
+                    byDict.getValue(d).joinToString("<hr>") { GlossaryHtml.glossary(it, d) } + "</section>"
             }
         }
     }
-    val text = status ?: when (html) { null -> tr("Looking it up…"); "" -> tr("Not in your %s dictionaries.", ctl.lang.displayName); else -> null }
-    if (text != null) return Text(text, color = Colors.dim, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp))
-    AndroidView(modifier = Modifier.fillMaxWidth().height(height.dp).padding(top = 6.dp),
+}
+
+/** "daijirin4-gpt-6-luna es-jp" -> "Daijirin ES", "Jitendex.org [2026-10-03]" -> "Jitendex", "JMdict (Spanish)" -> "JMdict ES". */
+private fun dictLabel(title: String): String {
+    val name = Regex("[A-Za-z]+").find(title)?.value?.let { if (it.any(Char::isUpperCase)) it else it.replaceFirstChar(Char::uppercase) } ?: title.take(16)
+    val lang = when {
+        title.contains("es-jp", true) || title.contains("spanish", true) -> " ES"
+        title.contains("en-jp", true) -> " EN"
+        else -> ""
+    }
+    return name + lang
+}
+
+/** The reading in kana with its pitch drawn over it: a line over the high morae, a drop after the accented one. */
+@Composable
+private fun PitchReading(kana: String, downstep: Int?) {
+    val morae = ArrayList<String>()
+    for (c in kana) if (c in "ゃゅょぁぃぅぇぉャュョァィゥェォ" && morae.isNotEmpty()) morae[morae.lastIndex] += c else morae += c.toString()
+    fun high(i: Int, n: Int) = when (n) { 0 -> i > 0; 1 -> i == 0; else -> i in 1 until n }
+    Row {
+        morae.forEachIndexed { i, m ->
+            val up = downstep != null && high(i, downstep)
+            val drop = downstep != null && downstep > 0 && i == downstep - 1
+            Text(m, color = Colors.dim, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp).drawBehind {
+                if (up) drawLine(Colors.accent, Offset(0f, 0f), Offset(size.width, 0f), 3f)
+                if (drop) drawLine(Colors.accent, Offset(size.width, 0f), Offset(size.width, size.height * 0.45f), 3f)
+            })
+        }
+    }
+}
+
+/** The dictionaries' HTML in a WebView that never takes the remote's focus; [scrollTvDictionaries] moves it. */
+@Composable
+private fun DictionaryWeb(html: String, modifier: Modifier) {
+    AndroidView(modifier = modifier,
         factory = { ctx -> WebView(ctx).apply {
             setBackgroundColor(0)
             isFocusable = false // the remote stays with the player
+            settings.javaScriptEnabled = true // the tabs and ↑↓ (step); the page is ours, the dictionaries' HTML has no scripts
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                     val u = request.url
@@ -215,30 +280,57 @@ fun TvDictionaries(settings: Settings, ctl: SceneController, picker: WordPicker,
         } },
         onRelease = { if (TvMining.web === it) TvMining.web = null },
         update = { w ->
-            if (w.tag != html) { w.tag = html; w.loadDataWithBaseURL("https://kumapie.local/", PAGE.replace("<!--BODY-->", html!!), "text/html", "utf-8", null) }
+            if (w.tag != html) { w.tag = html; w.loadDataWithBaseURL("https://kumapie.local/", PAGE.replace("<!--BODY-->", html), "text/html", "utf-8", null) }
         })
 }
 
-/** ↑ (-1) / ↓ (+1) on the dictionaries: scrolls them most of a page; false when they're not shown or at that end. */
+/** ↑ (-1) / ↓ (+1) on the dictionaries: the next dictionary, or a page in a long one; false when not shown or at that end. */
 fun scrollTvDictionaries(dir: Int): Boolean {
     val w = TvMining.web ?: return false
     if (!w.isAttachedToWindow || !w.canScrollVertically(dir)) return false
-    w.scrollBy(0, dir * w.height * 3 / 4)
+    w.evaluateJavascript("step($dir)", null)
     return true
 }
 
+/** Colours from the app's (Colors): surface #2A2734, text #F2F0F7, dim #A9A4B8, accent #C98A4B. */
 private const val PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <style>
-body { margin: 0; background: transparent; color: #e8e6e3; font: 17px/1.45 sans-serif; }
-.hw { font-size: 15px; color: #a8a6a3; margin: 0 0 6px; }
-.box { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; margin: 0 0 8px; padding: 6px 10px; }
-.name { color: #a8a6a3; font-size: 13px; }
-ol.glossary-list { margin: 0; padding-left: 1.3em; }
-hr { border: 0; border-top: 1px dashed rgba(255,255,255,0.1); margin: 6px 0; }
+body { margin: 0; background: transparent; color: #F2F0F7; font: 19px/1.6 sans-serif; }
+#tabs { position: sticky; top: 0; z-index: 1; background: #2A2734; padding: 2px 0 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+#tabs span { font-size: 13px; color: #A9A4B8; border: 1px solid rgba(169,164,184,0.35); border-radius: 999px; padding: 1px 10px; }
+#tabs span.on { color: #2A2734; background: #C98A4B; border-color: #C98A4B; }
+section { padding: 2px 0 14px; margin-bottom: 12px; border-bottom: 1px solid rgba(169,164,184,0.15); }
+section:last-of-type { border-bottom: 0; padding-bottom: 40px; }
+h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; color: #C98A4B; }
+ol, ul { margin: 2px 0; padding-left: 1.4em; }
+hr { border: 0; border-top: 1px dashed rgba(169,164,184,0.2); margin: 8px 0; }
 img { max-width: 100%; }
-a { color: #8ab4f8; }
-table { border-collapse: collapse; } td, th { border: 1px solid rgba(255,255,255,0.15); padding: 2px 4px; }
-</style></head><body><!--BODY--></body></html>"""
+a { color: #8ab4f8; text-decoration: none; }
+table { border-collapse: collapse; } td, th { border: 1px solid rgba(169,164,184,0.25); padding: 2px 6px; }
+#fade { position: fixed; left: 0; right: 0; bottom: 0; height: 36px; pointer-events: none;
+  background: linear-gradient(rgba(42,39,52,0), #2A2734); transition: opacity .2s; }
+</style></head><body><!--BODY--><div id="fade"></div>
+<script>
+const secs = [...document.querySelectorAll('section')], tabs = [...document.querySelectorAll('#tabs span')];
+const bar = () => document.getElementById('tabs').offsetHeight;
+const atEnd = () => innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
+// The tab of the dictionary at the top of the view (the last one at the end); the fade only while more is below.
+function mark() {
+  let i = 0; secs.forEach((s, k) => { if (s.offsetTop - bar() <= scrollY + 4) i = k; });
+  if (atEnd()) i = secs.length - 1;
+  tabs.forEach((t, k) => t.classList.toggle('on', k === i));
+  document.getElementById('fade').style.opacity = atEnd() ? 0 : 1;
+}
+// ↓: the next dictionary's heading to the top when it is on screen, else a page; ↑ the same way back.
+function step(d) {
+  const page = (innerHeight - bar()) * 0.85, y = scrollY;
+  const tops = secs.map(s => s.offsetTop - bar());
+  const t = d > 0 ? tops.find(v => v > y + 4) : tops.filter(v => v < y - 4).pop();
+  const to = t !== undefined && Math.abs(t - y) <= page ? t : y + d * page;
+  scrollTo({ top: Math.max(0, to), behavior: 'smooth' });
+}
+addEventListener('scroll', mark); mark();
+</script></body></html>"""
 
 /**
  * The video frame on screen, 480 p WebP: a Japanese card's picture. The phone's way (a frame from the stream) gives

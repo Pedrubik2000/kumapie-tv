@@ -173,7 +173,8 @@ private fun withoutSameWord(meaning: String, selected: String): String {
 
 private fun noEquals(text: String) = text.replace(" = ", ": ")
 
-private fun statusLine(w: Word) = when {
+/** The word's Anki/known state in a few words and its colour (also the TV's Japanese card). */
+fun statusLine(w: Word) = when {
     w.marked -> tr("marked known") to Colors.dim
     w.card == "d" -> tr("due in Anki") to Colors.due
     w.card == "k" -> tr("studied in Anki, not due") to Colors.dim

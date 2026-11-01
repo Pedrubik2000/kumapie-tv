@@ -240,10 +240,13 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
         Subtitles(ctl, picker, onAnchor = { anchor = it }, aboveBox = true)
         if (picker.isOpen && picker.cardOpen) anchor?.let {
             val japanese = ctl.lang == Lang.JAPANESE
-            // The dictionaries get the room above the picked line, less the card's header (~170 dp), so the line stays visible.
-            val room = with(androidx.compose.ui.platform.LocalDensity.current) { it.top.toDp().value.toInt() } - 170
+            // Japanese: the wide two-column card over the room above the picked line, less the screen margin and the
+            // card's padding (~70 dp), so the line stays visible.
+            val room = with(androidx.compose.ui.platform.LocalDensity.current) { it.top.toDp().value.toInt() } - 70
             JapaneseText(japanese) {
-                MeaningCard(ctl, picker, it, footer = if (japanese) ({ TvDictionaries(settings, ctl, picker, room.coerceIn(140, 320)) }) else null)
+                if (japanese) MeaningCard(ctl, picker, it, maxWidth = 900.dp, ownMeaning = false,
+                    footer = { TvJapaneseCard(settings, ctl, picker, room.coerceIn(220, 460)) })
+                else MeaningCard(ctl, picker, it)
             }
         }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() },

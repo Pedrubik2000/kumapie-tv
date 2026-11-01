@@ -10,13 +10,34 @@ import android.os.Looper
 import android.view.PixelCopy
 import android.view.SurfaceView
 import android.util.Log
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.ui.PlayerView
+import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.AnkiCards
+import io.github.pedrubik2000.kumapie.lang.CardDefinition
 import io.github.pedrubik2000.kumapie.lang.Dictionary
+import io.github.pedrubik2000.kumapie.lang.GlossaryHtml
 import io.github.pedrubik2000.kumapie.lang.Headword
 import io.github.pedrubik2000.kumapie.lang.Japanese
 import io.github.pedrubik2000.kumapie.lang.JapaneseLookup
@@ -29,10 +50,12 @@ import io.github.pedrubik2000.kumapie.player.WordPicker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.net.URL
 import kotlin.coroutines.resume
@@ -51,6 +74,8 @@ private object TvMining {
     val mined = HashMap<String, Long>()
     /** What the Japanese dictionaries' download is doing; null when it isn't running. */
     @Volatile var fetching: String? = null
+    /** The word card's dictionaries ([TvDictionaries]) while shown: ↑↓ scroll it. */
+    @android.annotation.SuppressLint("StaticFieldLeak") var web: WebView? = null
 
     private var dictionary: Dictionary? = null
 
@@ -110,11 +135,7 @@ private object TvMining {
 private fun japaneseWord(y: YomitanDictionaries, text: String, offset: Int, surface: String, key: String, lemma: String?, reading: String,
                          english: String): Miner.Word {
     val ja = Lang.JAPANESE
-    val terms = lemma?.let { y.query(ja, it) }.orEmpty().ifEmpty { y.scan(ja, text.substring(offset.coerceIn(0, text.length))).map { it.second } }
-    // The PC's reading picks the entry (行く: いく, not ゆく), else the dictionaries' first.
-    val first = terms.firstOrNull { reading.isNotBlank() && JapaneseLookup.hiragana(it.reading) == reading } ?: terms.firstOrNull()
-        ?: return Miner.Word(surface, key, lemma ?: surface, "")
-    val hw = Headword(first.expression, first.reading, terms.filter { it.expression == first.expression && it.reading == first.reading })
+    val hw = tvHeadword(y, text, offset, lemma, reading) ?: return Miner.Word(surface, key, lemma ?: surface, "")
     val glossaries = hw.terms.flatMap { it.glossaries }
     fun group(dict: String) = y.groupOf(ja, dict)
     val bilingual = glossaries.filter { group(it.dict).contains("bilingual", true) }.ifEmpty {
@@ -127,6 +148,97 @@ private fun japaneseWord(y: YomitanDictionaries, text: String, offset: Int, surf
     return Miner.Word(surface, key, hw.expression, gloss, reading = hw.reading.takeIf { it.isNotBlank() },
         pitch = hw.pitches.flatMap { it.second }.firstOrNull(), mono = mono)
 }
+
+/** The TV's Japanese headword (no Sudachi): the PC's [lemma] looked up, else Yomitan's scan from [offset]; the PC's [reading] picks the entry. */
+private fun tvHeadword(y: YomitanDictionaries, text: String, offset: Int, lemma: String?, reading: String): Headword? {
+    val ja = Lang.JAPANESE
+    val terms = lemma?.let { y.query(ja, it) }.orEmpty().ifEmpty { y.scan(ja, text.substring(offset.coerceIn(0, text.length))).map { it.second } }
+    // The PC's reading picks the entry (行く: いく, not ゆく), else the dictionaries' first.
+    val first = terms.firstOrNull { reading.isNotBlank() && JapaneseLookup.hiragana(it.reading) == reading } ?: terms.firstOrNull() ?: return null
+    return Headword(first.expression, first.reading, terms.filter { it.expression == first.expression && it.reading == first.reading })
+}
+
+/**
+ * The picked Japanese word in this TV's Yomitan dictionaries (the phone's set, fetched from the PC), under the word
+ * card as on the phone and in chimahon (user, 2026-11-01): one box per dictionary, the card's order first (Daijirin
+ * es, Sankoku es, JMdict Spanish, Jitendex), then the rest in import order. ↑↓ scroll it ([scrollTvDictionaries]).
+ */
+@Composable
+fun TvDictionaries(settings: Settings, ctl: SceneController, picker: WordPicker, height: Int) {
+    val context = LocalContext.current
+    val segment = picker.selected ?: return
+    val key = segment.word ?: return
+    var html by remember(picker.line, picker.seg) { mutableStateOf<String?>(null) }
+    var status by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(picker.line, picker.seg) {
+        TvMining.languages(context, settings)
+        val y = TvMining.yomitan
+        if (y.of(Lang.JAPANESE).isEmpty()) TvMining.fetchJapanese(context, settings)
+        // The first time the dictionaries come from the PC (minutes): say so until they are in.
+        while (TvMining.fetching != null) { status = TvMining.fetching; delay(2_000) }
+        status = null
+        val cue = ctl.scene.cues.getOrNull(picker.line) ?: return@LaunchedEffect
+        val offset = cue.segments.take(picker.seg).sumOf { it.text.length }
+        val word = ctl.words[key]
+        val lemma = ctl.scene.def(picker.line, key)?.lemma?.takeIf { it.isNotBlank() } ?: word?.lemma?.takeIf { it.isNotBlank() }
+        html = withContext(Dispatchers.IO) {
+            val hw = tvHeadword(y, cue.text, offset, lemma, word?.reading.orEmpty()) ?: return@withContext ""
+            val byDict = LinkedHashMap<String, MutableList<String>>()
+            for (t in hw.terms) for (g in t.glossaries) byDict.getOrPut(g.dict) { ArrayList() }.let { if (g.raw !in it) it += g.raw }
+            val dicts = byDict.keys.sortedBy { CardDefinition.rank(it) ?: Int.MAX_VALUE } // stable: the rest keep their order
+            val css = GlossaryHtml.styles(y.styles(Lang.JAPANESE).filterKeys { it in byDict })
+            val head = GlossaryHtml.esc(hw.expression) + if (hw.reading.isNotBlank() && hw.reading != hw.expression) "【${GlossaryHtml.esc(hw.reading)}】" else ""
+            "<style>$css</style><div class=\"hw\">$head</div>" + dicts.joinToString("") { d ->
+                "<div class=\"box\" data-dictionary=\"${GlossaryHtml.esc(d).replace("\"", "&quot;")}\"><div class=\"name\">${GlossaryHtml.esc(d)}</div>" +
+                    byDict.getValue(d).joinToString("<hr>") { GlossaryHtml.glossary(it, d) } + "</div>"
+            }
+        }
+    }
+    val text = status ?: when (html) { null -> tr("Looking it up…"); "" -> tr("Not in your %s dictionaries.", ctl.lang.displayName); else -> null }
+    if (text != null) return Text(text, color = Colors.dim, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp))
+    AndroidView(modifier = Modifier.fillMaxWidth().height(height.dp).padding(top = 6.dp),
+        factory = { ctx -> WebView(ctx).apply {
+            setBackgroundColor(0)
+            isFocusable = false // the remote stays with the player
+            webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                    val u = request.url
+                    if (u.scheme != "kumapie-media") return null
+                    val parts = u.encodedPath.orEmpty().removePrefix("/").split('/', limit = 2)
+                    if (parts.size < 2) return null
+                    val bytes = TvMining.yomitan.media(Lang.JAPANESE, Uri.decode(parts[0]), Uri.decode(parts[1])) ?: return null
+                    val type = if (parts[1].endsWith(".svg", true)) "image/svg+xml" else "image/*"
+                    return WebResourceResponse(type, null, ByteArrayInputStream(bytes))
+                }
+            }
+            TvMining.web = this
+        } },
+        onRelease = { if (TvMining.web === it) TvMining.web = null },
+        update = { w ->
+            if (w.tag != html) { w.tag = html; w.loadDataWithBaseURL("https://kumapie.local/", PAGE.replace("<!--BODY-->", html!!), "text/html", "utf-8", null) }
+        })
+}
+
+/** ↑ (-1) / ↓ (+1) on the dictionaries: scrolls them most of a page; false when they're not shown or at that end. */
+fun scrollTvDictionaries(dir: Int): Boolean {
+    val w = TvMining.web ?: return false
+    if (!w.isAttachedToWindow || !w.canScrollVertically(dir)) return false
+    w.scrollBy(0, dir * w.height * 3 / 4)
+    return true
+}
+
+private const val PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<style>
+body { margin: 0; background: transparent; color: #e8e6e3; font: 17px/1.45 sans-serif; }
+.hw { font-size: 15px; color: #a8a6a3; margin: 0 0 6px; }
+.box { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; margin: 0 0 8px; padding: 6px 10px; }
+.name { color: #a8a6a3; font-size: 13px; }
+ol.glossary-list { margin: 0; padding-left: 1.3em; }
+hr { border: 0; border-top: 1px dashed rgba(255,255,255,0.1); margin: 6px 0; }
+img { max-width: 100%; }
+a { color: #8ab4f8; }
+table { border-collapse: collapse; } td, th { border: 1px solid rgba(255,255,255,0.15); padding: 2px 4px; }
+</style></head><body><!--BODY--></body></html>"""
 
 /**
  * The video frame on screen, 480 p WebP: a Japanese card's picture. The phone's way (a frame from the stream) gives

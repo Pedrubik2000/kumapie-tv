@@ -148,8 +148,9 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
                 Action.WORD_PICKER -> openPicker()
                 Action.PICK_LEFT -> picker.left()
                 Action.PICK_RIGHT -> picker.right()
-                Action.PICK_UP -> picker.up()
-                Action.PICK_DOWN -> picker.down()
+                // A Japanese card's dictionaries scroll first; at their end ↑↓ change line as before.
+                Action.PICK_UP -> if (!(picker.cardOpen && scrollTvDictionaries(-1))) picker.up()
+                Action.PICK_DOWN -> if (!(picker.cardOpen && scrollTvDictionaries(+1))) picker.down()
                 Action.PICK_AUDIO -> picker.hearAgain()
                 Action.PICK_REPLAY_LINE -> picker.replayLine()
                 Action.PICK_MARK_KNOWN -> picker.toggleKnown()
@@ -237,7 +238,14 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
         )
         if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, picker, hints = settings.showHelp, title = shortTitle(ctl.episode.show))
         Subtitles(ctl, picker, onAnchor = { anchor = it }, aboveBox = true)
-        if (picker.isOpen && picker.cardOpen) anchor?.let { JapaneseText(ctl.lang == Lang.JAPANESE) { MeaningCard(ctl, picker, it) } }
+        if (picker.isOpen && picker.cardOpen) anchor?.let {
+            val japanese = ctl.lang == Lang.JAPANESE
+            // The dictionaries get the room above the picked line, less the card's header (~170 dp), so the line stays visible.
+            val room = with(androidx.compose.ui.platform.LocalDensity.current) { it.top.toDp().value.toInt() } - 170
+            JapaneseText(japanese) {
+                MeaningCard(ctl, picker, it, footer = if (japanese) ({ TvDictionaries(settings, ctl, picker, room.coerceIn(140, 320)) }) else null)
+            }
+        }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() },
             onHelp = { options = false; help = true; focus.requestFocus() })
         if (help) HelpOverlay(settings, ctl.lang)
@@ -271,6 +279,8 @@ private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean, tit
     }
     val hint = when {
         picker.isOpen && picker.inDef -> tr("←→ words of the definition   ↓ back to the line   OK: hear the word (twice: definition)   hold ↓: known   Back: close")
+        picker.isOpen && picker.cardOpen && ctl.lang == Lang.JAPANESE ->
+            tr("OK: hear   ↑↓ scroll the dictionaries   ←→ other words   hold OK: replay line   hold ↓: known   hold ↑: add to Anki")
         picker.isOpen && picker.cardOpen ->
             tr("OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK: replay line   hold ↓: known   hold ↑: add to Anki")
         picker.isOpen -> tr("←→ words   ↑↓ lines   OK: show the meaning   hold OK: replay line   hold ↓: known   hold ↑: add to Anki   Back: close")

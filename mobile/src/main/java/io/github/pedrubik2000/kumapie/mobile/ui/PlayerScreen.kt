@@ -219,6 +219,8 @@ internal fun ScenePlayer(
     var auto by remember { mutableStateOf(false) }
     var skip by remember { mutableStateOf(false) }
     var mining by remember { mutableStateOf(false) }
+    // Text selected in the subtitles, for the personal dictionary.
+    var selected by remember { mutableStateOf<String?>(null) }
     // Each word's last rating from the word card ("Answered: Good", Undo), kept while the episode is open.
     val ratings: Ratings = remember { androidx.compose.runtime.mutableStateMapOf() }
     // kuma3's whole queue read again after a rating, in the background (big collections: seconds); not cancelled with the word card.
@@ -386,7 +388,7 @@ internal fun ScenePlayer(
                 is SubtitleTap.Word -> picker.tap(tap.line, tap.seg)
                 SubtitleTap.Box -> videoTap()
             }
-        })
+        }, onSelect = { selected = it })
         if (picker.isOpen && picker.cardOpen) anchor?.let {
             // With imported dictionaries the popup below has the meanings: no second, episode-made meaning above it.
             val dictionaries = remember { library.yomitan.of(ctl.lang).any { d -> d.enabled && d.terms > 0 } }
@@ -426,6 +428,17 @@ internal fun ScenePlayer(
     if (sceneList) {
         ModalBottomSheet(onDismissRequest = { sceneList = false }) {
             SceneList(ctl, onPick = { i -> sceneList = false; picker.close(); ctl.playScene(i) })
+        }
+    }
+    selected?.let { text ->
+        ModalBottomSheet(onDismissRequest = { selected = null }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            PersonalEntrySheet(library, ctl.lang, text, onDone = {
+                selected = null
+                // The new word at once, in its colour. A deleted one stays split as it is until the episode opens again.
+                val joined = library.yomitan.personal.joinScenes(ctl.lang.code, ctl.scenes)
+                ctl.rejoin(joined, io.github.pedrubik2000.kumapie.lang.PersonalDictionary.newKeys(joined, ctl.words.keys))
+                repaintWords(ctl, library.languages.of(ctl.lang).known)
+            })
         }
     }
     if (mining) {
@@ -563,7 +576,8 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         Text(
             tr("Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
                 "right: the scene · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
-                "tap a word: its meaning, then tap the words of the German definition too."),
+                "tap a word: its meaning, then tap the words of the German definition too · " +
+                "paused, long-press a subtitle and drag over a word: add it to your personal dictionary."),
             color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
         )
     }

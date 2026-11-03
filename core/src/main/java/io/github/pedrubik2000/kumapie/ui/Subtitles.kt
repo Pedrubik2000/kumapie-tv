@@ -1,7 +1,10 @@
 package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -68,7 +71,9 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
               /** The anchor's top is the subtitle box's: the card above it covers no line (the TV, user 2026-10-14). */
               aboveBox: Boolean = false,
               /** A mouse over a word (the PC): the word and its screen rectangle, null when it leaves; only on a change. */
-              onHover: ((SubtitleTap.Word?, Rect?) -> Unit)? = null) {
+              onHover: ((SubtitleTap.Word?, Rect?) -> Unit)? = null,
+              /** Long press and drag on paused subtitles: the selected text of one line (the personal dictionary, phone/tablet). */
+              onSelect: ((String) -> Unit)? = null) {
     // The position moves every 40 ms, the lines shown a few times a scene: read inside derivedStateOf, the subtitles
     // recompose (and measure their text) only when their lines change, not 25 times a second.
     val lines by remember(ctl, picker) { derivedStateOf { shown(ctl, picker) } }
@@ -86,6 +91,8 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     var selectedRange: IntRange? = null
     // Where each word is in the German text, for taps: character range -> (line, segment).
     val wordRanges = mutableListOf<Pair<IntRange, SubtitleTap.Word>>()
+    // Characters being selected in the German text (first touched, finger now).
+    var selecting by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val germanText = buildAnnotatedString {
         german.forEachIndexed { i, cue ->
             if (i > 0) append('\n')
@@ -104,6 +111,9 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
                 selectedRange = (start + before) until (start + before + len)
             }
         }
+        selecting?.let { (a, b) ->
+            selectionOf(toAnnotatedString().text, a, b)?.let { addStyle(SpanStyle(color = Color.Black, background = Colors.text), it.first, it.last + 1) }
+        }
     }
     val englishText = english.joinToString(" ") { it.text }
     val measurer = rememberTextMeasurer()
@@ -114,6 +124,11 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     val ranges by rememberUpdatedState(wordRanges.toList())
     val tapHandler by rememberUpdatedState(onTap)
     val hoverHandler by rememberUpdatedState(onHover)
+    val selectHandler by rememberUpdatedState(onSelect)
+    val textNow by rememberUpdatedState(germanText.text)
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    // All the scene's lines stay where they are while paused; a word card or playing would move them under the finger.
+    val selectable by rememberUpdatedState(onSelect != null && paused && !picking)
     var boxTop by remember { mutableStateOf<Float?>(null) }
     fun anchored(r: Rect?): Rect? = if (aboveBox && r != null) boxTop?.let { Rect(r.left, it, r.right, it) } ?: r else r
     // Blurred only while it plays: paused (by you, at a scene's end or start) it is readable (user, 2026-10-11).
@@ -169,9 +184,33 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
                         // word's place again whenever the text is placed, not only when the cursor moves.
                         .onGloballyPositioned { coords = it; onAnchor(anchored(anchorOf(it, layout, range))) }
                         .then(if (onTap == null) Modifier else Modifier.pointerInput(Unit) {
-                            detectTapGestures { p ->
+                            fun tap(p: Offset) {
                                 val word = if (blurred) null else layout?.let { wordAt(it, p, ranges) }
                                 tapHandler?.invoke(word ?: SubtitleTap.Box)
+                            }
+                            awaitEachGesture {
+                                val down = awaitFirstDown().also { it.consume() }
+                                // Lifted before the long press: a tap (Lifted's up is null when it moved away).
+                                val lifted = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) { Lifted(waitForUpOrCancellation()) }
+                                val l = layout
+                                when {
+                                    lifted != null -> lifted.up?.let { it.consume(); tap(it.position) }
+                                    !selectable || l == null -> waitForUpOrCancellation()?.let { it.consume(); tap(it.position) }
+                                    else -> {
+                                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                        val first = charAt(l, down.position)
+                                        selecting = first to first
+                                        while (true) {
+                                            val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                                            change.consume()
+                                            if (!change.pressed) break
+                                            selecting = first to charAt(l, change.position)
+                                        }
+                                        val picked = selecting?.let { (a, b) -> selectionOf(textNow, a, b) }?.let { textNow.substring(it).trim() }
+                                        selecting = null
+                                        if (!picked.isNullOrEmpty()) selectHandler?.invoke(picked)
+                                    }
+                                }
                             }
                         })
                         .then(if (onHover == null) Modifier else Modifier.pointerInput(Unit) {
@@ -250,6 +289,23 @@ private fun shadowOnly(text: AnnotatedString, radius: Float): AnnotatedString = 
 sealed interface SubtitleTap {
     data class Word(val line: Int, val seg: Int) : SubtitleTap
     data object Box : SubtitleTap
+}
+
+private class Lifted(val up: androidx.compose.ui.input.pointer.PointerInputChange?)
+
+/** The character under [p] (a caret offset is between characters; past a line's end: its last character). */
+private fun charAt(l: TextLayoutResult, p: Offset): Int {
+    val o = l.getOffsetForPosition(p)
+    val last = l.layoutInput.text.length - 1
+    return if (o <= last && l.getBoundingBox(o).contains(p)) o else (o - 1).coerceAtLeast(0)
+}
+
+/** The characters from [a] to [b] of the subtitles' [text], kept to [a]'s line (one cue a selection). */
+private fun selectionOf(text: String, a: Int, b: Int): IntRange? {
+    if (a !in text.indices || text[a] == '\n') return null
+    val start = text.lastIndexOf('\n', a) + 1
+    val end = text.indexOf('\n', a).let { if (it < 0) text.length else it } - 1
+    return minOf(a, b.coerceIn(start, end))..maxOf(a, b.coerceIn(start, end))
 }
 
 /** The word under [p] (local to the text), only when the finger is really on it, not just nearest to it. */

@@ -158,6 +158,10 @@ class Api(private val base: String, private val person: String = "") : Backend {
         post("/api/tv/known_words", JSONObject().put("person", person).put("lang", lang).put("words", org.json.JSONArray(words)).toString())
     }
 
+    /** This device's personal dictionary sent; answers the merged one (lang's PersonalDictionary). */
+    suspend fun personalDictionary(entries: String): String =
+        post("/api/tv/personal", JSONObject().put("person", person).put("entries", org.json.JSONArray(entries)).toString())
+
     /** What this person's devices count as seen ({scene: episode}) and their "Mark as not watched" times ({episode:
      *  epoch s}): the TV blurs and counts by them too. */
     suspend fun deviceSeen(seen: Map<String, String>, unwatched: Map<String, Long>) {

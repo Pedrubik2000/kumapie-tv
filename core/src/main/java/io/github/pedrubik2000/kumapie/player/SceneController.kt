@@ -37,7 +37,9 @@ class SceneController(
     val settings: Settings,
     private val api: Backend,
 ) {
-    val scenes: List<Scene> = episode.scenes
+    /** The scenes; their words change when a personal dictionary entry joins some ([rejoin]). */
+    var scenes by mutableStateOf(episode.scenes)
+        private set
     val lang: Lang = Lang.of(episode.lang)
 
     /** Every word's status and meaning; changes when a word is marked known in the picker. */
@@ -185,6 +187,12 @@ class SceneController(
         player.pause()
         playing = false
         showBanner()
+    }
+
+    /** [joined]: the scenes split again, with the same timing and order; a word new to the episode ([added]) starts red. */
+    fun rejoin(joined: List<Scene>, added: Set<String>) {
+        scenes = joined
+        added.forEach { if (it !in words) words[it] = Word("u", "") }
     }
 
     /** The scene's level, live: a rating or marking a word known lowers it ([io.github.pedrubik2000.kumapie.data.levelOf]). */

@@ -20,6 +20,7 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
      */
     fun lookup(text: String, offset: Int, length: Int = 0): List<Headword> {
         val ja = Lang.JAPANESE
+        dicts.personal.at(ja.code, text, offset)?.let { return headwords(dicts.query(ja, it.text)) }
         val tok = token(text, offset)
         val found = ArrayList<YomitanDictionaries.Term>()
         val from = tok?.begin ?: offset
@@ -44,8 +45,10 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         if (tok != null) found += (dicts.query(ja, tok.base) + if (tok.surface != tok.base) dicts.query(ja, tok.surface) else emptyList())
             .sortedBy(bySudachi)
         found += later.map { it.second }
-        val unique = found.distinct()
-        found.clear(); found += unique
+        return headwords(found.distinct())
+    }
+
+    private fun headwords(found: List<YomitanDictionaries.Term>): List<Headword> {
         // One headword per word and reading (hiragana); entries without a reading join the first with that spelling.
         val out = LinkedHashMap<Pair<String, String>, MutableList<YomitanDictionaries.Term>>()
         for (t in found) if (readingOf(t).isNotEmpty()) out.getOrPut(t.expression to readingOf(t)) { ArrayList() } += t
@@ -63,6 +66,15 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
      * longest match covers (気にしない), that match's headword (気にする); one row per word + reading.
      */
     fun forms(text: String, offset: Int): List<Form> {
+        // Your own word (user, 2026-11-03): one row, 可可阿 rates as the カカオ it is the same as.
+        dicts.personal.at(Lang.JAPANESE.code, text, offset)?.let { e ->
+            val written = e.target.ifEmpty { e.text }
+            val heads = headwords(dicts.query(Lang.JAPANESE, e.text))
+            val head = heads.firstOrNull { it.expression == written } ?: heads.firstOrNull()
+            val reading = head?.reading?.takeIf { it.isNotBlank() } ?: hiragana(e.reading).ifBlank {
+                model.parse(listOf(written)).first().joinToString("") { hiragana(it.reading) } }
+            return listOf(Form(written, reading, head, surface = e.text))
+        }
         val w = model.words(listOf(text)).first().lastOrNull { it.begin <= offset }?.takeIf { it.isWord } ?: return emptyList()
         val heads = lookup(text, w.begin, w.surface.length)
         // お料理 rates as 料理 and すごーい as すごい (item 31): never a card of their own; お's scan starts after it.
@@ -121,7 +133,9 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
     private fun bilingual(t: YomitanDictionaries.Term) = t.glossaries.any { dicts.groupOf(Lang.JAPANESE, it.dict).contains("bilingual", ignoreCase = true) }
 
     /** A form to rate: as written, its reading, and the headword whose meaning its new card gets (null: none found). */
-    data class Form(val written: String, val reading: String, val head: Headword?) {
+    data class Form(val written: String, val reading: String, val head: Headword?,
+                    /** As the line writes it, for the card's bold word, when that isn't [written] (可可阿 of カカオ). */
+                    val surface: String = written) {
         val key get() = CardIndex.japaneseKey(written, reading)
     }
 

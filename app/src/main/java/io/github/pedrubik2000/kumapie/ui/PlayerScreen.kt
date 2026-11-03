@@ -75,9 +75,11 @@ fun PlayerScreen(api: Api, settings: Settings, show: Show, episode: Episode, onC
     var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
+    val personal = io.github.pedrubik2000.kumapie.lang.PersonalDictionary.get(LocalContext.current)
     LaunchedEffect(attempt) {
         error = null
-        runCatching { api.episode(episode.id) }.onSuccess { detail = it }.onFailure { error = it.message ?: it.toString() }
+        personal.sync(api::personalDictionary) // what the phone and tablet added
+        runCatching { api.episode(episode.id) }.onSuccess { detail = personal.join(it) }.onFailure { error = it.message ?: it.toString() }
     }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         when {

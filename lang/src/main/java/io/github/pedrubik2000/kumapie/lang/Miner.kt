@@ -100,7 +100,7 @@ class Miner(
         val tags = mutableListOf(slug, "kumapie")
         r.word?.let { w ->
             val audio = wordAudio(w.surface, language)?.let { addAudio(pkg, it, "kumapie-${slug(w.surface)}") }
-            val written = w.key?.takeIf { ' ' in it } ?: w.surface
+            val written = sameAs(w.surface, lang) ?: w.key?.takeIf { ' ' in it } ?: w.surface
             fields["Word"] = esc(written) + (w.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
             if (audio != null) fields["Word Audio"] = "[audio:$audio]"
             fields[KnownWords.DEF_BI] = definition(written, w)
@@ -217,7 +217,7 @@ class Miner(
         if (word != null) when (language) {
             is Japanese -> reading = japaneseWord(fields, word, language, pkg).let { (expression, r) -> r?.takeIf { word.surface == expression } }
             is Spaced -> {
-                val written = word.key?.takeIf { ' ' in it } ?: word.surface
+                val written = sameAs(word.surface, lang) ?: word.key?.takeIf { ' ' in it } ?: word.surface
                 fields["Word"] = esc(written) + (word.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
                 wordAudio(word.surface, language)?.let { fields["Word Audio"] = "[audio:${addAudio(pkg, it, "kumapie-${slug(word.surface)}")}]" }
                 fields[KnownWords.DEF_BI] = definition(written, word)
@@ -276,6 +276,10 @@ class Miner(
         audio?.let { fields["Word Audio"] = "[audio:${addAudio(pkg, it, "kumapie-ja-${expression}")}]" }
         return expression to reading
     }
+
+    /** The word [surface] is the same as in your personal dictionary: its card is that word's. */
+    private fun sameAs(surface: String, lang: io.github.pedrubik2000.kumapie.data.Lang) =
+        PersonalDictionary.get(context).entry(lang.code, surface)?.target?.takeIf { it.isNotEmpty() }
 
     /** Opus (Ogg) can be written here: Android 10+ with an Opus encoder. */
     @OptIn(UnstableApi::class)

@@ -105,7 +105,8 @@ private fun japaneseChoices(library: Library, hw: io.github.pedrubik2000.kumapie
     fun choice(g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary, m: String) = Choice("${shortDictName(g.dict)}: $m", m, null)
     var choices = meaningDicts.flatMap { g ->
         // 12: a Jitendex entry is now one meaning per sense, and the one that fits can be far down (取る "to gather").
-        g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.bilingualMeanings(it) }.distinct().take(12).map { choice(g, it) }
+        (if (g.dict == io.github.pedrubik2000.kumapie.lang.PersonalDictionary.TITLE) g.senses // as you wrote it, in any language
+        else g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.bilingualMeanings(it) }).distinct().take(12).map { choice(g, it) }
     }.distinctBy { it.gloss }.take(40)
     var chosen = 0
     var fits = false
@@ -137,7 +138,7 @@ internal fun japaneseWord(library: Library, f: io.github.pedrubik2000.kumapie.la
     val c = japaneseChoices(library, hw, english)
     val pick = c.choices.getOrNull(c.chosen) // none: the card is made without a meaning
     val own = f.written == hw?.expression
-    return Miner.Word(f.written, null, f.written, pick?.gloss.orEmpty(), reading = f.reading,
+    return Miner.Word(f.surface, null, f.written, pick?.gloss.orEmpty(), reading = f.reading,
         pitch = if (own) hw?.pitches?.flatMap { it.second }?.firstOrNull() else null, mono = c.monos.firstOrNull()?.gloss,
         formOf = hw?.expression?.takeIf { !own })
 }

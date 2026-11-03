@@ -221,8 +221,27 @@ class YomitanDictionaries private constructor(private val context: Context) {
 
     /** Every term entry for [word] in [lang]'s enabled dictionaries, in their order. */
     fun query(lang: Lang, word: String): List<Term> = synchronized(this) {
+        personal.entry(lang.code, word)?.let { personalTerms(lang, it) } ?: imported(lang, word)
+    }
+
+    /** What the imported dictionaries (not [personal]) have for [word]. */
+    private fun imported(lang: Lang, word: String): List<Term> {
         val h = handle(lang) ?: return emptyList()
-        parseTerms(JSONArray(Hoshidicts.nativeQuery(h, word)))
+        return parseTerms(JSONArray(Hoshidicts.nativeQuery(h, word)))
+    }
+
+    /** Your own words, found by [query] and [scan] like a dictionary's. */
+    val personal = PersonalDictionary.get(context)
+
+    private fun personalTerm(e: PersonalDictionary.Entry) = Term(e.target.ifEmpty { e.text }, e.reading,
+        listOf(Glossary(PersonalDictionary.TITLE, listOfNotNull(e.meaning.takeIf { it.isNotBlank() }), "", raw = JSONArray().put(e.meaning).toString())),
+        emptyList(), emptyList())
+
+    /** An entry of its own: its meaning, then what the dictionaries have for it. The same as another word: that word's (可可阿: カカオ's). */
+    private fun personalTerms(lang: Lang, e: PersonalDictionary.Entry): List<Term> {
+        if (e.target.isEmpty()) return listOf(personalTerm(e)) + imported(lang, e.text)
+        val own = personal.entry(lang.code, e.target)?.takeIf { it.target.isEmpty() }?.let(::personalTerm)
+        return listOfNotNull(own) + imported(lang, e.target).ifEmpty { if (own == null) listOf(personalTerm(e)) else emptyList() }
     }
 
     /**
@@ -243,9 +262,10 @@ class YomitanDictionaries private constructor(private val context: Context) {
 
     /** Yomitan's scan from the start of [text] (Japanese deinflection, longest match first): (matched text, term). */
     fun scan(lang: Lang, text: String, max: Int = 16): List<Pair<String, Term>> = synchronized(this) {
-        val h = handle(lang) ?: return emptyList()
+        val own = personal.startingAt(lang.code, text)?.let { e -> personalTerms(lang, e).map { e.text to it } }.orEmpty()
+        val h = handle(lang) ?: return own
         val a = JSONArray(Hoshidicts.nativeLookup(h, text, max))
-        (0 until a.length()).map { i -> a.getJSONObject(i).let { it.getString("matched") to parseTerms(JSONArray().put(it.getJSONObject("term"))).first() } }
+        own + (0 until a.length()).map { i -> a.getJSONObject(i).let { it.getString("matched") to parseTerms(JSONArray().put(it.getJSONObject("term"))).first() } }
     }
 
     /** Each enabled dictionary's styles.css, by dictionary title. */
@@ -261,7 +281,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
     }
 
     /** The group a dictionary belongs to, by its title. */
-    fun groupOf(lang: Lang, title: String): String =
+    fun groupOf(lang: Lang, title: String): String = if (title == PersonalDictionary.TITLE) "Bilingual" else
         of(lang).firstOrNull { it.title == title }?.group.orEmpty().let { if (it.startsWith("JA-JA")) "Monolingual" else it }
             .ifBlank { wtyGroup(title) } // wty dictionaries imported before groups were set (item 33)
 

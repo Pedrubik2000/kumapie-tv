@@ -37,7 +37,8 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Subtitles" to "Subtítulos",
     "Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
         "right: the scene · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
-        "tap a word: its meaning, then tap the words of the German definition too." to
+        "tap a word: its meaning, then tap the words of the German definition too · " +
+        "paused, long-press a subtitle and drag over a word: add it to your personal dictionary." to
         "Toca el número de escena arriba: todas las escenas, para saltar a una · toca el video: reproducir / pausa · " +
         "desliza ← →: escena siguiente / anterior · doble toque a la izquierda: repetir la línea, a la derecha: la escena · " +
         "toca los subtítulos: reproducir / pausa (el modo se elige aquí; los borrosos se leen en pausa) · " +
@@ -65,6 +66,13 @@ internal val esPlayer: Map<String, String> = mapOf(
     " · dictionary form" to " · forma del diccionario",
     " · this form" to " · esta forma",
     "Mine" to "Minar",
+    // Personal dictionary
+    "Personal dictionary" to "Diccionario personal",
+    "Word, as written" to "Palabra, como está escrita",
+    "Same as (an existing word)" to "Igual que (una palabra que ya existe)",
+    "Not in your dictionaries." to "No está en tus diccionarios.",
+    "Reading" to "Lectura",
+    "Meaning" to "Significado",
     "No recordings: the device voice says it." to "Sin grabaciones: la dice la voz del dispositivo.",
     "The line, its audio, a screenshot and the %s." to "La línea, su audio, una captura y el %s.",
     // Dictionary panel, Yomitan popup

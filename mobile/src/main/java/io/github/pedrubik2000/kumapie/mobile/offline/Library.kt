@@ -73,6 +73,7 @@ class Library(context: Context, val settings: Settings) {
 
     /** Sends this device's progress to Anki and reads the others' (when Anki was read here once). */
     suspend fun syncProgress() {
+        sendPersonal()
         if (languages.all.none { it.known.ready }) return
         progress.sync(runCatching { api }.getOrNull())
         val marked = progress.merged.marked
@@ -80,6 +81,15 @@ class Library(context: Context, val settings: Settings) {
         sendKnownWords()
         sendWatch()
     }
+
+    /** Your personal dictionary to the PC, and what your other devices added; never held up by the Anki sync above. */
+    private suspend fun sendPersonal() {
+        val api = runCatching { api }.getOrNull() ?: return
+        yomitan.personal.sync(api::personalDictionary)
+    }
+
+    /** After an entry changed: in the background (offline, it goes with the next sync). */
+    fun syncPersonal() { background.launch { sendPersonal() } }
 
     /** The devices' own time per language to the PC (the TV's Home card adds the TV's), when it changed. */
     private suspend fun sendWatch() {

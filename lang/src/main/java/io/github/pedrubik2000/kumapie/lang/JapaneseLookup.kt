@@ -151,7 +151,9 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         /** English meanings only: no Japanese example lines, no English example sentences ("What will be the end of all this?"). */
         // The English Sankoku/Daijirin: "ゆ きり ［湯切 り ］ ｟名 ・他サ ｠; 〘料 〙 The act of draining〔＝よけいな…〕 hot water…":
         // its part of speech ｟…｠ holds a " ・" (an example's start for [meanings]) and its 〔…〕 notes sit inside the English.
-        fun bilingualMeanings(entry: String): List<String> = meanings(entry.replace(Regex("""｟[^｠]*｠|〔[^〕]*〕"""), ""), Int.MAX_VALUE).filter { m ->
+        // Daijirin's 〖cacao〗 is the word's origin, the meaning only when there is no other (〖archives〗 for アーカイブス); its
+        // （名 sust.） is the part of speech.
+        fun bilingualMeanings(entry: String): List<String> = meanings(entry.replace(Regex("""｟[^｠]*｠|〔[^〕]*〕|〖[^〗]*〗|（[぀-ヿ㐀-鿿][^）]*）"""), ""), Int.MAX_VALUE).filter { m ->
             m.any { it in 'a'..'z' } && !(m.first().isUpperCase() && m.count { it == ' ' } >= 4 && m.trimEnd().last() in ".?!")
         }.flatMap { m ->
             // Jitendex packs whole entries into one string: "1-dan transitive; to eat; もっと果物を…; You should eat more fruit.;
@@ -173,17 +175,24 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
                 }
             }
             senses.filter { it.isNotEmpty() }.map { it.joinToString("; ").let { s -> if (s.length > 90) s.take(88).trimEnd() + "…" else s } }
-        }.distinct()
+        }.distinct().ifEmpty {
+            listOfNotNull(Regex("""〖([^〗]*)〗""").find(entry)?.groupValues?.get(1)?.trim()?.takeIf { o -> o.any { it in 'a'..'z' || it in 'A'..'Z' } })
+        }
 
         /** A piece cut where Japanese starts after its English ("to harvest. 集める。採集する。" -> "to harvest"). */
         private fun englishPart(piece: String): String {
             val p = piece.trim()
             val latin = p.indexOfFirst { it in 'a'..'z' || it in 'A'..'Z' }
             if (latin < 0) return p
-            val ja = p.withIndex().indexOfFirst { (i, c) -> i > latin && (c.code in 0x3040..0x30FF || c.code in 0x3400..0x9FFF || c in "《〔「【") }
+            // Japanese quoted in «» belongs to the meaning (the Spanish dictionaries: "Lo mismo que «カカオの木»").
+            var quoted = false
+            val ja = p.withIndex().indexOfFirst { (i, c) ->
+                if (c == '«') quoted = true else if (c == '»') quoted = false
+                i > latin && !quoted && (c.code in 0x3040..0x30FF || c.code in 0x3400..0x9FFF || c in "《〔「【")
+            }
             // The headword's kana before the English ("ゆ きり The act of…") is not part of the meaning.
             val start = if (p.take(latin).any { it.code in 0x3040..0x30FF || it.code in 0x3400..0x9FFF }) latin else 0
-            return (if (ja < 0) p.substring(start) else p.substring(start, ja)).replace(Regex(" {2,}"), " ").trimEnd(' ', '.', '。')
+            return (if (ja < 0) p.substring(start) else p.substring(start, ja)).replace(Regex(" {2,}"), " ").trimEnd(' ', '.', '。', '←', '→')
         }
 
         /**
@@ -216,7 +225,7 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
 
         /** A sense as a short meaning: "よばれる【呼ばれる】; 〘v1・vi〙; 1 to be called out." → "to be called out." */
         fun meaning(s: String) = s.substringAfterLast('】').replace(Regex("""〘[^〙]*〙|［[^］]*］|\[[^\]]*]|→\S+"""), "")
-            .replace(Regex("""^[\s;；:・.\d①-⑳]+"""), "").trim()
+            .replace(Regex("""^[\s;；:・.\d①-⑳◉ⓐ-ⓩ]+"""), "").trim()
 
         /**
          * A cue's pieces with a character's name as one word, keyed by [name] (user, 2026-11-02): Jiten doesn't know 壬氏, so

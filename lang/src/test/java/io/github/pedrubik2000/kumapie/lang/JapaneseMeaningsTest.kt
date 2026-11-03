@@ -25,6 +25,25 @@ class JapaneseMeaningsTest {
         assertEquals(emptyList<String>(), JapaneseLookup.bilingualMeanings("What will be the end of all this?"))
     }
 
+    @Test fun spanishKeepsQuotedJapaneseAndDropsTheOrigin() {
+        assertEquals(listOf("Lo mismo que «カカオの木»"),
+            JapaneseLookup.bilingualMeanings("カカオ [1] 〖cacao〗; Lo mismo que «カカオの木». カカオの木 に同じ。; 〔「加加阿」とも書く〕"))
+        assertEquals(listOf("El hiragana «あ»; el katakana «ア»"), JapaneseLookup.bilingualMeanings("El hiragana «あ»; el katakana «ア»"))
+    }
+
+    @Test fun anOriginIsTheMeaningOnlyWithoutAnother() {
+        assertEquals(listOf("archives"), JapaneseLookup.bilingualMeanings("アーカイブス [4] 〖archives〗; アーカイブに同じ。"))
+        assertEquals(listOf("Chal"), JapaneseLookup.bilingualMeanings("ショール [1] 〖shawl〗; Chal 肩掛け。"))
+        assertEquals(emptyList<String>(), JapaneseLookup.bilingualMeanings("ウエスト 〖腰〗; 腰のこと。"))
+    }
+
+    @Test fun noPartOfSpeechMarksOrArrows() {
+        assertEquals(listOf("Trapos viejos"), JapaneseLookup.bilingualMeanings("ウエスト [2] 〖waste〗; （名 sust.）スル; ① Trapos viejos. ぼろ布。"))
+        assertEquals(emptyList<String>(), JapaneseLookup.bilingualMeanings("ああ （副 adv.）; ああ言う。"))
+        assertEquals(listOf("Abreviatura de «ソフトボール①»"), JapaneseLookup.bilingualMeanings("Abreviatura de «ソフトボール①». ←"))
+        assertEquals(listOf("Nieto de Amaterasu"), JapaneseLookup.bilingualMeanings("◉ Nieto de Amaterasu"))
+    }
+
     @Test fun jitendexSenseMeaningOnly() {
         assertEquals(listOf("to eat"), JapaneseLookup.bilingualMeanings("1-dan transitive; to eat; もっと果物を食べるべきです。; You should eat more fruit."))
         assertEquals(listOf("perfect game"), JapaneseLookup.bilingualMeanings("noun abbr. baseball; perfect game; See also パーフェクトゲーム; perfect game"))

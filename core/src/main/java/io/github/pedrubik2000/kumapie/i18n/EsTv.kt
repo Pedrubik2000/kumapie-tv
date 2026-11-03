@@ -34,8 +34,8 @@ internal val esTv: Map<String, String> = mapOf(
     "Previous scene" to "Escena anterior",
     "Replay line" to "Repetir la línea",
     "Replay scene" to "Repetir la escena",
-    "Subtitles: hidden → blurred → %s → both (at a scene end: pick a word)" to
-        "Subtítulos: ocultos → borrosos → %s → los dos (al final de una escena: elegir una palabra)",
+    "Subtitles: hidden → blurred → both blurred → %s → both (at a scene end: pick a word)" to
+        "Subtítulos: ocultos → borrosos → los dos borrosos → %s → los dos (al final de una escena: elegir una palabra)",
     "%s subtitles" to "Subtítulos en %s",
     "the episode's language" to "el idioma del episodio",
     "the translation" to "la traducción",

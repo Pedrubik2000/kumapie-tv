@@ -14,7 +14,7 @@ enum class Action(val label: String, val context: KeyContext = KeyContext.WATCH)
     PREVIOUS_SCENE("Previous scene"),
     REPLAY_LINE("Replay line"),
     REPLAY_SCENE("Replay scene"),
-    CYCLE_SUBTITLES("Subtitles: hidden → blurred → %s → both (at a scene end: pick a word)"),
+    CYCLE_SUBTITLES("Subtitles: hidden → blurred → both blurred → %s → both (at a scene end: pick a word)"),
     TOGGLE_GERMAN("%s subtitles"),   // the episode's language (the name stays: saved button maps use it)
     TOGGLE_ENGLISH("%s subtitles"),  // the translation's
     SLOW("Speed 0.75x"),

@@ -73,10 +73,12 @@ class SceneController(
     var subtitles by mutableStateOf(settings.subtitles)
         private set
     /** The episode's language is on screen (blurred or readable). */
-    val showTarget: Boolean get() = subtitles == Subtitles.BLURRED || subtitles == Subtitles.TARGET || subtitles == Subtitles.BOTH
+    val showTarget: Boolean get() = subtitles == Subtitles.BLURRED || subtitles == Subtitles.BOTH_BLURRED || subtitles == Subtitles.TARGET || subtitles == Subtitles.BOTH
     /** It is there but blurred: you see that (and how much) is said, not what. */
-    val blurTarget: Boolean get() = subtitles == Subtitles.BLURRED
-    val showEnglish: Boolean get() = subtitles == Subtitles.ENGLISH || subtitles == Subtitles.BOTH
+    val blurTarget: Boolean get() = subtitles == Subtitles.BLURRED || subtitles == Subtitles.BOTH_BLURRED
+    val showEnglish: Boolean get() = subtitles == Subtitles.ENGLISH || subtitles == Subtitles.BOTH_BLURRED || subtitles == Subtitles.BOTH
+    /** Both lines blurred: the translation blurs with the episode's language. */
+    val blurEnglish: Boolean get() = subtitles == Subtitles.BOTH_BLURRED
 
     /** The top bar (show, scene n/N, level) stays up until this uptime (ms), and always while paused. */
     var bannerUntil by mutableLongStateOf(0L)
@@ -188,18 +190,20 @@ class SceneController(
     /** The scene's level, live: a rating or marking a word known lowers it ([io.github.pedrubik2000.kumapie.data.levelOf]). */
     fun levelOf(scene: Scene): Int? = io.github.pedrubik2000.kumapie.data.levelOf(scene, words)
 
-    /** Remote ↓: hidden → German blurred → German → German + English → hidden. */
+    /** Remote ↓: hidden → German blurred → both blurred → German → German + English → hidden. */
     fun cycleSubtitles() = changeSubtitles(when (subtitles) {
         Subtitles.HIDDEN -> Subtitles.BLURRED
-        Subtitles.BLURRED -> Subtitles.TARGET
+        Subtitles.BLURRED -> Subtitles.BOTH_BLURRED
+        Subtitles.BOTH_BLURRED -> Subtitles.TARGET
         Subtitles.TARGET -> Subtitles.BOTH
         else -> Subtitles.HIDDEN
     })
 
     /** Gamepad L: blurred German becomes readable; otherwise German on / off. */
     fun toggleTarget() = changeSubtitles(
-        if (blurTarget) Subtitles.TARGET else Subtitles.of(target = !showTarget, english = showEnglish))
-    fun toggleEnglish() = changeSubtitles(Subtitles.of(target = showTarget, english = !showEnglish))
+        if (blurTarget) Subtitles.of(target = true, english = showEnglish) else Subtitles.of(target = !showTarget, english = showEnglish))
+    fun toggleEnglish() = changeSubtitles(
+        if (blurEnglish) Subtitles.BOTH else Subtitles.of(target = showTarget, english = !showEnglish))
 
     fun toggleSlow() {
         slow = !slow

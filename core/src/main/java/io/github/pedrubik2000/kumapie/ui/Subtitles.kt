@@ -192,8 +192,14 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
                 }
             }
             if (englishText.isNotEmpty()) {
-                Text(englishText, style = englishStyle(size), color = Colors.dim,
-                    modifier = Modifier.padding(top = if (germanText.isEmpty()) 0.dp else 8.dp))
+                // Blurred the same way as the German above.
+                val shadow = if (ctl.blurEnglish && !paused) shadowOnly(
+                    AnnotatedString(englishText, listOf(AnnotatedString.Range(SpanStyle(Colors.dim), 0, englishText.length))),
+                    with(density) { 20.dp.toPx() }) else null
+                Box(Modifier.padding(top = if (germanText.isEmpty()) 0.dp else 8.dp), contentAlignment = Alignment.Center) {
+                    if (shadow != null) repeat(3) { Text(shadow, style = englishStyle(size)) }
+                    Text(shadow ?: AnnotatedString(englishText), style = englishStyle(size), color = Colors.dim)
+                }
             }
         }
     }

@@ -98,12 +98,13 @@ class Settings(context: Context) {
 
 /** What the subtitles show: the episode's language (target), its translation (English), both, or nothing. */
 enum class Subtitles {
-    HIDDEN, BLURRED, TARGET, BOTH, ENGLISH;
+    HIDDEN, BLURRED, BOTH_BLURRED, TARGET, BOTH, ENGLISH;
 
     fun label(lang: Lang): String = when (this) {
         HIDDEN -> io.github.pedrubik2000.kumapie.i18n.tr("Hidden")
         BLURRED -> io.github.pedrubik2000.kumapie.i18n.tr("%s, blurred", lang.displayName)
         TARGET -> lang.displayName
+        BOTH_BLURRED -> io.github.pedrubik2000.kumapie.i18n.tr("%1\$s + %2\$s, blurred", lang.displayName, lang.translationDisplayName)
         BOTH -> "${lang.displayName} + ${lang.translationDisplayName}"
         ENGLISH -> lang.translationDisplayName
     }

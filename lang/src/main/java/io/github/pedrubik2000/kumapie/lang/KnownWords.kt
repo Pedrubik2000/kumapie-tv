@@ -236,7 +236,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      * The episode's word colours and scene levels from the device's own known words, replacing the PC's. Words the PC
      * marked known (`m`) stay known, as on the PC. Before Anki has been read here: [unread].
      */
-    fun apply(episode: EpisodeDetail): EpisodeDetail {
+    fun apply(split: EpisodeDetail): EpisodeDetail {
+        val episode = language.joinNames(split)
         val pcMarked = episode.words.filterValues { it.marked }.keys
         if (!marked.containsAll(pcMarked)) setMarked(marked + pcMarked)
         val snap = snapshot ?: return unread(episode, marked)

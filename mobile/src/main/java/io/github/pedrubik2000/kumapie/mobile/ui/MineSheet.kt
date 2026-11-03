@@ -365,7 +365,8 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         Button(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), enabled = !busy && !done && (!wordCard || choices.isNotEmpty() || entry != null), onClick = {
             busy = true
             val pick = choices.getOrNull(chosen)
-            val w = if (wordCard && segment != null && (pick != null || entry != null) && hw != null) Miner.Word(segment.text, segment.word, hw.expression,
+            // The headword when the line has it whole (壬氏 of the piece 壬): that is what the sentence bolds.
+            val w = if (wordCard && segment != null && (pick != null || entry != null) && hw != null) Miner.Word(hw.expression.takeIf { it in cue.text } ?: segment.text, segment.word, hw.expression,
                 pick?.gloss.orEmpty(), reading = hw.reading.takeIf { it.isNotBlank() }, pitch = hw.pitches.flatMap { it.second }.firstOrNull(), mono = monos.getOrNull(monoChosen)?.gloss,
                 audio = audios?.getOrNull(audioChosen)?.second)
             else null

@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.lang
 
 import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.data.Segment
 
 /**
  * What a tap on Japanese text finds (kumapie_languages_plan.md step 3): Sudachi's word at the tap (its dictionary
@@ -83,11 +84,14 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         // The longest match, only when it covers the word (気にしない from 気); among same-length ones a bilingual
         // dictionary's (しましょう: する, not Pixiv's しましょう). A shorter piece is no row (user, 2026-10-11).
         val longest = scanned.filter { it.first.length == scanned.maxOfOrNull { s -> s.first.length } && it.first.length >= w.surface.length - skip }
+        name(longest, heads)?.let { return listOf(it) }
         val (matched, term) = longest.firstOrNull { it.second.expression == w.base && bilingual(it.second) }
             ?: longest.firstOrNull { bilingual(it.second) } ?: longest.firstOrNull() ?: return out
         val head = heads.firstOrNull { it.expression == term.expression && readingOf(term).let { r -> r.isEmpty() || r == it.reading } }
             ?: Headword(term.expression, readingOf(term), listOf(term))
-        out += Form(matched, model.parse(listOf(matched)).first().joinToString("") { hiragana(it.reading) }, head)
+        // The headword itself keeps its reading: Sudachi reads 壬氏様 みずのえしさま, the dictionary じんしさま.
+        out += Form(matched, head.reading.takeIf { matched == term.expression && it.isNotBlank() }
+            ?: model.parse(listOf(matched)).first().joinToString("") { hiragana(it.reading) }, head)
         out += Form(term.expression, head.reading, head)
         // A conjugated form is never a row of its own (user, 2026-10-24): 離れてて and 気にしない rate as 離れる and
         // 気にする, when that dictionary form has a row.
@@ -95,6 +99,22 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         val conjugated = { f: Form -> f.written !in dictionary && out.any { it.written in dictionary } &&
             (f.written == written || f.written == matched) && (w.surface != w.base || matched != term.expression) }
         return out.filterNot { written != w.surface && it.written == w.surface }.filterNot(conjugated).distinctBy { it.key }
+    }
+
+    /**
+     * The one row of a tap on a character's name (user, 2026-11-02): when only Bee's Character Dictionary has the longest
+     * match, 壬氏様 rates as 壬氏 [じんし], not as the piece 壬 [みずのえ] Jiten split off or a card per honorific. Not for
+     * all-hiragana matches: そうた could be そう + た.
+     */
+    private fun name(longest: List<Pair<String, YomitanDictionaries.Term>>, heads: List<Headword>): Form? {
+        if (longest.isEmpty() || !longest.all { (_, t) -> t.glossaries.isNotEmpty() && t.glossaries.all { YomitanDictionaries.character(it.raw) != null } }) return null
+        val (matched, term) = longest.first()
+        if (matched.all { it in 'ぁ'..'ゖ' }) return null
+        val honorific = term.glossaries.firstNotNullOfOrNull { YomitanDictionaries.character(it.raw)?.second }.orEmpty()
+        val base = term.expression.removeSuffix(honorific)
+        val head = heads.firstOrNull { it.expression == base && readingOf(term).startsWith(it.reading) }
+            ?: heads.firstOrNull { it.expression == term.expression } ?: return null
+        return Form(head.expression, head.reading, head)
     }
 
     /** The term has a bilingual dictionary's entry (an English meaning for a card). */
@@ -126,13 +146,15 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             val senses = mutableListOf(mutableListOf<String>())
             var translation = false
             var seenEnglish = false // Japanese before any English is the headword ("ゆ きり"), not an example
-            for (p in m.split(';', '；').map(::englishPart).filter { it.isNotEmpty() }) {
+            val pieces = m.split(';', '；').map(::englishPart).filter { it.isNotEmpty() }
+            for (p in pieces) {
                 val english = p.any { it in 'a'..'z' || it in 'A'..'Z' }
                 if (english) seenEnglish = true
                 when {
                     !english -> { if (senses.last().isNotEmpty()) senses += mutableListOf<String>(); translation = seenEnglish }
                     translation -> translation = false
-                    p.startsWith("See also") || p.lowercase().split(' ').all { w -> w in TAGS || w.matches(Regex("""\d*-?dan""")) } -> {}
+                    // A tag is a piece among others: alone it is the meaning (a character called Kana).
+                    p.startsWith("See also") || pieces.size > 1 && p.lowercase().split(' ').all { w -> w in TAGS || w.matches(Regex("""\d*-?dan""")) } -> {}
                     p.any { it in 'a'..'z' } && p !in senses.last() -> senses.last() += p
                 }
             }
@@ -181,6 +203,28 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         /** A sense as a short meaning: "よばれる【呼ばれる】; 〘v1・vi〙; 1 to be called out." → "to be called out." */
         fun meaning(s: String) = s.substringAfterLast('】').replace(Regex("""〘[^〙]*〙|［[^］]*］|\[[^\]]*]|→\S+"""), "")
             .replace(Regex("""^[\s;；:・.\d①-⑳]+"""), "").trim()
+
+        /**
+         * A cue's pieces with a character's name as one word, keyed by [name] (user, 2026-11-02): Jiten doesn't know 壬氏, so
+         * 壬|氏|様 becomes 壬氏様, keyed 壬氏. A name starts with kanji or katakana: そう|た is not そうた.
+         * ponytail: at most 5 pieces; a longer name stays split until this is raised.
+         */
+        fun joinNames(segments: List<Segment>, name: (String) -> String?): List<Segment> {
+            val out = ArrayList<Segment>(segments.size)
+            var i = 0
+            while (i < segments.size) {
+                val first = segments[i]
+                val hit = if (first.word == null || first.text.firstOrNull() in 'ぁ'..'ゖ') null
+                    else (minOf(i + 5, segments.size) downTo i + 2).firstNotNullOfOrNull { end ->
+                        val pieces = segments.subList(i, end)
+                        if (pieces.any { it.word == null }) null
+                        else pieces.joinToString("") { it.text }.let { t -> name(t)?.let { Segment(t, it) to end } }
+                    }
+                out += hit?.first ?: first
+                i = hit?.second ?: (i + 1)
+            }
+            return out
+        }
 
         /** A word お/ご joined to the word after it, keyed by that word (お料理 → 料理, お待たせ → 待たせる; JitenSplitter.joinPrefix). */
         fun prefixed(t: JapaneseModel.Token) =

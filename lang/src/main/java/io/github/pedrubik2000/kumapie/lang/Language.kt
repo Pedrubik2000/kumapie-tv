@@ -1,8 +1,10 @@
 package io.github.pedrubik2000.kumapie.lang
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
+import io.github.pedrubik2000.kumapie.data.Word
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +46,8 @@ sealed interface Language {
     fun wordKeys(fields: List<String>): List<Set<String>>
     /** Known without a card or a mark (Japanese: names and fillers, by Sudachi). */
     fun autoKnown(word: String): Boolean = false
+    /** The episode as this device's dictionaries split it further (Japanese: characters' names as one word). */
+    fun joinNames(episode: EpisodeDetail): EpisodeDetail = episode
 }
 
 /** A language's parser: downloaded once, then [isReady]. Its texts are English keys, translated where they are shown. */
@@ -181,10 +185,27 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
 
     private val auto = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
-    /** Names (固有名詞) and interjections/fillers (感動詞: えっと, ああ) count as known: Sudachi's part of speech of the word alone. */
+    /**
+     * Names (固有名詞; a character only a character dictionary has) and interjections/fillers (感動詞: えっと, ああ) count as
+     * known: Sudachi's part of speech of the word alone.
+     */
     override fun autoKnown(word: String): Boolean = model.isReady && auto.getOrPut(word) {
-        runCatching { model.parse(listOf(word)).first() }.getOrNull()?.singleOrNull()
+        yomitan.characterName(lang, word) != null || runCatching { model.parse(listOf(word)).first() }.getOrNull()?.singleOrNull()
             ?.let { it.pos == "感動詞" || it.sub == "固有名詞" } ?: false
+    }
+
+    /**
+     * Characters' names as one word ([JapaneseLookup.joinNames]). Here when an episode opens, not in its stored split: the
+     * dictionary is this device's and changes with the person's AniList list.
+     */
+    override fun joinNames(episode: EpisodeDetail): EpisodeDetail {
+        val started = System.currentTimeMillis()
+        val scenes = episode.scenes.map { s -> s.copy(cues = s.cues.map { c ->
+            c.copy(segments = JapaneseLookup.joinNames(c.segments) { yomitan.characterName(lang, it) })
+        }) }
+        val names = scenes.flatMap { s -> s.cues.flatMap { c -> c.segments.mapNotNull { it.word } } }.toSet() - episode.words.keys
+        android.util.Log.i("kumapie", "names: ${names.size} in ${System.currentTimeMillis() - started} ms")
+        return episode.copy(scenes = scenes, words = episode.words + names.associateWith { Word("u", "") })
     }
 
     /**

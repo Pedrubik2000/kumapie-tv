@@ -34,6 +34,39 @@ class JapaneseMeaningsTest {
             "1-dan transitive; to eat; もっと果物を食べるべきです。; You should eat more fruit.; to live on (e.g. a salary); to live off; 僕は脚本家で食べていく。; I make a living as a playwright."))
     }
 
+    /** Bee's Character Dictionary entries, as its zip has them (2026-11-02), without the details. */
+    private fun bee(name: String, romaji: String, honorific: String? = null) = "[{\"content\":[" +
+        (honorific?.let { "{\"content\":[{\"content\":\"$it\",\"tag\":\"span\"},{\"content\":\" — Kana form of 様 — very formal/respectful\",\"tag\":\"span\"}],\"tag\":\"div\"}," } ?: "") +
+        "{\"content\":\"$name\",\"data\":{\"id\":\"name\"},\"tag\":\"div\"},{\"content\":\"$romaji\",\"data\":{\"id\":\"name-romaji\"},\"tag\":\"div\"}," +
+        "{\"content\":\"From: 薬屋のひとりごと\",\"data\":{\"id\":\"source\"},\"tag\":\"div\"}," +
+        "{\"content\":{\"content\":\"Main Character\",\"data\":{\"id\":\"role\"},\"tag\":\"span\"},\"data\":{\"id\":\"role-container\"},\"tag\":\"div\"}],\"type\":\"structured-content\"}]"
+
+    @Test fun characterMeaningIsTheName() {
+        // The word card said "Jinshi; From:; Main Character" and, with an honorific, "From:; Main Character".
+        for (entry in listOf(bee("壬氏", "Jinshi"), bee("壬氏", "Jinshi", "様")))
+            assertEquals(listOf("Jinshi"), YomitanDictionaries.senses(entry).flatMap(JapaneseLookup::bilingualMeanings))
+        assertEquals("Jinshi" to null, YomitanDictionaries.character(bee("壬氏", "Jinshi")))
+        assertEquals("Jinshi" to "様", YomitanDictionaries.character(bee("壬氏", "Jinshi", "様")))
+        // A name that is also a tag.
+        assertEquals(listOf("Kana"), YomitanDictionaries.senses(bee("佳奈", "Kana")).flatMap(JapaneseLookup::bilingualMeanings))
+        // Any other dictionary's entry.
+        assertEquals(null, YomitanDictionaries.character("[\"to eat\"]"))
+        assertEquals(listOf("to eat"), YomitanDictionaries.senses("[\"to eat\"]"))
+    }
+
+    @Test fun characterNamesJoined() {
+        fun seg(vararg s: String) = s.map { io.github.pedrubik2000.kumapie.data.Segment(it, if (it == "、") null else it) }
+        val names = mapOf("壬氏様" to "壬氏", "壬氏" to "壬氏", "そうた" to "そうた")
+        fun join(vararg s: String) = JapaneseLookup.joinNames(seg(*s)) { names[it] }.map { it.text to it.word }
+        // The longest name, keyed without its honorific; the rest of the line as it was.
+        assertEquals(listOf("壬氏様" to "壬氏", "の" to "の"), join("壬", "氏", "様", "の"))
+        assertEquals(listOf("壬氏" to "壬氏", "は" to "は"), join("壬", "氏", "は"))
+        // Not across what isn't a word, not from hiragana, a word alone stays.
+        assertEquals(listOf("壬" to "壬", "、" to null, "氏" to "氏"), join("壬", "、", "氏"))
+        assertEquals(listOf("そう" to "そう", "た" to "た"), join("そう", "た"))
+        assertEquals(listOf("壬" to "壬"), join("壬"))
+    }
+
     @Test fun englishSankokuMeaning() {
         // 湯切り as the English Sankoku's glossary flattens: the mining sheet had no meaning (2026-10-25).
         assertEquals(listOf("The act of thoroughly draining hot water from noodles (such as ramen) using a colander a…"),

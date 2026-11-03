@@ -225,6 +225,22 @@ class YomitanDictionaries private constructor(private val context: Context) {
         parseTerms(JSONArray(Hoshidicts.nativeQuery(h, word)))
     }
 
+    /**
+     * The name when only a character dictionary has [word] (壬氏様 -> 壬氏, 壬氏 -> 壬氏), else null. A word no character has
+     * costs one look in that dictionary alone: a Japanese episode asks thousands of times when it opens.
+     */
+    fun characterName(lang: Lang, word: String): String? = synchronized(this) {
+        val h = handles.getOrPut("names:" + lang.code) {
+            val dicts = of(lang).filter { it.enabled && it.terms > 0 && it.title.contains("character", ignoreCase = true) }
+            if (dicts.isEmpty()) return null
+            Hoshidicts.nativeOpen().also { h -> dicts.forEach { Hoshidicts.nativeAdd(h, File(base, it.folder).path, 0) } }
+        }
+        if (Hoshidicts.nativeQuery(h, word).length <= 2) return null // "[]"
+        val glossaries = query(lang, word).flatMap { it.glossaries }
+        val found = glossaries.map { character(it.raw) ?: return null }
+        word.removeSuffix(found.firstNotNullOfOrNull { it.second }.orEmpty()).takeIf { found.isNotEmpty() }
+    }
+
     /** Yomitan's scan from the start of [text] (Japanese deinflection, longest match first): (matched text, term). */
     fun scan(lang: Lang, text: String, max: Int = 16): List<Pair<String, Term>> = synchronized(this) {
         val h = handle(lang) ?: return emptyList()
@@ -380,6 +396,8 @@ class YomitanDictionaries private constructor(private val context: Context) {
          * item is one. Etymology/notes (`details`), backlinks, furigana readings and images are left out.
          */
         fun senses(glossary: String): List<String> = runCatching {
+            // A character's meaning is the name, not its From: and role lines.
+            character(glossary)?.let { return listOf(it.first) }
             val a = JSONArray(glossary)
             (0 until a.length()).flatMap { i ->
                 val item = a.get(i)
@@ -396,6 +414,19 @@ class YomitanDictionaries private constructor(private val context: Context) {
                 }
             }
         }.getOrDefault(listOf(glossary))
+
+        /**
+         * Bee's Character Dictionary (characterdictionary.tokyo): an entry's name in Latin letters and the honorific it
+         * adds (壬氏様: "Jinshi", "様"; 壬氏: "Jinshi", null); null for any other dictionary's entry.
+         */
+        fun character(glossary: String): Pair<String, String?>? = runCatching {
+            if ("\"name-romaji\"" !in glossary) return null
+            val top = JSONArray(glossary).optJSONObject(0)?.optJSONArray("content") ?: return null
+            val parts = (0 until top.length()).mapNotNull { top.optJSONObject(it) }
+            val romaji = parts.firstOrNull { it.optJSONObject("data")?.optString("id") == "name-romaji" }?.optString("content")
+            // An honorific's entry starts with a line of its own: [様, " — Very formal/respectful"].
+            romaji?.let { it to parts.firstOrNull()?.takeIf { p -> !p.has("data") }?.optJSONArray("content")?.optJSONObject(0)?.optString("content") }
+        }.getOrNull()
 
         private fun glossSense(item: Any?): String? {
             if (item !is JSONObject || !item.toString().contains("\"sense-label\"")) return null

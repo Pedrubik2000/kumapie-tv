@@ -169,16 +169,18 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
         val keys = CardIndex.japaneseKeys(note)
         val (spelling, reading) = keys.firstOrNull()?.split('	') ?: return keys
         val other = runCatching { model.splitter()?.spellings(spelling, reading) }.getOrNull().orEmpty()
-        return (keys + other.flatMap { listOf(CardIndex.japaneseKey(it, reading), it) } + tapped(note)).distinct()
+        return (keys + other.flatMap { listOf(CardIndex.japaneseKey(it, reading), it) } + tapped(note, spelling)).distinct()
     }
 
     /**
      * The word bold in the card's sentence (mined: what was tapped, `<b>ワナ</b>` on a 罠[わな] card) and its dictionary
      * form as [JapaneseModel.words] splits it, when it is one word: a word the subtitles write in kana finds its card.
+     * Nothing when the bold is the card's own [spelling]: its split can be another word (the noun 覚え as the verb
+     * 覚える's stem made 覚え's card colour 覚える, 2026-11-07).
      */
-    private fun tapped(note: AnkiCards.Note): List<String> {
+    private fun tapped(note: AnkiCards.Note, spelling: String): List<String> {
         val bold = Regex("""<b>([^<\[]+)""").find(note.fields["Sentence"].orEmpty())?.groupValues?.get(1)?.trim()
-            ?.takeIf { it.isNotEmpty() } ?: return emptyList()
+            ?.takeIf { it.isNotEmpty() && it != spelling } ?: return emptyList()
         val word = runCatching { model.words(listOf(bold)).first().filter { it.isWord }.singleOrNull() }.getOrNull() ?: return emptyList()
         return listOf(bold, word.base)
     }

@@ -368,7 +368,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val cache = runCatching { JSONObject(keysCache.readText()) }.getOrDefault(JSONObject())
         val out = HashMap<Long, List<String>>()
         for (n in notes) {
-            val hash = "${language.parserId}:${(n.fields["Word"] + "\u0001" + n.fields["Reading"] + "\u0001" + n.fields["Sentence"]).hashCode()}"
+            val hash = "${language.parserId}:k2:${(n.fields["Word"] + "\u0001" + n.fields["Reading"] + "\u0001" + n.fields["Sentence"]).hashCode()}"
             val hit = cache.optJSONObject("${n.id}")
             out[n.id] = if (hit != null && hit.optString("h") == hash) hit.getJSONArray("k").let { a -> List(a.length()) { a.getString(it) } }
                 else language.cardKeys(n).also { cache.put("${n.id}", JSONObject().put("h", hash).put("k", JSONArray(it))) }

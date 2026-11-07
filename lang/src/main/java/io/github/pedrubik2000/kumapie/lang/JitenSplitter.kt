@@ -58,12 +58,13 @@ class JitenSplitter(private val lexicon: File, private val systemDic: File, priv
         val words = runCatching { p.parseText(text) }.getOrElse { emptyList() }
         val out = ArrayList<JapaneseModel.Token>()
         var at = 0
+        val pieces = Pieces(text)
         for (w in words) {
             val surface = w.originalText
             val found = if (surface.isEmpty()) -1 else text.indexOf(surface, at)
             if (found < 0) continue // not in the text as written: its text stays in the gap
             gap(text, at, found, out)
-            out += token(p, w, found)
+            out += token(p, w, found).let { t -> pieces.reading(found, found + surface.length)?.let { t.copy(reading = it) } ?: t }
             at = found + surface.length
         }
         gap(text, at, text.length, out)
@@ -78,9 +79,34 @@ class JitenSplitter(private val lexicon: File, private val systemDic: File, priv
             out += JapaneseModel.Token(piece, piece, "", if (piece.isBlank()) "空白" else "補助記号", from)
             return
         }
-        val tok = sudachi ?: DictionaryFactory().create(Config.defaultConfig().systemDictionary(systemDic.toPath())).create()
-            .also { sudachi = it }
-        JapaneseModel.join(JapaneseModel.tokens(tok, piece)).forEach { out += it.copy(begin = it.begin + from) }
+        JapaneseModel.join(JapaneseModel.tokens(sudachi(), piece)).forEach { out += it.copy(begin = it.begin + from) }
+    }
+
+    private fun sudachi() = sudachi ?: DictionaryFactory().create(Config.defaultConfig().systemDictionary(systemDic.toPath())).create()
+        .also { sudachi = it }
+
+    /**
+     * A word's reading from Sudachi's own pieces of exactly its span of the line (its largest pieces that fit: mode C,
+     * then B, then A); null when none fit. Jiten's merges lose or double a piece's reading now and then (ずさんな read
+     * ズサン, 致命的な チメイテキテキナ: their cards couldn't be rated, user 2026-11-06).
+     */
+    private inner class Pieces(private val text: String) {
+        private val modes = listOf(Tokenizer.SplitMode.C, Tokenizer.SplitMode.B, Tokenizer.SplitMode.A)
+        private val split = arrayOfNulls<List<com.worksap.nlp.sudachi.Morpheme>>(modes.size)
+
+        fun reading(from: Int, to: Int): String? {
+            for (m in modes.indices) {
+                val ms = split[m] ?: sudachi().tokenize(modes[m], text).toList().also { split[m] = it }
+                val first = ms.indexOfFirst { it.begin() == from }.takeIf { it >= 0 } ?: continue
+                val read = StringBuilder()
+                for (x in ms.subList(first, ms.size)) {
+                    read.append(x.readingForm())
+                    if (x.end() == to) return read.toString()
+                    if (x.end() > to) break
+                }
+            }
+            return null
+        }
     }
 
     private fun token(p: JitenParser, w: DeckWord, begin: Int): JapaneseModel.Token {

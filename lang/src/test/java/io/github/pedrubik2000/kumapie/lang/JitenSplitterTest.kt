@@ -39,6 +39,14 @@ class JitenSplitterTest {
         assertEquals("呼ばれちゃった→呼ぶ | [！]", show("呼ばれちゃった！"))
     }
 
+    /** A word Jiten joined reads as its whole text (ずさんな read ずさん, 致命的な ちめいてきてきな: the card couldn't be rated). */
+    @Test fun joinedReadings() {
+        assumeTrue(splitter != null)
+        fun reading(text: String, word: String) = splitter!!.split(text).first { it.surface == word }.reading
+        assertEquals("ズサンナ", reading("そんなずさんな管理だったんですか？", "ずさんな"))
+        assertEquals("チメイテキナ", reading("致命的な欠陥", "致命的な"))
+    }
+
     @Test fun spellings() {
         assumeTrue(splitter != null)
         val s = splitter!!

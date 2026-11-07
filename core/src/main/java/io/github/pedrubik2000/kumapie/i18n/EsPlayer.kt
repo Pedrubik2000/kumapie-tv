@@ -29,6 +29,11 @@ internal val esPlayer: Map<String, String> = mapOf(
         "No saltar nada: también los huecos entre escenas",
     "Don't stop on i+0 scenes (no new words)" to "No parar en escenas i+0 (sin palabras nuevas)",
     "Slow (0.75x)" to "Lento (0.75x)",
+    "Back %d s" to "Atrás %d s",
+    "Forward %d s" to "Adelante %d s",
+    "Back / forward buttons" to "Botones atrás / adelante",
+    "Skip intro" to "Saltar intro",
+    "Skip ending" to "Saltar final",
     "Upright: scene by scene, swipe left" to "Vertical: escena por escena, desliza a la izquierda",
     "Subtitle timing" to "Sincronía de subtítulos",
     " (moved %+.1f s so far)" to " (movidos %+.1f s hasta ahora)",
@@ -36,11 +41,12 @@ internal val esPlayer: Map<String, String> = mapOf(
         "− muestra los subtítulos antes, + después. Se mueven todas las líneas del episodio.",
     "Subtitles" to "Subtítulos",
     "Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
-        "right: the scene · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
+        "right: the scene · ⟲ ⟳ in the middle: back / forward (seconds set here) · Skip intro / ending: shown in a long part without lines · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
         "tap a word: its meaning, then tap the words of the German definition too · " +
         "paused, long-press a subtitle and drag over a word: add it to your personal dictionary." to
         "Toca el número de escena arriba: todas las escenas, para saltar a una · toca el video: reproducir / pausa · " +
         "desliza ← →: escena siguiente / anterior · doble toque a la izquierda: repetir la línea, a la derecha: la escena · " +
+        "⟲ ⟳ en el centro: atrás / adelante (los segundos se eligen aquí) · Saltar intro / final: aparece en una parte larga sin diálogo · " +
         "toca los subtítulos: reproducir / pausa (el modo se elige aquí; los borrosos se leen en pausa) · " +
         "toca una palabra: su significado, y luego toca también las palabras de la definición en alemán.",
     // Add to Anki (MineSheet)

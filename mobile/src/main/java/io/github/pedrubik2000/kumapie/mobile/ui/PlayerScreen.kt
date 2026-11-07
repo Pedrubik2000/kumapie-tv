@@ -35,6 +35,12 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Forward30
+import androidx.compose.material.icons.filled.Forward5
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Replay30
+import androidx.compose.material.icons.filled.Replay5
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -219,6 +225,7 @@ internal fun ScenePlayer(
     var auto by remember { mutableStateOf(false) }
     var skip by remember { mutableStateOf(false) }
     var mining by remember { mutableStateOf(false) }
+    var seekStep by remember { mutableIntStateOf(settings.seekStep) }
     // Text selected in the subtitles, for the personal dictionary.
     var selected by remember { mutableStateOf<String?>(null) }
     // Each word's last rating from the word card ("Answered: Good", Undo), kept while the episode is open.
@@ -376,12 +383,29 @@ internal fun ScenePlayer(
                 FilterChip(selected = skip, onClick = { skip = !skip; auto = false; menuUntil = 0 }, label = { Text(tr("Skip")) })
             }
         }
-        if (!ctl.playing && !picker.isOpen && !episode.novel) {
-            Box(Modifier.align(Alignment.Center).size(64.dp).background(Color(0x66000000), CircleShape),
-                contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.PlayArrow, null, tint = Colors.text, modifier = Modifier.size(40.dp))
+        // Back / forward [seekStep] seconds either side of the middle, while the bar shows (paused, or just tapped).
+        if (barVisible && !picker.isOpen && !episode.novel) {
+            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(40.dp)) {
+                val (back, forward) = when (seekStep) {
+                    5 -> Icons.Default.Replay5 to Icons.Default.Forward5
+                    30 -> Icons.Default.Replay30 to Icons.Default.Forward30
+                    else -> Icons.Default.Replay10 to Icons.Default.Forward10
+                }
+                IconButton(onClick = { ctl.seekBy(-seekStep.toDouble()) }, Modifier.size(56.dp).background(Color(0x66000000), CircleShape)) {
+                    Icon(back, tr("Back %d s").format(seekStep), tint = Colors.text, modifier = Modifier.size(32.dp))
+                }
+                Box(Modifier.size(64.dp).background(if (ctl.playing) Color.Transparent else Color(0x66000000), CircleShape),
+                    contentAlignment = Alignment.Center) {
+                    if (!ctl.playing) Icon(Icons.Default.PlayArrow, null, tint = Colors.text, modifier = Modifier.size(40.dp))
+                }
+                IconButton(onClick = { ctl.seekBy(seekStep.toDouble()) }, Modifier.size(56.dp).background(Color(0x66000000), CircleShape)) {
+                    Icon(forward, tr("Forward %d s").format(seekStep), tint = Colors.text, modifier = Modifier.size(32.dp))
+                }
             }
         }
+        // Skip intro / ending: in a long stretch without lines (its own composable: it reads the position every tick).
+        if (!picker.isOpen) SkipButton(ctl, Modifier.align(Alignment.BottomEnd).padding(24.dp), onEnding = onBack)
 
         Subtitles(ctl, picker, onAnchor = { anchor = it }, onTap = { tap ->
             when (tap) {
@@ -415,7 +439,7 @@ internal fun ScenePlayer(
 
     if (options) {
         ModalBottomSheet(onDismissRequest = { options = false }) {
-            Options(ctl, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow,
+            Options(ctl, seekStep, { seekStep = it; settings.seekStep = it }, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow,
                 onShift?.let { f -> { secs: Double -> options = false; ctl.report(); f(secs, ctl.position) } },
                 onShift?.let { library.local.shifted(episode.id) })
         }
@@ -444,6 +468,17 @@ internal fun ScenePlayer(
     if (mining) {
         // Opened full: half open hid the Add button under the screen.
         ModalBottomSheet(onDismissRequest = { mining = false }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) { MineSheet(library, episode, ctl, picker, onDone = { mining = false }) }
+    }
+}
+
+/** "Skip intro" / "Skip ending" while [SceneController.skipTarget] has somewhere to go; the ending closes the player. */
+@Composable
+private fun SkipButton(ctl: SceneController, modifier: Modifier, onEnding: () -> Unit) {
+    val target by remember { androidx.compose.runtime.derivedStateOf { ctl.skipTarget() } }
+    val ending by remember { androidx.compose.runtime.derivedStateOf { ctl.skipIsEnding() } }
+    if (target == null) return
+    Button(onClick = { if (ending) { ctl.seekTo(Double.MAX_VALUE); onEnding() } else ctl.skip() }, modifier = modifier) {
+        Text(if (ending) tr("Skip ending") else tr("Skip intro"))
     }
 }
 
@@ -546,7 +581,7 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> 
 
 /** The player's modes, saved on the device; and a reminder of the gestures. */
 @Composable
-private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprightNow: Boolean = false,
+private fun Options(ctl: SceneController, seekStep: Int, onSeekStep: (Int) -> Unit, onUpright: (() -> Unit)? = null, uprightNow: Boolean = false,
                     onShift: ((Double) -> Unit)? = null, shifted: Double? = null) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -556,6 +591,12 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         OptionRow(tr("Don't stop on i+0 scenes (no new words)"), ctl.playThroughKnown, ctl::togglePlayThroughKnown)
         OptionRow(tr("Slow (0.75x)"), ctl.slow, ctl::toggleSlow)
         if (onUpright != null) OptionRow(tr("Upright: scene by scene, swipe left"), uprightNow, onUpright)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(tr("Back / forward buttons"), modifier = Modifier.weight(1f))
+            listOf(5, 10, 30).forEach { s ->
+                FilterChip(selected = seekStep == s, onClick = { onSeekStep(s) }, label = { Text("$s s", fontSize = 12.sp) })
+            }
+        }
         if (onShift != null) {
             Text(tr("Subtitle timing") + (shifted?.takeIf { it != 0.0 }?.let { tr(" (moved %+.1f s so far)").format(java.util.Locale.ROOT, it) } ?: ""),
                 color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
@@ -575,7 +616,7 @@ private fun Options(ctl: SceneController, onUpright: (() -> Unit)? = null, uprig
         }
         Text(
             tr("Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
-                "right: the scene · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
+                "right: the scene · ⟲ ⟳ in the middle: back / forward (seconds set here) · Skip intro / ending: shown in a long part without lines · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
                 "tap a word: its meaning, then tap the words of the German definition too · " +
                 "paused, long-press a subtitle and drag over a word: add it to your personal dictionary."),
             color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),

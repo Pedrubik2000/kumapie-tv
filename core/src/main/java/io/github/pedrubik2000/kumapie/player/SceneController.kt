@@ -165,6 +165,49 @@ class SceneController(
         playing = true
     }
 
+    /**
+     * [seconds] back (−) or forward (+) in the video, playing or paused as it was. The scene follows the position, so
+     * replay line / replay scene work on the scene you land in.
+     */
+    fun seekBy(seconds: Double) = seekTo(player.currentPosition / 1000.0 + seconds)
+
+    /** To [seconds] in the video (kept inside it); the scene is the one that has started there (the first before it). */
+    fun seekTo(seconds: Double) {
+        if (scenes.isEmpty()) return
+        val to = seconds.coerceIn(0.0, (duration() - 0.5).coerceAtLeast(0.0))
+        index = scenes.indexOfLast { it.start <= to }.coerceAtLeast(0)
+        atSceneEnd = false
+        seek(to)
+        // Playing inside a scene: its end pause as usual; past its end (a gap) tick() follows the video into the next.
+        if (playing && to < scene.end) stopAtSceneEnd() else stopAt = null
+        showBanner()
+    }
+
+    /**
+     * Where Skip goes while the video is in a long stretch without lines in the episode's language (an opening or
+     * ending song: 45 s+): the next such scene's start, or the video's end after the last one. Null elsewhere.
+     */
+    fun skipTarget(): Double? {
+        if (episode.novel || scenes.isEmpty()) return null
+        val pos = position
+        val from = scenes.lastOrNull { it.target && it.start <= pos }?.end ?: 0.0
+        if (pos < from) return null // inside a scene
+        val to = scenes.firstOrNull { it.target && it.start > pos }?.start ?: duration()
+        return to.takeIf { it - from >= SKIP_GAP && it - pos > 2 }
+    }
+
+    /** Skip: to the next scene with lines, played like a scene picked from the list (Primed Listening waits); the ending: to the end. */
+    fun skip() {
+        val to = skipTarget() ?: return
+        val i = scenes.indexOfFirst { it.target && it.start >= to - 0.01 }
+        if (i >= 0) playScene(i) else seekTo(to)
+    }
+
+    /** After the episode's last line (Skip goes to the end: the ending). */
+    fun skipIsEnding(): Boolean = scenes.none { it.target && it.start > position }
+
+    private fun duration() = player.duration.takeIf { it > 0 }?.let { it / 1000.0 } ?: (scenes.lastOrNull()?.end ?: 0.0)
+
     fun togglePlay() {
         when {
             playing -> player.pause()
@@ -290,7 +333,8 @@ class SceneController(
         }
         // After the stop: a next scene starting at (or within a tick of) this one's end moved on first and replaced
         // this scene's end pause, so Skip nothing played through (2026-10-15). Paused at the end: stay on this scene.
-        if (!atSceneEnd && (!pausesAtEnd(scene) || (newStraight && !episode.novel))) { // playing on: follow the video into the next scene
+        // Playing past the scene's end without its end pause (a seek, or play in the ending) follows the video too.
+        if (!atSceneEnd && (!pausesAtEnd(scene) || (newStraight && !episode.novel) || (playing && position > scene.end))) { // playing on: follow the video into the next scene
             val i = scenes.indexOfLast { it.start <= position }
             // Scenes often overlap by ~0.2 s (their padding): move on only once this one has ended, unless its end
             // doesn't pause anyway; moving on early dropped every end pause (2026-10-15, 74 of 133 in an episode).
@@ -344,7 +388,14 @@ class SceneController(
     // A novel waits after every line until a tap, like the game: the modes don't apply.
     private fun pausesAtStart(s: Scene) = !episode.novel && pauseAtSceneStart && !newStraight && !known(s)
     private fun pausesAtEnd(s: Scene) = episode.novel || (pauseAtSceneEnd && !known(s))
-    private fun known(s: Scene) = playThroughKnown && levelOf(s) == 0
+    // A due word (green) counts as not known: its scene stops, so it can be rated there (user, 2026-11-06).
+    private fun known(s: Scene) = playThroughKnown && levelOf(s) == 0 &&
+        s.cues.none { c -> c.segments.any { seg -> seg.word?.let { words[it]?.shownFor(seg.text) } == "d" } }
+
+    companion object {
+        /** A stretch without lines this long is an opening or ending (anime songs are ~90 s). */
+        const val SKIP_GAP = 45.0
+    }
 
     private fun stopAtSceneEnd() {
         if (pausesAtEnd(scene)) {

@@ -58,6 +58,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("slow", false)
         set(value) = prefs.edit().putBoolean("slow", value).apply()
 
+    /** The player's back / forward buttons: seconds per tap (5, 10 or 30). */
+    var seekStep: Int
+        get() = prefs.getInt("seek_step", 10)
+        set(value) = prefs.edit().putInt("seek_step", value).apply()
+
     /** What the subtitles show; kept from scene to scene and between episodes. A new install starts with both lines (user, 2026-10-11). */
     var subtitles: Subtitles
         get() = runCatching { Subtitles.valueOf(prefs.getString("subtitles", null)!!.replace("GERMAN", "TARGET")) }.getOrDefault(Subtitles.BOTH)

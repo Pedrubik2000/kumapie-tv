@@ -18,6 +18,7 @@ import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.AssetWorker
+import io.github.pedrubik2000.kumapie.lang.JapaneseLookup
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 
@@ -43,12 +44,19 @@ class NeuralVoices(private val context: Context) {
 
     fun state(lang: Lang): Flow<String?> = AssetWorker.state(work, "voice-${lang.code}")
 
-    /** [text] said into the WAV [out]; false when the voice isn't downloaded (the device's voice is used then). */
-    fun say(lang: Lang, text: String, out: File): Boolean {
+    /**
+     * [text] said into the WAV [out]; false when the voice isn't downloaded (the device's voice is used then). Japanese:
+     * as written, its dictionary gives the accent; [reading] instead when it would read the word otherwise (風邪薬 カゼヤク).
+     */
+    fun say(lang: Lang, text: String, out: File, reading: String? = null): Boolean {
         val spec = VOICES[lang] ?: return false
         if (!isReady(lang)) return false
         if (lang == Lang.JAPANESE) {
-            val wav = synchronized(VOICEVOX) { zundamon().tts(text, spec.sid).perform() }
+            val wav = synchronized(VOICEVOX) {
+                val voice = zundamon()
+                val said = voice.createAccentPhrases(text, spec.sid).flatMap { it.moras }.joinToString("") { it.text }
+                voice.tts(if (reading != null && !JapaneseLookup.sameSound(said, reading)) reading else text, spec.sid).perform()
+            }
             out.writeBytes(wav)
             return wav.size > 44
         }

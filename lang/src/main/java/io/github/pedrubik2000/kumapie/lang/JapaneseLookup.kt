@@ -259,5 +259,23 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
 
         /** Katakana -> hiragana (Sudachi gives readings in katakana, dictionaries in hiragana). */
         fun hiragana(s: String): String = buildString { for (c in s) append(if (c in 'ァ'..'ヶ') c - 0x60 else c) }
+
+        /** The same sound, however the kana spell it: とうきょう = トオキョオ = トーキョー, えいが = エエガ, きづく = キズク. */
+        fun sameSound(a: String, b: String) = spoken(a) == spoken(b)
+
+        private fun spoken(s: String) = buildString {
+            for (c in hiragana(s).replace('づ', 'ず').replace('ぢ', 'じ')) {
+                val vowel = lastOrNull()?.let { p -> VOWELS.firstOrNull { p in it }?.first() }
+                append(when {
+                    c == 'ー' && vowel != null -> vowel
+                    c == 'う' && vowel == 'お' -> 'お'
+                    c == 'い' && vowel == 'え' -> 'え'
+                    else -> c
+                })
+            }
+        }
+
+        private val VOWELS = listOf("あかがさざただなはばぱまやゃらわぁ", "いきぎしじちにひびぴみりぃ", "うくぐすずつぬふぶぷむゆゅるぅ",
+            "えけげせぜてでねへべぺめれぇ", "おこごそぞとどのほぼぽもよょろをぉ")
     }
 }

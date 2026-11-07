@@ -154,7 +154,9 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
     override val parserId get() = "sudachi-B-${JapaneseModel.VERSION}" + if (model.splitterReady) "+${JitenSplitter.ID}" else ""
     override val known = KnownWords(context, settings, this)
     private val finder by lazy { JapaneseLookup(model, yomitan) }
-    override val voice by lazy { Voice(appContext, lang) }
+    override val voice by lazy {
+        Voice(appContext, lang) { t -> runCatching { finder.lookup(t, 0, t.length).firstOrNull { it.expression == t }?.reading }.getOrNull()?.takeIf { it.isNotBlank() } }
+    }
     /** People's recordings of Japanese words (local collection, else JapanesePod101 online). */
     val audio by lazy { JapaneseAudio(appContext) }
     override val missing: String? get() = if (model.isReady) null else tr("Download the Japanese words dictionary (Sudachi) in Settings first.")
@@ -240,8 +242,8 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
     override fun wordOfMark(key: String) = markWord(key, null)
 
     override fun say(hw: Headword) {
-        // Said as written: the voice picks the reading and the accent (箸 vs 橋; Pedro 2026-10-24).
-        scope.launch { if (!audio.play(hw.expression, hw.reading)) voice.speak(hw.expression) }
+        // As written, so the voice gives the accent (箸 vs 橋; Pedro 2026-10-24); the reading only for a word it misreads.
+        scope.launch { if (!audio.play(hw.expression, hw.reading)) voice.speak(hw.expression, hw.reading.takeIf { it.isNotBlank() }) }
     }
 }
 

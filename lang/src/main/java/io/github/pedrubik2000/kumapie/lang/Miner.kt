@@ -272,7 +272,7 @@ class Miner(
         w.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
         val recorded = w.audio ?: japanese.audio.recording(expression, w.reading.orEmpty())
         val wav = File(dir, "word.wav").apply { delete() }
-        val audio = recorded ?: wav.takeIf { japanese.voice.toFile(expression, it) } // as written (箸, not はし): the voice's dictionary gives the accent
+        val audio = recorded ?: wav.takeIf { japanese.voice.toFile(expression, it, w.reading) } // as written (箸, not はし): the voice's dictionary gives the accent
         audio?.let { fields["Word Audio"] = "[audio:${addAudio(pkg, it, "kumapie-ja-${expression}")}]" }
         return expression to reading
     }

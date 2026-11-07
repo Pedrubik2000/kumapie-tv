@@ -61,7 +61,7 @@ class MainActivity : ComponentActivity() {
         val settings = Settings(this)
         // Downloaded voices (Settings > Word audio) before the device's own: Thorsten (German), Michael (English).
         val voices = io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices(applicationContext)
-        io.github.pedrubik2000.kumapie.lang.Voice.neural = { l, t, f -> voices.say(l, t, f) }
+        io.github.pedrubik2000.kumapie.lang.Voice.neural = { l, t, r, f -> voices.say(l, t, f, r) }
         // The server address can be sent from the PC instead of typed:
         //   adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.mobile.MainActivity --es server https://...
         intent?.getStringExtra("server")?.let { settings.server = it }

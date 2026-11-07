@@ -16,7 +16,9 @@ import kotlin.coroutines.resume
  * works offline once the engine's voice for it is installed (Settings shows whether it is, with a button to the
  * engine's settings).
  */
-class Voice(context: Context, private val lang: Lang = Lang.GERMAN) {
+class Voice(context: Context, private val lang: Lang = Lang.GERMAN,
+            /** Japanese: the reading of a word written exactly so, for a voice that may misread it. */
+            private val readingOf: (String) -> String? = { null }) {
     private val cache = File(context.cacheDir, "voice").apply { mkdirs() }
     private var player: android.media.MediaPlayer? = null
     @Volatile private var ready = false
@@ -29,12 +31,13 @@ class Voice(context: Context, private val lang: Lang = Lang.GERMAN) {
         pending = null
     }
 
-    fun speak(text: String) {
+    fun speak(text: String, reading: String? = null) {
         val n = neural
         if (n != null) { // the downloaded voice says it into a file (kept), played here; else the device's voice
             Thread {
-                val f = File(cache, "${lang.code}-${text.hashCode().toUInt()}.wav")
-                if (f.exists() || runCatching { n(lang, text, f) }.getOrDefault(false)) play(f) else speakDevice(text)
+                val r = reading ?: readingOf(text)
+                val f = File(cache, "${lang.code}-${(if (r == null) text else "$text|$r").hashCode().toUInt()}.wav")
+                if (f.exists() || runCatching { n(lang, text, r, f) }.getOrDefault(false)) play(f) else speakDevice(text)
             }.start()
             return
         }
@@ -57,9 +60,9 @@ class Voice(context: Context, private val lang: Lang = Lang.GERMAN) {
     }
 
     /** Says [text] into a WAV file (a mined card's word audio); false if the voice can't. */
-    suspend fun toFile(text: String, out: File): Boolean {
+    suspend fun toFile(text: String, out: File, reading: String? = null): Boolean {
         neural?.let { n ->
-            if (kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { n(lang, text, out) }.getOrDefault(false) }) return true
+            if (kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { n(lang, text, reading ?: readingOf(text), out) }.getOrDefault(false) }) return true
         }
         repeat(20) { if (!ready) delay(150) } // the engine may still be starting
         if (!ready) return false
@@ -84,8 +87,8 @@ class Voice(context: Context, private val lang: Lang = Lang.GERMAN) {
     }
 
     companion object {
-        /** A better offline voice the app has downloaded (kumapie mobile's NeuralVoices): text into a WAV, false when it has none. */
-        @Volatile var neural: ((Lang, String, File) -> Boolean)? = null
+        /** A better offline voice the app has downloaded (kumapie mobile's NeuralVoices): text (and its reading, if known) into a WAV, false when it has none. */
+        @Volatile var neural: ((Lang, String, String?, File) -> Boolean)? = null
     }
 
     /** For Settings: whether a German voice works without internet. */

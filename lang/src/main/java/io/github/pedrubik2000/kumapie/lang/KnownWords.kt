@@ -175,6 +175,24 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         true
     }
 
+    /**
+     * kuma3 syncs with AnkiWeb in the background (where kuma3 itself is never opened: the TV), after [readCards]. With
+     * [waitMs] it waits that long for the sync to end: true = it synced, so the cards are worth reading again.
+     */
+    suspend fun syncAnki(waitMs: Long = 0): Boolean = withContext(Dispatchers.IO) {
+        val pkg = lastReading?.pkg ?: return@withContext false
+        val before = anki.lastSync(pkg)
+        val started = anki.sync(pkg)
+        Log.i("kumapie", "kuma3 sync: ${if (started) "asked" else "not started (no AnkiWeb login there, or an older kuma3)"}, last synced $before")
+        if (!started || before == null) return@withContext false
+        val until = System.currentTimeMillis() + waitMs
+        while (System.currentTimeMillis() < until) {
+            kotlinx.coroutines.delay(1500)
+            if ((anki.lastSync(pkg) ?: before) > before) return@withContext true
+        }
+        false
+    }
+
     /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
     suspend fun refreshDue(force: Boolean = false) = withContext(Dispatchers.IO) {
         val pkg = lastReading?.pkg ?: return@withContext

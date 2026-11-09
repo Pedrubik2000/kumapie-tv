@@ -59,14 +59,15 @@ them).
 | subtitle mode | ↓ | L / R |
 | pick a word (the card shows its meaning; hold ↓ / Select marks it known) | hold OK | hold A, or Select |
 | add the picked word to Anki (again: see its card) | hold ↑ | Y |
-| rate a due (green) word's card, its meaning shown | OK, then ← Again, ↓ Hard, → Good, ↑ Easy | A, then the D-pad the same way |
+| rate the picked word's card (any word with a mined card), its meaning shown | OK, then ← Again, ↓ Hard, → Good, ↑ Easy | A, then the D-pad the same way |
 | undo that rating, until the next word card | hold ↑ | Y, or Start |
-| hear a due word (A rates it) | after rating it | R2 |
+| hear a word that has a card (A rates it) | after rating it | R2 |
 | options | hold ↓ | Start |
 | back | Back | B |
 
 A bar along the bottom says what the buttons do now, with PS5 glyphs after a gamepad press and the remote's names
-after a remote press (Settings turns it off). Ratings go to kuma3 on the TV, which is never opened.
+after a remote press (Settings turns it off). Ratings go to kuma3 on the TV, which is never opened: kumapie asks it to sync with AnkiWeb when an episode opens
+(the phone's reviews come in) and when you leave the player (the TV's go out). That needs a kuma3 with `kuma3/sync`.
 
 ## Build
 

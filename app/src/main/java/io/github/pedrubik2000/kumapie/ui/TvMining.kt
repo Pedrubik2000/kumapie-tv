@@ -200,7 +200,8 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
             // A due card is the one thing to act on here: a green slab, not a line of small text.
             if (shown == "d") Text(state.uppercase(), color = Arcade.background, fontSize = 12.sp, style = Arcade.label,
                 modifier = Modifier.padding(top = 4.dp).background(Colors.due, Slab).padding(horizontal = 12.dp, vertical = 1.dp))
-            Text((if (shown == "d") "" else state) + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
+            val looked = if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else ""
+            Text(if (shown == "d") looked.trimStart(' ', '·') else state + looked, color = color, fontSize = 15.sp)
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(Colors.dim.copy(alpha = 0.2f)))
         val message = status ?: when (html) { null -> tr("Looking it up…"); "" -> tr("Not in your %s dictionaries.", ctl.lang.displayName); else -> null }
@@ -433,6 +434,22 @@ suspend fun paintCards(context: Context, settings: Settings, ctl: SceneControlle
         s.cues.flatMap { it.segments }.mapNotNull { it.word }.filter { it in due }.distinct().map { "$it@${i + 1}" } }.take(40))
 }
 
+/**
+ * kuma3 on a TV is never opened, so it never syncs by itself: kumapie asks it to. When a player opens ([wait]): the
+ * phone's reviews and new cards come in and the words are coloured again, unless a word was rated meanwhile ([busy]:
+ * reading kuma3's queue replaces its Undo). When it closes: what was mined and rated here goes out.
+ */
+suspend fun syncAnki(context: Context, settings: Settings, ctl: SceneController, wait: Boolean, busy: () -> Boolean = { false }) {
+    val language = TvMining.languages(context, settings).of(ctl.lang)
+    val synced = runCatching { language.known.syncAnki(if (wait) 90_000 else 0) }.onFailure { Log.w("kumapie", "kuma3 sync: $it") }.getOrDefault(false)
+    if (synced && !busy()) paintCards(context, settings, ctl)
+}
+
+/** [syncAnki] when leaving the player: outlives it. */
+fun syncAnkiLater(context: Context, settings: Settings, ctl: SceneController) {
+    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { syncAnki(context.applicationContext, settings, ctl, wait = false) }
+}
+
 /** Every word of the episode coloured by the card index as it is now (after [paintCards]' read, a rating, an undo). */
 private fun repaint(language: Language, ctl: SceneController) {
     val known = language.known
@@ -450,6 +467,9 @@ private fun repaint(language: Language, ctl: SceneController) {
 // ------------------------------------------------------------ ratings in the word picker (user, 2026-11-09)
 
 val RATINGS = listOf("Again", "Hard", "Good", "Easy")
+
+/** The card states a word can be rated in: every word with a card of its own (user, 2026-11-09), as on the phone: due (green), new (blue: its first review), studied and not due (white: an early review). */
+val RATEABLE = setOf("d", "b", "k")
 
 /**
  * The player's rating state: [open] while the arrows rate the picked word, the last rating (its form) for Undo, and
@@ -487,7 +507,7 @@ fun rateWord(context: Context, settings: Settings, ctl: SceneController, picker:
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     rating.open = false
     val (form, state) = pickedCard(ctl, picker) ?: return
-    if (state != "d") return say(tr("This word isn't due in Anki today"))
+    if (state !in RATEABLE) return say(tr("This word has no card to rate"))
     if (!picker.cardOpen) return say(tr("See its meaning first"))
     if (rating.busy) return
     val language = TvMining.languages(context, settings).of(ctl.lang)
@@ -525,6 +545,7 @@ fun undoRating(context: Context, settings: Settings, ctl: SceneController, scope
             if (language.known.undo(rated)) {
                 rating.last = null
                 rating.fresh = false
+                language.known.refreshDue(force = true) // due again: the rating took it off the queue kumapie holds
                 repaint(language, ctl)
                 say(tr("Undone: %s is due again", form))
             } else say(tr("kuma3 didn't undo it (something else was done there since?)."))

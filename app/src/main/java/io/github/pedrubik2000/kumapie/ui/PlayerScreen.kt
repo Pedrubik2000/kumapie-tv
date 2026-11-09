@@ -114,7 +114,12 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
     remember { onPlayer(player) }
     val ctl = remember { SceneController(episode, player, settings, api) }
     // This TV's kuma3 colours the words it has cards for (a word mined here stays blue the next day, not red).
-    LaunchedEffect(Unit) { paintCards(context, settings, ctl) }
+    val rating = remember { TvRating() }
+    // Then kuma3 syncs (it is never opened on the TV) and the words are coloured again with the phone's reviews.
+    LaunchedEffect(Unit) {
+        paintCards(context, settings, ctl)
+        syncAnki(context, settings, ctl, wait = true, busy = { rating.last != null })
+    }
     val picker = remember { WordPicker(ctl, api, scope) }
     var options by remember { mutableStateOf(false) }
     var anchor by remember { mutableStateOf<Rect?>(null) } // the selected word, in screen coordinates
@@ -133,7 +138,6 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
     val pickerBindings = remember { settings.keys(KeyContext.PICKER) }
     val watchKeys = remember { keyMapOf(KeyContext.WATCH, watchBindings) }
     val pickerKeys = remember { keyMapOf(KeyContext.PICKER, pickerBindings) }
-    val rating = remember { TvRating() }
     // A rating's time runs from the word's meaning showing; another word ends the rating. Undo is offered until the
     // next word card (or rating).
     LaunchedEffect(picker.line, picker.seg, picker.cardOpen, picker.isOpen) {
@@ -176,7 +180,7 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
                 Action.PICK_UP -> if (!(picker.cardOpen && scrollTvDictionaries(-1))) picker.up()
                 Action.PICK_DOWN -> if (!(picker.cardOpen && scrollTvDictionaries(+1))) picker.down()
                 // A due word with its meaning shown: rate it (the pad hears with PICK_HEAR; any word once it is rated).
-                Action.PICK_AUDIO -> if (picker.cardOpen && !picker.inDef && pickedCard(ctl, picker)?.second == "d") rating.open = true
+                Action.PICK_AUDIO -> if (picker.cardOpen && !picker.inDef && pickedCard(ctl, picker)?.second in RATEABLE) rating.open = true
                     else picker.hearAgain()
                 Action.PICK_HEAR -> picker.hearAgain()
                 Action.PICK_REPLAY_LINE -> picker.replayLine()
@@ -197,6 +201,7 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
             ctl.tick()
             ctl.report()
             picker.release() // the player: rememberPlayer's dispose, after this one
+            syncAnkiLater(context, settings, ctl) // what was mined and rated here, to AnkiWeb
             view.keepScreenOn = false
         }
     }
@@ -335,7 +340,7 @@ private fun PlayerHints(ctl: SceneController, picker: WordPicker, rating: TvRati
         picker.isOpen && picker.inDef -> listOf(move("Word", "←→"), hint(pick, Action.PICK_DOWN, "Back to the line"),
             hint(pick, Action.PICK_AUDIO, "Hear"), hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         // A due word with its meaning shown: the "hear" button rates (the pad hears with its own button).
-        picker.isOpen && picker.cardOpen && card?.second == "d" -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, "Rate card", on = true),
+        picker.isOpen && picker.cardOpen && card?.second in RATEABLE -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, "Rate card", on = true),
             hint(pick, Action.PICK_HEAR, "Hear"), hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         picker.isOpen -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, if (picker.cardOpen) "Hear" else "Meaning"),
             hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MINE, if (rating.fresh) "Undo" else "Add to Anki"),

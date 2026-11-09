@@ -92,6 +92,21 @@ class AnkiCards(private val context: Context) {
         context.contentResolver.update(Uri.parse("content://$pkg.flashcards/kuma3/undo"), ContentValues(), null, null)
     }
 
+    /**
+     * Asks kuma3 to sync with AnkiWeb in the background (its provider's `kuma3/sync`, kuma3 after 2026-11-09): false
+     * without an AnkiWeb login there, or with an older kuma3.
+     */
+    fun sync(pkg: String): Boolean = runCatching {
+        context.contentResolver.update(Uri.parse("content://$pkg.flashcards/kuma3/sync"), ContentValues(), null, null) > 0
+    }.getOrDefault(false)
+
+    /** When kuma3 last synced (epoch ms); null when it can't say (an older kuma3). */
+    fun lastSync(pkg: String): Long? = runCatching {
+        context.contentResolver.query(Uri.parse("content://$pkg.flashcards/kuma3/sync"), null, null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getLong(0) else null
+        }
+    }.getOrNull()
+
     // ------------------------------------------------------------------ writing (mining)
 
     /** The id of the first note type found by name (e.g. "🐻 German", then "🇩🇪 MvJ"), and its field names. */

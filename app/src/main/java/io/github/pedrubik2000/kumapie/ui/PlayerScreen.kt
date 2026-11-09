@@ -134,17 +134,26 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
     val watchKeys = remember { keyMapOf(KeyContext.WATCH, watchBindings) }
     val pickerKeys = remember { keyMapOf(KeyContext.PICKER, pickerBindings) }
     val rating = remember { TvRating() }
-    // A rating's time runs from the word's meaning showing; another word closes the remote's rating row.
-    LaunchedEffect(picker.line, picker.seg, picker.cardOpen, picker.isOpen) { rating.since = System.currentTimeMillis(); rating.open = false }
+    // A rating's time runs from the word's meaning showing; another word ends the rating. Undo is offered until the
+    // next word card (or rating).
+    LaunchedEffect(picker.line, picker.seg, picker.cardOpen, picker.isOpen) {
+        rating.since = System.currentTimeMillis()
+        rating.open = false
+        if (picker.cardOpen || !picker.isOpen) rating.fresh = false
+    }
     val keys = remember {
         KeyHandler({ if (picker.isOpen) pickerKeys else watchKeys }) { action ->
-            // The remote's rating row: ←→ choose, the "hear" button rates, anything else closes it.
-            if (rating.open) when (action) {
-                Action.PICK_LEFT -> { rating.choice = (rating.choice - 1).coerceAtLeast(0); return@KeyHandler }
-                Action.PICK_RIGHT -> { rating.choice = (rating.choice + 1).coerceAtMost(3); return@KeyHandler }
-                Action.PICK_AUDIO -> { rateWord(context, settings, ctl, picker, scope, rating, rating.choice + 1); return@KeyHandler }
-                Action.PICK_AGAIN, Action.PICK_HARD, Action.PICK_GOOD, Action.PICK_EASY, Action.PICK_UNDO -> Unit
-                else -> { rating.open = false; return@KeyHandler }
+            // Rating a due word: one arrow rates it (← Again, ↓ Hard, → Good, ↑ Easy), Back cancels, nothing else acts.
+            if (rating.open) {
+                when (action) {
+                    Action.PICK_LEFT -> rateWord(context, settings, ctl, picker, scope, rating, 1)
+                    Action.PICK_DOWN -> rateWord(context, settings, ctl, picker, scope, rating, 2)
+                    Action.PICK_RIGHT -> rateWord(context, settings, ctl, picker, scope, rating, 3)
+                    Action.PICK_UP -> rateWord(context, settings, ctl, picker, scope, rating, 4)
+                    Action.PICK_CLOSE -> rating.open = false
+                    else -> Unit
+                }
+                return@KeyHandler
             }
             when (action) {
                 Action.PLAY_PAUSE -> ctl.togglePlay()
@@ -166,15 +175,15 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
                 // A Japanese card's dictionaries scroll first; at their end ↑↓ change line as before.
                 Action.PICK_UP -> if (!(picker.cardOpen && scrollTvDictionaries(-1))) picker.up()
                 Action.PICK_DOWN -> if (!(picker.cardOpen && scrollTvDictionaries(+1))) picker.down()
-                Action.PICK_AUDIO -> picker.hearAgain()
+                // A due word with its meaning shown: rate it (the pad hears with PICK_HEAR; any word once it is rated).
+                Action.PICK_AUDIO -> if (picker.cardOpen && !picker.inDef && pickedCard(ctl, picker)?.second == "d") rating.open = true
+                    else picker.hearAgain()
+                Action.PICK_HEAR -> picker.hearAgain()
                 Action.PICK_REPLAY_LINE -> picker.replayLine()
                 Action.PICK_MARK_KNOWN -> picker.toggleKnown()
-                Action.PICK_MINE -> mineWord(context, settings, ctl, picker, scope, playerView)
-                Action.PICK_RATE -> openRating(context, settings, ctl, picker, scope, rating)
-                Action.PICK_AGAIN -> rateWord(context, settings, ctl, picker, scope, rating, 1)
-                Action.PICK_HARD -> rateWord(context, settings, ctl, picker, scope, rating, 2)
-                Action.PICK_GOOD -> rateWord(context, settings, ctl, picker, scope, rating, 3)
-                Action.PICK_EASY -> rateWord(context, settings, ctl, picker, scope, rating, 4)
+                // Right after a rating the "add to Anki" button undoes it, until the next word card.
+                Action.PICK_MINE -> if (rating.fresh) undoRating(context, settings, ctl, scope, rating)
+                    else mineWord(context, settings, ctl, picker, scope, playerView)
                 Action.PICK_UNDO -> undoRating(context, settings, ctl, scope, rating)
                 Action.PICK_CLOSE -> picker.close()
             }
@@ -266,12 +275,16 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
             val room = with(androidx.compose.ui.platform.LocalDensity.current) { it.top.toDp().value.toInt() } - 70
             JapaneseText(japanese) {
                 if (japanese) MeaningCard(ctl, picker, it, maxWidth = 940.dp, ownMeaning = false, container = Modifier.arcadeCard(),
-                    footer = { TvJapaneseCard(settings, ctl, picker, room.coerceIn(220, 460)) })
-                else MeaningCard(ctl, picker, it, container = Modifier.arcadeCard())
+                    footer = {
+                        TvJapaneseCard(settings, ctl, picker, room.coerceIn(220, 460) - if (rating.open) 84 else 0)
+                        if (rating.open) RateRow()
+                    })
+                else MeaningCard(ctl, picker, it, container = Modifier.arcadeCard(), footer = if (rating.open) ({ RateRow() }) else null)
             }
         }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() },
             onHelp = { options = false; help = true; focus.requestFocus() })
+        if (rating.fresh && picker.isOpen) RatedToast(rating, pickerBindings, Modifier.align(Alignment.BottomCenter).padding(bottom = 50.dp))
         if ((settings.showHelp || rating.open) && !options && !help)
             PlayerHints(ctl, picker, rating, watchBindings, pickerBindings, Modifier.align(Alignment.BottomStart))
         if (help) HelpOverlay(settings, ctl.lang)
@@ -307,29 +320,26 @@ private fun TopBar(ctl: SceneController, title: String) {
 
 /**
  * The hint bar for where the player is: the buttons as they are set (Settings > Change buttons), on the input used
- * last. A due word with its meaning shown: the ratings (the pad's four buttons; the remote's one, which opens a row).
+ * last.
  */
 @Composable
 private fun PlayerHints(ctl: SceneController, picker: WordPicker, rating: TvRating, watch: Map<Binding, Action>,
                         pick: Map<Binding, Action>, modifier: Modifier) {
-    fun hint(keys: Map<Binding, Action>, action: Action, label: String): Hint? =
-        forInput(keys.filterValues { it == action }.keys).firstOrNull()?.let { b -> Hint(tr(label)) { KeyHint(b) } }
+    fun hint(keys: Map<Binding, Action>, action: Action, label: String, on: Boolean = false): Hint? =
+        forInput(keys.filterValues { it == action }.keys).firstOrNull()?.let { b -> Hint(tr(label), on) { KeyHint(b, if (on) Arcade.background else Colors.text) } }
     fun move(label: String, arrows: String) = Hint(tr(label)) { if (Pad.on) Glyph(DPAD) else KeyCap(arrows) }
     fun back(label: String) = Hint(tr(label)) { if (Pad.on) Glyph(android.view.KeyEvent.KEYCODE_BUTTON_B) else KeyCap(tr("Back")) }
     val card = pickedCard(ctl, picker)
     val hints: List<Hint?> = when {
-        rating.open -> RATINGS.mapIndexed { i, r -> Hint(tr(r), on = i == rating.choice) } +
-            listOf(hint(pick, Action.PICK_AUDIO, "Rate"), back("Cancel"))
+        rating.open -> listOf(move("Rate", "← ↓ → ↑"), back("Cancel"))
         picker.isOpen && picker.inDef -> listOf(move("Word", "←→"), hint(pick, Action.PICK_DOWN, "Back to the line"),
             hint(pick, Action.PICK_AUDIO, "Hear"), hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
+        // A due word with its meaning shown: the "hear" button rates (the pad hears with its own button).
+        picker.isOpen && picker.cardOpen && card?.second == "d" -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, "Rate card", on = true),
+            hint(pick, Action.PICK_HEAR, "Hear"), hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         picker.isOpen -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, if (picker.cardOpen) "Hear" else "Meaning"),
-            hint(pick, Action.PICK_REPLAY_LINE, "Line")) + when {
-                card != null && rating.last?.first == card.first -> listOf(hint(pick, Action.PICK_UNDO, "Undo") ?: hint(pick, Action.PICK_RATE, "Undo"))
-                card?.second == "d" && picker.cardOpen ->
-                    listOf(Action.PICK_AGAIN, Action.PICK_HARD, Action.PICK_GOOD, Action.PICK_EASY).mapIndexedNotNull { i, a -> hint(pick, a, RATINGS[i]) }
-                        .ifEmpty { listOf(hint(pick, Action.PICK_RATE, "Rate")) }
-                else -> listOf(hint(pick, Action.PICK_MINE, "Add to Anki"), hint(pick, Action.PICK_MARK_KNOWN, "Known"))
-            } + back("Close")
+            hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MINE, if (rating.fresh) "Undo" else "Add to Anki"),
+            hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         ctl.atSceneEnd -> listOf(hint(watch, Action.PLAY_PAUSE, "Next scene"), hint(watch, Action.REPLAY_LINE, "Line"),
             hint(watch, Action.CYCLE_SUBTITLES, "Pick a word"), hint(watch, Action.PREVIOUS_SCENE, "Previous"))
         !ctl.playing -> listOf(hint(watch, Action.PLAY_PAUSE, "Play"), hint(watch, Action.WORD_PICKER, "Pick a word"),
@@ -337,6 +347,35 @@ private fun PlayerHints(ctl: SceneController, picker: WordPicker, rating: TvRati
         else -> emptyList()
     }
     hints.filterNotNull().takeIf { it.isNotEmpty() }?.let { HintBar(it, modifier) }
+}
+
+/** "Did you know it before looking?" and the four ratings, each on its arrow: the bottom of a due word's card. */
+@Composable
+private fun RateRow() {
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(tr("Did you know it before looking?").uppercase(), color = Arcade.accent, fontSize = 13.sp, style = Arcade.label)
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            listOf(Colors.unknown, Color(0xFFB9B5C6), Colors.due, Colors.mined).forEachIndexed { i, color ->
+                Row(Modifier.width(160.dp).background(Arcade.slab, Slab).padding(vertical = 9.dp),
+                    horizontalArrangement = Arrangement.spacedBy(9.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                    DpadArm(i, color)
+                    Text(tr(RATINGS[i]).uppercase(), color = color, fontSize = 17.sp, style = Arcade.label)
+                }
+            }
+        }
+    }
+}
+
+/** "GOOD 引き戸 · Undo" over the hint bar, while the rating can still be undone with the "add to Anki" button. */
+@Composable
+private fun RatedToast(rating: TvRating, pick: Map<Binding, Action>, modifier: Modifier) {
+    Row(modifier.background(Color(0xF50B0A10), Slab).padding(horizontal = 24.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(rating.said.uppercase(), color = Colors.due, fontSize = 15.sp, style = Arcade.label)
+        Text(rating.last?.first.orEmpty(), color = Colors.text, fontSize = 15.sp)
+        forInput(pick.filterValues { it == Action.PICK_MINE || it == Action.PICK_UNDO }.keys).firstOrNull()?.let { KeyHint(it) }
+        Text(tr("Undo").uppercase(), color = Colors.text, fontSize = 13.sp, style = Arcade.label)
+    }
 }
 
 @Composable

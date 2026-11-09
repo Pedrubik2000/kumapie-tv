@@ -59,8 +59,9 @@ them).
 | subtitle mode | ↓ | L / R |
 | pick a word (the card shows its meaning; hold ↓ / Select marks it known) | hold OK | hold A, or Select |
 | add the picked word to Anki (again: see its card) | hold ↑ | Y |
-| rate a due (green) word's card, its meaning shown | hold →, then ←→ and OK | L2 Again, L1 Hard, R1 Good, R2 Easy |
-| undo that rating | hold → on the same word | Start |
+| rate a due (green) word's card, its meaning shown | OK, then ← Again, ↓ Hard, → Good, ↑ Easy | A, then the D-pad the same way |
+| undo that rating, until the next word card | hold ↑ | Y, or Start |
+| hear a due word (A rates it) | after rating it | R2 |
 | options | hold ↓ | Start |
 | back | Back | B |
 

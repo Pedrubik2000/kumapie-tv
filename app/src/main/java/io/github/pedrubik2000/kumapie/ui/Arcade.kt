@@ -203,6 +203,16 @@ fun Glyph(code: Int, dp: Dp = 26.dp) {
     }
 }
 
+/** The D-pad with one arm lit in [color]: [arm] 0 left, 1 down, 2 right, 3 up. The same arrows on the remote. */
+@Composable
+fun DpadArm(arm: Int, color: Color, dp: Dp = 26.dp) = Canvas(Modifier.size(dp)) {
+    scale(size.width / 48f, pivot = Offset.Zero) {
+        drawPath(PathParser().parsePathString("M18 5h12v13h13v12H30v13H18V30H5V18h13Z").toPath(), Color(0xFF3A3648))
+        val (x, y) = listOf(5f to 18f, 18f to 30f, 30f to 18f, 18f to 5f)[arm]
+        drawRect(color, Offset(x, y), if (arm % 2 == 0) Size(13f, 12f) else Size(12f, 13f))
+    }
+}
+
 /** A remote button's name in a key cap. */
 @Composable
 fun KeyCap(name: String, color: Color = Colors.text) = Text(name, color = color, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1,

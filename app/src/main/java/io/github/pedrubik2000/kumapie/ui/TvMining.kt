@@ -196,7 +196,11 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
                     modifier = Modifier.padding(top = 4.dp))
             }
             val (state, color) = statusLine(word.formCard(segment.text)?.let { word.copy(card = it) } ?: word)
-            Text(state + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
+            val shown = word.formCard(segment.text) ?: word.card.takeUnless { word.marked }
+            // A due card is the one thing to act on here: a green slab, not a line of small text.
+            if (shown == "d") Text(state.uppercase(), color = Arcade.background, fontSize = 12.sp, style = Arcade.label,
+                modifier = Modifier.padding(top = 4.dp).background(Colors.due, Slab).padding(horizontal = 12.dp, vertical = 1.dp))
+            Text((if (shown == "d") "" else state) + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(Colors.dim.copy(alpha = 0.2f)))
         val message = status ?: when (html) { null -> tr("Looking it up…"); "" -> tr("Not in your %s dictionaries.", ctl.lang.displayName); else -> null }
@@ -425,7 +429,7 @@ suspend fun paintCards(context: Context, settings: Settings, ctl: SceneControlle
     repaint(language, ctl)
     // Where the due words are (a rating can be tried without hunting for a green word).
     val due = ctl.words.filterValues { it.card == "d" }.keys
-    Log.i("kumapie", "due words in this episode: " + ctl.episode.scenes.withIndex().flatMap { (i, s) ->
+    Log.i("kumapie", "kuma3 queue: ${language.known.cardIndex.due?.size} cards (${language.known.cardIndex.due?.values?.groupingBy { it }?.eachCount()}); due words in this episode: " + ctl.episode.scenes.withIndex().flatMap { (i, s) ->
         s.cues.flatMap { it.segments }.mapNotNull { it.word }.filter { it in due }.distinct().map { "$it@${i + 1}" } }.take(40))
 }
 
@@ -447,11 +451,16 @@ private fun repaint(language: Language, ctl: SceneController) {
 
 val RATINGS = listOf("Again", "Hard", "Good", "Easy")
 
-/** The player's rating state: the remote's row of four ([open], [choice]) and the last rating (its form), for Undo. */
+/**
+ * The player's rating state: [open] while the arrows rate the picked word, the last rating (its form) for Undo, and
+ * [fresh] while that Undo is offered (until the next word card).
+ */
 class TvRating {
     var open by mutableStateOf(false)
-    var choice by mutableStateOf(2) // Good
     var last by mutableStateOf<Pair<String, KnownWords.Rated>?>(null)
+    var fresh by mutableStateOf(false)
+    /** The last rating's name, in the menu language. */
+    var said by mutableStateOf("")
     /** When the picked word's meaning was shown: a rating's answer time. */
     var since = 0L
     var busy = false
@@ -472,6 +481,7 @@ fun pickedCard(ctl: SceneController, picker: WordPicker): Pair<String, String?>?
 /**
  * Rates the picked word's due cards in this TV's kuma3 ([ease] 1 Again .. 4 Easy), as the phone's word card does: only
  * a due (green) word, after its meaning was shown; one rating answers every due card of the word. kuma3 is not opened.
+ * Then the card closes and the picker goes to the next word (a line with several due words: rate, rate, rate).
  */
 fun rateWord(context: Context, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, rating: TvRating, ease: Int) {
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
@@ -489,25 +499,16 @@ fun rateWord(context: Context, settings: Settings, ctl: SceneController, picker:
             if (done == null) say(tr("kuma3 didn't take the rating."))
             else {
                 rating.last = form to done
+                rating.said = tr(RATINGS[ease - 1])
+                rating.fresh = true
                 repaint(language, ctl)
-                say(tr("Answered: %s", tr(RATINGS[ease - 1])))
+                picker.right() // closes the card
             }
         } catch (e: Exception) {
             say(e.message ?: e.toString())
         } finally {
             rating.busy = false
         }
-    }
-}
-
-/** The remote's rating button: on the word just rated it undoes; on a due word (meaning shown) it opens the row of four. */
-fun openRating(context: Context, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, rating: TvRating) {
-    val card = pickedCard(ctl, picker) ?: return
-    when {
-        rating.last?.first == card.first -> undoRating(context, settings, ctl, scope, rating)
-        card.second != "d" -> Toast.makeText(context, tr("This word isn't due in Anki today"), Toast.LENGTH_SHORT).show()
-        !picker.cardOpen -> Toast.makeText(context, tr("See its meaning first"), Toast.LENGTH_SHORT).show()
-        else -> { rating.choice = 2; rating.open = true }
     }
 }
 
@@ -523,6 +524,7 @@ fun undoRating(context: Context, settings: Settings, ctl: SceneController, scope
         try {
             if (language.known.undo(rated)) {
                 rating.last = null
+                rating.fresh = false
                 repaint(language, ctl)
                 say(tr("Undone: %s is due again", form))
             } else say(tr("kuma3 didn't undo it (something else was done there since?)."))

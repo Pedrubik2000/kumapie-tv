@@ -27,16 +27,11 @@ enum class Action(val label: String, val context: KeyContext = KeyContext.WATCH)
     PICK_RIGHT("Next word", KeyContext.PICKER),
     PICK_UP("Line above / into the definition", KeyContext.PICKER),
     PICK_DOWN("Line below / out of the definition", KeyContext.PICKER),
-    PICK_AUDIO("Show the meaning; then hear the word (twice: the definition)", KeyContext.PICKER),
+    PICK_AUDIO("Show the meaning; then a due word: rate it; another: hear it (twice: the definition)", KeyContext.PICKER),
+    PICK_HEAR("Hear the word", KeyContext.PICKER),
     PICK_REPLAY_LINE("Replay the word's line", KeyContext.PICKER),
     PICK_MARK_KNOWN("Mark known / undo", KeyContext.PICKER),
     PICK_MINE("Add the word to Anki", KeyContext.PICKER),
-    // a due (green) word, its meaning shown (user, 2026-11-09)
-    PICK_RATE("Rate the word's card: pick with ←→, OK (on the word just rated: undo)", KeyContext.PICKER),
-    PICK_AGAIN("Rate the word's card: Again", KeyContext.PICKER),
-    PICK_HARD("Rate the word's card: Hard", KeyContext.PICKER),
-    PICK_GOOD("Rate the word's card: Good", KeyContext.PICKER),
-    PICK_EASY("Rate the word's card: Easy", KeyContext.PICKER),
     PICK_UNDO("Undo the last rating", KeyContext.PICKER),
     PICK_CLOSE("Close the picker", KeyContext.PICKER);
 
@@ -108,10 +103,7 @@ class KeyMap(
                 KeyEvent.KEYCODE_BUTTON_X to Action.PICK_REPLAY_LINE,
                 KeyEvent.KEYCODE_BUTTON_Y to Action.PICK_MINE,
                 KeyEvent.KEYCODE_BUTTON_SELECT to Action.PICK_MARK_KNOWN,
-                KeyEvent.KEYCODE_BUTTON_L2 to Action.PICK_AGAIN,
-                KeyEvent.KEYCODE_BUTTON_L1 to Action.PICK_HARD,
-                KeyEvent.KEYCODE_BUTTON_R1 to Action.PICK_GOOD,
-                KeyEvent.KEYCODE_BUTTON_R2 to Action.PICK_EASY,
+                KeyEvent.KEYCODE_BUTTON_R2 to Action.PICK_HEAR, // on a due word A rates
                 KeyEvent.KEYCODE_BUTTON_START to Action.PICK_UNDO,
             ),
             long = mapOf(
@@ -119,7 +111,6 @@ class KeyMap(
                 KeyEvent.KEYCODE_ENTER to Action.PICK_REPLAY_LINE,
                 KeyEvent.KEYCODE_DPAD_DOWN to Action.PICK_MARK_KNOWN,
                 KeyEvent.KEYCODE_DPAD_UP to Action.PICK_MINE,
-                KeyEvent.KEYCODE_DPAD_RIGHT to Action.PICK_RATE, // the remote has no key to spare for each rating
             ),
         )
     }

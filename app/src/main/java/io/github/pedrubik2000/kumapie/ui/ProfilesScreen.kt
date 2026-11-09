@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,7 +23,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Card
-import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Profile
@@ -44,18 +42,18 @@ fun ProfilesScreen(api: Api, last: String, onPick: (Profile) -> Unit, onSettings
         people == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("…", color = Colors.dim) }
         else -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             // Asked before a profile is chosen, so in both languages.
-            Text("Who's watching? · ¿Quién está viendo?", fontSize = 40.sp, color = Colors.text)
+            Title("Who's watching? · ", "¿Quién está viendo?", fontSize = 36.sp)
             val focus = remember { FocusRequester() }
             Row(Modifier.padding(top = 48.dp), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
                 people!!.forEachIndexed { i, p ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Card(onClick = { onPick(p) }, shape = CardDefaults.shape(RoundedCornerShape(12.dp)),
+                        Card(onClick = { onPick(p) }, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab),
                             modifier = Modifier.size(160.dp).let { if (p.id == last || (i == 0 && people!!.none { it.id == last })) it.focusRequester(focus) else it }) {
                             Box(Modifier.fillMaxSize().background(COLORS[i % COLORS.size]), contentAlignment = Alignment.Center) {
-                                Text(p.name.take(1), fontSize = 72.sp, color = Color.White)
+                                Text(p.name.take(1), fontSize = 72.sp, color = Color.White, style = Arcade.label)
                             }
                         }
-                        Text(p.name, fontSize = 20.sp, color = Colors.text, modifier = Modifier.padding(top = 16.dp))
+                        Text(p.name.uppercase(), fontSize = 20.sp, color = Colors.text, style = Arcade.label, modifier = Modifier.padding(top = 16.dp))
                     }
                 }
             }

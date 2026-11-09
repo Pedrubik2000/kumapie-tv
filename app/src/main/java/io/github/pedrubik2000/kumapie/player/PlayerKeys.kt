@@ -31,6 +31,13 @@ enum class Action(val label: String, val context: KeyContext = KeyContext.WATCH)
     PICK_REPLAY_LINE("Replay the word's line", KeyContext.PICKER),
     PICK_MARK_KNOWN("Mark known / undo", KeyContext.PICKER),
     PICK_MINE("Add the word to Anki", KeyContext.PICKER),
+    // a due (green) word, its meaning shown (user, 2026-11-09)
+    PICK_RATE("Rate the word's card: pick with ←→, OK (on the word just rated: undo)", KeyContext.PICKER),
+    PICK_AGAIN("Rate the word's card: Again", KeyContext.PICKER),
+    PICK_HARD("Rate the word's card: Hard", KeyContext.PICKER),
+    PICK_GOOD("Rate the word's card: Good", KeyContext.PICKER),
+    PICK_EASY("Rate the word's card: Easy", KeyContext.PICKER),
+    PICK_UNDO("Undo the last rating", KeyContext.PICKER),
     PICK_CLOSE("Close the picker", KeyContext.PICKER);
 
     /** The label in the menu language, with the episode's language names ([lang]; none: "the episode's language"). */
@@ -46,8 +53,8 @@ val KeyContext.text: String get() = tr(label)
 
 /**
  * Which key does what. A key with a long-press action acts when it is released (short) or held (long);
- * other keys act at once. Back is left to the system: it closes the player. The remote only (no gamepad since
- * 2026-10-11): what has no key of its own (speed, pause at scene end, help) is in the Options menu.
+ * other keys act at once. Back is left to the system: it closes the player. Remote and gamepad (back
+ * 2026-11-09): what has no key of its own (speed, pause at scene end, help) is in the Options menu.
  */
 class KeyMap(
     val short: Map<Int, Action> = DEFAULT_SHORT,
@@ -69,8 +76,17 @@ class KeyMap(
             KeyEvent.KEYCODE_MEDIA_REWIND to Action.REPLAY_SCENE,
             KeyEvent.KEYCODE_MEDIA_PREVIOUS to Action.PREVIOUS_SCENE,
             KeyEvent.KEYCODE_MENU to Action.OPTIONS,
+            // gamepad (8BitDo Ultimate 2C; its D-pad and stick arrive as the arrows, B as Back)
+            KeyEvent.KEYCODE_BUTTON_A to Action.PLAY_PAUSE,
+            KeyEvent.KEYCODE_BUTTON_X to Action.REPLAY_LINE,
+            KeyEvent.KEYCODE_BUTTON_Y to Action.REPLAY_SCENE,
+            KeyEvent.KEYCODE_BUTTON_L1 to Action.CYCLE_SUBTITLES,
+            KeyEvent.KEYCODE_BUTTON_R1 to Action.CYCLE_SUBTITLES,
+            KeyEvent.KEYCODE_BUTTON_SELECT to Action.WORD_PICKER,
+            KeyEvent.KEYCODE_BUTTON_START to Action.OPTIONS,
         )
         val DEFAULT_LONG = mapOf(
+            KeyEvent.KEYCODE_BUTTON_A to Action.WORD_PICKER,
             KeyEvent.KEYCODE_DPAD_CENTER to Action.WORD_PICKER,
             KeyEvent.KEYCODE_ENTER to Action.WORD_PICKER,
             KeyEvent.KEYCODE_DPAD_LEFT to Action.REPLAY_SCENE,
@@ -88,12 +104,22 @@ class KeyMap(
                 KeyEvent.KEYCODE_ENTER to Action.PICK_AUDIO,
                 KeyEvent.KEYCODE_BACK to Action.PICK_CLOSE,
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE to Action.PICK_REPLAY_LINE,
+                KeyEvent.KEYCODE_BUTTON_A to Action.PICK_AUDIO,
+                KeyEvent.KEYCODE_BUTTON_X to Action.PICK_REPLAY_LINE,
+                KeyEvent.KEYCODE_BUTTON_Y to Action.PICK_MINE,
+                KeyEvent.KEYCODE_BUTTON_SELECT to Action.PICK_MARK_KNOWN,
+                KeyEvent.KEYCODE_BUTTON_L2 to Action.PICK_AGAIN,
+                KeyEvent.KEYCODE_BUTTON_L1 to Action.PICK_HARD,
+                KeyEvent.KEYCODE_BUTTON_R1 to Action.PICK_GOOD,
+                KeyEvent.KEYCODE_BUTTON_R2 to Action.PICK_EASY,
+                KeyEvent.KEYCODE_BUTTON_START to Action.PICK_UNDO,
             ),
             long = mapOf(
                 KeyEvent.KEYCODE_DPAD_CENTER to Action.PICK_REPLAY_LINE,
                 KeyEvent.KEYCODE_ENTER to Action.PICK_REPLAY_LINE,
                 KeyEvent.KEYCODE_DPAD_DOWN to Action.PICK_MARK_KNOWN,
                 KeyEvent.KEYCODE_DPAD_UP to Action.PICK_MINE,
+                KeyEvent.KEYCODE_DPAD_RIGHT to Action.PICK_RATE, // the remote has no key to spare for each rating
             ),
         )
     }
@@ -181,5 +207,16 @@ fun keyLabel(code: Int): String = when (code) {
     KeyEvent.KEYCODE_MEDIA_NEXT -> tr("Next")
     KeyEvent.KEYCODE_MEDIA_PREVIOUS -> tr("Previous")
     KeyEvent.KEYCODE_MENU -> tr("Menu")
+    // a gamepad's buttons by their PS5 names (Android's: A is the bottom one, Y the top one)
+    KeyEvent.KEYCODE_BUTTON_A -> "✕"
+    KeyEvent.KEYCODE_BUTTON_B -> "○"
+    KeyEvent.KEYCODE_BUTTON_X -> "□"
+    KeyEvent.KEYCODE_BUTTON_Y -> "△"
+    KeyEvent.KEYCODE_BUTTON_START -> "Options"
+    KeyEvent.KEYCODE_BUTTON_SELECT -> "Create"
+    KeyEvent.KEYCODE_BUTTON_THUMBL -> "L3"
+    KeyEvent.KEYCODE_BUTTON_THUMBR -> "R3"
+    KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2 ->
+        KeyEvent.keyCodeToString(code).removePrefix("KEYCODE_BUTTON_")
     else -> KeyEvent.keyCodeToString(code).removePrefix("KEYCODE_").lowercase().replace('_', ' ')
 }

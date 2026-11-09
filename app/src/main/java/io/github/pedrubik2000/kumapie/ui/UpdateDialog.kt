@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,7 +27,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Button
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.BuildConfig
 import io.github.pedrubik2000.kumapie.update.Updater
@@ -58,9 +56,9 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
     }
 
     Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
-        Column(Modifier.width(640.dp).background(Colors.surface, RoundedCornerShape(16.dp)).padding(32.dp),
+        Column(Modifier.width(640.dp).arcadePanel().padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("kumapie ${release.version} is out", fontSize = 26.sp, color = Colors.text)
+            Title("kumapie ${release.version} ", "is out", fontSize = 26.sp)
             Text(tr("You have %s.", BuildConfig.VERSION_NAME), color = Colors.dim)
             if (release.notes.isNotBlank()) Text(release.notes.take(600), color = Colors.text, fontSize = 15.sp)
             if (progress >= 0f) ProgressBar(progress, Modifier.fillMaxWidth())

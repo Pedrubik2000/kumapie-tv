@@ -37,6 +37,11 @@ import androidx.tv.material3.darkColorScheme
 
 @Composable
 fun KumapieTheme(content: @Composable () -> Unit) {
+    // The TV's Arcade look (Arcade.kt); core's Colors is shared with the phone, which keeps its own.
+    Colors.accent = Arcade.accent
+    Colors.background = Arcade.background
+    Colors.surface = Arcade.slab
+    Colors.picked = Arcade.accent
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = Colors.accent,

@@ -48,6 +48,8 @@ import io.github.pedrubik2000.kumapie.lang.Dictionary
 import io.github.pedrubik2000.kumapie.lang.GlossaryHtml
 import io.github.pedrubik2000.kumapie.lang.Headword
 import io.github.pedrubik2000.kumapie.lang.Japanese
+import io.github.pedrubik2000.kumapie.lang.KnownWords
+import io.github.pedrubik2000.kumapie.lang.Language
 import io.github.pedrubik2000.kumapie.lang.JapaneseLookup
 import io.github.pedrubik2000.kumapie.lang.Languages
 import io.github.pedrubik2000.kumapie.lang.Miner
@@ -187,7 +189,7 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
             val kana = hw?.reading?.takeIf { it.isNotBlank() } ?: word.reading
             val expression = hw?.expression ?: word.lemma.ifBlank { segment.text }
             if (kana.isNotBlank() && kana != expression) PitchReading(kana, hw?.pitches?.flatMap { it.second }?.firstOrNull())
-            Text(expression, color = Colors.text, fontSize = 40.sp, lineHeight = 46.sp)
+            Text(expression, color = Colors.text, fontSize = 40.sp, lineHeight = 46.sp, style = Arcade.label)
             if (segment.text != expression) Text(segment.text, color = Colors.dim, fontSize = 16.sp)
             (ctl.scene.meanings[key] ?: word.meaning).substringAfter(" = ").takeIf { it.isNotBlank() }?.let {
                 Text(it, color = Colors.text, fontSize = 19.sp, maxLines = 5, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -292,23 +294,23 @@ fun scrollTvDictionaries(dir: Int): Boolean {
     return true
 }
 
-/** Colours from the app's (Colors): surface #2A2734, text #F2F0F7, dim #A9A4B8, accent #C98A4B. */
+/** Colours from the TV's (Arcade): card #0B0A10, text #F2F0F7, dim #A9A4B8, accent #FFD23F; the tabs are slabs. */
 private const val PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <style>
 body { margin: 0; background: transparent; color: #F2F0F7; font: 19px/1.6 sans-serif; }
-#tabs { position: sticky; top: 0; z-index: 1; background: #2A2734; padding: 2px 0 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-#tabs span { font-size: 13px; color: #A9A4B8; border: 1px solid rgba(169,164,184,0.35); border-radius: 999px; padding: 1px 10px; }
-#tabs span.on { color: #2A2734; background: #C98A4B; border-color: #C98A4B; }
+#tabs { position: sticky; top: 0; z-index: 1; background: #0B0A10; padding: 2px 4px 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+#tabs span { font-size: 13px; font-style: italic; color: #A9A4B8; border: 1px solid rgba(169,164,184,0.35); padding: 1px 12px; transform: skewX(-12deg); }
+#tabs span.on { color: #0B0A10; font-weight: 700; background: #FFD23F; border-color: #FFD23F; }
 section { padding: 2px 0 14px; margin-bottom: 12px; border-bottom: 1px solid rgba(169,164,184,0.15); }
 section:last-of-type { border-bottom: 0; padding-bottom: 40px; }
-h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; color: #C98A4B; }
+h3 { margin: 0 0 4px; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #FFD23F; }
 ol, ul { margin: 2px 0; padding-left: 1.4em; }
 hr { border: 0; border-top: 1px dashed rgba(169,164,184,0.2); margin: 8px 0; }
 img { max-width: 100%; }
 a { color: #8ab4f8; text-decoration: none; }
 table { border-collapse: collapse; } td, th { border: 1px solid rgba(169,164,184,0.25); padding: 2px 6px; }
 #fade { position: fixed; left: 0; right: 0; bottom: 0; height: 36px; pointer-events: none;
-  background: linear-gradient(rgba(42,39,52,0), #2A2734); transition: opacity .2s; }
+  background: linear-gradient(rgba(11,10,16,0), #0B0A10); transition: opacity .2s; }
 </style></head><body><!--BODY--><div id="fade"></div>
 <script>
 const secs = [...document.querySelectorAll('section')], tabs = [...document.querySelectorAll('#tabs span')];
@@ -356,9 +358,8 @@ private suspend fun screenFrame(view: PlayerView?, dir: File): File? {
 /**
  * Hold ↑ in the word picker: the selected word as a word card into kuma3 Anki on this TV (its Mined deck), as the
  * phone's automatic card: this line, the scene clip (Japanese: the line's audio and a picture), the word's audio, the
- * meaning; hold ↑ again on it: the card in kuma3's previewer (Back returns). No ratings on the TV (user, 2026-10-16:
- * he only mines there). Japanese meanings come from the phone's
- * dictionaries, fetched from the PC the first time.
+ * meaning; hold ↑ again on it: the card in kuma3's previewer (Back returns). Ratings: [rateWord]. Japanese meanings
+ * come from the phone's dictionaries, fetched from the PC the first time.
  */
 fun mineWord(context: Context, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, view: PlayerView?) {
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
@@ -420,8 +421,17 @@ fun mineWord(context: Context, settings: Settings, ctl: SceneController, picker:
  */
 suspend fun paintCards(context: Context, settings: Settings, ctl: SceneController) {
     val language = TvMining.languages(context, settings).of(ctl.lang)
+    if (!runCatching { language.known.readCards() }.onFailure { Log.w("kumapie", "cards: $it") }.getOrDefault(false)) return
+    repaint(language, ctl)
+    // Where the due words are (a rating can be tried without hunting for a green word).
+    val due = ctl.words.filterValues { it.card == "d" }.keys
+    Log.i("kumapie", "due words in this episode: " + ctl.episode.scenes.withIndex().flatMap { (i, s) ->
+        s.cues.flatMap { it.segments }.mapNotNull { it.word }.filter { it in due }.distinct().map { "$it@${i + 1}" } }.take(40))
+}
+
+/** Every word of the episode coloured by the card index as it is now (after [paintCards]' read, a rating, an undo). */
+private fun repaint(language: Language, ctl: SceneController) {
     val known = language.known
-    if (!runCatching { known.readCards() }.onFailure { Log.w("kumapie", "cards: $it") }.getOrDefault(false)) return
     val written = if (language !is Japanese) emptyMap() else ctl.episode.scenes.asSequence().flatMap { it.cues }.flatMap { it.segments }
         .filter { it.word != null }.groupBy({ it.word!! }, { it.text })
     // "u" (no card of its own) keeps the PC's colour: the PC knows words without cards (Jiten lists, marked, the
@@ -430,5 +440,96 @@ suspend fun paintCards(context: Context, settings: Settings, ctl: SceneControlle
         known.paint(k, w.copy(forms = written[k]?.associateWith { "" }))
             .let { p -> p.copy(card = p.card?.takeUnless { it == "u" }, forms = p.forms?.mapValues { (_, s) -> if (s == "u") "" else s }) }
             .let { n -> if (n != w) ctl.words[k] = n }
+    }
+}
+
+// ------------------------------------------------------------ ratings in the word picker (user, 2026-11-09)
+
+val RATINGS = listOf("Again", "Hard", "Good", "Easy")
+
+/** The player's rating state: the remote's row of four ([open], [choice]) and the last rating (its form), for Undo. */
+class TvRating {
+    var open by mutableStateOf(false)
+    var choice by mutableStateOf(2) // Good
+    var last by mutableStateOf<Pair<String, KnownWords.Rated>?>(null)
+    /** When the picked word's meaning was shown: a rating's answer time. */
+    var since = 0L
+    var busy = false
+}
+
+/**
+ * The picked word's own card: the form that has it (the dictionary form's, else the written form's, as the subtitle
+ * colours it) and its state ("d" = due today).
+ */
+fun pickedCard(ctl: SceneController, picker: WordPicker): Pair<String, String?>? {
+    val segment = picker.selected ?: return null
+    val key = segment.word ?: return null
+    val w = ctl.words[key] ?: return null
+    val own = w.formCard(segment.text)
+    return if (own != null) segment.text to own else key to w.card.takeUnless { w.marked }
+}
+
+/**
+ * Rates the picked word's due cards in this TV's kuma3 ([ease] 1 Again .. 4 Easy), as the phone's word card does: only
+ * a due (green) word, after its meaning was shown; one rating answers every due card of the word. kuma3 is not opened.
+ */
+fun rateWord(context: Context, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, rating: TvRating, ease: Int) {
+    fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+    rating.open = false
+    val (form, state) = pickedCard(ctl, picker) ?: return
+    if (state != "d") return say(tr("This word isn't due in Anki today"))
+    if (!picker.cardOpen) return say(tr("See its meaning first"))
+    if (rating.busy) return
+    val language = TvMining.languages(context, settings).of(ctl.lang)
+    val ms = System.currentTimeMillis() - rating.since
+    rating.busy = true
+    scope.launch {
+        try {
+            val done = language.known.rate(form, ease, ms)
+            if (done == null) say(tr("kuma3 didn't take the rating."))
+            else {
+                rating.last = form to done
+                repaint(language, ctl)
+                say(tr("Answered: %s", tr(RATINGS[ease - 1])))
+            }
+        } catch (e: Exception) {
+            say(e.message ?: e.toString())
+        } finally {
+            rating.busy = false
+        }
+    }
+}
+
+/** The remote's rating button: on the word just rated it undoes; on a due word (meaning shown) it opens the row of four. */
+fun openRating(context: Context, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, rating: TvRating) {
+    val card = pickedCard(ctl, picker) ?: return
+    when {
+        rating.last?.first == card.first -> undoRating(context, settings, ctl, scope, rating)
+        card.second != "d" -> Toast.makeText(context, tr("This word isn't due in Anki today"), Toast.LENGTH_SHORT).show()
+        !picker.cardOpen -> Toast.makeText(context, tr("See its meaning first"), Toast.LENGTH_SHORT).show()
+        else -> { rating.choice = 2; rating.open = true }
+    }
+}
+
+/** Takes the last rating back with kuma3's Undo (while nothing else was done in kuma3 since): the word is due again. */
+fun undoRating(context: Context, settings: Settings, ctl: SceneController, scope: CoroutineScope, rating: TvRating) {
+    fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+    rating.open = false
+    val (form, rated) = rating.last ?: return say(tr("Nothing to undo"))
+    if (rating.busy) return
+    val language = TvMining.languages(context, settings).of(ctl.lang)
+    rating.busy = true
+    scope.launch {
+        try {
+            if (language.known.undo(rated)) {
+                rating.last = null
+                repaint(language, ctl)
+                say(tr("Undone: %s is due again", form))
+            } else say(tr("kuma3 didn't undo it (something else was done there since?)."))
+        } catch (e: Exception) {
+            say(e.message ?: e.toString())
+        } finally {
+            rating.busy = false
+        }
     }
 }

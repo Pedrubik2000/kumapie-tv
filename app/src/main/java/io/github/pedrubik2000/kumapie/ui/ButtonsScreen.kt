@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,7 +31,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Settings
@@ -44,7 +42,6 @@ import io.github.pedrubik2000.kumapie.player.Binding
 import io.github.pedrubik2000.kumapie.player.KeyContext
 import io.github.pedrubik2000.kumapie.player.defaultBindings
 import io.github.pedrubik2000.kumapie.player.isReservedKey
-import io.github.pedrubik2000.kumapie.player.keyNames
 
 /**
  * Settings > Change buttons. Every action with its buttons; choosing one waits for a button (a short press, or
@@ -73,7 +70,7 @@ fun ButtonsScreen(settings: Settings) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 32.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(tr("Buttons"), fontSize = 30.sp, color = Colors.text)
+                Title(tr("Buttons"), fontSize = 30.sp)
                 Spacer(Modifier.weight(1f))
                 Button(onClick = {
                     KeyContext.entries.forEach { settings.resetKeys(it); keys[it] = defaultBindings(it) }
@@ -84,17 +81,17 @@ fun ButtonsScreen(settings: Settings) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
                 KeyContext.entries.forEach { context ->
                     item(key = context.name) {
-                        Text(context.text, color = Colors.accent, fontSize = 20.sp, modifier = Modifier.padding(top = 10.dp))
+                        Heading(context.text, Modifier.padding(top = 10.dp))
                     }
                     items(Action.entries.filter { it.context == context }, key = { it.name }) { action ->
                         val fr = focus.getOrPut(action) { FocusRequester() }
-                        val buttons = keyNames(keys.getValue(context).filterValues { it == action }.keys)
+                        val buttons = keys.getValue(context).filterValues { it == action }.keys
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Button(onClick = { capturing = action }, scale = ButtonDefaults.scale(focusedScale = 1.02f),
                                 modifier = Modifier.weight(1f).focusRequester(fr)
                                     .let { if (action == Action.entries.first()) it.focusRequester(firstRow) else it }) {
                                 Text(action.text(), modifier = Modifier.weight(1f))
-                                Text(buttons.ifEmpty { "—" }, color = if (buttons.isEmpty()) Colors.dim else Color.Unspecified)
+                                KeyHints(buttons, color = androidx.tv.material3.LocalContentColor.current)
                             }
                             Button(onClick = { save(context, keys.getValue(context).filterValues { it != action }) }) { Text(tr("Clear")) }
                         }
@@ -137,7 +134,7 @@ private fun CaptureOverlay(action: Action, onDone: (Binding?) -> Unit) {
             .focusable(),
         contentAlignment = Alignment.Center,
     ) {
-        Column(Modifier.background(Colors.surface, RoundedCornerShape(16.dp)).padding(36.dp),
+        Column(Modifier.arcadePanel().padding(36.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(action.text(), fontSize = 24.sp, color = Colors.text)
             Text(if (held) tr("Holding… let go to save it as a long press") else tr("Press a button (hold it for a long press)"),

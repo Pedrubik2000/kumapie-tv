@@ -58,6 +58,11 @@ class StreamActivity : ComponentActivity() {
         setContent { KumapieTheme { Stream(settings, video) } }
     }
 
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        io.github.pedrubik2000.kumapie.ui.Pad.seen(event)
+        return super.dispatchKeyEvent(event)
+    }
+
     @Composable
     private fun Stream(settings: Settings, video: String) {
         val api = remember { Api(settings.server, settings.profile) }

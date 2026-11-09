@@ -169,7 +169,9 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     suspend fun readCards(): Boolean = withContext(Dispatchers.IO) {
         val pkg = ankiApp()?.takeIf { hasPermission(it) } ?: return@withContext false
         val notes = whileAnkiStarts { anki.notes(pkg, search) }
-        cardIndex.build(notes, anki.cards(pkg, search), anki.due(pkg), cardKeys(notes))
+        val cards = anki.cards(pkg, search)
+        lastReading = Reading(pkg, notes, cards, emptyMap()) // [rate] and [undo] need its kuma3
+        cardIndex.build(notes, cards, anki.due(pkg), cardKeys(notes)).also { dueAt = System.currentTimeMillis() }
         true
     }
 

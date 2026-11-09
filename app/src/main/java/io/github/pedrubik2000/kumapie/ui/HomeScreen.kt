@@ -36,8 +36,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Card
 import androidx.tv.material3.Text
 import androidx.tv.material3.MaterialTheme
@@ -89,20 +87,19 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
 
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 32.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("kumapie", style = MaterialTheme.typography.headlineLarge, color = Colors.text)
+            Title("kuma", "pie")
             Spacer(Modifier.width(32.dp))
             if (langs.size > 1) langs.forEach { c ->
                 Button(onClick = { picked = c; settings.prefs.edit().putString("home_lang_$profile", c).apply() },
-                    colors = if (c == lang) ButtonDefaults.colors(containerColor = Colors.accent, contentColor = Colors.background)
-                    else ButtonDefaults.colors(),
-                    modifier = Modifier.padding(end = 12.dp)) { Text(Lang.of(c).displayName) }
+                    colors = arcadeButtonColors(selected = c == lang),
+                    modifier = Modifier.padding(end = 8.dp)) { Text(Lang.of(c).displayName.uppercase()) }
             }
             Spacer(Modifier.weight(1f))
-            Button(onClick = onProfiles) { Text(who) } // back to "Who's watching?"
-            Spacer(Modifier.width(16.dp))
-            Button(onClick = onStats) { Text(tr("Stats")) }
-            Spacer(Modifier.width(16.dp))
-            Button(onClick = onSettings) { Text(tr("Settings")) }
+            Button(onClick = onProfiles) { Text(who.uppercase()) } // back to "Who's watching?"
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = onStats) { Text(tr("Stats").uppercase()) }
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = onSettings) { Text(tr("Settings").uppercase()) }
         }
         Spacer(Modifier.padding(8.dp))
         when {
@@ -123,13 +120,12 @@ private fun LangCard(api: Api, lang: String) {
     var t by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.LangTotal?>(null) }
     LaunchedEffect(lang) { t = runCatching { api.stats().langs[lang] }.getOrNull() }
     val s = t ?: return
-    Row(Modifier.padding(bottom = 16.dp).background(Colors.surface, androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-        .padding(horizontal = 24.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
+    Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf(String.format(java.util.Locale.ROOT, "%.1f h", s.total / 3600) to tr("In total"), hoursMinutes(s.week) to tr("Last 7 days"),
             hoursMinutes(s.today) to tr("Today"), "${s.known}" to tr("Words known")).forEach { (v, l) ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(v, fontSize = 24.sp, color = Colors.accent)
-                Text(l, fontSize = 14.sp, color = Colors.dim)
+            Column(Modifier.background(Arcade.slab, RowSlab).padding(horizontal = 26.dp, vertical = 8.dp)) {
+                Text(v, fontSize = 22.sp, color = Colors.accent, style = Arcade.label)
+                Text(l.uppercase(), fontSize = 12.sp, color = Colors.dim, style = Arcade.label)
             }
         }
     }
@@ -173,7 +169,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
 @Composable
 private fun Shelf(title: String, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     Column {
-        Text(title, color = Colors.text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 16.dp))
+        Heading(title, Modifier.padding(start = 16.dp))
         // The focused card grows by 10%: padding keeps it inside the screen and off its title.
         LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), content = content)
@@ -183,13 +179,13 @@ private fun Shelf(title: String, content: androidx.compose.foundation.lazy.LazyL
 @Composable
 private fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, onClick: () -> Unit) {
     Column(Modifier.width(110.dp)) {
-        Card(onClick = onClick, modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
+        Card(onClick = onClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
             Box(Modifier.fillMaxSize()) { // a Card lays out as a column: the box puts the image over the neutral poster
                 NeutralPoster(title, Modifier.fillMaxSize()) // shows where there's no poster (never an episode frame)
                 AsyncImage(model = image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
         }
-        Text(title, color = Colors.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        Text(title.uppercase(), color = Colors.text, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label), maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 10.dp))
         Text(line, color = Colors.dim, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (progress != null) ProgressBar(progress, Modifier.fillMaxWidth().padding(top = 4.dp))
@@ -200,7 +196,7 @@ private fun Poster(image: String, title: String, line: String, progress: Float?,
 @Composable
 private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, onClick: () -> Unit) {
     Column(Modifier.width(width)) {
-        Card(onClick = onClick, modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+        Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
             Box(Modifier.fillMaxSize()) {
                 NeutralPoster(s.title, Modifier.fillMaxSize(), showTitle = false)
                 AsyncImage(model = s.poster, contentDescription = s.title, contentScale = ContentScale.Crop,
@@ -209,7 +205,7 @@ private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, onCli
                 ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp))
             }
         }
-        Text(shortTitle(s.title), color = Colors.text, style = if (width > 300.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium, maxLines = 1,
+        Text(shortTitle(s.title).uppercase(), color = Colors.text, style = (if (width > 300.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium).merge(Arcade.label), maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 18.dp))
         Text("${e.title} · ${resumeLine(e)}", color = Colors.dim, style = if (width > 300.dp) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -220,7 +216,7 @@ fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: () -> Unit) {
     val retry = remember { FocusRequester() }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(tr("Can't reach the dojo server"), style = MaterialTheme.typography.headlineSmall, color = Colors.text)
+            Title(tr("Can't reach the dojo server"), fontSize = 26.sp)
             Text(message, color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
             Text(tr("Is the PC on, and Tailscale connected on the TV?"), color = Colors.dim)
             Row(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {

@@ -59,12 +59,14 @@ fun MeaningCard(
     ownMeaning: Boolean = true,
     /** A see-through ✕ in the card's top right corner. */
     onClose: (() -> Unit)? = null,
+    /** The card's own background and shape (the TV's look); null = the rounded surface. */
+    container: Modifier? = null,
 ) {
     val segment = picker.selected ?: return
     val key = segment.word ?: return
     val word = ctl.words[key] ?: Word("u", "")
     val def = picker.definition
-    AboveAnchor(anchor) { Box(Modifier.widthIn(max = maxWidth).background(Colors.surface, RoundedCornerShape(12.dp))
+    AboveAnchor(anchor) { Box(Modifier.widthIn(max = maxWidth).then(container ?: Modifier.background(Colors.surface, RoundedCornerShape(12.dp)))
         .pointerInput(Unit) { detectTapGestures { } }) { // taps on the card stay on the card
         Column(
             // With the dictionaries the footer's popup scrolls itself (sized to fit): a second scroller here took the
@@ -155,7 +157,7 @@ private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: 
             "b" -> Colors.mined
             else -> Colors.text
         }
-        withStyle(if (i == selected) SpanStyle(color = Color.Black, background = color) else SpanStyle(color = color)) {
+        withStyle(if (i == selected) SpanStyle(color = Color.Black, background = Colors.picked ?: color) else SpanStyle(color = color)) {
             append(seg.text)
         }
     }

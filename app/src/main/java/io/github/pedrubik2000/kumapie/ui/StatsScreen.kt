@@ -73,7 +73,7 @@ private fun StatsContent(s: Stats) {
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
             Section(Modifier.focusRequester(first)) {
-                Text(tr("Stats"), fontSize = 30.sp, color = Colors.text)
+                Title(tr("Stats"), fontSize = 30.sp)
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Tile(tr("Today"), hoursMinutes(s.today))
                     Tile(tr("Last 7 days"), hoursMinutes(s.week))
@@ -84,7 +84,7 @@ private fun StatsContent(s: Stats) {
         }
         item {
             Section {
-                Text(tr("The last year"), fontSize = 20.sp, color = Colors.accent)
+                Heading(tr("The last year"))
                 Heatmap(s.days, today, Modifier.padding(top = 10.dp))
                 Text(tr("A square is a day: the more minutes, the brighter. Weeks start on Monday."), fontSize = 13.sp,
                     color = Colors.dim, modifier = Modifier.padding(top = 6.dp))
@@ -92,13 +92,13 @@ private fun StatsContent(s: Stats) {
         }
         item {
             Section {
-                Text(tr("The last 30 days"), fontSize = 20.sp, color = Colors.accent)
+                Heading(tr("The last 30 days"))
                 Bars(s.days, today, Modifier.padding(top = 10.dp))
             }
         }
         item {
             Section {
-                Text(tr("Scenes and words"), fontSize = 20.sp, color = Colors.accent)
+                Heading(tr("Scenes and words"))
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Tile(tr("Scenes watched to the end"), tr("%1\$d of %2\$d", s.scenesSeen, s.scenesTotal))
                     Tile(tr("Words looked up"), "${s.wordsLookedUp} (${s.lookups}×)")
@@ -120,7 +120,7 @@ private fun StatsContent(s: Stats) {
         if (s.topLookups.isNotEmpty()) {
             item {
                 Section {
-                    Text(tr("Looked up most"), fontSize = 20.sp, color = Colors.accent)
+                    Heading(tr("Looked up most"))
                     Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         s.topLookups.forEach { t ->
                             Row {
@@ -144,16 +144,16 @@ private fun Section(modifier: Modifier = Modifier, content: @Composable () -> Un
         modifier.fillMaxWidth()
             .onFocusChanged { focused = it.isFocused }
             .focusable()
-            .border(2.dp, if (focused) Colors.accent.copy(alpha = 0.6f) else Color.Transparent, RoundedCornerShape(12.dp))
+            .border(2.dp, if (focused) Colors.accent.copy(alpha = 0.6f) else Color.Transparent)
             .padding(16.dp),
     ) { content() }
 }
 
 @Composable
 private fun Tile(label: String, value: String) {
-    Column(Modifier.background(Colors.surface, RoundedCornerShape(12.dp)).padding(horizontal = 20.dp, vertical = 14.dp)) {
-        Text(value, fontSize = 26.sp, color = Colors.text)
-        Text(label, fontSize = 14.sp, color = Colors.dim)
+    Column(Modifier.background(Arcade.slab, RowSlab).padding(horizontal = 26.dp, vertical = 12.dp)) {
+        Text(value, fontSize = 26.sp, color = Colors.accent, style = Arcade.label)
+        Text(label.uppercase(), fontSize = 13.sp, color = Colors.dim, style = Arcade.label)
     }
 }
 

@@ -57,9 +57,15 @@ them).
 | next / previous scene | → / ← | D-pad → / ← |
 | replay the line / the scene | ↑ / hold ← | X / Y |
 | subtitle mode | ↓ | L / R |
-| pick a word (the card shows its meaning; hold ↓ marks it known) | hold OK | hold A, or Select |
+| pick a word (the card shows its meaning; hold ↓ / Select marks it known) | hold OK | hold A, or Select |
+| add the picked word to Anki (again: see its card) | hold ↑ | Y |
+| rate a due (green) word's card, its meaning shown | hold →, then ←→ and OK | L2 Again, L1 Hard, R1 Good, R2 Easy |
+| undo that rating | hold → on the same word | Start |
 | options | hold ↓ | Start |
 | back | Back | B |
+
+A bar along the bottom says what the buttons do now, with PS5 glyphs after a gamepad press and the remote's names
+after a remote press (Settings turns it off). Ratings go to kuma3 on the TV, which is never opened.
 
 ## Build
 
@@ -93,7 +99,7 @@ Four modules. Paths are under `src/main/java/io/github/pedrubik2000/kumapie/`.
 | `core` | shared by both apps: server API (`data/Api.kt`, `data/Backend.kt`), settings, scene controller and word picker, subtitles, meaning card, colours, Spanish strings (`i18n/`), self-update |
 | `lang` | the language layer: `Language.kt` (`Languages` registry; `Spaced` for German/English, `Japanese`), `KnownWords.kt`, `CardIndex.kt` and `AnkiCards.kt` (reading kuma3), `Miner.kt` and `WebmMuxer.kt` (mining), `Dictionary.kt` / `Hoshidicts.kt` (Yomitan), `JitenSplitter.kt` + `jiten/` (Japanese splitting) |
 | `mobile` | the phone/tablet app: `ui/` screens, `local/` (episodes on the device, processing queue, sync with the PC, subtitle sync, Wi-Fi transfer, Parakeet), `offline/` (downloads, pending reports), `listen/` (condensed audio). Python (spaCy, metadata) runs through Chaquopy from `src/main/python` |
-| `app` | the TV app: screens, player, button mapping, help, stats, profiles |
+| `app` | the TV app: screens, player, button mapping, help, stats, profiles; `ui/Arcade.kt` = its look (slabs, hint bar, PS5 glyphs), `ui/TvMining.kt` = mining and ratings |
 
 Compose (Material 3 on mobile, Compose for TV), Media3 ExoPlayer, Coil, WorkManager. JSON is parsed with
 `org.json`.

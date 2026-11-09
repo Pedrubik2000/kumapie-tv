@@ -2,11 +2,13 @@ package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.ui.graphics.Color
 
-/** The app's colours. The bear's brown is the accent (focus rings, progress). */
+/** The app's colours. The bear's brown is the accent (focus rings, progress). The TV sets its own (its `KumapieTheme`). */
 object Colors {
-    val background = Color(0xFF1D1B26)
-    val surface = Color(0xFF2A2734)
-    val accent = Color(0xFFC98A4B)
+    var background = Color(0xFF1D1B26)
+    var surface = Color(0xFF2A2734)
+    var accent = Color(0xFFC98A4B)
+    /** The picked word's background; null = the word's own colour (the phone). */
+    var picked: Color? = null
     val text = Color(0xFFF2F0F7)
     val dim = Color(0xFFA9A4B8)
     // Words in subtitles are only white, red, green or blue (no orange, user): white = known (FSRS stability >= 7

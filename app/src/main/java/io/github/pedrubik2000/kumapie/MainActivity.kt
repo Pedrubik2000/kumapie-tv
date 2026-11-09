@@ -31,6 +31,7 @@ import io.github.pedrubik2000.kumapie.ui.SettingsScreen
 import io.github.pedrubik2000.kumapie.ui.ShowScreen
 import io.github.pedrubik2000.kumapie.ui.StatsScreen
 import io.github.pedrubik2000.kumapie.ui.UpdateDialog
+import io.github.pedrubik2000.kumapie.ui.arcadeBackdrop
 import io.github.pedrubik2000.kumapie.ui.onBackKey
 import io.github.pedrubik2000.kumapie.update.Updater
 
@@ -61,6 +62,11 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra("server")?.let { settings.server = it }
         setContent { KumapieTheme { App(settings) } }
     }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        io.github.pedrubik2000.kumapie.ui.Pad.seen(event)
+        return super.dispatchKeyEvent(event)
+    }
 }
 
 @Composable
@@ -75,7 +81,7 @@ fun App(settings: Settings) {
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
 
-    Box(Modifier.fillMaxSize().background(Colors.background)
+    Box(Modifier.fillMaxSize().background(Colors.background).arcadeBackdrop()
         .onBackKey(enabled = stack.size > 1 && server.isNotEmpty()) { stack.removeAt(stack.lastIndex) }) {
         if (server.isEmpty()) {
             SettingsScreen(settings, firstRun = true, onSaved = { server = settings.server }, onUpdate = { update = it })

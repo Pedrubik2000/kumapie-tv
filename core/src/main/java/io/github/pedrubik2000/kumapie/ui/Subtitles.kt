@@ -334,7 +334,7 @@ private fun colored(cue: Cue, words: Map<String, Word>, dim: Boolean, selected: 
                 "b" -> if (dim) Colors.mined.copy(alpha = 0.7f) else Colors.mined
                 else -> base
             }
-            val style = if (i == selected) SpanStyle(color = Color.Black, background = color) else SpanStyle(color = color)
+            val style = if (i == selected) SpanStyle(color = Color.Black, background = Colors.picked ?: color) else SpanStyle(color = color)
             withStyle(style) { append(seg.text) }
         }
     }

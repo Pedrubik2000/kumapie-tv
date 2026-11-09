@@ -41,7 +41,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.Color
-import androidx.tv.material3.Button
 import kotlinx.coroutines.launch
 
 /**
@@ -64,12 +63,12 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
 
     Row(Modifier.fillMaxSize().padding(start = 48.dp, top = 32.dp, bottom = 32.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.width(300.dp)) {
-            Box(Modifier.fillMaxWidth(if (show.description.isBlank()) 0.87f else 0.55f).aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp))) {
+            Box(Modifier.fillMaxWidth(if (show.description.isBlank()) 0.87f else 0.55f).aspectRatio(2f / 3f).clip(PosterSlab)) {
                 NeutralPoster(show.title, Modifier.fillMaxSize(), fontSize = 22.sp)
                 AsyncImage(model = show.poster, contentDescription = show.title, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize())
             }
-            Text(show.title, fontSize = 22.sp, color = Colors.text, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+            Text(show.title.uppercase(), fontSize = 22.sp, color = Colors.text, style = Arcade.label, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
             if (show.description.isNotBlank()) Text(show.description, fontSize = 14.sp, color = Colors.dim, maxLines = 8,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         }
@@ -102,9 +101,9 @@ private fun MarkMenu(ep: Episode, count: Int, onClose: () -> Unit, onMark: (whol
     val focus = remember { FocusRequester() }
     val season = ep.season?.let { tr("Season %d", it) } ?: tr("All episodes")
     Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
-        Column(Modifier.width(560.dp).background(Colors.surface, RoundedCornerShape(16.dp)).padding(32.dp),
+        Column(Modifier.width(560.dp).arcadePanel().padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(ep.title, fontSize = 24.sp, color = Colors.text)
+            Title(ep.title, fontSize = 24.sp)
             Button(onClick = { onMark(false, !ep.watched) }, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
                 Text(if (ep.watched) tr("Mark as not watched") else tr("Mark as watched"))
             }
@@ -124,8 +123,8 @@ private fun MarkMenu(ep: Episode, count: Int, onClose: () -> Unit, onMark: (whol
 
 @Composable
 private fun EpisodeCard(ep: Episode, blur: Boolean, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier = Modifier) {
-    Card(onClick = onClick, onLongClick = onLongClick, modifier = modifier.fillMaxWidth()) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Card(onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(EpisodeSlab), border = arcadeCardBorder(EpisodeSlab), modifier = modifier.fillMaxWidth()) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(model = ep.thumb, contentDescription = null, contentScale = ContentScale.Crop,
                 // No spoilers: an episode's picture stays blurred until it is watched (as on the phone).
                 modifier = Modifier.width(200.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
@@ -133,7 +132,7 @@ private fun EpisodeCard(ep: Episode, blur: Boolean, onClick: () -> Unit, onLongC
             Column(Modifier.padding(start = 20.dp).weight(1f)) {
                 // The episode's own title only once watched (titles can spoil).
                 Text(if (ep.watched && ep.episodeTitle.isNotBlank()) "${ep.title} · ${ep.episodeTitle}" else ep.title,
-                    fontSize = 20.sp, color = Colors.text)
+                    fontSize = 20.sp, color = Colors.text, style = Arcade.label)
                 Text((if (ep.easy > 0) tr("%1\$d min · %2\$d scenes · %3\$d easy today", minutes(ep.duration), ep.scenes, ep.easy)
                     else tr("%1\$d min · %2\$d scenes", minutes(ep.duration), ep.scenes)) +
                     if (ep.seen > 0) tr(" · %d seen", ep.seen) else "", fontSize = 14.sp, color = Colors.dim,

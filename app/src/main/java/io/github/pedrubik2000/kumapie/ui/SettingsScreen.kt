@@ -22,7 +22,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Button
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.BuildConfig
 import io.github.pedrubik2000.kumapie.data.Api
@@ -59,12 +58,12 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
 
     // Scrolls: the D-pad brings the focused button into view (Font and Updates were below the screen).
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(if (firstRun) tr("Welcome to kumapie") else tr("Settings"), fontSize = 32.sp, color = Colors.text)
+        Title(if (firstRun) tr("Welcome to kumapie") else tr("Settings"), fontSize = 32.sp)
         if (firstRun) {
             Text(tr("Type the address of the dojo server on the PC (Tailscale), e.g. https://my-pc.tailnet.ts.net:8445"),
                 color = Colors.dim)
         }
-        Text(tr("Server"), fontSize = 18.sp, color = Colors.dim)
+        Heading(tr("Server"))
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TvTextField(server, { server = it }, onDone = ::save,
                 modifier = Modifier.width(640.dp).let { if (firstRun) it.focusRequester(focus) else it })
@@ -73,7 +72,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         if (status.isNotEmpty()) Text(status, color = Colors.dim)
 
         if (!firstRun) {
-            Text(tr("Buttons and help"), fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            Heading(tr("Buttons and help"), Modifier.padding(top = 24.dp))
             var showHelp by remember { mutableStateOf(settings.showHelp) }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Focus starts here, not in the server field: focusing a text field opens the TV's keyboard.
@@ -82,13 +81,13 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                     Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")))
                 }
             }
-            Text(tr("No spoilers"), fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            Heading(tr("No spoilers"), Modifier.padding(top = 24.dp))
             var blur by remember { mutableStateOf(settings.blurUnwatched) }
             Button(onClick = { blur = !blur; settings.blurUnwatched = blur }) {
                 Text(tr("Blur episodes I haven't watched: %s", if (blur) tr("on") else tr("off")))
             }
             // OK steps through the fonts; the sample line shows the one picked (fetched the first time it's drawn).
-            Text(tr("Japanese subtitles"), fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            Heading(tr("Japanese subtitles"), Modifier.padding(top = 24.dp))
             var font by remember { mutableStateOf(settings.japaneseFont) }
             Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(onClick = {
@@ -97,7 +96,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                 }) { Text(tr("Font: %s", JapaneseFonts.label(font))) }
                 Text(JapaneseFonts.SAMPLE, fontSize = 26.sp, color = Colors.text, fontFamily = JapaneseFonts.family(font))
             }
-            Text(tr("Updates"), fontSize = 18.sp, color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            Heading(tr("Updates"), Modifier.padding(top = 24.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = {
                     updateStatus = tr("Checking…")

@@ -49,7 +49,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.tv.material3.Button
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Episode
@@ -60,6 +59,7 @@ import io.github.pedrubik2000.kumapie.data.keys
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.shortTitle
 import io.github.pedrubik2000.kumapie.player.Action
+import io.github.pedrubik2000.kumapie.player.Binding
 import io.github.pedrubik2000.kumapie.player.KeyHandler
 import io.github.pedrubik2000.kumapie.player.KeyContext
 import io.github.pedrubik2000.kumapie.player.keyMapOf
@@ -129,10 +129,23 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
     var help by remember { mutableStateOf(settings.showHelp && !settings.prefs.getBoolean(seenKey, false)) }
     LaunchedEffect(help) { if (help) settings.prefs.edit().putBoolean(seenKey, true).apply() }
     var helpKey by remember { mutableStateOf<Int?>(null) } // the button that closed it: its release is ours too
-    val watchKeys = remember { keyMapOf(KeyContext.WATCH, settings.keys(KeyContext.WATCH)) }
-    val pickerKeys = remember { keyMapOf(KeyContext.PICKER, settings.keys(KeyContext.PICKER)) }
+    val watchBindings = remember { settings.keys(KeyContext.WATCH) }
+    val pickerBindings = remember { settings.keys(KeyContext.PICKER) }
+    val watchKeys = remember { keyMapOf(KeyContext.WATCH, watchBindings) }
+    val pickerKeys = remember { keyMapOf(KeyContext.PICKER, pickerBindings) }
+    val rating = remember { TvRating() }
+    // A rating's time runs from the word's meaning showing; another word closes the remote's rating row.
+    LaunchedEffect(picker.line, picker.seg, picker.cardOpen, picker.isOpen) { rating.since = System.currentTimeMillis(); rating.open = false }
     val keys = remember {
         KeyHandler({ if (picker.isOpen) pickerKeys else watchKeys }) { action ->
+            // The remote's rating row: ←→ choose, the "hear" button rates, anything else closes it.
+            if (rating.open) when (action) {
+                Action.PICK_LEFT -> { rating.choice = (rating.choice - 1).coerceAtLeast(0); return@KeyHandler }
+                Action.PICK_RIGHT -> { rating.choice = (rating.choice + 1).coerceAtMost(3); return@KeyHandler }
+                Action.PICK_AUDIO -> { rateWord(context, settings, ctl, picker, scope, rating, rating.choice + 1); return@KeyHandler }
+                Action.PICK_AGAIN, Action.PICK_HARD, Action.PICK_GOOD, Action.PICK_EASY, Action.PICK_UNDO -> Unit
+                else -> { rating.open = false; return@KeyHandler }
+            }
             when (action) {
                 Action.PLAY_PAUSE -> ctl.togglePlay()
                 Action.NEXT_SCENE -> ctl.nextScene()
@@ -157,6 +170,12 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
                 Action.PICK_REPLAY_LINE -> picker.replayLine()
                 Action.PICK_MARK_KNOWN -> picker.toggleKnown()
                 Action.PICK_MINE -> mineWord(context, settings, ctl, picker, scope, playerView)
+                Action.PICK_RATE -> openRating(context, settings, ctl, picker, scope, rating)
+                Action.PICK_AGAIN -> rateWord(context, settings, ctl, picker, scope, rating, 1)
+                Action.PICK_HARD -> rateWord(context, settings, ctl, picker, scope, rating, 2)
+                Action.PICK_GOOD -> rateWord(context, settings, ctl, picker, scope, rating, 3)
+                Action.PICK_EASY -> rateWord(context, settings, ctl, picker, scope, rating, 4)
+                Action.PICK_UNDO -> undoRating(context, settings, ctl, scope, rating)
                 Action.PICK_CLOSE -> picker.close()
             }
         }
@@ -238,7 +257,7 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
             },
             modifier = Modifier.fillMaxSize(),
         )
-        if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, picker, hints = settings.showHelp, title = shortTitle(ctl.episode.show))
+        if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, title = shortTitle(ctl.episode.show))
         Subtitles(ctl, picker, onAnchor = { anchor = it }, aboveBox = true)
         if (picker.isOpen && picker.cardOpen) anchor?.let {
             val japanese = ctl.lang == Lang.JAPANESE
@@ -246,21 +265,23 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
             // card's padding (~70 dp), so the line stays visible.
             val room = with(androidx.compose.ui.platform.LocalDensity.current) { it.top.toDp().value.toInt() } - 70
             JapaneseText(japanese) {
-                if (japanese) MeaningCard(ctl, picker, it, maxWidth = 900.dp, ownMeaning = false,
+                if (japanese) MeaningCard(ctl, picker, it, maxWidth = 940.dp, ownMeaning = false, container = Modifier.arcadeCard(),
                     footer = { TvJapaneseCard(settings, ctl, picker, room.coerceIn(220, 460)) })
-                else MeaningCard(ctl, picker, it)
+                else MeaningCard(ctl, picker, it, container = Modifier.arcadeCard())
             }
         }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() },
             onHelp = { options = false; help = true; focus.requestFocus() })
+        if ((settings.showHelp || rating.open) && !options && !help)
+            PlayerHints(ctl, picker, rating, watchBindings, pickerBindings, Modifier.align(Alignment.BottomStart))
         if (help) HelpOverlay(settings, ctl.lang)
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
-/** Show, scene n/N with its level, the modes, and a hint of the keys when paused. */
+/** Show, scene n/N with its level, and the modes. */
 @Composable
-private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean, title: String) {
+private fun TopBar(ctl: SceneController, title: String) {
     val scene = ctl.scene
     Row(
         Modifier.fillMaxWidth()
@@ -282,23 +303,40 @@ private fun TopBar(ctl: SceneController, picker: WordPicker, hints: Boolean, tit
         val coloured = remember(ctl.episode) { ctl.episode.words.values.any { it.status != "k" } }
         if (coloured) LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 16.dp))
     }
-    val hint = when {
-        picker.isOpen && picker.inDef -> tr("←→ words of the definition   ↓ back to the line   OK: hear the word (twice: definition)   hold ↓: known   Back: close")
-        picker.isOpen && picker.cardOpen && ctl.lang == Lang.JAPANESE ->
-            tr("OK: hear   ↑↓ scroll the dictionaries   ←→ other words   hold OK: replay line   hold ↓: known   hold ↑: add to Anki")
-        picker.isOpen && picker.cardOpen ->
-            tr("OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK: replay line   hold ↓: known   hold ↑: add to Anki")
-        picker.isOpen -> tr("←→ words   ↑↓ lines   OK: show the meaning   hold OK: replay line   hold ↓: known   hold ↑: add to Anki   Back: close")
-        ctl.atSceneEnd -> tr("OK: next scene   ↑: replay line   ↓: pick a word   ←: previous")
-        !ctl.playing -> tr("OK: play   hold OK: pick a word   ↑: replay line   Menu: options")
-        else -> null
+}
+
+/**
+ * The hint bar for where the player is: the buttons as they are set (Settings > Change buttons), on the input used
+ * last. A due word with its meaning shown: the ratings (the pad's four buttons; the remote's one, which opens a row).
+ */
+@Composable
+private fun PlayerHints(ctl: SceneController, picker: WordPicker, rating: TvRating, watch: Map<Binding, Action>,
+                        pick: Map<Binding, Action>, modifier: Modifier) {
+    fun hint(keys: Map<Binding, Action>, action: Action, label: String): Hint? =
+        forInput(keys.filterValues { it == action }.keys).firstOrNull()?.let { b -> Hint(tr(label)) { KeyHint(b) } }
+    fun move(label: String, arrows: String) = Hint(tr(label)) { if (Pad.on) Glyph(DPAD) else KeyCap(arrows) }
+    fun back(label: String) = Hint(tr(label)) { if (Pad.on) Glyph(android.view.KeyEvent.KEYCODE_BUTTON_B) else KeyCap(tr("Back")) }
+    val card = pickedCard(ctl, picker)
+    val hints: List<Hint?> = when {
+        rating.open -> RATINGS.mapIndexed { i, r -> Hint(tr(r), on = i == rating.choice) } +
+            listOf(hint(pick, Action.PICK_AUDIO, "Rate"), back("Cancel"))
+        picker.isOpen && picker.inDef -> listOf(move("Word", "←→"), hint(pick, Action.PICK_DOWN, "Back to the line"),
+            hint(pick, Action.PICK_AUDIO, "Hear"), hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
+        picker.isOpen -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, if (picker.cardOpen) "Hear" else "Meaning"),
+            hint(pick, Action.PICK_REPLAY_LINE, "Line")) + when {
+                card != null && rating.last?.first == card.first -> listOf(hint(pick, Action.PICK_UNDO, "Undo") ?: hint(pick, Action.PICK_RATE, "Undo"))
+                card?.second == "d" && picker.cardOpen ->
+                    listOf(Action.PICK_AGAIN, Action.PICK_HARD, Action.PICK_GOOD, Action.PICK_EASY).mapIndexedNotNull { i, a -> hint(pick, a, RATINGS[i]) }
+                        .ifEmpty { listOf(hint(pick, Action.PICK_RATE, "Rate")) }
+                else -> listOf(hint(pick, Action.PICK_MINE, "Add to Anki"), hint(pick, Action.PICK_MARK_KNOWN, "Known"))
+            } + back("Close")
+        ctl.atSceneEnd -> listOf(hint(watch, Action.PLAY_PAUSE, "Next scene"), hint(watch, Action.REPLAY_LINE, "Line"),
+            hint(watch, Action.CYCLE_SUBTITLES, "Pick a word"), hint(watch, Action.PREVIOUS_SCENE, "Previous"))
+        !ctl.playing -> listOf(hint(watch, Action.PLAY_PAUSE, "Play"), hint(watch, Action.WORD_PICKER, "Pick a word"),
+            hint(watch, Action.REPLAY_LINE, "Line"), hint(watch, Action.OPTIONS, "Options"))
+        else -> emptyList()
     }
-    if (hint != null && hints) {
-        Box(Modifier.fillMaxSize().padding(top = 110.dp), contentAlignment = Alignment.TopCenter) {
-            Text(hint, color = Colors.text, fontSize = 17.sp,
-                modifier = Modifier.background(Color(0x99000000), RoundedCornerShape(8.dp)).padding(horizontal = 20.dp, vertical = 10.dp))
-        }
-    }
+    hints.filterNotNull().takeIf { it.isNotEmpty() }?.let { HintBar(it, modifier) }
 }
 
 @Composable
@@ -321,11 +359,11 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
     Box(Modifier.fillMaxSize().background(Color(0x99000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.CenterEnd) {
         Column(
             // Scrolls: seven buttons are taller than the screen at this size (focus brings each into view).
-            Modifier.padding(48.dp).width(520.dp).background(Colors.surface, RoundedCornerShape(16.dp))
+            Modifier.padding(48.dp).width(520.dp).arcadePanel()
                 .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(tr("Options"), fontSize = 26.sp, color = Colors.text)
+            Title(tr("Options"), fontSize = 26.sp)
             Button(onClick = ctl::togglePauseAtSceneEnd, modifier = Modifier.fillMaxWidth().focusRequester(first)) {
                 Text(tr("At the end of a scene: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")))
             }

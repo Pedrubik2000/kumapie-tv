@@ -586,3 +586,9 @@ fun undoRating(context: Context, settings: Settings, ctl: SceneController, scope
         }
     }
 }
+
+/** Characters' names as one word, as on the phone (壬|氏|様 -> 壬氏様): only with a character dictionary on this TV. */
+suspend fun joinNames(context: Context, settings: Settings, episode: io.github.pedrubik2000.kumapie.data.EpisodeDetail): io.github.pedrubik2000.kumapie.data.EpisodeDetail {
+    val language = TvMining.languages(context, settings).of(episode.lang)
+    return withContext(Dispatchers.Default) { language.joinNames(episode) }
+}

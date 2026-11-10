@@ -87,6 +87,7 @@ fun App(settings: Settings) {
             SettingsScreen(settings, firstRun = true, onSaved = { server = settings.server }, onUpdate = { update = it })
         } else {
             val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }
+            LaunchedEffect(api) { api.findLan() }
             val screen = stack.last()
             if (profile == null && screen != Screen.Settings) {
                 ProfilesScreen(api, settings.profile, onPick = {

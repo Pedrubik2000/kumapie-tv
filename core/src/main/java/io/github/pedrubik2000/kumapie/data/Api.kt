@@ -57,7 +57,28 @@ class Api(private val base: String, private val person: String = "") : Backend {
     suspend fun episode(id: String): EpisodeDetail = withContext(Dispatchers.Default) { parseEpisode(episodeJson(id)) }
 
     /** The episode's video, known before its scenes are: the player starts loading it meanwhile. */
-    fun videoUrl(id: String): String = url("/api/tv/video/$id")
+    fun videoUrl(id: String): String = (lan ?: base) + "/api/tv/video/$id"
+
+    /** The PC's address on the home network, once [findLan] reached it there. */
+    @Volatile private var lan: String? = null
+
+    /**
+     * At home the video comes straight from the PC, not through Tailscale: a Chromecast got ~24 Mbit/s through it
+     * (113 on plain Wi-Fi) and a Blu-ray-size episode (35 Mbit/s) stalled every few seconds (2026-11-09). The PC
+     * says where it is ("lan" in /api/tv) and answers only videos there.
+     */
+    // ponytail: asked once per Api; a TV doesn't leave home. Ask again on a network change if a phone ever uses this.
+    suspend fun findLan() = withContext(Dispatchers.IO) {
+        lan = runCatching {
+            JSONObject(get("/api/tv")).optString("lan").takeIf { it.isNotEmpty() }?.takeIf {
+                val conn = URL("$it/api/tv/video/-").openConnection() as HttpURLConnection
+                conn.connectTimeout = 1_500
+                conn.readTimeout = 1_500
+                try { conn.responseCode == 404 } finally { conn.disconnect() } // the PC itself: no such episode
+            }
+        }.getOrNull()
+        Log.i("kumapie", "video from ${lan ?: base}")
+    }
 
     /** An episode as the server sends it (the phone saves it with a downloaded episode). */
     suspend fun episodeJson(id: String): String = get("/api/tv/episode/$id")

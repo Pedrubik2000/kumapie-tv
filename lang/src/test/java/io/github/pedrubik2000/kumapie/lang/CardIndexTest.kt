@@ -30,6 +30,12 @@ class CardIndexTest {
         index.update(emptyList(), null)
         assertEquals("b", index.state("Hausnummer")) // a queue read that failed keeps the last one (mined words stay blue)
         assertEquals(null, CardIndex().state("gehen")) // kuma3's queue never read: old colours
+
+        // Again: a learning step in 10 minutes (due in epoch seconds) is white until then, green after.
+        val again = CardIndex()
+        again.build(listOf(note(1, "Tante")), listOf(AnkiCards.Card(10, 1, true, null, 1_800_000_600, type = 3)), mapOf(10L to "learn"))
+        assertEquals("k", again.state("Tante", nowSecs = 1_800_000_000))
+        assertEquals("d", again.state("Tante", nowSecs = 1_800_000_600))
     }
 
     @Test fun japanese() {
@@ -48,6 +54,9 @@ class CardIndexTest {
         assertEquals(listOf("テレビ\tてれび", "テレビ"), keys("テレビ"))
         assertEquals(listOf("船\tふね", "船"), keys("船", "ふね")) // JPDB: Word + Reading
         assertEquals(emptyList<String>(), keys(""))
+        assertEquals(listOf("紅娘\t紅娘", "紅娘"), keys("紅娘[ほんgにあんg]")) // Bee's half-kana pinyin: no reading
+        assertEquals("", JapaneseLookup.cleanReading("ほんgにあんgさま"))
+        assertEquals("シーディー", JapaneseLookup.cleanReading("シーディー"))
 
         val index = CardIndex()
         index.build(listOf(AnkiCards.Note(1, mapOf("Word" to "上手[じょうず]"), emptySet()), AnkiCards.Note(2, mapOf("Word" to "上手[うわて]"), emptySet())),

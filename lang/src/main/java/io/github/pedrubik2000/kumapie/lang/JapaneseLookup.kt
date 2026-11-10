@@ -260,6 +260,10 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         /** Katakana -> hiragana (Sudachi gives readings in katakana, dictionaries in hiragana). */
         fun hiragana(s: String): String = buildString { for (c in s) append(if (c in 'ァ'..'ヶ') c - 0x60 else c) }
 
+        /** A reading, or "" when it mixes kana and Latin letters: Bee's 紅娘 has ほんgにあんg (pinyin half turned into kana). */
+        fun cleanReading(r: String): String =
+            if (r.any { it in 'a'..'z' || it in 'A'..'Z' } && r.any { it in 'ぁ'..'ゖ' || it in 'ァ'..'ヶ' }) "" else r
+
         /** The same sound, however the kana spell it: とうきょう = トオキョオ = トーキョー, えいが = エエガ, きづく = キズク. */
         fun sameSound(a: String, b: String) = spoken(a) == spoken(b)
 

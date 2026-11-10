@@ -383,7 +383,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
             val g = t.getJSONArray("glossaries")
             val f = t.getJSONArray("frequencies")
             val p = t.getJSONArray("pitches")
-            Term(t.getString("expression"), t.getString("reading"),
+            Term(t.getString("expression"), JapaneseLookup.cleanReading(t.getString("reading")),
                 (0 until g.length()).map { j ->
                     g.getJSONObject(j).let { e ->
                         Glossary(e.getString("dict"), senses(e.getString("glossary")),

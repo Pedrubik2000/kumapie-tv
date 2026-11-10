@@ -30,13 +30,14 @@ class CardIndex {
     /**
      * [io.github.pedrubik2000.kumapie.data.Word.card] of a form: "d" an own card is due today (review or learning),
      * "b" mined and never reviewed (blue, user 2026-10-11), "k" studied and not due (learning ones too, user
-     * 2026-10-21), "u" no card of its own; null when kuma3's queue isn't known.
+     * 2026-10-21; a learning step not yet reached too, 2026-11-08), "u" no card of its own; null when kuma3's queue isn't known.
      */
-    fun state(form: String): String? {
+    fun state(form: String, nowSecs: Long = System.currentTimeMillis() / 1000): String? {
         val due = due ?: return null
         val own = byForm[form.lowercase()] ?: return "u"
         return when {
-            own.any { due[it.id] == "review" || due[it.id] == "learn" } -> "d"
+            // A learning step later today (due in epoch seconds, not a day number) isn't green yet: Again kept it green (user, 2026-11-08).
+            own.any { due[it.id] == "review" || due[it.id] == "learn" && (it.due < 1_000_000_000 || it.due <= nowSecs) } -> "d"
             own.all { it.type == 0 } -> "b"
             else -> "k"
         }
@@ -83,7 +84,7 @@ class CardIndex {
 
         /** A Japanese word's key: as written, tab, its reading in hiragana (kana-only words: the word itself). */
         fun japaneseKey(written: String, reading: String): String =
-            written + "\t" + JapaneseLookup.hiragana(reading.ifBlank { written })
+            written + "\t" + JapaneseLookup.hiragana(JapaneseLookup.cleanReading(reading).ifBlank { written })
 
         /** A field without HTML tags or entities. */
         private fun plain(field: String): String = field.replace(Regex("<[^>]*>"), "")

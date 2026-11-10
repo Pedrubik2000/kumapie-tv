@@ -35,6 +35,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     private val savedFile = File(dir, "words.json")
     private val parseCache = File(dir, "parses.json")
     private val keysCache = File(dir, "cardkeys.json")
+    /** What [readCards] read last, for [loadCards]. */
+    private val cardsFile = File(dir, "cards.json")
     private val markedFile = File(dir, "marked.txt")
     /** Words imported as known (Jiten's lists for Japanese): known while the word has no card of its own. */
     private val importedFile = File(dir, "imported.txt")
@@ -171,8 +173,48 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val notes = whileAnkiStarts { anki.notes(pkg, search) }
         val cards = anki.cards(pkg, search)
         lastReading = Reading(pkg, notes, cards, emptyMap()) // [rate] and [undo] need its kuma3
-        cardIndex.build(notes, cards, anki.due(pkg), cardKeys(notes)).also { dueAt = System.currentTimeMillis() }
+        val keys = cardKeys(notes)
+        cardIndex.build(notes, cards, anki.due(pkg), keys).also { dueAt = System.currentTimeMillis() }
+        runCatching { saveCards(pkg, notes.associate { it.id to keys(it) }.filterValues { it.isNotEmpty() }, cards) }
+            .onFailure { Log.w("kumapie", "cards not saved: $it") }
         true
+    }
+
+    private fun saveCards(pkg: String, keys: Map<Long, List<String>>, cards: List<AnkiCards.Card>) {
+        val o = JSONObject().put("pkg", pkg)
+        o.put("keys", JSONObject().apply { keys.forEach { (id, k) -> put("$id", JSONArray(k)) } })
+        o.put("cards", JSONArray().apply {
+            for (c in cards) if (c.noteId in keys) put(JSONArray().put(c.id).put(c.noteId).put(c.reviewed)
+                .put(c.stability ?: JSONObject.NULL).put(c.due).put(c.reps).put(c.lapses).put(c.ord).put(c.type))
+        })
+        o.put("due", JSONObject().apply { cardIndex.due?.forEach { (id, q) -> put("$id", q) } })
+        File(dir, "cards.json.tmp").apply { writeText(o.toString()) }.renameTo(cardsFile)
+    }
+
+    /**
+     * The word cards as [readCards] last had them, without asking kuma3 (on a TV that read takes a minute; this, well
+     * under a second): from memory when this run already read them, else from the file. [paint] works after it, with
+     * the queue of that last read, so the colours can be a day old until [readCards] ends. False: nothing saved yet.
+     */
+    suspend fun loadCards(): Boolean = withContext(Dispatchers.IO) {
+        if (cardIndex.due != null) return@withContext true
+        runCatching {
+            val o = JSONObject(cardsFile.readText())
+            val k = o.getJSONObject("keys")
+            val keys = k.keys().asSequence().associate { id -> id.toLong() to k.getJSONArray(id).let { a -> List(a.length()) { a.getString(it) } } }
+            val cs = o.getJSONArray("cards")
+            val cards = List(cs.length()) { i ->
+                cs.getJSONArray(i).let { c ->
+                    AnkiCards.Card(c.getLong(0), c.getLong(1), c.getBoolean(2), if (c.isNull(3)) null else c.getDouble(3), c.getLong(4),
+                        c.getInt(5), c.getInt(6), c.getInt(7), c.getInt(8))
+                }
+            }
+            val d = o.getJSONObject("due")
+            val notes = keys.keys.map { AnkiCards.Note(it, emptyMap(), emptySet()) }
+            if (lastReading == null) lastReading = Reading(o.getString("pkg"), notes, cards, emptyMap())
+            cardIndex.build(notes, cards, d.keys().asSequence().associate { it.toLong() to d.getString(it) }) { keys[it.id].orEmpty() }
+            true
+        }.getOrDefault(false)
     }
 
     /**

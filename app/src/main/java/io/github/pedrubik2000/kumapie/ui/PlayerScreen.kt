@@ -115,11 +115,8 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
     val ctl = remember { SceneController(episode, player, settings, api) }
     // This TV's kuma3 colours the words it has cards for (a word mined here stays blue the next day, not red).
     val rating = remember { TvRating() }
-    // Then kuma3 syncs (it is never opened on the TV) and the words are coloured again with the phone's reviews.
-    LaunchedEffect(Unit) {
-        paintCards(context, settings, ctl)
-        syncAnki(context, settings, ctl, wait = true, busy = { rating.last != null })
-    }
+    // The saved colours at once; then kuma3 syncs (it is never opened on the TV) and its cards are read again.
+    LaunchedEffect(Unit) { openCards(context, settings, ctl) }
     val picker = remember { WordPicker(ctl, api, scope) }
     var options by remember { mutableStateOf(false) }
     var anchor by remember { mutableStateOf<Rect?>(null) } // the selected word, in screen coordinates

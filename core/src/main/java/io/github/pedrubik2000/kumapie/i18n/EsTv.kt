@@ -156,6 +156,7 @@ internal val esTv: Map<String, String> = mapOf(
     "Hear the word" to "Escuchar la palabra",
     "Did you know it before looking?" to "¿La sabías antes de mirar?",
     "Undo the last rating" to "Deshacer la última respuesta",
+    "Still reading your cards from Anki: try again in a moment" to "Aún leyendo tus tarjetas de Anki: prueba otra vez en un momento",
     "This word has no card to rate" to "Esta palabra no tiene tarjeta que responder",
     "See its meaning first" to "Mira primero su significado",
     "Nothing to undo" to "Nada que deshacer",

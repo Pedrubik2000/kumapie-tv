@@ -84,6 +84,8 @@ private object TvMining {
     val mined = HashMap<String, Long>()
     /** What the Japanese dictionaries' download is doing; null when it isn't running. */
     @Volatile var fetching: String? = null
+    /** While an episode's cards are being read from kuma3 ([openCards]): the colours may be the saved ones, so no rating yet. */
+    @Volatile var reading = false
     /** The word card's dictionaries ([TvDictionaries]) while shown: ↑↓ scroll it. */
     @android.annotation.SuppressLint("StaticFieldLeak") var web: WebView? = null
 
@@ -435,6 +437,33 @@ suspend fun paintCards(context: Context, settings: Settings, ctl: SceneControlle
 }
 
 /**
+ * An episode opens: the words are coloured at once from the cards as they were last read (in this run, else saved on
+ * the TV), since asking kuma3 takes about a minute on the Chromecast (2026-11-09: 12 s to start, 40 s notes and
+ * cards, 22 s its queue). Then kuma3 syncs, its cards are read once and the words coloured again. Ratings wait for
+ * that read ([TvMining.reading]): the saved queue can be yesterday's.
+ */
+suspend fun openCards(context: Context, settings: Settings, ctl: SceneController) {
+    val language = TvMining.languages(context, settings).of(ctl.lang)
+    TvMining.reading = true
+    try {
+        val t0 = System.currentTimeMillis()
+        val saved = runCatching { language.known.loadCards() }.getOrDefault(false)
+        if (saved) {
+            repaint(language, ctl)
+            Log.i("kumapie", "saved cards: words coloured in ${System.currentTimeMillis() - t0} ms, ${ctl.words.values.count { it.card == "d" }} due in this episode")
+            runCatching { language.known.syncAnki(90_000) }.onFailure { Log.w("kumapie", "kuma3 sync: $it") }
+            paintCards(context, settings, ctl)
+        } else {
+            // The first time on this TV: kuma3 is only known after a read, so read, sync, read.
+            paintCards(context, settings, ctl)
+            if (runCatching { language.known.syncAnki(90_000) }.getOrDefault(false)) paintCards(context, settings, ctl)
+        }
+    } finally {
+        TvMining.reading = false
+    }
+}
+
+/**
  * kuma3 on a TV is never opened, so it never syncs by itself: kumapie asks it to. When a player opens ([wait]): the
  * phone's reviews and new cards come in and the words are coloured again, unless a word was rated meanwhile ([busy]:
  * reading kuma3's queue replaces its Undo). When it closes: what was mined and rated here goes out.
@@ -508,6 +537,7 @@ fun rateWord(context: Context, settings: Settings, ctl: SceneController, picker:
     rating.open = false
     val (form, state) = pickedCard(ctl, picker) ?: return
     if (state !in RATEABLE) return say(tr("This word has no card to rate"))
+    if (TvMining.reading) return say(tr("Still reading your cards from Anki: try again in a moment"))
     if (!picker.cardOpen) return say(tr("See its meaning first"))
     if (rating.busy) return
     val language = TvMining.languages(context, settings).of(ctl.lang)

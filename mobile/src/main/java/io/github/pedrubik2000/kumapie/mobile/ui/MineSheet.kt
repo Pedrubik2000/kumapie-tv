@@ -146,7 +146,7 @@ internal fun japaneseWord(library: Library, f: io.github.pedrubik2000.kumapie.la
 /** Japanese rows ([io.github.pedrubik2000.kumapie.lang.JapaneseLookup.forms]) as [RateForm]s; [make] adds a missing form's card from its [Miner.Word]. */
 internal fun japaneseRateForms(library: Library, forms: List<io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form>, english: String?,
                                make: suspend (Miner.Word, (String) -> Unit) -> String) = forms.map { f ->
-    val kana = io.github.pedrubik2000.kumapie.lang.JapaneseLookup.hiragana(f.written) == f.reading
+    val kana = f.reading.isEmpty() || io.github.pedrubik2000.kumapie.lang.JapaneseLookup.hiragana(f.written) == f.reading
     // Two rows (食べられた and 食べる): say which is which.
     val role = if (forms.size < 2) "" else if (f.written == f.head?.expression) tr(" · dictionary form") else tr(" · this form")
     RateForm(f.key, f.written + (if (kana) "" else " [${f.reading}]") + role) { p ->

@@ -124,8 +124,12 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         if (matched.all { it in 'ぁ'..'ゖ' }) return null
         val honorific = term.glossaries.firstNotNullOfOrNull { YomitanDictionaries.character(it.raw)?.second }.orEmpty()
         val base = term.expression.removeSuffix(honorific)
-        val head = heads.firstOrNull { it.expression == base && readingOf(term).startsWith(it.reading) }
-            ?: heads.firstOrNull { it.expression == term.expression } ?: return null
+        heads.firstOrNull { it.expression == base && readingOf(term).startsWith(it.reading) }?.let { return Form(it.expression, it.reading, it) }
+        // A name whose reading was dropped (Bee's 紅娘 ほんgにあんg) sits in another word's headword (紅娘 てんとうむし): its
+        // own entries, keyed 紅娘 as the subtitles key it. 紅娘様's row rated a card the subtitle didn't go by (2026-11-11).
+        val own = heads.firstOrNull { it.expression == base }?.terms.orEmpty().filter { t -> t.glossaries.any { YomitanDictionaries.character(it.raw) != null } }
+        if (readingOf(term).isEmpty() && own.isNotEmpty()) return Form(base, "", Headword(base, "", own))
+        val head = heads.firstOrNull { it.expression == term.expression } ?: return null
         return Form(head.expression, head.reading, head)
     }
 

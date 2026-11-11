@@ -284,7 +284,7 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
                         TvJapaneseCard(settings, ctl, picker, room.coerceIn(220, 460) - if (rating.open) 84 else 0)
                         if (rating.open) RateRow()
                     })
-                else MeaningCard(ctl, picker, it, container = Modifier.arcadeCard(), footer = if (rating.open) ({ RateRow() }) else null)
+                else MeaningCard(ctl, picker, it, container = Modifier.arcadeCard(), heading = Arcade.label, footer = if (rating.open) ({ RateRow() }) else null)
             }
         }
         if (options) PlayerOptions(ctl, onClose = { options = false; focus.requestFocus() },
@@ -380,6 +380,7 @@ private fun RatedToast(rating: TvRating, pick: Map<Binding, Action>, modifier: M
         Text(rating.last?.first.orEmpty(), color = Colors.text, fontSize = 15.sp)
         forInput(pick.filterValues { it == Action.PICK_MINE || it == Action.PICK_UNDO }.keys).firstOrNull()?.let { KeyHint(it) }
         Text(tr("Undo").uppercase(), color = Colors.text, fontSize = 13.sp, style = Arcade.label)
+        if (rating.today > 0) Text(tr("Reviewed from episodes today: %d", rating.today), color = Colors.dim, fontSize = 13.sp)
     }
 }
 
@@ -409,22 +410,22 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
         ) {
             Title(tr("Options"), fontSize = 26.sp)
             Button(onClick = ctl::togglePauseAtSceneEnd, modifier = Modifier.fillMaxWidth().focusRequester(first)) {
-                Text(tr("At the end of a scene: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")))
+                Text(tr("At the end of a scene: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")).uppercase())
             }
             Button(onClick = ctl::togglePlayThroughKnown, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("i+0 scenes (no new words): %s", if (ctl.playThroughKnown) tr("play through") else tr("pause")))
+                Text(tr("i+0 scenes (no new words): %s", if (ctl.playThroughKnown) tr("play through") else tr("pause")).uppercase())
             }
             Button(onClick = ctl::toggleNewStraight, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("Skip nothing: %s", if (ctl.newStraight) tr("on, the whole episode") else tr("off, scene by scene")))
+                Text(tr("Skip nothing: %s", if (ctl.newStraight) tr("on, the whole episode") else tr("off, scene by scene")).uppercase())
             }
             Button(onClick = ctl::toggleSlow, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("Speed: %s", if (ctl.slow) "0.75x" else tr("normal")))
+                Text(tr("Speed: %s", if (ctl.slow) "0.75x" else tr("normal")).uppercase())
             }
             Button(onClick = { ctl.changeSubtitles(ctl.subtitles.next()) }, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("Subtitles: %s", ctl.subtitles.label(ctl.lang)))
+                Text(tr("Subtitles: %s", ctl.subtitles.label(ctl.lang)).uppercase())
             }
-            Button(onClick = onHelp, modifier = Modifier.fillMaxWidth()) { Text(tr("Help: the buttons")) }
-            Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text(tr("Close")) }
+            Button(onClick = onHelp, modifier = Modifier.fillMaxWidth()) { Text(tr("Help: the buttons").uppercase()) }
+            Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text(tr("Close").uppercase()) }
         }
     }
     LaunchedEffect(Unit) { first.requestFocus() }

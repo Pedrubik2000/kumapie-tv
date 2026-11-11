@@ -19,6 +19,14 @@ class CardIndex {
         this.due = due ?: this.due
     }
 
+    /** A note just mined joins the index (not due: a new card isn't), without the whole read [build] needs. */
+    fun add(notes: List<AnkiCards.Note>, cards: List<AnkiCards.Card>, keys: (AnkiCards.Note) -> List<String> = ::spacedKeys) {
+        val keysOf = notes.associate { it.id to keys(it) }
+        val ids = cards.map { it.id }.toSet()
+        val more = cards.flatMap { c -> keysOf[c.noteId].orEmpty().map { it to c } }.groupBy({ it.first }, { it.second })
+        byForm = byForm + more.mapValues { (k, cs) -> byForm[k].orEmpty().filter { it.id !in ids } + cs }
+    }
+
     /** Cards read again (after a rating or Undo; none: only the queue) and kuma3's queue now. */
     fun update(fresh: List<AnkiCards.Card>, due: Map<Long, String>?) {
         val byId = fresh.associateBy { it.id }

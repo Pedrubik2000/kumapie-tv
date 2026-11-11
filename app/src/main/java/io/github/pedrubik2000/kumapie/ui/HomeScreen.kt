@@ -220,8 +220,8 @@ fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: () -> Unit) {
             Text(message, color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
             Text(tr("Is the PC on, and Tailscale connected on the TV?"), color = Colors.dim)
             Row(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again")) }
-                Button(onClick = onSettings) { Text(tr("Settings")) }
+                Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again").uppercase()) }
+                Button(onClick = onSettings) { Text(tr("Settings").uppercase()) }
             }
         }
     }

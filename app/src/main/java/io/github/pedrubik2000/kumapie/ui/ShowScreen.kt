@@ -105,14 +105,14 @@ private fun MarkMenu(ep: Episode, count: Int, onClose: () -> Unit, onMark: (whol
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Title(ep.title, fontSize = 24.sp)
             Button(onClick = { onMark(false, !ep.watched) }, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
-                Text(if (ep.watched) tr("Mark as not watched") else tr("Mark as watched"))
+                Text((if (ep.watched) tr("Mark as not watched") else tr("Mark as watched")).uppercase())
             }
             if (count > 1) {
                 Button(onClick = { onMark(true, true) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(tr("%1\$s: mark all %2\$d as watched", season, count))
+                    Text(tr("%1\$s: mark all %2\$d as watched", season, count).uppercase())
                 }
                 Button(onClick = { onMark(true, false) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(tr("%1\$s: mark all %2\$d as not watched", season, count))
+                    Text(tr("%1\$s: mark all %2\$d as not watched", season, count).uppercase())
                 }
             }
         }

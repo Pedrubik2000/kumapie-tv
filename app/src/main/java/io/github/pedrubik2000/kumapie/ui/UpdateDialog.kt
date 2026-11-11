@@ -64,8 +64,8 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
             if (progress >= 0f) ProgressBar(progress, Modifier.fillMaxWidth())
             if (message.isNotEmpty()) Text(message, color = Colors.dim)
             Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(onClick = ::update, modifier = Modifier.focusRequester(focus)) { Text(tr("Update")) }
-                Button(onClick = onClose) { Text(tr("Later")) }
+                Button(onClick = ::update, modifier = Modifier.focusRequester(focus)) { Text(tr("Update").uppercase()) }
+                Button(onClick = onClose) { Text(tr("Later").uppercase()) }
             }
         }
     }

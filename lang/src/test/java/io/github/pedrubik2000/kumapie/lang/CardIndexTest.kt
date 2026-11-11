@@ -38,6 +38,17 @@ class CardIndexTest {
         assertEquals("d", again.state("Tante", nowSecs = 1_800_000_600))
     }
 
+    /** A word mined on the TV could not be rated: its card was never in the index (user, 2026-11-10). */
+    @Test fun minedNoteJoins() {
+        val index = CardIndex()
+        index.build(listOf(note(1, "Tante")), listOf(card(10, 1, 2)), emptyMap())
+        assertEquals(emptyList<AnkiCards.Card>(), index.toAnswer("onkel"))
+        index.add(listOf(note(2, "Onkel")), listOf(card(20, 2, 0)))
+        assertEquals(listOf(20L), index.toAnswer("onkel").map { it.id })
+        assertEquals("b", index.state("onkel"))
+        assertEquals(listOf(10L), index.toAnswer("tante").map { it.id })
+    }
+
     @Test fun japanese() {
         fun keys(word: String, reading: String? = null) = CardIndex.japaneseKeys(AnkiCards.Note(1,
             mapOf("Word" to word) + (reading?.let { mapOf("Reading" to it) } ?: emptyMap()), emptySet()))

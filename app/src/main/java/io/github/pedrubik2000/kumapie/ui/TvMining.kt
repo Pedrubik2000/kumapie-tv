@@ -417,6 +417,9 @@ fun mineWord(context: Context, settings: Settings, ctl: SceneController, picker:
                 say(it + tr(" · hold ↑ again: see the card"))
                 // Blue now (mined, never reviewed); the PC learns it from the phone after kuma3 syncs.
                 ctl.words[key]?.let { w -> ctl.words[key] = w.copy(card = "b") }
+                // Its card into the index, or a rating finds none ("kuma3 didn't take the rating", user 2026-11-10).
+                val language = TvMining.languages(context, settings).of(ctl.lang)
+                runCatching { language.known.addNote(miner.lastNote) }.onSuccess { repaint(language, ctl) }.onFailure { Log.w("kumapie", "mined card not read: $it") }
             }
             .onFailure { say(it.message ?: it.toString()) }
     }
@@ -513,6 +516,14 @@ class TvRating {
     /** When the picked word's meaning was shown: a rating's answer time. */
     var since = 0L
     var busy = false
+    /** Cards reviewed from episodes this study day (it turns at 04:00, as the phone's), kept on the TV. */
+    var today by mutableStateOf(0)
+        private set
+    fun count(settings: Settings, n: Int) {
+        val day = "rated_" + java.time.LocalDateTime.now().minusHours(4).toLocalDate()
+        today = settings.prefs.getInt(day, 0) + n
+        settings.prefs.edit().putInt(day, today).apply()
+    }
 }
 
 /**
@@ -551,6 +562,7 @@ fun rateWord(context: Context, settings: Settings, ctl: SceneController, picker:
                 rating.last = form to done
                 rating.said = tr(RATINGS[ease - 1])
                 rating.fresh = true
+                rating.count(settings, done.cards)
                 repaint(language, ctl)
                 picker.right() // closes the card
             }
@@ -575,6 +587,7 @@ fun undoRating(context: Context, settings: Settings, ctl: SceneController, scope
             if (language.known.undo(rated)) {
                 rating.last = null
                 rating.fresh = false
+                rating.count(settings, -rated.cards)
                 language.known.refreshDue(force = true) // due again: the rating took it off the queue kumapie holds
                 repaint(language, ctl)
                 say(tr("Undone: %s is due again", form))

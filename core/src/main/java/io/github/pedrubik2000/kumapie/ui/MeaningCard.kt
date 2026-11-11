@@ -61,6 +61,8 @@ fun MeaningCard(
     onClose: (() -> Unit)? = null,
     /** The card's own background and shape (the TV's look); null = the rounded surface. */
     container: Modifier? = null,
+    /** The word as a heading in this style (the TV's bold italic); null = no heading, as on the phone. */
+    heading: androidx.compose.ui.text.TextStyle? = null,
 ) {
     val segment = picker.selected ?: return
     val key = segment.word ?: return
@@ -77,7 +79,7 @@ fun MeaningCard(
         ) {
             // With the dictionaries the footer starts at the word chips and header (user, 2026-10-13): no title or status here.
             if (ownMeaning) {
-                if (def != null) DefinitionParts(ctl, picker, segment.text, def, onTapDef) else ShortMeaning(ctl, key, segment.text, word)
+                if (def != null) DefinitionParts(ctl, picker, segment.text, def, onTapDef, heading) else ShortMeaning(ctl, key, segment.text, word, heading)
                 // Japanese: the card that colours the tapped form ([Word.formCard]), as the subtitle does.
                 val (status, color) = statusLine(word.formCard(segment.text)?.let { word.copy(card = it) } ?: word)
                 Text(status + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
@@ -99,9 +101,9 @@ fun MeaningCard(
 }
 
 @Composable
-private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: String, def: LineDef, onTapDef: ((Int) -> Unit)?) {
+private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: String, def: LineDef, onTapDef: ((Int) -> Unit)?, style: androidx.compose.ui.text.TextStyle?) {
     val heading = def.lemma.ifBlank { written }
-    Text(heading, color = Colors.text, fontSize = 26.sp)
+    Text(heading, color = Colors.text, fontSize = if (style != null) 34.sp else 26.sp, style = style ?: androidx.compose.ui.text.TextStyle.Default)
     if (!heading.equals(written, ignoreCase = true)) Text(written, color = Colors.dim, fontSize = 18.sp)
     val germanKnown = def.target.all { s -> s.word == null || (ctl.words[s.word]?.status ?: "u") == "k" }
     val german = coloredDefinition(def, ctl.words, if (picker.inDef) picker.defSeg else -1)
@@ -120,18 +122,20 @@ private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: S
 }
 
 @Composable
-private fun ShortMeaning(ctl: SceneController, key: String, written: String, word: Word) {
+private fun ShortMeaning(ctl: SceneController, key: String, written: String, word: Word, style: androidx.compose.ui.text.TextStyle?) {
     val meaning = withoutSameWord(ctl.scene.meanings[key] ?: word.meaning, written)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        val headed = style != null // the heading is the dictionary form: no line for it below
+        if (style != null) Text(word.lemma.ifBlank { written }, color = Colors.text, fontSize = 34.sp, style = style)
         // Japanese with kanji: the word and its reading first (取る · とる), then the meaning (user, 2026-10-14).
         if (word.reading.isNotBlank()) Text("${word.lemma.ifBlank { written }}  ·  ${word.reading}", color = Colors.dim, fontSize = 18.sp)
         if (meaning.isNotBlank()) {
             Text(meaning, color = Colors.text, fontSize = 22.sp)
         } else {
-            Text(written, color = Colors.text, fontSize = 22.sp)
+            if (!headed || word.lemma.isNotBlank() && !word.lemma.equals(written, ignoreCase = true)) Text(written, color = Colors.text, fontSize = 22.sp)
             Text(tr("no meaning yet"), color = Colors.dim, fontSize = 15.sp)
         }
-        if (word.lemma.isNotBlank() && word.lemma != key && !word.lemma.equals(written, ignoreCase = true)) {
+        if (!headed && word.lemma.isNotBlank() && word.lemma != key && !word.lemma.equals(written, ignoreCase = true)) {
             Text(tr("dictionary form: %s", word.lemma), color = Colors.dim, fontSize = 15.sp)
         }
     }

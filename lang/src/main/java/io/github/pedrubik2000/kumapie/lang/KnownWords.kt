@@ -164,6 +164,12 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         cardIndex.build(notes, anki.cards(pkg, search), cardIndex.due, cardKeys(notes))
     }
 
+    /** The note just mined here into the index: on a TV [reloadCards] takes most of a minute, this one note is quick. */
+    suspend fun addNote(id: Long) = withContext(Dispatchers.IO) {
+        val pkg = lastReading?.pkg ?: return@withContext
+        cardIndex.add(anki.notes(pkg, "nid:$id"), anki.cards(pkg, "nid:$id"), language::cardKeys)
+    }
+
     /**
      * Only the word cards and kuma3's queue, no sentences parsed (the TV has no parser; it colours by the PC's words):
      * [paint] works after it. False without kuma3 or its permission.

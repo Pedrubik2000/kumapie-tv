@@ -67,7 +67,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TvTextField(server, { server = it }, onDone = ::save,
                 modifier = Modifier.width(640.dp).let { if (firstRun) it.focusRequester(focus) else it })
-            Button(onClick = ::save) { Text(tr("Save")) }
+            Button(onClick = ::save) { Text(tr("Save").uppercase()) }
         }
         if (status.isNotEmpty()) Text(status, color = Colors.dim)
 
@@ -76,15 +76,15 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             var showHelp by remember { mutableStateOf(settings.showHelp) }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Focus starts here, not in the server field: focusing a text field opens the TV's keyboard.
-                Button(onClick = onButtons, modifier = Modifier.focusRequester(focus)) { Text(tr("Change buttons")) }
+                Button(onClick = onButtons, modifier = Modifier.focusRequester(focus)) { Text(tr("Change buttons").uppercase()) }
                 Button(onClick = { showHelp = !showHelp; settings.showHelp = showHelp }) {
-                    Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")))
+                    Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")).uppercase())
                 }
             }
             Heading(tr("No spoilers"), Modifier.padding(top = 24.dp))
             var blur by remember { mutableStateOf(settings.blurUnwatched) }
             Button(onClick = { blur = !blur; settings.blurUnwatched = blur }) {
-                Text(tr("Blur episodes I haven't watched: %s", if (blur) tr("on") else tr("off")))
+                Text(tr("Blur episodes I haven't watched: %s", if (blur) tr("on") else tr("off")).uppercase())
             }
             // OK steps through the fonts; the sample line shows the one picked (fetched the first time it's drawn).
             Heading(tr("Japanese subtitles"), Modifier.padding(top = 24.dp))
@@ -93,7 +93,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                 Button(onClick = {
                     font = JapaneseFonts.NAMES[(JapaneseFonts.NAMES.indexOf(font) + 1) % JapaneseFonts.NAMES.size]
                     settings.japaneseFont = font
-                }) { Text(tr("Font: %s", JapaneseFonts.label(font))) }
+                }) { Text(tr("Font: %s", JapaneseFonts.label(font)).uppercase()) }
                 Text(JapaneseFonts.SAMPLE, fontSize = 26.sp, color = Colors.text, fontFamily = JapaneseFonts.family(font))
             }
             Heading(tr("Updates"), Modifier.padding(top = 24.dp))
@@ -105,7 +105,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                             .onSuccess { r -> if (r == null) updateStatus = tr("Up to date") else { updateStatus = ""; onUpdate(r) } }
                             .onFailure { updateStatus = tr("Couldn't check: %s", it.message) }
                     }
-                }) { Text(tr("Check for updates")) }
+                }) { Text(tr("Check for updates").uppercase()) }
             }
             if (updateStatus.isNotEmpty()) Text(updateStatus, color = Colors.dim)
             Text(tr("Version %s", BuildConfig.VERSION_NAME), color = Colors.dim, modifier = Modifier.padding(top = 24.dp))

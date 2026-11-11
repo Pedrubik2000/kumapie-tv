@@ -74,7 +74,7 @@ fun ButtonsScreen(settings: Settings) {
                 Spacer(Modifier.weight(1f))
                 Button(onClick = {
                     KeyContext.entries.forEach { settings.resetKeys(it); keys[it] = defaultBindings(it) }
-                }) { Text(tr("Reset to defaults")) }
+                }) { Text(tr("Reset to defaults").uppercase()) }
             }
             Text(tr("Choose an action, then press the button for it (hold it for a long press). Back can't be changed."),
                 color = Colors.dim, fontSize = 15.sp, modifier = Modifier.padding(vertical = 10.dp))
@@ -90,10 +90,10 @@ fun ButtonsScreen(settings: Settings) {
                             Button(onClick = { capturing = action }, scale = ButtonDefaults.scale(focusedScale = 1.02f),
                                 modifier = Modifier.weight(1f).focusRequester(fr)
                                     .let { if (action == Action.entries.first()) it.focusRequester(firstRow) else it }) {
-                                Text(action.text(), modifier = Modifier.weight(1f))
+                                Text(action.text().uppercase(), modifier = Modifier.weight(1f))
                                 KeyHints(buttons, color = androidx.tv.material3.LocalContentColor.current)
                             }
-                            Button(onClick = { save(context, keys.getValue(context).filterValues { it != action }) }) { Text(tr("Clear")) }
+                            Button(onClick = { save(context, keys.getValue(context).filterValues { it != action }) }) { Text(tr("Clear").uppercase()) }
                         }
                     }
                 }

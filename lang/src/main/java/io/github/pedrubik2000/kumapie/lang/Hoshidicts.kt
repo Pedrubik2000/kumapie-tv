@@ -249,15 +249,32 @@ class YomitanDictionaries private constructor(private val context: Context) {
      * costs one look in that dictionary alone: a Japanese episode asks thousands of times when it opens.
      */
     fun characterName(lang: Lang, word: String): String? = synchronized(this) {
-        val h = handles.getOrPut("names:" + lang.code) {
-            val dicts = of(lang).filter { it.enabled && it.terms > 0 && it.title.contains("character", ignoreCase = true) }
-            if (dicts.isEmpty()) return null
-            Hoshidicts.nativeOpen().also { h -> dicts.forEach { Hoshidicts.nativeAdd(h, File(base, it.folder).path, 0) } }
-        }
-        if (Hoshidicts.nativeQuery(h, word).length <= 2) return null // "[]"
+        if (!isCharacter(lang, word)) return null
         val glossaries = query(lang, word).flatMap { it.glossaries }
         val found = glossaries.map { character(it.raw) ?: return null }
         word.removeSuffix(found.firstNotNullOfOrNull { it.second }.orEmpty()).takeIf { found.isNotEmpty() }
+    }
+
+    /** A character dictionary has [word]: one look in that dictionary alone. */
+    fun isCharacter(lang: Lang, word: String): Boolean = synchronized(this) {
+        val h = handles.getOrPut("names:" + lang.code) {
+            val dicts = of(lang).filter { it.enabled && it.terms > 0 && it.title.contains("character", ignoreCase = true) }
+            if (dicts.isEmpty()) return false
+            Hoshidicts.nativeOpen().also { h -> dicts.forEach { Hoshidicts.nativeAdd(h, File(base, it.folder).path, 0) } }
+        }
+        Hoshidicts.nativeQuery(h, word).length > 2 // "[]"
+    }
+
+    /**
+     * A character's picture (Bee's "portrait-container" image) for [word], or null.
+     * ponytail: the first character with that name in the dictionary, whatever its show; pick by the entry's "From:" once two shows share a name.
+     */
+    fun characterPortrait(lang: Lang, word: String): ByteArray? = synchronized(this) {
+        if (!isCharacter(lang, word)) return null
+        // From the character dictionaries alone: every dictionary's entry for the name took ~250 ms a name on the tablet.
+        val h = handles["names:" + lang.code] ?: return null
+        parseTerms(JSONArray(Hoshidicts.nativeQuery(h, word))).flatMap { it.glossaries }
+            .firstNotNullOfOrNull { g -> portraitPath(g.raw)?.let { Hoshidicts.nativeMedia(h, g.dict, it) } }
     }
 
     /** Yomitan's scan from the start of [text] (Japanese deinflection, longest match first): (matched text, term). */
@@ -447,6 +464,10 @@ class YomitanDictionaries private constructor(private val context: Context) {
             // An honorific's entry starts with a line of its own: [様, " — Very formal/respectful"].
             romaji?.let { it to parts.firstOrNull()?.takeIf { p -> !p.has("data") }?.optJSONArray("content")?.optJSONObject(0)?.optString("content") }
         }.getOrNull()
+
+        /** The image file of a character entry's portrait (not its voice actor's, which comes later), or null. */
+        fun portraitPath(glossary: String): String? =
+            if ("\"portrait-container\"" !in glossary) null else Regex(""""path"\s*:\s*"([^"]+)"""").find(glossary)?.groupValues?.get(1)
 
         private fun glossSense(item: Any?): String? {
             if (item !is JSONObject || !item.toString().contains("\"sense-label\"")) return null

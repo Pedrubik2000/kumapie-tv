@@ -381,6 +381,8 @@ data class EpisodeDetail(
     val words: Map<String, Word>,
     /** A visual novel (tools/vn on the PC): one line per scene, it waits after every line, music under it ([Scene.bgm]). */
     val novel: Boolean = false,
+    /** Characters' faces by word key (壬氏), from this device's character dictionary: drawn before the name in the subtitles. */
+    val portraits: Map<String, androidx.compose.ui.graphics.ImageBitmap> = emptyMap(),
 )
 
 data class Scene(

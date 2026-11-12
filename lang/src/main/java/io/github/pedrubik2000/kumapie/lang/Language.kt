@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.lang
 
 import android.content.Context
+import androidx.compose.ui.graphics.asImageBitmap
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
@@ -208,8 +209,17 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
             c.copy(segments = JapaneseLookup.joinNames(c.segments) { yomitan.characterName(lang, it) })
         }) }
         val names = scenes.flatMap { s -> s.cues.flatMap { c -> c.segments.mapNotNull { it.word } } }.toSet() - episode.words.keys
-        android.util.Log.i("kumapie", "names: ${names.size} in ${System.currentTimeMillis() - started} ms")
-        return episode.copy(scenes = scenes, words = episode.words + names.associateWith { Word("u", "") })
+        // Faces (user, 2026-11-12): names only a character dictionary has, and words Sudachi calls a name (エリス).
+        val faceStart = System.currentTimeMillis()
+        val keys = scenes.flatMap { s -> s.cues.flatMap { c -> c.segments.mapNotNull { it.word } } }.toSet()
+        val portraits = keys.mapNotNull { k ->
+            // autoKnown asks characterName too and keeps the answer: the colours need it anyway (the TV has no parser).
+            if (!yomitan.isCharacter(lang, k) || !(if (model.isReady) autoKnown(k) else yomitan.characterName(lang, k) != null)) null
+            else runCatching { yomitan.characterPortrait(lang, k)?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) } }.getOrNull()
+                ?.let { k to it.asImageBitmap() }
+        }.toMap()
+        android.util.Log.i("kumapie", "names: ${names.size} in ${faceStart - started} ms, faces: ${portraits.keys} in ${System.currentTimeMillis() - faceStart} ms")
+        return episode.copy(scenes = scenes, words = episode.words + names.associateWith { Word("u", "") }, portraits = portraits)
     }
 
     /**

@@ -24,8 +24,9 @@ internal fun Text(
     fontSize: TextUnit = TextUnit.Unspecified,
     style: TextStyle = TextStyle(localeList = LocalTextLocale.current),
     onTextLayout: (TextLayoutResult) -> Unit = {},
+    inlineContent: Map<String, androidx.compose.foundation.text.InlineTextContent> = emptyMap(),
 ) = BasicText(text, modifier, style.merge(color = color.takeOrElse { style.color.takeOrElse { Colors.text } }, fontSize = fontSize),
-    onTextLayout = onTextLayout)
+    onTextLayout = onTextLayout, inlineContent = inlineContent)
 
 @Composable
 internal fun Text(

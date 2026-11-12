@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -8,10 +9,15 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
@@ -22,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -29,11 +36,14 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
@@ -43,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.Cue
 import io.github.pedrubik2000.kumapie.data.Line
@@ -93,6 +104,8 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     val wordRanges = mutableListOf<Pair<IntRange, SubtitleTap.Word>>()
     // Characters being selected in the German text (first touched, finger now).
     var selecting by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // A character's face before their name: one more character in the text (FACE), counted in every offset below.
+    val faces = ctl.episode.portraits
     val germanText = buildAnnotatedString {
         german.forEachIndexed { i, cue ->
             if (i > 0) append('\n')
@@ -101,12 +114,13 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
             val start = length
             var at = start
             cue.segments.forEachIndexed { s, seg ->
+                if (seg.word in faces) at++
                 if (seg.word != null) wordRanges += (at until at + seg.text.length) to SubtitleTap.Word(lineIndex, s)
                 at += seg.text.length
             }
-            append(colored(cue, ctl.words, dim = paused && cue != current, selected = selectedSeg))
+            append(colored(cue, ctl.words, dim = paused && cue != current, selected = selectedSeg, faces = faces.keys))
             if (selectedSeg >= 0) {
-                val before = cue.segments.take(selectedSeg).sumOf { it.text.length }
+                val before = cue.segments.take(selectedSeg).sumOf { it.text.length } + cue.segments.take(selectedSeg + 1).count { it.word in faces }
                 val len = cue.segments[selectedSeg].text.length
                 selectedRange = (start + before) until (start + before + len)
             }
@@ -133,6 +147,13 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     fun anchored(r: Rect?): Rect? = if (aboveBox && r != null) boxTop?.let { Rect(r.left, it, r.right, it) } ?: r else r
     // Blurred only while it plays: paused (by you, at a scene's end or start) it is readable (user, 2026-10-11).
     val blurred by rememberUpdatedState(ctl.blurTarget && !paused)
+    // As tall as the letters, a little wider: the gap to the name. Top of the picture: the face. Hidden while blurred.
+    val faceContent = remember(faces) { faces.mapValues { (_, face) ->
+        InlineTextContent(Placeholder(1.2.em, 1.05.em, PlaceholderVerticalAlign.Center)) {
+            if (!blurred) Image(face, null, Modifier.fillMaxHeight().aspectRatio(1f).clip(CircleShape),
+                contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+        }
+    } }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val padH = 28.dp
@@ -175,10 +196,10 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
                 // layer is drawn four times to keep the colours strong.
                 val shadow = if (blurred) shadowOnly(germanText, with(density) { 20.dp.toPx() }) else null
                 Box(contentAlignment = Alignment.Center) {
-                if (shadow != null) repeat(3) { Text(shadow, style = germanStyle(size)) }
+                if (shadow != null) repeat(3) { Text(shadow, style = germanStyle(size), inlineContent = faceContent) }
                 Text(shadow ?: germanText,
                     style = germanStyle(size), color = Colors.text,
-                    onTextLayout = { layout = it },
+                    onTextLayout = { layout = it }, inlineContent = faceContent,
                     modifier = Modifier
                         // The box moves when its size changes (opening the picker shrinks the text): report the
                         // word's place again whenever the text is placed, not only when the cursor moves.
@@ -206,7 +227,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
                                             if (!change.pressed) break
                                             selecting = first to charAt(l, change.position)
                                         }
-                                        val picked = selecting?.let { (a, b) -> selectionOf(textNow, a, b) }?.let { textNow.substring(it).trim() }
+                                        val picked = selecting?.let { (a, b) -> selectionOf(textNow, a, b) }?.let { textNow.substring(it).replace(FACE, "").trim() }
                                         selecting = null
                                         if (!picked.isNullOrEmpty()) selectHandler?.invoke(picked)
                                     }
@@ -277,13 +298,15 @@ private fun shown(ctl: SceneController, picker: WordPicker): Shown? {
 }
 
 /** The text with every span drawn as a blurred shadow of its colour and no letters. */
-private fun shadowOnly(text: AnnotatedString, radius: Float): AnnotatedString = AnnotatedString(
-    text.text,
-    spanStyles = text.spanStyles.map { r ->
+private fun shadowOnly(text: AnnotatedString, radius: Float): AnnotatedString = buildAnnotatedString {
+    append(text.text)
+    text.spanStyles.forEach { r ->
         val color = if (r.item.color.isSpecified) r.item.color else Colors.text
-        r.copy(item = SpanStyle(color = Color.Transparent, shadow = Shadow(color, blurRadius = radius)))
-    },
-)
+        addStyle(SpanStyle(color = Color.Transparent, shadow = Shadow(color, blurRadius = radius)), r.start, r.end)
+    }
+    // The faces' places (inline content), so their stand-in character isn't drawn.
+    text.getStringAnnotations(0, text.length).forEach { addStringAnnotation(it.tag, it.item, it.start, it.end) }
+}
 
 /** A tap on the subtitles: on a word (line and segment of the scene), or anywhere else on the box. */
 sealed interface SubtitleTap {
@@ -324,10 +347,14 @@ private fun anchorOf(c: LayoutCoordinates, l: TextLayoutResult?, range: IntRange
     return Rect(c.localToRoot(Offset(box.left, box.top)), box.size)
 }
 
-private fun colored(cue: Cue, words: Map<String, Word>, dim: Boolean, selected: Int = -1): AnnotatedString =
+/** The character a face stands for in the subtitles' text. */
+private const val FACE = "�"
+
+private fun colored(cue: Cue, words: Map<String, Word>, dim: Boolean, selected: Int = -1, faces: Set<String> = emptySet()): AnnotatedString =
     buildAnnotatedString {
         val base = if (dim) Colors.dim else Colors.text
         cue.segments.forEachIndexed { i, seg ->
+            if (seg.word in faces) appendInlineContent(seg.word!!, FACE)
             val color = when (seg.word?.let { words[it]?.shownFor(seg.text) ?: "u" }) {
                 "u", "l" -> if (dim) Colors.unknown.copy(alpha = 0.7f) else Colors.unknown
                 "d" -> if (dim) Colors.due.copy(alpha = 0.7f) else Colors.due

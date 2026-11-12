@@ -24,6 +24,8 @@ import kotlinx.coroutines.runBlocking
  * Japanese text. One row per word: start, length, state as the subtitles colour it ([Word.shownFor]: "k" known,
  * "u" unknown, "d" due today, "b" mined and never reviewed). Needs kumapie's READ_WORDS permission; [call] rates cards.
  * Long texts (book chapters) keep their split on disk ([words]), so only the colours are redone when asked again.
+ * `…/faces` (same argument): one row per character's name with a picture in a character dictionary: start, length,
+ * name; the picture itself is the file `content://<app id>.words/face?name=<name>` (user, 2026-11-12).
  */
 class WordColours : ContentProvider() {
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -53,6 +55,7 @@ class WordColours : ContentProvider() {
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor {
         val out = MatrixCursor(arrayOf("start", "length", "state"))
         val text = args?.firstOrNull() ?: return out
+        if (uri.lastPathSegment == "faces") return faces(text)
         if (uri.lastPathSegment != "colours" || !japanese.model.isReady) return out
         val known = japanese.known
         fresh(known)
@@ -66,6 +69,39 @@ class WordColours : ContentProvider() {
     }
 
     private class Split(val begin: Int, val surface: String, val base: String)
+
+    /** Name -> its picture's file, or null when it is no character's name (kept: a chapter asks for the same names again). */
+    private val faceFiles = java.util.concurrent.ConcurrentHashMap<String, java.util.Optional<File>>()
+
+    private fun faceFile(name: String): File? = faceFiles.getOrPut(name) {
+        val f = File(File(context!!.cacheDir, "faces").apply { mkdirs() }, "${name.hashCode().toUInt()}.jpg")
+        java.util.Optional.ofNullable(japanese.yomitan.characterPortrait(japanese.lang, name)?.let { f.writeBytes(it); f })
+    }.orElse(null)
+
+    /**
+     * The characters' names in [text], as the player joins them (壬|氏|様 is 壬氏様, named 壬氏; up to 5 pieces): a name only
+     * a character dictionary has, or one word the parser calls a name.
+     */
+    private fun faces(text: String): Cursor {
+        val out = MatrixCursor(arrayOf("start", "length", "name"))
+        if (!japanese.model.isReady) return out
+        val ws = words(text)
+        var i = 0
+        while (i < ws.size) {
+            val first = ws[i]
+            var hit = 1
+            if (first.surface.firstOrNull() !in 'ぁ'..'ゖ') for (n in minOf(5, ws.size - i) downTo 1) {
+                val last = ws[i + n - 1]
+                val t = text.substring(first.begin, last.begin + last.surface.length)
+                if (t.length != (i until i + n).sumOf { ws[it].surface.length }) continue // something between the pieces
+                val name = if (n > 1) japanese.yomitan.characterName(japanese.lang, t)
+                    else first.base.takeIf { japanese.yomitan.isCharacter(japanese.lang, it) && japanese.autoKnown(it) }
+                if (name != null && faceFile(name) != null) { out.addRow(arrayOf<Any>(first.begin, t.length, name)); hit = n; break }
+            }
+            i += hit
+        }
+        return out
+    }
 
     /**
      * [text]'s words. A text of [CACHED]+ chars (a book chapter) is split once: its words are kept in the cache dir under
@@ -156,6 +192,10 @@ class WordColours : ContentProvider() {
     override fun openFile(uri: Uri, mode: String): android.os.ParcelFileDescriptor {
         val ctx = context!!
         val text = uri.getQueryParameter("text")
+        if (uri.lastPathSegment == "face") {
+            val face = uri.getQueryParameter("name")?.let(::faceFile) ?: throw java.io.FileNotFoundException(uri.toString())
+            return android.os.ParcelFileDescriptor.open(face, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
+        }
         if (uri.lastPathSegment != "say" || text.isNullOrBlank()) throw java.io.FileNotFoundException(uri.toString())
         val f = File(File(ctx.cacheDir, "say").apply { mkdirs() }, "ja-${text.hashCode().toUInt()}.wav")
         if (!f.exists() && !io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices(ctx.applicationContext)

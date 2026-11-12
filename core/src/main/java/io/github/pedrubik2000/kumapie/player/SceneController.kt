@@ -184,27 +184,27 @@ class SceneController(
     }
 
     /**
-     * Where Skip goes while the video is in a long stretch without lines in the episode's language (an opening or
-     * ending song: 45 s+): the next such scene's start, or the video's end after the last one. Null elsewhere.
+     * Where Skip goes while the video is in a long stretch without said lines in the episode's language (an opening or
+     * ending song, with its lyrics or not: 45 s+): the next such scene's start, or the video's end after the last one. Null elsewhere.
      */
     fun skipTarget(): Double? {
         if (episode.novel || scenes.isEmpty()) return null
         val pos = position
-        val from = scenes.lastOrNull { it.target && it.start <= pos }?.end ?: 0.0
+        val from = scenes.lastOrNull { it.spoken && it.start <= pos }?.end ?: 0.0
         if (pos < from) return null // inside a scene
-        val to = scenes.firstOrNull { it.target && it.start > pos }?.start ?: duration()
+        val to = scenes.firstOrNull { it.spoken && it.start > pos }?.start ?: duration()
         return to.takeIf { it - from >= SKIP_GAP && it - pos > 2 }
     }
 
     /** Skip: to the next scene with lines, played like a scene picked from the list (Primed Listening waits); the ending: to the end. */
     fun skip() {
         val to = skipTarget() ?: return
-        val i = scenes.indexOfFirst { it.target && it.start >= to - 0.01 }
+        val i = scenes.indexOfFirst { it.spoken && it.start >= to - 0.01 }
         if (i >= 0) playScene(i) else seekTo(to)
     }
 
     /** After the episode's last line (Skip goes to the end: the ending). */
-    fun skipIsEnding(): Boolean = scenes.none { it.target && it.start > position }
+    fun skipIsEnding(): Boolean = scenes.none { it.spoken && it.start > position }
 
     private fun duration() = player.duration.takeIf { it > 0 }?.let { it / 1000.0 } ?: (scenes.lastOrNull()?.end ?: 0.0)
 

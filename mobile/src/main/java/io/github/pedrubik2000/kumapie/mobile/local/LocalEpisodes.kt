@@ -45,8 +45,13 @@ class LocalEpisodes(context: Context) {
     }.let { list ->
         // Scene counts (for Stats), counted once from episode.json and kept in the index.
         if (list.none { it.scenes < 0 }) list
-        else list.map { e -> if (e.scenes >= 0) e else e.copy(scenes = runCatching { JSONObject(json(e.id).readText()).getJSONArray("scenes").length() }.getOrDefault(0)) }
+        else list.map { e -> if (e.scenes >= 0) e else e.copy(scenes = runCatching { JSONObject(json(e.id).readText()).getJSONArray("scenes").let { s -> (0 until s.length()).count { !song(s.getJSONObject(it)) } } }.getOrDefault(0)) }
             .also { save(it) }
+    }
+
+    /** A scene of lyrics (Scene.song): every line starts with ♪. Not counted, so a skipped opening doesn't keep an episode unwatched. */
+    private fun song(scene: JSONObject): Boolean = scene.getJSONArray("cues").let { c ->
+        c.length() > 0 && (0 until c.length()).all { c.getJSONObject(it).getJSONArray("seg").optJSONArray(0)?.optString(0)?.startsWith("♪") == true }
     }
 
     @Synchronized

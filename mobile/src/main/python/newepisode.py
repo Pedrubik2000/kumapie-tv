@@ -169,7 +169,8 @@ def split_run(run, max_secs):
 def exchanges(cues):
     runs = []
     for c in cues:
-        if runs and c[0] - runs[-1][-1][1] <= MAX_GAP:
+        # A sung line (jimaku.SONG) and a said one never share a scene: Skip intro / ending goes by whole scenes.
+        if runs and c[0] - runs[-1][-1][1] <= MAX_GAP and c[2].startswith("♪") == runs[-1][-1][2].startswith("♪"):
             runs[-1].append(c)
         else:
             runs.append([c])

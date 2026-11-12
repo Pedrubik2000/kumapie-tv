@@ -134,10 +134,11 @@ def cues(path: str, lang: str = "ja") -> str:
             elif line.startswith("Dialogue:") and fields:
                 row = dict(zip(fields, line[9:].split(",", len(fields) - 1)))
                 body = row.get("text", "")
-                if not dialogue(row.get("style", ""), body):
+                sung = lang == "ja" and lyric(row.get("style", ""), body)
+                if not sung and not dialogue(row.get("style", ""), body):
                     continue
                 body = re.sub(r"\{[^}]*\}", "", body)
-                body = re.sub(r"\\[Nnh]", " ", body).strip()
+                body = ("♪" if sung else "") + re.sub(r"\\[Nnh]", " ", body).strip()
                 t = [re.match(r"\s*(\d+):(\d+):(\d+)\.(\d+)", row.get(k, "")) for k in ("start", "end")]
                 if body and all(t):
                     out.append([_secs(*t[0].groups()), _secs(*t[1].groups()), body])
@@ -154,7 +155,14 @@ def cues(path: str, lang: str = "ja") -> str:
     clean = spoken if lang == "ja" else plain
     seen, kept = set(), []
     for a, b, t in out:
+        # Japanese: a sung line (an ASS song style, ♪ in an SRT) is kept and starts with [SONG]. It needs kana: not the
+        # "♪～" that only says music plays, nor a romaji or Chinese line of the same song.
+        sung = lang == "ja" and "♪" in t
+        if sung and not re.search(r"[ぁ-ヿ]", t):
+            continue
         t = clean(t)
+        if sung and t:
+            t = SONG + t
         if t and (a, b, t) not in seen:  # layered karaoke / shadow lines repeat the same text
             seen.add((a, b, t))
             kept.append([round(a, 3), round(b, 3), t])
@@ -163,6 +171,19 @@ def cues(path: str, lang: str = "ja") -> str:
 
 SONG_OR_SIGN = re.compile(r"sign|\bop\d*\b|\bed\d*\b|opening|ending|song|karaoke|kfx|lyric|\brom|romaji|kanji|title|insert|"
                           r"typeset|\bts\b|stars|eyecatch|logo|card", re.I)
+
+
+SONG = "♪ "  # how a sung line starts: Skip intro / ending and the watched count go by it (kumapie's Scene.song)
+SONG_STYLE = re.compile(r"\bop\d*\b|\bed\d*\b|opening|ending|song|karaoke|lyric|insert|\bin\b", re.I)
+NOT_LYRICS = re.compile(r"sign|\brom|romaji|title|typeset|\bts\b|stars|eyecatch|logo|card|kfx|staff|credit", re.I)
+
+
+def lyric(style: str, body: str) -> bool:
+    r"""An ASS line that is sung: a song style (OP, ED-JP, Insert...), whole lines only (no \k syllables, no drawing,
+    no placed piece of a karaoke effect)."""
+    style = re.sub(r"[-_]", " ", style)
+    return bool(SONG_STYLE.search(style)) and not NOT_LYRICS.search(style) \
+        and not re.search(r"\\(k[fo]?\d|p[1-9]|pos|move)", body)
 
 
 def dialogue(style: str, body: str) -> bool:
@@ -211,12 +232,16 @@ if __name__ == "__main__":  # python jimaku.py: the picking rules (and AniList, 
             f.write("[V4+ Styles]\nFormat: Name, Fontname, Fontsize\nStyle: Default,Arial,20\n\n"
                     "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
                     r"Dialogue: 0,0:00:05.00,0:00:07.50,Default,,0,0,0,,{\an8}本当に、\Nありがとう" "\n"
-                    r"Dialogue: 0,0:00:01.00,0:00:03.00,Sign,,0,0,0,,{\pos(10,10)}看板" "\n")
-        assert json.loads(cues(ass)) == [[5.0, 7.5, "本当に、 ありがとう"]], cues(ass)
+                    r"Dialogue: 0,0:00:01.00,0:00:03.00,Sign,,0,0,0,,{\pos(10,10)}看板" "\n"
+                    r"Dialogue: 0,0:00:09.00,0:00:12.00,OP-JP,,0,0,0,,{\an8}歌の言葉" "\n"
+                    r"Dialogue: 0,0:00:09.00,0:00:12.00,OP-CH,,0,0,0,,歌词" "\n"
+                    r"Dialogue: 0,0:00:09.00,0:00:12.00,OP-Romaji,,0,0,0,,uta no kotoba" "\n")
+        assert json.loads(cues(ass)) == [[5.0, 7.5, "本当に、 ありがとう"], [9.0, 12.0, "♪ 歌の言葉"]], cues(ass)
         srt = os.path.join(d, "a.srt")
         with open(srt, "w", encoding="utf-8-sig") as f:
-            f.write("1\n00:00:01,000 --> 00:00:02,500\n<i>え？</i>\nうん\n\n2\n00:01:00,100 --> 00:01:01,000\n（拍手）\n")
-        assert json.loads(cues(srt)) == [[1.0, 2.5, "え？ うん"]], cues(srt)
+            f.write("1\n00:00:01,000 --> 00:00:02,500\n<i>え？</i>\nうん\n\n2\n00:01:00,100 --> 00:01:01,000\n（拍手）\n\n"
+                    "3\n00:02:00,000 --> 00:02:05,000\n♪～\n\n4\n00:02:06,000 --> 00:02:09,000\n♪ 歌の言葉 ♪\n")
+        assert json.loads(cues(srt)) == [[1.0, 2.5, "え？ うん"], [126.0, 129.0, "♪ 歌の言葉"]], cues(srt)
     assert spoken("（後藤(ごとう)ひとり）私なんかが…") == "私なんかが…"
     assert spoken("♪～") == "" and spoken("（馬車の進行音）") == ""
     if key := os.environ.get("JIMAKU_API_KEY"):

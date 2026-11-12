@@ -407,6 +407,15 @@ data class Scene(
 ) {
     fun def(line: Int, word: String): LineDef? = defs["$line|$word"]
 
+    /**
+     * An opening's or ending's lyrics: every line starts with ♪ (jimaku.py's SONG). Lines like any other (colours,
+     * lookups, mining), but Skip intro / ending passes them and they don't count for [Episode.watched].
+     */
+    val song: Boolean = cues.isNotEmpty() && cues.all { it.segments.firstOrNull()?.text?.startsWith("♪") == true }
+
+    /** Has lines that are said, in the episode's language. */
+    val spoken: Boolean get() = target && !song
+
     /** The novel's screen showing at [t] (episode seconds), done fading in; null when the episode has a picture video. */
     fun picAt(t: Double): String? = pics.lastOrNull { it.start + it.fade <= t }?.url ?: base
 }

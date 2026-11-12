@@ -297,7 +297,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             synced = sub.sync(audio, raw, fitted, reference)
             val fittedCues = jm.callAttr("cues", fitted.path).toString()
             // alass gives no score: is the result right? (item 30) A shift found = what the player's Subtitle timing should move.
-            val check = JSONArray(fittedCues).let { c -> SyncCheck.check((0 until c.length()).map { i -> c.getJSONArray(i).let { it.getDouble(0) to it.getDouble(1) } }, sub.reference, sub.speech) }
+            val check = JSONArray(fittedCues).let { c -> SyncCheck.check((0 until c.length()).map { c.getJSONArray(it) }.filter { !it.getString(2).startsWith("♪") }.map { it.getDouble(0) to it.getDouble(1) }, sub.reference, sub.speech) }
             synced += when {
                 check.ok -> tr(" · in sync")
                 kotlin.math.abs(check.shift) > SyncCheck.LIMIT -> tr(" · check the timing: try %s in the player's Subtitle timing", "%+.1f s".format(java.util.Locale.ROOT, check.shift))

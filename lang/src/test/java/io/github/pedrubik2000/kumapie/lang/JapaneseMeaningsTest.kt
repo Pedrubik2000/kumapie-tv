@@ -73,6 +73,14 @@ class JapaneseMeaningsTest {
         assertEquals(listOf("to eat"), YomitanDictionaries.senses("[\"to eat\"]"))
     }
 
+    @Test fun characterFromTheBooksWork() {
+        val jinshi = bee("壬氏", "Jinshi")
+        assertEquals(true, YomitanDictionaries.fromWork(jinshi, "薬屋のひとりごと 12")) // volume number, space
+        assertEquals(true, YomitanDictionaries.fromWork(jinshi, "薬屋のひとりごと～猫猫の後宮謎解き手帳～")) // the manga's subtitle
+        assertEquals(false, YomitanDictionaries.fromWork(jinshi, "くま クマ 熊 ベアー17")) // the bear クマ got another show's face
+        assertEquals(false, YomitanDictionaries.fromWork(jinshi, "1")) // too short to say
+    }
+
     @Test fun characterNamesJoined() {
         fun seg(vararg s: String) = s.map { io.github.pedrubik2000.kumapie.data.Segment(it, if (it == "、") null else it) }
         val names = mapOf("壬氏様" to "壬氏", "壬氏" to "壬氏", "そうた" to "そうた")

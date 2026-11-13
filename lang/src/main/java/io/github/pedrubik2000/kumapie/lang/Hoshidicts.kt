@@ -266,14 +266,16 @@ class YomitanDictionaries private constructor(private val context: Context) {
     }
 
     /**
-     * A character's picture (Bee's "portrait-container" image) for [word], or null.
-     * ponytail: the first character with that name in the dictionary, whatever its show; pick by the entry's "From:" once two shows share a name.
+     * A character's picture (Bee's "portrait-container" image) for [word], or null. With [work] (a book's or show's
+     * title as the app has it, "くま クマ 熊 ベアー17") only that work's characters: the bear クマ in くまクマ熊ベアー
+     * got another show's クマ (user, 2026-11-13). Without it, the first character with that name, whatever its show.
      */
-    fun characterPortrait(lang: Lang, word: String): ByteArray? = synchronized(this) {
+    fun characterPortrait(lang: Lang, word: String, work: String? = null): ByteArray? = synchronized(this) {
         if (!isCharacter(lang, word)) return null
         // From the character dictionaries alone: every dictionary's entry for the name took ~250 ms a name on the tablet.
         val h = handles["names:" + lang.code] ?: return null
         parseTerms(JSONArray(Hoshidicts.nativeQuery(h, word))).flatMap { it.glossaries }
+            .filter { work.isNullOrBlank() || fromWork(it.raw, work) }
             .firstNotNullOfOrNull { g -> portraitPath(g.raw)?.let { Hoshidicts.nativeMedia(h, g.dict, it) } }
     }
 
@@ -464,6 +466,22 @@ class YomitanDictionaries private constructor(private val context: Context) {
             // An honorific's entry starts with a line of its own: [様, " — Very formal/respectful"].
             romaji?.let { it to parts.firstOrNull()?.takeIf { p -> !p.has("data") }?.optJSONArray("content")?.optJSONObject(0)?.optString("content") }
         }.getOrNull()
+
+        /**
+         * A character entry is from [work]: its "From: <Japanese title>" and the work's title match once spaces,
+         * punctuation and a volume number are gone ("くま クマ 熊 ベアー17" is くまクマ熊ベアー's). One holds the other,
+         * so a sequel's book still finds its first season's title.
+         */
+        fun fromWork(glossary: String, work: String): Boolean {
+            val w = workKey(work).trimEnd { it.isDigit() }
+            if (w.length < 2) return false
+            return Regex("""From: ([^"\\]+)""").findAll(glossary).any { m ->
+                workKey(m.groupValues[1]).let { f -> f.length >= 2 && (f in w || w in f) }
+            }
+        }
+
+        private fun workKey(s: String) =
+            java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC).lowercase().filter { it.isLetterOrDigit() }
 
         /** The image file of a character entry's portrait (not its voice actor's, which comes later), or null. */
         fun portraitPath(glossary: String): String? =

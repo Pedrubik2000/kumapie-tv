@@ -24,8 +24,9 @@ import kotlinx.coroutines.runBlocking
  * Japanese text. One row per word: start, length, state as the subtitles colour it ([Word.shownFor]: "k" known,
  * "u" unknown, "d" due today, "b" mined and never reviewed). Needs kumapie's READ_WORDS permission; [call] rates cards.
  * Long texts (book chapters) keep their split on disk ([words]), so only the colours are redone when asked again.
- * `…/faces` (same argument): one row per character's name with a picture in a character dictionary: start, length,
- * name; the picture itself is the file `content://<app id>.words/face?name=<name>` (user, 2026-11-12).
+ * `…/faces` (same argument, then optionally the book's title): one row per character's name with a picture in a
+ * character dictionary (only that book's characters when titled): start, length, name; the picture itself is the file
+ * `content://<app id>.words/face?name=<name>[&work=<title>]` (user, 2026-11-12; title 2026-11-13).
  */
 class WordColours : ContentProvider() {
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -55,7 +56,7 @@ class WordColours : ContentProvider() {
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor {
         val out = MatrixCursor(arrayOf("start", "length", "state"))
         val text = args?.firstOrNull() ?: return out
-        if (uri.lastPathSegment == "faces") return faces(text)
+        if (uri.lastPathSegment == "faces") return faces(text, args.getOrNull(1))
         if (uri.lastPathSegment != "colours" || !japanese.model.isReady) return out
         val known = japanese.known
         fresh(known)
@@ -70,19 +71,21 @@ class WordColours : ContentProvider() {
 
     private class Split(val begin: Int, val surface: String, val base: String)
 
-    /** Name -> its picture's file, or null when it is no character's name (kept: a chapter asks for the same names again). */
+    /** Name (+ work) -> its picture's file, or null when it is no character's name there (kept: a chapter asks for the same names again). */
     private val faceFiles = java.util.concurrent.ConcurrentHashMap<String, java.util.Optional<File>>()
 
-    private fun faceFile(name: String): File? = faceFiles.getOrPut(name) {
-        val f = File(File(context!!.cacheDir, "faces").apply { mkdirs() }, "${name.hashCode().toUInt()}.jpg")
-        java.util.Optional.ofNullable(japanese.yomitan.characterPortrait(japanese.lang, name)?.let { f.writeBytes(it); f })
-    }.orElse(null)
+    private fun faceFile(name: String, work: String?): File? = "$name\n${work.orEmpty()}".let { key ->
+        faceFiles.getOrPut(key) {
+            val f = File(File(context!!.cacheDir, "faces").apply { mkdirs() }, "${key.hashCode().toUInt()}.jpg")
+            java.util.Optional.ofNullable(japanese.yomitan.characterPortrait(japanese.lang, name, work)?.let { f.writeBytes(it); f })
+        }.orElse(null)
+    }
 
     /**
      * The characters' names in [text], as the player joins them (壬|氏|様 is 壬氏様, named 壬氏; up to 5 pieces): a name only
-     * a character dictionary has, or one word the parser calls a name.
+     * a character dictionary has, or one word the parser calls a name. With [work] (the book's title), only its characters.
      */
-    private fun faces(text: String): Cursor {
+    private fun faces(text: String, work: String?): Cursor {
         val out = MatrixCursor(arrayOf("start", "length", "name"))
         if (!japanese.model.isReady) return out
         val ws = words(text)
@@ -96,7 +99,7 @@ class WordColours : ContentProvider() {
                 if (t.length != (i until i + n).sumOf { ws[it].surface.length }) continue // something between the pieces
                 val name = if (n > 1) japanese.yomitan.characterName(japanese.lang, t)
                     else first.base.takeIf { japanese.yomitan.isCharacter(japanese.lang, it) && japanese.autoKnown(it) }
-                if (name != null && faceFile(name) != null) { out.addRow(arrayOf<Any>(first.begin, t.length, name)); hit = n; break }
+                if (name != null && faceFile(name, work) != null) { out.addRow(arrayOf<Any>(first.begin, t.length, name)); hit = n; break }
             }
             i += hit
         }
@@ -193,7 +196,8 @@ class WordColours : ContentProvider() {
         val ctx = context!!
         val text = uri.getQueryParameter("text")
         if (uri.lastPathSegment == "face") {
-            val face = uri.getQueryParameter("name")?.let(::faceFile) ?: throw java.io.FileNotFoundException(uri.toString())
+            val face = uri.getQueryParameter("name")?.let { faceFile(it, uri.getQueryParameter("work")) }
+                ?: throw java.io.FileNotFoundException(uri.toString())
             return android.os.ParcelFileDescriptor.open(face, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
         }
         if (uri.lastPathSegment != "say" || text.isNullOrBlank()) throw java.io.FileNotFoundException(uri.toString())

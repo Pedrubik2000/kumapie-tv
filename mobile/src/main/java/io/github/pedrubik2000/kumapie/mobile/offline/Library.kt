@@ -183,12 +183,13 @@ class Library(context: Context, val settings: Settings) {
     suspend fun episode(id: String): EpisodeDetail {
         val api = api
         // Parsed off the main thread: a long episode's JSON and its word colours held the first frames.
-        suspend fun parse(json: String) = withContext(Dispatchers.Default) {
-            withSeen(api.parseEpisode(json).let { languages.of(it.lang).known.run { refreshDue(); apply(it) } })
+        suspend fun parse(json: String, work: (EpisodeDetail) -> String = { it.work }) = withContext(Dispatchers.Default) {
+            withSeen(api.parseEpisode(json).let { it.copy(work = work(it)) }.let { languages.of(it.lang).known.run { refreshDue(); apply(it) } })
         }
         if (LocalEpisodes.isLocal(id)) {
             val json = withContext(Dispatchers.IO) { local.json(id).readText() }
-            val detail = parse(json)
+            // The show's Japanese title from its metadata (AniList via Jimaku or the Add sheet).
+            val detail = parse(json) { d -> local.meta(local.showId(d.show))?.optJSONObject("title")?.optString("ja").orEmpty() }
             // Its copy deleted here: streamed from the PC (sync keeps every device episode there).
             val video = local.video(id).takeIf { it.exists() }?.let { Uri.fromFile(it).toString() }
                 ?: "${settings.server}/api/sync/${settings.owner}/$id/video.mp4"

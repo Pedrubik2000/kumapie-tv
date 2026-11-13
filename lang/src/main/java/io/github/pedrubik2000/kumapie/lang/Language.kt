@@ -215,7 +215,7 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
         val portraits = keys.mapNotNull { k ->
             // autoKnown asks characterName too and keeps the answer: the colours need it anyway (the TV has no parser).
             if (!yomitan.isCharacter(lang, k) || !(if (model.isReady) autoKnown(k) else yomitan.characterName(lang, k) != null)) null
-            else runCatching { yomitan.characterPortrait(lang, k)?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) } }.getOrNull()
+            else runCatching { yomitan.characterPortrait(lang, k, episode.work)?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) } }.getOrNull()
                 ?.let { k to it.asImageBitmap() }
         }.toMap()
         android.util.Log.i("kumapie", "names: ${names.size} in ${faceStart - started} ms, faces: ${portraits.keys} in ${System.currentTimeMillis() - faceStart} ms")

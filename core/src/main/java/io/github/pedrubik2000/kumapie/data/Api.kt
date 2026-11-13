@@ -131,7 +131,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
             id = e.getString("id"), show = e.getString("show"), title = e.getString("title"), lang = e.optString("lang", "de"),
             duration = e.optDouble("duration", 0.0), video = url(e.getString("video")),
             resume = if (e.isNull("resume")) null else e.getDouble("resume"), scenes = scenes, words = words,
-            novel = e.optBoolean("novel"),
+            novel = e.optBoolean("novel"), work = e.optString("work"),
         )
     }
 
@@ -383,6 +383,8 @@ data class EpisodeDetail(
     val novel: Boolean = false,
     /** Characters' faces by word key (壬氏), from this device's character dictionary: drawn before the name in the subtitles. */
     val portraits: Map<String, androidx.compose.ui.graphics.ImageBitmap> = emptyMap(),
+    /** The show's Japanese title (AniList), "" when unknown: faces only for this work's characters. */
+    val work: String = "",
 )
 
 data class Scene(

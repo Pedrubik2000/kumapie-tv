@@ -87,6 +87,10 @@ class Morphemizer:
     def prepare(self, field: str) -> str:
         """Field HTML -> the text given to spaCy."""
         text = self.clean(field)
+        # A subtitle's dialogue dash ("-It's me. -Oh.") stuck to the word: spaCy made "-it", "-oh" words of their own,
+        # with no meaning and no colour of their own word (Better Call Saul, 2026-11-13). Same length: offsets stay.
+        text = re.sub(r"(?:(?<=^)|(?<=\s))-(?=\w)", " ", text)
+        text = re.sub(r"-{2,}", lambda m: " " * len(m.group()), text)  # "counsel--": a line cut off
         return text.lower() if self.parse_lowercase else text
 
     def tokens(self, doc) -> list[Token]:

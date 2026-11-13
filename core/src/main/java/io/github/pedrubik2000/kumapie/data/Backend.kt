@@ -11,8 +11,8 @@ interface Backend {
     /** A word looked up; answers how many times it has been looked up. */
     suspend fun lookup(word: String, scene: String): Int
 
-    /** Marks a word known without a card (or undoes it); answers its status now: "k", "l" or "u". */
-    suspend fun markKnown(word: String, known: Boolean): String
+    /** Marks a word known without a card (or undoes it); answers its status now: "k", "l" or "u". [scene]: whose (PC cards). */
+    suspend fun markKnown(word: String, known: Boolean, scene: String = ""): String
 
     /** The word read aloud: a URL or a local file path the media player can open, or "tts:<text>" for [speak]. */
     fun wordAudio(surface: String, lang: String = "de"): String  // lang: the episode's, for the voice ([Lang.code])

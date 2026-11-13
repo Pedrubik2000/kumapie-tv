@@ -70,7 +70,8 @@ suspend fun FocusRequester.focusSoon() {
  */
 @Composable
 fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onShow: (Show) -> Unit,
-               onPlay: (Show, Episode) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit) {
+               onPlay: (Show, Episode) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit,
+               onReview: (String) -> Unit = {}) {
     var shows by remember { mutableStateOf<List<Show>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -95,6 +96,7 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
                     modifier = Modifier.padding(end = 8.dp)) { Text(Lang.of(c).displayName.uppercase()) }
             }
             Spacer(Modifier.weight(1f))
+            if (lang != null) ReviewButton(api, lang, onReview)
             Button(onClick = onProfiles) { Text(who.uppercase()) } // back to "Who's watching?"
             Spacer(Modifier.width(8.dp))
             Button(onClick = onStats) { Text(tr("Stats").uppercase()) }
@@ -112,6 +114,18 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
             }
         }
     }
+}
+
+/** "Review · N" for a person whose cards are on the PC (the PC refuses the others: no button). */
+@Composable
+private fun ReviewButton(api: Api, lang: String, onReview: (String) -> Unit) {
+    var n by remember(lang) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(lang) { n = runCatching { api.srsDue(lang).let { it.due + it.new } }.getOrNull() }
+    val count = n ?: return
+    Button(onClick = { onReview(lang) }, colors = arcadeButtonColors(selected = count > 0)) {
+        Text((tr("Review") + if (count > 0) " · $count" else "").uppercase())
+    }
+    Spacer(Modifier.width(8.dp))
 }
 
 /** Hours in this language (TV + phones) and words known, above everything (user, 2026-10-15), as on the phone. */

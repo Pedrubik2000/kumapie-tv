@@ -43,6 +43,7 @@ sealed interface Screen {
     data object Settings : Screen
     data object Buttons : Screen
     data object Stats : Screen
+    data class Review(val lang: String) : Screen
 }
 
 /** The last profile chosen on "Who's watching?" (it gets the focus there next time). */
@@ -100,7 +101,8 @@ fun App(settings: Settings) {
                 Screen.Home -> HomeScreen(api, settings, profile?.id.orEmpty(), profile?.name.orEmpty(),
                     onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e -> stack.add(Screen.Player(s, e)) },
                     onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
-                    onProfiles = { profile = null })
+                    onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) })
+                is Screen.Review -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(api, screen.lang)
                 Screen.Stats -> StatsScreen(api, onSettings = { stack.add(Screen.Settings) })
                 is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
                 is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,

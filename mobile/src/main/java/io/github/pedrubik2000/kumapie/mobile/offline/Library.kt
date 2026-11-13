@@ -335,7 +335,7 @@ private class OfflineBackend(
 
     override suspend fun lookup(word: String, scene: String): Int = progress.lookup(word).also { syncLater() }
 
-    override suspend fun markKnown(word: String, known: Boolean): String {
+    override suspend fun markKnown(word: String, known: Boolean, scene: String): String {
         // Kept on the device too, so the colour is right offline and once the PC is no longer asked.
         val language = languageOf(word)
         val list = language.known

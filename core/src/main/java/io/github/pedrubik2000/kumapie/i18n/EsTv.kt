@@ -162,6 +162,16 @@ internal val esTv: Map<String, String> = mapOf(
     "Nothing to undo" to "Nada que deshacer",
     "Undone: %s is due again" to "Deshecho: %s toca otra vez",
     "Downloading…" to "Descargando…",
+    // Cards on the PC (Review screen, hold ↑ with no kuma3)
+    "Review" to "Repasar",
+    "%1\$d left · %2\$d done" to "quedan %1\$d · %2\$d hechas",
+    "All done for now" to "Todo repasado por ahora",
+    "Hold ↑ on a word while watching to add it here." to "Mantén ↑ sobre una palabra mientras ves algo para añadirla aquí.",
+    "Show" to "Mostrar",
+    "Listen" to "Escuchar",
+    "Add to reviews" to "Añadir a repaso",
+    "Added to your reviews" to "Añadida a tu repaso",
+    "Already in your reviews" to "Ya está en tu repaso",
     "Installing…" to "Instalando…",
     "Allow kumapie to install apps on the page that opened, then press Update again." to
         "Permite que kumapie instale apps en la página que se abrió y vuelve a pulsar Actualizar.",

@@ -90,7 +90,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
                 w.getJSONObject(k).let {
                     Word(status = it.optString("s", "u"), meaning = it.optString("g"), lemma = it.optString("lemma"), reading = it.optString("r"),
                         stability = if (it.isNull("d")) null else it.optDouble("d"), lookups = it.optInt("n"),
-                        marked = it.optBoolean("m"))
+                        marked = it.optBoolean("m"), card = it.optString("c").ifEmpty { null })
                 }
             }
         }
@@ -131,7 +131,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
             id = e.getString("id"), show = e.getString("show"), title = e.getString("title"), lang = e.optString("lang", "de"),
             duration = e.optDouble("duration", 0.0), video = url(e.getString("video")),
             resume = if (e.isNull("resume")) null else e.getDouble("resume"), scenes = scenes, words = words,
-            novel = e.optBoolean("novel"), work = e.optString("work"),
+            novel = e.optBoolean("novel"), work = e.optString("work"), srs = e.optBoolean("srs"),
         )
     }
 
@@ -171,8 +171,35 @@ class Api(private val base: String, private val person: String = "") : Backend {
         JSONObject(post("/api/tv/lookup", JSONObject().put("word", word).put("scene", scene).toString())).optInt("n")
 
     /** Marks a word known without a card (or undoes it); answers its status now: "k", "l" or "u". */
-    override suspend fun markKnown(word: String, known: Boolean): String =
-        JSONObject(post("/api/tv/known", JSONObject().put("word", word).put("known", known).toString())).optString("s", "u")
+    override suspend fun markKnown(word: String, known: Boolean, scene: String): String =
+        JSONObject(post("/api/tv/known", JSONObject().put("word", word).put("known", known)
+            .apply { if (scene.isNotEmpty()) put("scene", scene) }.toString())).optString("s", "u")
+
+    // ------------------------------------------------------------ cards on the PC (EpisodeDetail.srs: no kuma3, user 2026-11-13)
+
+    /** Mines [word] of [scene]'s [line] as a card on the PC; answers its state ("b": new). */
+    suspend fun srsAdd(scene: String, line: Int, word: String, meaning: String): String =
+        JSONObject(post("/api/tv/srs/add", JSONObject().put("scene", scene).put("line", line).put("word", word)
+            .put("meaning", meaning).toString())).optString("c", "b")
+
+    /** Rates [word]'s card (1 Again .. 4 Easy), by an episode's [scene] or this person's [lang]; answers its state. */
+    suspend fun srsRate(word: String, rating: Int, scene: String? = null, lang: String? = null): String =
+        JSONObject(post("/api/tv/srs/rate", srsWho(scene, lang).put("word", word).put("rating", rating).toString())).optString("c", "k")
+
+    /** Takes the last rating back; answers (word, its state now). */
+    suspend fun srsUndo(scene: String? = null, lang: String? = null): Pair<String, String> =
+        JSONObject(post("/api/tv/srs/undo", srsWho(scene, lang).toString())).let { it.getString("word") to it.optString("c", "d") }
+
+    /** This person's cards to review now in [lang]; fails when their cards aren't on the PC (they use kuma3). */
+    suspend fun srsDue(lang: String): SrsDue = JSONObject(get("/api/tv/srs/due?person=${android.net.Uri.encode(person)}&lang=$lang")).let { o ->
+        SrsDue(o.optInt("due"), o.optInt("new"), o.optInt("today"), o.optJSONArray("cards")?.objects().orEmpty().map {
+            SrsCard(it.getString("word"), it.optString("sentence"), it.optString("translation"), it.optString("meaning"),
+                it.optString("c"), it.optString("audio"))
+        })
+    }
+
+    private fun srsWho(scene: String?, lang: String?) =
+        if (scene != null) JSONObject().put("scene", scene) else JSONObject().put("person", person).put("lang", lang)
 
     /** The words this device shows as known in [lang] (white or green): the PC's feed and TV count by them. */
     suspend fun knownWords(lang: String, words: List<String>) {
@@ -311,6 +338,12 @@ private const val CHUNK = 8 shl 20 // an upload request: 8 MB
 /** A person on the TV's "Who's watching?": [id] as the PC knows them ("giovanna"), [menu] "en" / "es". */
 data class Profile(val id: String, val name: String, val menu: String)
 
+/** [Api.srsDue]: due and new cards, reviews done today, the cards in order. */
+data class SrsDue(val due: Int, val new: Int, val today: Int, val cards: List<SrsCard>)
+
+/** A PC card: the word, its line and the line's translation, the meaning mined with it, its state, the line's audio (server path). */
+data class SrsCard(val word: String, val sentence: String, val translation: String, val meaning: String, val state: String, val audio: String)
+
 data class ServerInfo(val api: Int, val language: String, val translation: String, val episodes: Int)
 
 data class Show(val id: String, val title: String, val kind: String, val poster: String, val episodes: List<Episode>,
@@ -385,6 +418,8 @@ data class EpisodeDetail(
     val portraits: Map<String, androidx.compose.ui.graphics.ImageBitmap> = emptyMap(),
     /** The show's Japanese title (AniList), "" when unknown: faces only for this work's characters. */
     val work: String = "",
+    /** The person's cards live on the PC, not in kuma3 ([Api.srsAdd]; Jackson's TV, user 2026-11-13). */
+    val srs: Boolean = false,
 )
 
 data class Scene(

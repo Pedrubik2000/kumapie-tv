@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Text
+import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
@@ -368,10 +369,11 @@ private suspend fun screenFrame(view: PlayerView?, dir: File): File? {
  * meaning; hold ↑ again on it: the card in kuma3's previewer (Back returns). Ratings: [rateWord]. Japanese meanings
  * come from the phone's dictionaries, fetched from the PC the first time.
  */
-fun mineWord(context: Context, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, view: PlayerView?) {
+fun mineWord(context: Context, api: Api, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, view: PlayerView?) {
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
     val segment = picker.selected
     val key = segment?.word ?: return say(tr("Pick a word first"))
+    if (ctl.episode.srs) return mineOnPc(context, api, ctl, picker, scope, key)
     val miner = TvMining.miner(context, settings)
     val japanese = TvMining.languages.of(ctl.lang) is Japanese
     if (japanese) {
@@ -446,6 +448,7 @@ suspend fun paintCards(context: Context, settings: Settings, ctl: SceneControlle
  * that read ([TvMining.reading]): the saved queue can be yesterday's.
  */
 suspend fun openCards(context: Context, settings: Settings, ctl: SceneController) {
+    if (ctl.episode.srs) return // the PC coloured the words by its cards
     val language = TvMining.languages(context, settings).of(ctl.lang)
     TvMining.reading = true
     try {
@@ -472,6 +475,7 @@ suspend fun openCards(context: Context, settings: Settings, ctl: SceneController
  * reading kuma3's queue replaces its Undo). When it closes: what was mined and rated here goes out.
  */
 suspend fun syncAnki(context: Context, settings: Settings, ctl: SceneController, wait: Boolean, busy: () -> Boolean = { false }) {
+    if (ctl.episode.srs) return
     val language = TvMining.languages(context, settings).of(ctl.lang)
     val synced = runCatching { language.known.syncAnki(if (wait) 90_000 else 0) }.onFailure { Log.w("kumapie", "kuma3 sync: $it") }.getOrDefault(false)
     if (synced && !busy()) paintCards(context, settings, ctl)
@@ -543,11 +547,28 @@ fun pickedCard(ctl: SceneController, picker: WordPicker): Pair<String, String?>?
  * a due (green) word, after its meaning was shown; one rating answers every due card of the word. kuma3 is not opened.
  * Then the card closes and the picker goes to the next word (a line with several due words: rate, rate, rate).
  */
-fun rateWord(context: Context, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, rating: TvRating, ease: Int) {
+fun rateWord(context: Context, api: Api, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, rating: TvRating, ease: Int) {
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     rating.open = false
     val (form, state) = pickedCard(ctl, picker) ?: return
     if (state !in RATEABLE) return say(tr("This word has no card to rate"))
+    if (ctl.episode.srs) {
+        if (!picker.cardOpen) return say(tr("See its meaning first"))
+        if (rating.busy) return
+        rating.busy = true
+        scope.launch {
+            runCatching { api.srsRate(form, ease, scene = ctl.scene.id) }.onSuccess { c ->
+                setCard(ctl, form, c)
+                rating.last = form to KnownWords.Rated(emptyList(), 1, PC_CARDS)
+                rating.said = tr(RATINGS[ease - 1])
+                rating.fresh = true
+                rating.count(settings, 1)
+                picker.right()
+            }.onFailure { say(it.message ?: it.toString()) }
+            rating.busy = false
+        }
+        return
+    }
     if (TvMining.reading) return say(tr("Still reading your cards from Anki: try again in a moment"))
     if (!picker.cardOpen) return say(tr("See its meaning first"))
     if (rating.busy) return
@@ -575,11 +596,25 @@ fun rateWord(context: Context, settings: Settings, ctl: SceneController, picker:
 }
 
 /** Takes the last rating back with kuma3's Undo (while nothing else was done in kuma3 since): the word is due again. */
-fun undoRating(context: Context, settings: Settings, ctl: SceneController, scope: CoroutineScope, rating: TvRating) {
+fun undoRating(context: Context, api: Api, settings: Settings, ctl: SceneController, scope: CoroutineScope, rating: TvRating) {
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     rating.open = false
     val (form, rated) = rating.last ?: return say(tr("Nothing to undo"))
     if (rating.busy) return
+    if (rated.undoLabel == PC_CARDS) {
+        rating.busy = true
+        scope.launch {
+            runCatching { api.srsUndo(scene = ctl.scene.id) }.onSuccess { (word, c) ->
+                setCard(ctl, word, c)
+                rating.last = null
+                rating.fresh = false
+                rating.count(settings, -1)
+                say(tr("Undone: %s is due again", word))
+            }.onFailure { say(it.message ?: it.toString()) }
+            rating.busy = false
+        }
+        return
+    }
     val language = TvMining.languages(context, settings).of(ctl.lang)
     rating.busy = true
     scope.launch {
@@ -597,6 +632,31 @@ fun undoRating(context: Context, settings: Settings, ctl: SceneController, scope
         } finally {
             rating.busy = false
         }
+    }
+}
+
+// ------------------------------------------------------------ cards on the PC (no kuma3: Jackson's TV, user 2026-11-13)
+
+/** [KnownWords.Rated.undoLabel] of a rating made on the PC: its Undo goes to the PC. */
+private const val PC_CARDS = "pc"
+
+/** A word's card state from the PC: its colour, and white for the levels once studied ("k", "d"). */
+private fun setCard(ctl: SceneController, word: String, c: String) {
+    ctl.words[word]?.let { w -> ctl.words[word] = w.copy(card = c, status = if (c == "k" || c == "d" || w.marked) "k" else "u") }
+}
+
+/** Hold ↑ with the cards on the PC: the word, its line and the meaning shown become a card there (blue). */
+private fun mineOnPc(context: Context, api: Api, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, key: String) {
+    fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+    val w = ctl.words[key]
+    if (w?.card != null && w.card != "u") return say(tr("Already in your reviews"))
+    val scene = ctl.scene
+    val line = picker.line
+    val meaning = scene.def(line, key)?.english?.takeIf { it.isNotBlank() } ?: (scene.meanings[key] ?: w?.meaning).orEmpty()
+    scope.launch {
+        runCatching { api.srsAdd(scene.id, line, key, meaning) }
+            .onSuccess { c -> setCard(ctl, key, c); say(tr("Added to your reviews")) }
+            .onFailure { say(it.message ?: it.toString()) }
     }
 }
 

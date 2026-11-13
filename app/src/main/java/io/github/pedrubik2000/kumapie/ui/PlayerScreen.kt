@@ -150,10 +150,10 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
             // Rating a due word: one arrow rates it (← Again, ↓ Hard, → Good, ↑ Easy), Back cancels, nothing else acts.
             if (rating.open) {
                 when (action) {
-                    Action.PICK_LEFT -> rateWord(context, settings, ctl, picker, scope, rating, 1)
-                    Action.PICK_DOWN -> rateWord(context, settings, ctl, picker, scope, rating, 2)
-                    Action.PICK_RIGHT -> rateWord(context, settings, ctl, picker, scope, rating, 3)
-                    Action.PICK_UP -> rateWord(context, settings, ctl, picker, scope, rating, 4)
+                    Action.PICK_LEFT -> rateWord(context, api, settings, ctl, picker, scope, rating, 1)
+                    Action.PICK_DOWN -> rateWord(context, api, settings, ctl, picker, scope, rating, 2)
+                    Action.PICK_RIGHT -> rateWord(context, api, settings, ctl, picker, scope, rating, 3)
+                    Action.PICK_UP -> rateWord(context, api, settings, ctl, picker, scope, rating, 4)
                     Action.PICK_CLOSE -> rating.open = false
                     else -> Unit
                 }
@@ -186,9 +186,9 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
                 Action.PICK_REPLAY_LINE -> picker.replayLine()
                 Action.PICK_MARK_KNOWN -> picker.toggleKnown()
                 // Right after a rating the "add to Anki" button undoes it, until the next word card.
-                Action.PICK_MINE -> if (rating.fresh) undoRating(context, settings, ctl, scope, rating)
-                    else mineWord(context, settings, ctl, picker, scope, playerView)
-                Action.PICK_UNDO -> undoRating(context, settings, ctl, scope, rating)
+                Action.PICK_MINE -> if (rating.fresh) undoRating(context, api, settings, ctl, scope, rating)
+                    else mineWord(context, api, settings, ctl, picker, scope, playerView)
+                Action.PICK_UNDO -> undoRating(context, api, settings, ctl, scope, rating)
                 Action.PICK_CLOSE -> picker.close()
             }
         }
@@ -343,7 +343,7 @@ private fun PlayerHints(ctl: SceneController, picker: WordPicker, rating: TvRati
         picker.isOpen && picker.cardOpen && card?.second in RATEABLE -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, "Rate card", on = true),
             hint(pick, Action.PICK_HEAR, "Hear"), hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         picker.isOpen -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, if (picker.cardOpen) "Hear" else "Meaning"),
-            hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MINE, if (rating.fresh) "Undo" else "Add to Anki"),
+            hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MINE, if (rating.fresh) "Undo" else if (ctl.episode.srs) "Add to reviews" else "Add to Anki"),
             hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         ctl.atSceneEnd -> listOf(hint(watch, Action.PLAY_PAUSE, "Next scene"), hint(watch, Action.REPLAY_LINE, "Line"),
             hint(watch, Action.CYCLE_SUBTITLES, "Pick a word"), hint(watch, Action.PREVIOUS_SCENE, "Previous"))

@@ -148,7 +148,7 @@ class WordPicker(
         val now = ctl.words[word] ?: return
         val mark = !now.marked
         scope.launch {
-            runCatching { api.markKnown(word, mark) }.onSuccess { s ->
+            runCatching { api.markKnown(word, mark, ctl.scene.id) }.onSuccess { s ->
                 ctl.words[word] = now.copy(status = s, marked = mark)
             }
         }

@@ -81,7 +81,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
     }
 
     /** An episode as the server sends it (the phone saves it with a downloaded episode). */
-    suspend fun episodeJson(id: String): String = get("/api/tv/episode/$id")
+    suspend fun episodeJson(id: String): String = get("/api/tv/episode/$id$whose") // whose: their place, colours, cards
 
     fun parseEpisode(json: String): EpisodeDetail {
         val e = JSONObject(json)
@@ -137,7 +137,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
 
     /** Where the episode was left, scenes watched to their end, and seconds watched since the last report. */
     override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {
-        val body = JSONObject().put("episode", episode).put("pos", pos).put("seen", JSONArray(seen)).put("watched", watched)
+        val body = who(JSONObject().put("episode", episode).put("pos", pos).put("seen", JSONArray(seen)).put("watched", watched))
         post("/api/tv/progress", body.toString())
     }
 
@@ -168,19 +168,19 @@ class Api(private val base: String, private val person: String = "") : Backend {
 
     /** A word looked up in the picker; answers how many times it has been looked up. */
     override suspend fun lookup(word: String, scene: String): Int =
-        JSONObject(post("/api/tv/lookup", JSONObject().put("word", word).put("scene", scene).toString())).optInt("n")
+        JSONObject(post("/api/tv/lookup", who(JSONObject().put("word", word).put("scene", scene)).toString())).optInt("n")
 
     /** Marks a word known without a card (or undoes it); answers its status now: "k", "l" or "u". */
     override suspend fun markKnown(word: String, known: Boolean, scene: String): String =
-        JSONObject(post("/api/tv/known", JSONObject().put("word", word).put("known", known)
-            .apply { if (scene.isNotEmpty()) put("scene", scene) }.toString())).optString("s", "u")
+        JSONObject(post("/api/tv/known", who(JSONObject().put("word", word).put("known", known)
+            .apply { if (scene.isNotEmpty()) put("scene", scene) }).toString())).optString("s", "u")
 
     // ------------------------------------------------------------ cards on the PC (EpisodeDetail.srs: no kuma3, user 2026-11-13)
 
     /** Mines [word] of [scene]'s [line] as a card on the PC; answers its state ("b": new). */
     suspend fun srsAdd(scene: String, line: Int, word: String, meaning: String): String =
-        JSONObject(post("/api/tv/srs/add", JSONObject().put("scene", scene).put("line", line).put("word", word)
-            .put("meaning", meaning).toString())).optString("c", "b")
+        JSONObject(post("/api/tv/srs/add", who(JSONObject().put("scene", scene).put("line", line).put("word", word)
+            .put("meaning", meaning)).toString())).optString("c", "b")
 
     /** Rates [word]'s card (1 Again .. 4 Easy), by an episode's [scene] or this person's [lang]; answers its state. */
     suspend fun srsRate(word: String, rating: Int, scene: String? = null, lang: String? = null): String =
@@ -199,7 +199,10 @@ class Api(private val base: String, private val person: String = "") : Backend {
     }
 
     private fun srsWho(scene: String?, lang: String?) =
-        if (scene != null) JSONObject().put("scene", scene) else JSONObject().put("person", person).put("lang", lang)
+        if (scene != null) who(JSONObject().put("scene", scene)) else JSONObject().put("person", person).put("lang", lang)
+
+    /** [o] with this device's person: a language's libraries are shared, so the PC needs to know who is watching. */
+    private fun who(o: JSONObject) = o.apply { if (person.isNotEmpty()) put("person", person) }
 
     /** The words this device shows as known in [lang] (white or green): the PC's feed and TV count by them. */
     suspend fun knownWords(lang: String, words: List<String>) {
@@ -256,7 +259,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
 
     /** Marks [episodes] watched (all their scenes seen) or not watched (from the beginning), on every device. */
     suspend fun mark(episodes: List<String>, watched: Boolean) {
-        post("/api/tv/mark", JSONObject().put("episodes", JSONArray(episodes)).put("watched", watched).toString())
+        post("/api/tv/mark", who(JSONObject().put("episodes", JSONArray(episodes)).put("watched", watched)).toString())
     }
 
     suspend fun aniworldJobs() = JSONArray(get("/api/aniworld"))

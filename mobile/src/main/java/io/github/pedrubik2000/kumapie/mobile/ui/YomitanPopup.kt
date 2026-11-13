@@ -209,7 +209,11 @@ private fun Glossaries(library: Library, lang: Lang, hw: Headword, group: String
         val seen = HashSet<String>()
         for (t in hw.terms) for (g in t.glossaries) if (seen.add(g.dict + " " + g.raw)) byDict.getOrPut(g.dict) { ArrayList() } += GlossaryHtml.glossary(g.raw, g.dict)
         val styles = library.yomitan.styles(lang).filterKeys { it in byDict }
-        byDict.entries.mapIndexed { i, (dict, items) ->
+        // A picture dictionary's first picture, full width over the cards; a tap shows it whole.
+        val picture = byDict.entries.filter { library.yomitan.groupOf(lang, it.key) == GlossaryHtml.PICTURES }
+            .firstNotNullOfOrNull { e -> e.value.firstNotNullOfOrNull(GlossaryHtml::firstPicture) }
+            ?.let { "<img class=\"top\" src=\"$it\" onclick=\"this.classList.toggle('whole')\">" }.orEmpty()
+        picture + byDict.entries.mapIndexed { i, (dict, items) ->
             val open = prefs.getBoolean("popup_open_$dict", i < OPEN_FIRST)
             val grp = library.yomitan.groupOf(lang, dict)
             "<details data-dictionary=\"${attr(dict)}\" data-group=\"${attr(grp)}\"${if (open) " open" else ""}>" +
@@ -313,6 +317,8 @@ summary .grp { color: #777; font-size: 11px; margin-left: 6px; }
 ol.glossary-list { margin: 0; padding-left: 1.3em; }
 hr { border: 0; border-top: 1px dashed rgba(255,255,255,0.1); margin: 6px 0; }
 img { max-width: 100%; }
+#cards > img.top { display: block; max-width: 100%; max-height: 240px; border-radius: 10px; margin: 0 auto 8px; }
+#cards > img.top.whole { width: 100%; max-height: none; }
 a, .gloss-sc-a { color: #8ab4f8; }
 table { border-collapse: collapse; } td, th { border: 1px solid rgba(255,255,255,0.15); padding: 2px 4px; }
 .form-of { color: #d9a25b; text-decoration: underline dotted; cursor: pointer; }

@@ -101,6 +101,16 @@ object GlossaryHtml {
         "[data-dictionary=\"${dict.replace("\\", "\\\\").replace("\"", "\\\"")}\"] {\n${css.replace("</", "<\\/")}\n}"
     }
 
+    /**
+     * The first picture in a picture dictionary's entries ([html] from [glossary]), as its src: the popup shows it full
+     * width over the cards (user, 2026-11-13). Not a letter drawn as an image (EPWING gaiji: sized in em).
+     */
+    fun firstPicture(html: String): String? = Regex("""<img class="gloss-image" src="([^"]+)"[^>]*>""").findAll(html)
+        .firstOrNull { "em;" !in it.value }?.groupValues?.get(1)
+
+    /** The group of dictionaries of pictures (kumapie-server's shrink_dict.py names its zips "[Pictures] ..."). */
+    const val PICTURES = "Pictures"
+
     fun esc(s: String): String = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     private fun attr(s: String): String = esc(s).replace("\"", "&quot;")
 }

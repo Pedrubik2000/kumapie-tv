@@ -81,6 +81,13 @@ class JapaneseMeaningsTest {
         assertEquals(false, YomitanDictionaries.fromWork(jinshi, "1")) // too short to say
     }
 
+    @Test fun popupTopPicture() {
+        val gaiji = "<img class=\"gloss-image\" src=\"kumapie-media://media/d/res/font/a.png\" style=\"width:1.0em;height:1.0em;\">"
+        val photo = "<img class=\"gloss-image\" src=\"kumapie-media://media/d/img/asagao.webp\" alt=\"朝顔\">"
+        assertEquals("kumapie-media://media/d/img/asagao.webp", GlossaryHtml.firstPicture("【${gaiji}朝顔】$photo"))
+        assertEquals(null, GlossaryHtml.firstPicture("【${gaiji}朝顔】 no picture"))
+    }
+
     @Test fun characterNamesJoined() {
         fun seg(vararg s: String) = s.map { io.github.pedrubik2000.kumapie.data.Segment(it, if (it == "、") null else it) }
         val names = mapOf("壬氏様" to "壬氏", "壬氏" to "壬氏", "そうた" to "そうた")

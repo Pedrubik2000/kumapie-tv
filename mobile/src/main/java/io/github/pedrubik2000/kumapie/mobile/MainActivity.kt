@@ -131,6 +131,10 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     LaunchedEffect(Unit) { // once per start; debug builds have their own app id, so they don't self-update
         if (!BuildConfig.DEBUG) update = runCatching { Updater.newer() }.getOrNull()
     }
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    LaunchedEffect(Unit) { // the books' and manga's characters (Hoshi, chimahon): titles to the PC, its dictionary back
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ReadingCharacters.sync(appContext, library.settings) }
+    }
     LaunchedEffect(Unit) { // fresh word colours from Anki (cheap after the first time: only new or changed notes are parsed)
         // Only once reading Anki was allowed here (Settings > Allow reading Anki, done after kuma3 is set up): reading
         // wakes AnkiDroid, and an AnkiDroid that was never opened then sets itself up with a new empty collection in

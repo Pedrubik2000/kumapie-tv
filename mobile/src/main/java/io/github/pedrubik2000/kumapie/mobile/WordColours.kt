@@ -71,10 +71,9 @@ class WordColours : ContentProvider() {
 
     private class Split(val begin: Int, val surface: String, val base: String)
 
-    /** Name (+ work) -> its picture's file, or null when it is no character's name there (kept: a chapter asks for the same names again). */
-    private val faceFiles = java.util.concurrent.ConcurrentHashMap<String, java.util.Optional<File>>()
-
-    private fun faceFile(name: String, work: String?): File? = "$name\n${work.orEmpty()}".let { key ->
+    private fun faceFile(name: String, work: String?): File? = "$name\n${work.orEmpty()}".also {
+        ReadingCharacters.note(context!!, work) // its characters' dictionary is made on the PC
+    }.let { key ->
         faceFiles.getOrPut(key) {
             val f = File(File(context!!.cacheDir, "faces").apply { mkdirs() }, "${key.hashCode().toUInt()}.jpg")
             java.util.Optional.ofNullable(japanese.yomitan.characterPortrait(japanese.lang, name, work)?.let { f.writeBytes(it); f })
@@ -196,7 +195,15 @@ class WordColours : ContentProvider() {
     private fun pageWord(text: String): String? =
         if (text.isEmpty() || !japanese.model.isReady) null else words(text).firstOrNull()?.base
 
-    private companion object { const val CACHED = 2000 }
+    companion object {
+        private const val CACHED = 2000
+
+        /** Name (+ work) -> its picture's file, or null when it is no character's name there (kept: a chapter asks for the same names again). */
+        private val faceFiles = java.util.concurrent.ConcurrentHashMap<String, java.util.Optional<File>>()
+
+        /** After a new characters' dictionary: names without a face may have one now. */
+        fun forgetFaces() = faceFiles.clear()
+    }
 
     /**
      * `content://<app id>.words/say?text=…`: the Japanese text said by the downloaded ずんだもん into a WAV (Sentence

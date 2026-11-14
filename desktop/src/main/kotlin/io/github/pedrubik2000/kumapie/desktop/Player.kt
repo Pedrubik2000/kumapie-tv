@@ -35,7 +35,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
@@ -119,6 +120,7 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
     var looked by remember { mutableIntStateOf(0) }
     var transcript by remember { mutableStateOf(settings.prefs.getBoolean("desktop_transcript", false)) }
     var anchor by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) } // the picked word on screen
+    var options by remember { mutableStateOf(false) }
     var now by remember { mutableStateOf(android.os.SystemClock.uptimeMillis()) }
 
     /** kuma3's card states onto the episode's words (KnownWords.paint): a word with its own card gets its state. */
@@ -204,7 +206,8 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
                 Key.K -> picker.toggleKnown()
                 Key.A -> picker.hearWord()
                 Key.T -> { transcript = !transcript; settings.prefs.edit().putBoolean("desktop_transcript", transcript).apply() }
-                Key.Escape -> if (picker.isOpen) picker.close() else return@handler false // else: leaves fullscreen
+                Key.O -> options = !options
+                Key.Escape -> if (options) options = false else if (picker.isOpen) picker.close() else return@handler false // else: leaves fullscreen
                 else -> return@handler false
             }
             true
@@ -229,7 +232,7 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
                 )
             })
             if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) {
-                TopRow(ctl, transcript, onTranscript = { transcript = !transcript; settings.prefs.edit().putBoolean("desktop_transcript", transcript).apply() }, onClose)
+                TopRow(ctl, transcript, onTranscript = { transcript = !transcript; settings.prefs.edit().putBoolean("desktop_transcript", transcript).apply() }, onOptions = { options = !options }, onClose)
             }
             // Hover = the word's short gloss, no click, no pause (kumapie_pc_plan.md: the PC's one new gesture).
             var hover by remember { mutableStateOf<Pair<String, androidx.compose.ui.geometry.Rect>?>(null) }
@@ -247,46 +250,65 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
             hover?.takeIf { !picker.isOpen }?.let { (text, r) ->
                 Text(text, color = Colors.text, fontSize = 15.sp,
                     modifier = Modifier.offset { androidx.compose.ui.unit.IntOffset(r.left.toInt(), (r.top - 30.dp.toPx()).toInt()) }
-                        .background(Colors.surface, RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+                        .background(Arcade.slab, Slab).padding(horizontal = 14.dp, vertical = 3.dp))
             }
             val k = key()
             if (picker.isOpen && picker.cardOpen && k != null) anchor?.let { a ->
-                MeaningCard(ctl, picker, a, maxWidth = 620.dp, onTapDef = picker::tapInDef, ownMeaning = false, onClose = { picker.close() }, footer = {
+                MeaningCard(ctl, picker, a, maxWidth = 620.dp, onTapDef = picker::tapInDef, ownMeaning = false, onClose = { picker.close() },
+                    container = Modifier.arcadeCard(), heading = Arcade.label, footer = {
                     WordCard(ctl, picker, backend, k, ankiUp, canRate(), status, mining,
                         onRate = ::rate, onMine = ::startMine, onAdd = ::mine, onCancel = { mining = false },
                         onStatusAction = { act -> scope.launch { act() } })
                 })
             }
             if (ctl.index == ctl.scenes.lastIndex && ctl.atSceneEnd && !picker.isOpen) {
-                Column(Modifier.align(Alignment.Center).background(Colors.surface, RoundedCornerShape(12.dp)).padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)) { EpisodeDone(ctl, looked, onNext) }
+                Column(Modifier.align(Alignment.Center).arcadePanel().padding(32.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) { EpisodeDone(ctl, looked, onNext) }
             }
+            if (options) Column(Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).width(340.dp).arcadePanel().padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Title("Options", fontSize = 28.sp)
+                val full = Modifier.fillMaxWidth()
+                ArcadeButton("Subtitles: ${ctl.subtitles.label(ctl.lang)}", full) { ctl.changeSubtitles(ctl.subtitles.next()) }
+                ArcadeButton("0.75×: ${if (ctl.slow) "on" else "off"}", full, selected = ctl.slow) { ctl.toggleSlow() }
+                ArcadeButton("Skip nothing: ${if (ctl.newStraight) "on" else "off"}", full, selected = ctl.newStraight) { ctl.toggleNewStraight() }
+                ArcadeButton("Don't stop on i+0: ${if (ctl.playThroughKnown) "on" else "off"}", full, selected = ctl.playThroughKnown) { ctl.togglePlayThroughKnown() }
+                ArcadeButton("Pause at scene end: ${if (ctl.pauseAtSceneEnd) "on" else "off"}", full, selected = ctl.pauseAtSceneEnd) { ctl.togglePauseAtSceneEnd() }
+                ArcadeButton("Close", full, key = "O") { options = false }
+            }
+            val hints = when {
+                mining -> emptyList()
+                picker.isOpen -> buildList {
+                    add(Hint("Tab", "Word")); add(Hint("⇧Tab", "Word")); add(Hint("Enter", "Hear"))
+                    if (canRate()) add(Hint("1-4", "Rate"))
+                    add(Hint("M", "Mine")); add(Hint("K", "Known")); add(Hint("A", "Hear word")); add(Hint("Esc", "Close"))
+                }
+                ctl.atSceneEnd -> listOf(Hint("Space", "Next scene"), Hint("→", "Next scene"), Hint("R", "Line"), Hint("Tab", "Pick a word"), Hint("←", "Previous"))
+                !ctl.playing -> listOf(Hint("Space", "Play"), Hint("Tab", "Pick a word"), Hint("R", "Line"), Hint("O", "Options"))
+                else -> emptyList()
+            }
+            if (hints.isNotEmpty()) HintBar(hints, Modifier.align(Alignment.BottomCenter))
         }
         if (transcript) Transcript(ctl, Modifier.width(380.dp).fillMaxSize())
     }
 }
 
 @Composable
-private fun TopRow(ctl: SceneController, transcript: Boolean, onTranscript: () -> Unit, onClose: () -> Unit) {
+private fun TopRow(ctl: SceneController, transcript: Boolean, onTranscript: () -> Unit, onOptions: () -> Unit, onClose: () -> Unit) {
     val lv = ctl.levelOf(ctl.scene)
     Row(Modifier.fillMaxWidth()
         .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xF0000000), Color(0x99000000), Color.Transparent)))
-        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 36.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("←", fontSize = 20.sp, modifier = Modifier.clickable(onClick = onClose).padding(horizontal = 6.dp))
-        androidx.compose.foundation.text.BasicText("${io.github.pedrubik2000.kumapie.data.shortTitle(ctl.episode.show)} · ${ctl.episode.title}",
-            Modifier.weight(1f), TextStyle(color = Colors.text, fontSize = 16.sp), maxLines = 1,
+        .padding(start = 40.dp, end = 40.dp, top = 22.dp, bottom = 44.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        ArcadeButton("Back", onClick = onClose)
+        androidx.compose.foundation.text.BasicText("${io.github.pedrubik2000.kumapie.data.shortTitle(ctl.episode.show)} · ${ctl.episode.title}".uppercase(),
+            Modifier.weight(1f), TextStyle(color = Colors.text, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-        Text("Scene ${ctl.index + 1}/${ctl.scenes.size}", color = Colors.dim, fontSize = 14.sp)
-        Text(lv?.let { "i+$it" } ?: "–", fontSize = 13.sp, color = when (lv) { 0 -> Colors.levelZero; 1 -> Colors.levelOne; else -> Colors.unknown },
-            modifier = Modifier.background(Colors.surface, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
-        Chip("Subtitles: ${ctl.subtitles.label(ctl.lang)}") { ctl.changeSubtitles(ctl.subtitles.next()) }
-        Chip("0.75×", on = ctl.slow) { ctl.toggleSlow() }
-        Chip("Skip nothing", on = ctl.newStraight) { ctl.toggleNewStraight() }
-        Chip("Don't stop on i+0", on = ctl.playThroughKnown) { ctl.togglePlayThroughKnown() }
-        Chip("Pause at scene end", on = ctl.pauseAtSceneEnd) { ctl.togglePauseAtSceneEnd() }
-        Chip("T Transcript", on = transcript, onClick = onTranscript)
-        Chip("⛶ Full screen") { toggleFullscreen() }
+        Text("Scene ${ctl.index + 1} / ${ctl.scenes.size}", color = Colors.dim, fontSize = 16.sp)
+        LevelBadge(lv)
+        ArcadeButton("Options", key = "O", onClick = onOptions)
+        ArcadeButton("⛶") { toggleFullscreen() }
+        ArcadeButton("Transcript", selected = transcript, key = "T", onClick = onTranscript)
     }
 }
 
@@ -313,18 +335,20 @@ private fun ColumnScope.WordCard(
     }
     val why = when { !ankiUp -> "Open kuma3 to rate and mine"; !canRate -> "No card yet: mine it to rate it"; else -> null }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        RATINGS.forEachIndexed { i, l -> Chip("${i + 1} $l", enabled = canRate) { onRate(i + 1) } }
-        Chip("M Mine", enabled = ankiUp, onClick = onMine)
-        Chip(if (word.marked) "K Not known" else "K Known") { picker.toggleKnown() }
-        Chip("A 🔊") { picker.hearWord() }
+        RATINGS.forEachIndexed { i, l -> RateSlab(l, i + 1, listOf(Colors.unknown, Color(0xFFB9B5C6), Colors.due, Colors.mined)[i], canRate) { onRate(i + 1) } }
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        ArcadeButton("Mine", enabled = ankiUp, key = "M", fontSize = 12.sp, onClick = onMine)
+        ArcadeButton(if (word.marked) "Not known" else "Known", key = "K", fontSize = 12.sp) { picker.toggleKnown() }
+        ArcadeButton("🔊", key = "A", fontSize = 12.sp) { picker.hearWord() }
     }
     why?.let { Text(it, color = Colors.dim, fontSize = 13.sp) }
     if (mining) MineForm(ctl, picker, senses, onAdd, onCancel)
     status?.let { s ->
-        Row(Modifier.fillMaxWidth().background(Colors.background, RoundedCornerShape(6.dp)).padding(8.dp),
+        Row(Modifier.fillMaxWidth().background(Arcade.band).padding(8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(s.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            if (s.button != null && s.action != null) Chip(s.button) { onStatusAction(s.action) }
+            if (s.button != null && s.action != null) ArcadeButton(s.button, fontSize = 12.sp) { onStatusAction(s.action) }
         }
     }
 }
@@ -338,10 +362,10 @@ private fun MineForm(ctl: SceneController, picker: WordPicker, senses: List<Stri
     var english by remember(cue) {
         mutableStateOf(cue?.let { c -> ctl.scene.english.filter { it.end > c.start && it.start < c.end }.joinToString(" ") { it.text } } ?: "")
     }
-    Column(Modifier.fillMaxWidth().border(1.dp, Colors.accent, RoundedCornerShape(6.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth().background(Arcade.band).border(1.dp, Arcade.accent).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Chip("Word card", on = wordCard) { wordCard = true }
-            Chip("Sentence card", on = !wordCard) { wordCard = false }
+            ArcadeButton("Word card", selected = wordCard, fontSize = 12.sp) { wordCard = true }
+            ArcadeButton("Sentence card", selected = !wordCard, fontSize = 12.sp) { wordCard = false }
         }
         if (wordCard) senses.forEachIndexed { i, s ->
             Text((if (i == sense) "● " else "○ ") + s, fontSize = 14.sp, color = if (i == sense) Colors.text else Colors.dim,
@@ -351,17 +375,28 @@ private fun MineForm(ctl: SceneController, picker: WordPicker, senses: List<Stri
         BasicTextField(english, { english = it }, textStyle = TextStyle(color = Colors.text, fontSize = 14.sp), cursorBrush = SolidColor(Colors.text),
             modifier = Modifier.fillMaxWidth().background(Colors.background, RoundedCornerShape(4.dp)).padding(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Chip("Add to ${DECKS[ctl.lang.code] ?: "Mined"}") { onAdd(wordCard, senses.getOrElse(sense) { "" }, english) }
-            Chip("Cancel", onClick = onCancel)
+            ArcadeButton("Add to ${DECKS[ctl.lang.code] ?: "Mined"}", fontSize = 12.sp) { onAdd(wordCard, senses.getOrElse(sense) { "" }, english) }
+            ArcadeButton("Cancel", fontSize = 12.sp, onClick = onCancel)
         }
     }
 }
 
 @Composable
 private fun EpisodeDone(ctl: SceneController, looked: Int, onNext: (() -> Unit)?) {
-    Text("Episode done", fontSize = 22.sp)
+    Title("Episode done", fontSize = 28.sp)
     Text("${ctl.scenes.count { ctl.wasSeen(it) }} of ${ctl.scenes.size} scenes watched · $looked words looked up", color = Colors.dim, fontSize = 14.sp)
-    onNext?.let { Chip("Next episode", onClick = it) }
+    onNext?.let { ArcadeButton("Next episode", onClick = it) }
+}
+
+/** The TV's RateRow slab: a coloured slab, the label in capitals and the key cap. */
+@Composable
+private fun RateSlab(label: String, n: Int, color: Color, enabled: Boolean, onClick: () -> Unit) {
+    Row(Modifier.background(color.copy(alpha = if (enabled) 1f else 0.35f), Slab)
+        .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+        KeyCap("$n", Color.Black)
+        Text(label.uppercase(), color = Color.Black, fontSize = 12.sp, style = Arcade.label)
+    }
 }
 
 /** The whole episode by scene; scenes not watched yet show their number and level only (Pedro, 2026-10-15). */
@@ -370,20 +405,21 @@ private fun Transcript(ctl: SceneController, modifier: Modifier) {
     val list = rememberLazyListState()
     LaunchedEffect(ctl.index) { list.animateScrollToItem(ctl.index) }
     val current = ctl.currentCue()
-    LazyColumn(modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Colors.surface).padding(horizontal = 12.dp, vertical = 6.dp), list) {
+    LazyColumn(modifier.fillMaxWidth().background(Arcade.band).padding(horizontal = 16.dp, vertical = 10.dp), list) {
         itemsIndexed(ctl.scenes, key = { _, s -> s.id }) { i, sc ->
             val seen = ctl.wasSeen(sc)
             val here = i == ctl.index
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 val lv = ctl.levelOf(sc)
-                Text("Scene ${i + 1} · ${lv?.let { "i+$it" } ?: "no words"}", color = Colors.dim, fontSize = 12.sp,
-                    modifier = Modifier.clickable { ctl.playScene(i) })
+                Text("Scene ${i + 1} · ${lv?.let { "i+$it" } ?: "no words"}".uppercase(), color = if (here) Arcade.accent else Colors.dim, fontSize = 12.sp,
+                    style = Arcade.label, modifier = Modifier.clickable { ctl.playScene(i) })
                 if (seen || here) sc.cues.forEachIndexed { line, cue ->
                     Text(colored(cue, ctl.words), fontSize = 15.sp,
                         color = if (seen && !here) Colors.dim else Colors.text,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp))
-                            .background(if (here && cue == current) Color(0xFF3A3546) else Color.Transparent)
-                            .clickable { if (!here) ctl.playScene(i); ctl.replayCue(line) }.padding(horizontal = 4.dp, vertical = 1.dp))
+                        modifier = Modifier.fillMaxWidth()
+                            .background(if (here && cue == current) Arcade.slab else Color.Transparent)
+                            .then(if (here && cue == current) Modifier.drawBehind { drawRect(Arcade.accent, size = Size(4.dp.toPx(), size.height)) } else Modifier)
+                            .clickable { if (!here) ctl.playScene(i); ctl.replayCue(line) }.padding(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp))
                 }
             }
         }

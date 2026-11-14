@@ -92,7 +92,12 @@ class VlcPlayer : Player {
 
     override val currentPosition: Long get() = mp.status().time().coerceAtLeast(0)
     override val isPlaying: Boolean get() = mp.status().isPlaying
-    override val playbackState: Int get() = if (playWhenReady && !isPlaying) Player.STATE_BUFFERING else Player.STATE_READY
+    override val duration: Long get() = mp.status().length()
+    override val playbackState: Int get() = when {
+        mp.status().state() == uk.co.caprica.vlcj.player.base.State.ENDED -> Player.STATE_ENDED
+        playWhenReady && !isPlaying -> Player.STATE_BUFFERING
+        else -> Player.STATE_READY
+    }
     override val playbackParameters get() = PlaybackParameters(speed)
     val seekable: Boolean get() = mp.status().isSeekable
 

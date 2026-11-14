@@ -12,11 +12,13 @@ open class Context {
 class SharedPreferences(private val node: Preferences) {
     fun getString(key: String, default: String?): String? = node.get(key, default)
     fun getBoolean(key: String, default: Boolean): Boolean = node.getBoolean(key, default)
+    fun getInt(key: String, default: Int): Int = node.getInt(key, default)
     fun edit() = Editor()
 
     inner class Editor {
         fun putString(key: String, value: String?) = apply { if (value == null) node.remove(key) else node.put(key, value) }
         fun putBoolean(key: String, value: Boolean) = apply { node.putBoolean(key, value) }
+        fun putInt(key: String, value: Int) = apply { node.putInt(key, value) }
         fun apply() = node.flush()
     }
 }

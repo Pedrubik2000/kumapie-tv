@@ -3,6 +3,7 @@ package androidx.media3.common
 /** Desktop stand-in: the part of media3's Player that :core's SceneController drives (VlcPlayer implements it). */
 interface Player {
     val currentPosition: Long
+    val duration: Long
     val isPlaying: Boolean
     val playWhenReady: Boolean
     val playbackState: Int
@@ -15,6 +16,7 @@ interface Player {
     companion object {
         const val STATE_BUFFERING = 2
         const val STATE_READY = 3
+        const val STATE_ENDED = 4
     }
 }
 

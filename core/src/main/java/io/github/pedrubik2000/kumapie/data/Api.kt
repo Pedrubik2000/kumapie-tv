@@ -166,6 +166,15 @@ class Api(private val base: String, private val person: String = "") : Backend {
         )
     }
 
+    /**
+     * The Daijirin sense [word] has in [sentence], by three cloud models voting on the PC (dojo-feed sensepick.py):
+     * `{"pick": false}` when the entry is short (no box), else `{"pick": true, "sense": {es, ja, ex[]} | null}`.
+     * [check]: only whether it gets the box (instant), so the popup can show "loading" before the vote (~1-4 s).
+     */
+    suspend fun sense(word: String, reading: String, sentence: String, check: Boolean): JSONObject =
+        JSONObject(post("/api/sense", JSONObject().put("word", word).put("reading", reading).put("sentence", sentence)
+            .put("check", check).toString(), readTimeout = 30_000))
+
     /** A word looked up in the picker; answers how many times it has been looked up. */
     override suspend fun lookup(word: String, scene: String): Int =
         JSONObject(post("/api/tv/lookup", who(JSONObject().put("word", word).put("scene", scene)).toString())).optInt("n")

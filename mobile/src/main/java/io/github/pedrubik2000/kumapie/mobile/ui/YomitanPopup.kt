@@ -67,6 +67,8 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpeak: (Headword) -> Unit,
                  /** The word card: the meaning that fits the line, shown under the header ("In this line: to eat"). */
                  fitFor: ((Headword) -> String?)? = null,
+                 /** The line the word is in (Japanese, the player): an AI box tops the cards with the Daijirin sense there. */
+                 sentence: String? = null,
                  /** In the player's word card: a lower card list. */
                  compact: Boolean = false,
                  /** In a column of bounded height: the cards shrink to the height left (the buttons below stay visible). */
@@ -89,6 +91,17 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
     var group by remember(hw) { mutableStateOf<String?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val language = library.languages.of(lang)
+    // The AI ✓ (user, 2026-11-14): a Daijirin entry with many or long senses gets a box over the cards, "loading" while
+    // three cloud models vote on the PC (dojo-feed /api/sense), then the sense they agree on. The cards show meanwhile.
+    var ai by remember(hw, sentence) { mutableStateOf("") }
+    if (sentence != null) androidx.compose.runtime.LaunchedEffect(hw, sentence) {
+        val api = runCatching { library.api }.getOrNull() ?: return@LaunchedEffect
+        val wanted = runCatching { api.sense(hw.expression, hw.reading, sentence, true).optBoolean("pick") }.getOrDefault(false)
+        if (!wanted) return@LaunchedEffect
+        ai = aiBox(null, loading = true)
+        val r = runCatching { api.sense(hw.expression, hw.reading, sentence, false) }.getOrNull()
+        ai = aiBox(r?.optJSONObject("sense"), loading = false, failed = r == null)
+    }
 
     val top = @Composable {
         if (shown.size > 1 || nested.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -114,7 +127,7 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
         }
     }
     val cards = @Composable { modifier: Modifier, height: Int ->
-        Glossaries(library, lang, hw, group, modifier, height,
+        Glossaries(library, lang, hw, group, modifier, height, ai,
             onOpen = { w -> shown.indexOfFirst { it.expression == w }.takeIf { it >= 0 }?.let { selected = it } },
             onTapText = { text, offset ->
                 // A tap in a definition (Japanese scans from there; spaced languages find nothing without a picked word).
@@ -199,12 +212,12 @@ private fun morae(kana: String): List<String> {
 
 /** The headword's cards in the shared WebView; chips hide the other groups; open/closed is remembered. */
 @Composable
-private fun Glossaries(library: Library, lang: Lang, hw: Headword, group: String?, modifier: Modifier, height: Int, onOpen: (String) -> Unit,
-                       onTapText: (String, Int) -> Unit = { _, _ -> }) {
+private fun Glossaries(library: Library, lang: Lang, hw: Headword, group: String?, modifier: Modifier, height: Int, ai: String,
+                       onOpen: (String) -> Unit, onTapText: (String, Int) -> Unit = { _, _ -> }) {
     val opener by rememberUpdatedState(onOpen)
     val tapper by rememberUpdatedState(onTapText)
     val prefs = library.settings.prefs
-    val (cards, css) = remember(hw) {
+    val (cards, css) = remember(hw, ai) {
         val byDict = LinkedHashMap<String, MutableList<String>>()
         val seen = HashSet<String>()
         for (t in hw.terms) for (g in t.glossaries) if (seen.add(g.dict + " " + g.raw)) byDict.getOrPut(g.dict) { ArrayList() } += GlossaryHtml.glossary(g.raw, g.dict)
@@ -213,7 +226,7 @@ private fun Glossaries(library: Library, lang: Lang, hw: Headword, group: String
         val picture = byDict.entries.filter { library.yomitan.groupOf(lang, it.key) == GlossaryHtml.PICTURES }
             .firstNotNullOfOrNull { e -> e.value.firstNotNullOfOrNull(GlossaryHtml::firstPicture) }
             ?.let { "<img class=\"top\" src=\"$it\" onclick=\"this.classList.toggle('whole')\">" }.orEmpty()
-        picture + byDict.entries.mapIndexed { i, (dict, items) ->
+        ai + picture + byDict.entries.mapIndexed { i, (dict, items) ->
             val open = prefs.getBoolean("popup_open_$dict", i < OPEN_FIRST)
             val grp = library.yomitan.groupOf(lang, dict)
             "<details data-dictionary=\"${attr(dict)}\" data-group=\"${attr(grp)}\"${if (open) " open" else ""}>" +
@@ -231,6 +244,23 @@ private fun Glossaries(library: Library, lang: Lang, hw: Headword, group: String
             onRelease = { (it.parent as? ViewGroup)?.removeView(it) },
             update = { PopupWeb.show(cards, css, group) })
     }
+}
+
+/** The AI box's HTML: "loading", the voted sense (Spanish, Japanese, Daijirin's examples), or why there's none. */
+private fun aiBox(sense: org.json.JSONObject?, loading: Boolean, failed: Boolean = false): String {
+    fun dim(s: String) = "<span style=\"opacity:.7\">${GlossaryHtml.esc(s)}</span>"
+    val body = when {
+        loading -> dim(tr("AI: picking the meaning in this line…"))
+        failed -> dim(tr("AI: couldn't ask the PC."))
+        sense == null -> dim(tr("AI: no clear meaning in this line."))
+        else -> {
+            val ex = sense.optJSONArray("ex")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty().take(2)
+            "<b>✓</b> ${GlossaryHtml.esc(sense.optString("es"))}<br>${GlossaryHtml.esc(sense.optString("ja"))}" +
+                ex.joinToString("") { "<br>${dim(it)}" }
+        }
+    }
+    return "<div class=\"ai\" style=\"border-left:3px solid #7bc47f;background:rgba(123,196,127,.10);border-radius:6px;" +
+        "padding:6px 10px;margin:0 0 10px\">$body</div>"
 }
 
 /** Makes the popup's WebView ahead of the first tap (the player opening a Japanese episode), so the first popup is quick. */

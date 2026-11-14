@@ -85,6 +85,8 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker, 
             missing != null -> Text(missing, color = Colors.dim, fontSize = 14.sp)
             hws == null -> Text(tr("Looking it up…"), color = Colors.dim, fontSize = 14.sp)
             hws.isNotEmpty() -> YomitanPopup(library, ctl.lang, hws, onSpeak = language::say, compact = true, fit = modifier != Modifier, side = side,
+                sentence = if (language is io.github.pedrubik2000.kumapie.lang.Japanese && picker.selectedInDef == null)
+                    ctl.scene.cues.getOrNull(picker.line)?.text else null,
                 // Japanese: the sense that fits the line's English, as the mine sheet picks it (user, 2026-10-14).
                 fitFor = if (language is io.github.pedrubik2000.kumapie.lang.Japanese && picker.selectedInDef == null)
                     ({ h -> fitsThisLine(library, h, SensePick.english(ctl.scene, picker.line)) }) else null)

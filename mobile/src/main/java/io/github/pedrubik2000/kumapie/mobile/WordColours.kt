@@ -141,6 +141,16 @@ class WordColours : ContentProvider() {
             extras?.getString("text")?.takeIf { japanese.model.isReady }?.let(::words)
             return android.os.Bundle()
         }
+        if (method == "sense") { // the AI ✓ sense for Hoshi/chimahon popups: `word`, `reading`, `sentence`, `check` -> `json`
+            val s = Settings(ctx)
+            val json = runCatching {
+                runBlocking {
+                    io.github.pedrubik2000.kumapie.data.Api(s.server, s.owner).sense(extras?.getString("word").orEmpty(),
+                        extras?.getString("reading").orEmpty(), extras?.getString("sentence").orEmpty(), extras?.getBoolean("check") == true)
+                }.toString()
+            }.getOrDefault("{\"error\": true}") // no PC: the caller shows no box (check) or "couldn't ask" (vote)
+            return android.os.Bundle().apply { putString("json", json) }
+        }
         val known = japanese.known
         val out = android.os.Bundle()
         runBlocking {

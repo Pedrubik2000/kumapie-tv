@@ -40,6 +40,9 @@ import coil3.compose.AsyncImage
 import io.github.pedrubik2000.kumapie.StreamActivity
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Found
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.tv.material3.Button
+import kotlinx.coroutines.launch
 import io.github.pedrubik2000.kumapie.data.objects
 import io.github.pedrubik2000.kumapie.i18n.tr
 import org.json.JSONObject
@@ -49,20 +52,21 @@ import org.json.JSONObject
  * [StreamActivity] with kumapie://watch?…: the PC makes the words, the TV streams Real-Debrid's link.
  */
 @Composable
-fun DiscoverScreen(api: Api) {
+fun DiscoverScreen(api: Api, start: Found? = null) {
     var query by rememberSaveable { mutableStateOf("") }
     var searched by rememberSaveable { mutableStateOf("") }
     var found by remember { mutableStateOf<List<Found>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var open by remember { mutableStateOf<Found?>(null) }
+    var open by remember { mutableStateOf(start) } // a title kept on Home: its page at once (Back: Home)
     val first = remember { FocusRequester() }
     LaunchedEffect(searched) {
+        if (start != null) return@LaunchedEffect
         found = null
         error = null
         runCatching { api.discover(searched) }.onSuccess { found = it }.onFailure { error = it.message ?: it.toString() }
     }
     open?.let { title ->
-        BackHandler { open = null }
+        if (start == null) BackHandler { open = null }
         return TitleScreen(api, title)
     }
     Column(Modifier.fillMaxSize().padding(32.dp)) {
@@ -96,6 +100,9 @@ private fun TitleScreen(api: Api, title: Found) {
     var error by remember { mutableStateOf<String?>(null) }
     var picking by remember { mutableStateOf<Pair<String, String>?>(null) } // (Stremio id, its name)
     var files by remember { mutableStateOf<List<JSONObject>?>(null) }
+    var kept by remember { mutableStateOf<Boolean?>(null) } // on Home (null: not known yet)
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(title.id) { kept = runCatching { api.saved().any { it.id == title.id } }.getOrNull() }
     LaunchedEffect(title.id) {
         runCatching { api.discoverMeta(title.type, title.id) }.onSuccess { meta = it }.onFailure { error = it.message ?: it.toString() }
     }
@@ -107,8 +114,13 @@ private fun TitleScreen(api: Api, title: Found) {
     if (picking != null) BackHandler { picking = null; error = null }
     Row(Modifier.fillMaxSize().padding(32.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
         Column(Modifier.width(320.dp)) {
-            AsyncImage(title.poster, title.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f))
+            // 220 dp wide: at the column's full width the poster filled the screen's height and hid the name, + HOME and the text.
+            AsyncImage(title.poster, title.name, contentScale = ContentScale.Crop, modifier = Modifier.width(220.dp).aspectRatio(2f / 3f))
             Text(title.name.uppercase(), color = Colors.text, fontSize = 22.sp, style = Arcade.label, modifier = Modifier.padding(top = 12.dp))
+            kept?.let { on ->
+                Button(onClick = { scope.launch { runCatching { api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } } },
+                    modifier = Modifier.padding(vertical = 8.dp)) { Text(if (on) "✓ " + tr("On Home").uppercase() else "+ " + tr("Home").uppercase()) }
+            }
             Text(meta?.optString("description").orEmpty(), color = Colors.dim, fontSize = 14.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
         }
         val m = meta

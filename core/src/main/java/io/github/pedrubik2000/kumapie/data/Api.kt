@@ -267,8 +267,17 @@ class Api(private val base: String, private val person: String = "") : Backend {
         JSONObject(post("/api/tv/prepare", JSONObject(query).toString(), readTimeout = 120_000))
 
     /** The Discover page (kumapie-server discover.py): Kitsu's anime matching [q], trending when it's empty. */
-    suspend fun discover(q: String): List<Found> = JSONArray(get("/api/discover/catalog?q=" + java.net.URLEncoder.encode(q, "UTF-8")))
-        .objects().map { Found(it.getString("id"), it.getString("type"), it.optString("name"), it.optString("poster"), it.optString("year")) }
+    suspend fun discover(q: String): List<Found> = JSONArray(get("/api/discover/catalog?q=" + java.net.URLEncoder.encode(q, "UTF-8"))).found()
+
+    /** The Discover titles this person keeps on Home (to stream later), newest first. */
+    suspend fun saved(): List<Found> = JSONArray(get("/api/discover/saved?person=" + java.net.URLEncoder.encode(person, "UTF-8"))).found()
+
+    /** Keeps [title] on Home ([on]) or drops it; answers the new list. */
+    suspend fun save(title: Found, on: Boolean): List<Found> = JSONArray(post("/api/discover/saved", JSONObject().put("person", person)
+        .put("id", title.id).put("type", title.type).put("name", title.name).put("poster", title.poster).put("year", title.year)
+        .put("on", on).toString())).found()
+
+    private fun JSONArray.found() = objects().map { Found(it.getString("id"), it.getString("type"), it.optString("name"), it.optString("poster"), it.optString("year")) }
 
     /** A Discover title: {"name", "poster", "background", "description", "year", "episodes": [{"id", "season", "number", "title", "thumb", "ready"}]} (ready: the PC got a file ready for it). */
     suspend fun discoverMeta(type: String, id: String) =

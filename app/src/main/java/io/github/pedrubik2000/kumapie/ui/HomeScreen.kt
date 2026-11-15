@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import io.github.pedrubik2000.kumapie.data.Found
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
@@ -71,7 +72,7 @@ suspend fun FocusRequester.focusSoon() {
 @Composable
 fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onShow: (Show) -> Unit,
                onPlay: (Show, Episode) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit,
-               onReview: (String) -> Unit = {}, onDiscover: () -> Unit = {}) {
+               onReview: (String) -> Unit = {}, onDiscover: () -> Unit = {}, onDiscovered: (Found) -> Unit = {}) {
     var shows by remember { mutableStateOf<List<Show>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -85,6 +86,9 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
     val langs = Lang.ALL.map { it.code }.filter { c -> shows.orEmpty().any { it.lang == c } }
     var picked by remember(profile) { mutableStateOf(settings.prefs.getString("home_lang_$profile", null)) }
     val lang = picked?.takeIf { it in langs } ?: langs.firstOrNull()
+    // Discover titles kept on Home (+ HOME on a title's page), to stream later: Japanese only, as Discover.
+    var kept by remember { mutableStateOf(emptyList<Found>()) }
+    LaunchedEffect(lang) { kept = if (lang == "ja") runCatching { api.saved() }.getOrDefault(emptyList()) else emptyList() }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 32.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -114,7 +118,7 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
             lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim)
             else -> {
                 LangCard(api, lang)
-                Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay)
+                Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered)
             }
         }
     }
@@ -151,7 +155,8 @@ private fun LangCard(api: Api, lang: String) {
 
 /** "Continue watching" (episodes left partway, as on the phone), then a row per media type. */
 @Composable
-private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit) {
+private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit,
+                 kept: List<Found> = emptyList(), onDiscovered: (Found) -> Unit = {}) {
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows)
     val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
     val rows = KINDS.map { (k, label) -> tr(label) to shows.filter { it.kind == k } } + listOf(tr("Other") to other)
@@ -167,11 +172,18 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
                 }
             }
         }
+        if (kept.isNotEmpty()) item(key = "streaming") {
+            Shelf(tr("Streaming")) {
+                itemsIndexed(kept, key = { _, f -> f.id }) { i, f ->
+                    Poster(f.poster, f.name, f.year, null, if (going.isEmpty() && i == 0) Modifier.focusRequester(first) else Modifier) { onDiscovered(f) }
+                }
+            }
+        }
         rows.forEachIndexed { r, (label, list) ->
             // Easiest first, finished last, as on the phone.
             val list = list.sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
             if (list.isNotEmpty()) item(key = "kind-$r") {
-                val top = going.isEmpty() && rows.take(r).all { it.second.isEmpty() }
+                val top = going.isEmpty() && kept.isEmpty() && rows.take(r).all { it.second.isEmpty() }
                 Shelf(label) {
                     itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
                         Poster(s.poster, shortTitle(s.title), levelLine(s), null,

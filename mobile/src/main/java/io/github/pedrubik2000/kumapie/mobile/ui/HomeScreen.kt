@@ -135,6 +135,8 @@ fun HomeScreen(
     onDownloads: () -> Unit = {},
     /** Discover (Japanese): Stremio-like catalog, streamed from Real-Debrid. */
     onDiscover: () -> Unit = {},
+    /** A Discover title kept on Home ("Streaming" row): its page. */
+    onDiscovered: (io.github.pedrubik2000.kumapie.data.Found) -> Unit = {},
     /** An episode of "Continue watching": straight to the player, where it was left. */
     onPlay: (Show, Episode) -> Unit = { s, _ -> onShow(s) },
     /** The language Home, the feed and i+1 show ([io.github.pedrubik2000.kumapie.data.Lang.code]). */
@@ -219,7 +221,8 @@ fun HomeScreen(
                         Text(tr("Add a YouTube link or a video file."), color = Colors.dim, style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = { adding = true }) { Text(tr("Add an episode")) }
                     }
-                    else -> Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay) { LangCard(library, lang, all, onStats) }
+                    else -> Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay,
+                        streaming = { if (lang == "ja") Streaming(library, onDiscovered) }) { LangCard(library, lang, all, onStats) }
                 }
             }
         }
@@ -312,7 +315,9 @@ private fun HomeBar(onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Rows(library: Library, shows: List<Show>, states: Map<String, DownloadState>, wide: Boolean,
-                 onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit, header: @Composable () -> Unit) {
+                 onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit,
+                 /** Discover titles kept on Home: after the episodes in progress (Home is for resuming fast). */
+                 streaming: @Composable () -> Unit = {}, header: @Composable () -> Unit) {
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows) // novels are read, not watched: they count too
     // Resume column beside the library only at expanded width (a tablet on its side); upright it's one column.
     val split = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
@@ -352,7 +357,7 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
             going.drop(1).forEach { (s, e) -> Tile(library.poster(s.id, s.poster), s, e, Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { onPlay(s, e) } }
         }
         }
-        Column(Modifier.weight(0.58f).fillMaxHeight().verticalScroll(rememberScrollState())) { tabs(); grid(posterWidth(true)) }
+        Column(Modifier.weight(0.58f).fillMaxHeight().verticalScroll(rememberScrollState())) { streaming(); tabs(); grid(posterWidth(true)) }
     } } else BoxWithConstraints(Modifier.fillMaxSize()) {
         // A phone: three posters across (more on its side); a tablet with nothing in progress: the tablet's poster size.
         val across = maxOf(3, (maxWidth / 130.dp).toInt())
@@ -366,8 +371,23 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
                     going.drop(1).forEach { (s, e) -> Tile(library.poster(s.id, s.poster), s, e, Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { onPlay(s, e) } }
                 }
             }
+            item(key = "streaming") { streaming() }
             item(key = "tabs") { Column(Modifier.padding(top = if (going.isEmpty()) 0.dp else 20.dp)) { tabs() } }
             item(key = "grid-$picked") { grid(width) }
+        }
+    }
+}
+
+/** The Discover titles kept on Home (+ Home on a title's page), to stream later; nothing when there are none. */
+@Composable
+private fun Streaming(library: Library, onOpen: (io.github.pedrubik2000.kumapie.data.Found) -> Unit) {
+    var kept by remember { mutableStateOf(emptyList<io.github.pedrubik2000.kumapie.data.Found>()) }
+    LaunchedEffect(Unit) { runCatching { library.api.saved() }.onSuccess { kept = it } }
+    if (kept.isEmpty()) return
+    Column(Modifier.padding(top = 20.dp)) {
+        Text(tr("Streaming"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(kept.size, key = { kept[it].id }) { i -> kept[i].let { f -> Poster(f.poster, f.name, f.year, 110.dp) { onOpen(f) } } }
         }
     }
 }

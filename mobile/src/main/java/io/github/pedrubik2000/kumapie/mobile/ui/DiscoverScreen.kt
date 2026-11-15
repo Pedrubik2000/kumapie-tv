@@ -66,28 +66,32 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
  * Discover (kumapie-server discover.py): Kitsu's anime like Stremio shows them, an episode's Torrentio files, and
- * [onWatch] with the picked one: [WatchScreen] streams it from Real-Debrid, the PC makes only its words.
+ * [onWatch] with the picked one: [WatchScreen] streams it from Real-Debrid, the PC makes only its words. [start]: a title
+ * kept on Home, opened straight away (Back goes back to Home).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onBack: () -> Unit) {
+fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onBack: () -> Unit, start: Found? = null) {
     var query by rememberSaveable { mutableStateOf("") }
     var searched by rememberSaveable { mutableStateOf("") }
     var found by remember { mutableStateOf<List<Found>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var open by remember { mutableStateOf<Found?>(null) }
+    var open by remember { mutableStateOf(start) }
     LaunchedEffect(searched) {
+        if (start != null) return@LaunchedEffect
         found = null
         error = null
         runCatching { library.api.discover(searched) }.onSuccess { found = it }.onFailure { error = it.message ?: it.toString() }
     }
     open?.let { title ->
-        BackHandler { open = null }
-        return TitleScreen(library, title, onWatch, onBack = { open = null })
+        val back = { if (start != null) onBack() else open = null }
+        BackHandler(onBack = back)
+        return TitleScreen(library, title, onWatch, onBack = back)
     }
     BackHandler(onBack = onBack)
     Scaffold(containerColor = Colors.background, topBar = {
@@ -126,12 +130,22 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
     var meta by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var picking by remember { mutableStateOf<Pair<String, String>?>(null) } // (Stremio id, its name)
+    var kept by remember { mutableStateOf<Boolean?>(null) } // on Home (null: not known yet)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(title.id) {
         runCatching { library.api.discoverMeta(title.type, title.id) }.onSuccess { meta = it }.onFailure { error = it.message ?: it.toString() }
     }
+    LaunchedEffect(title.id) { kept = runCatching { library.api.saved().any { it.id == title.id } }.getOrNull() }
     Scaffold(containerColor = Colors.background, topBar = {
         TopAppBar(title = { Text(title.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
+            actions = {
+                kept?.let { on ->
+                    androidx.compose.material3.TextButton(onClick = {
+                        scope.launch { runCatching { library.api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } }
+                    }) { Text(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"), color = Colors.accent) }
+                }
+            })
     }) { padding ->
         val m = meta
         when {

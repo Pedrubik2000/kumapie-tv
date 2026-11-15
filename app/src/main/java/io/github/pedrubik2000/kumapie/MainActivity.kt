@@ -43,7 +43,8 @@ sealed interface Screen {
     data object Settings : Screen
     data object Buttons : Screen
     data object Stats : Screen
-    data object Discover : Screen
+    /** [open]: a title kept on Home, opened straight away. */
+    data class Discover(val open: io.github.pedrubik2000.kumapie.data.Found? = null) : Screen
     data class Review(val lang: String) : Screen
 }
 
@@ -102,8 +103,9 @@ fun App(settings: Settings) {
                 Screen.Home -> HomeScreen(api, settings, profile?.id.orEmpty(), profile?.name.orEmpty(),
                     onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e -> stack.add(Screen.Player(s, e)) },
                     onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
-                    onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.add(Screen.Discover) })
-                Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api)
+                    onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.add(Screen.Discover()) },
+                    onDiscovered = { stack.add(Screen.Discover(it)) })
+                is Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api, screen.open)
                 is Screen.Review -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(api, screen.lang)
                 Screen.Stats -> StatsScreen(api, onSettings = { stack.add(Screen.Settings) })
                 is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })

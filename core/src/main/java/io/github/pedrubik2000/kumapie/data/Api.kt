@@ -270,15 +270,18 @@ class Api(private val base: String, private val person: String = "") : Backend {
     suspend fun discover(q: String): List<Found> = JSONArray(get("/api/discover/catalog?q=" + java.net.URLEncoder.encode(q, "UTF-8")))
         .objects().map { Found(it.getString("id"), it.getString("type"), it.optString("name"), it.optString("poster"), it.optString("year")) }
 
-    /** A Discover title: {"name", "poster", "background", "description", "year", "episodes": [{"id", "season", "number", "title", "thumb"}]}. */
-    suspend fun discoverMeta(type: String, id: String) = JSONObject(get("/api/discover/meta/$type/$id"))
+    /** A Discover title: {"name", "poster", "background", "description", "year", "episodes": [{"id", "season", "number", "title", "thumb", "ready"}]} (ready: the PC got a file ready for it). */
+    suspend fun discoverMeta(type: String, id: String) =
+        JSONObject(get("/api/discover/meta/$type/$id?lang=ja&person=" + java.net.URLEncoder.encode(person, "UTF-8")))
 
     /** Torrentio's files for a title or episode, best first: [{"q", "label", "about", "hash", "file", "idx"}] (indexers: up to a minute). */
     suspend fun discoverStreams(type: String, id: String) = JSONArray(get("/api/discover/streams/$type/$id", readTimeout = 90_000))
 
     /**
      * A Discover file to stream (POST /api/tv/watch): the PC gets Real-Debrid's link and makes the words only.
-     * {"state": "ready", "id": episode, "url": video} or {"state": running/failed, "step", "error"}: ask again until ready.
+     * {"state": "video", "url", "step"} (play it, the words follow), {"state": "ready", "id": episode, "url": video, "next"}
+     * or {"state": running/failed, "step", "error"}: ask again until ready. Without hash/file/idx: the file the PC got
+     * ready for that episode ({"state": "none"}: none).
      */
     suspend fun watch(query: Map<String, String>): JSONObject =
         JSONObject(post("/api/tv/watch", JSONObject(query).put("person", person).toString()))

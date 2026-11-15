@@ -43,7 +43,7 @@ sealed interface Screen {
     data object Home : Screen
     data class ShowEpisodes(val showId: String) : Screen
     /** [video]: a Discover stream's Real-Debrid link, played instead of the PC's copy. */
-    data class Player(val show: Show, val episode: Episode, val startAt: Double? = null, val video: String? = null) : Screen
+    data class Player(val show: Show, val episode: Episode, val startAt: Double? = null) : Screen
     data object Discover : Screen
     /** A Discover file: the PC makes its words, then it streams. */
     data class Watch(val query: Map<String, String>) : Screen
@@ -176,10 +176,11 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             is Screen.ShowEpisodes -> shows.firstOrNull { it.id == screen.showId }?.let { show ->
                 ShowScreen(library, show, onPlay = { stack += Screen.Player(show, it) }, onBack = { stack.removeAt(stack.lastIndex) })
             }
-            is Screen.Player -> PlayerScreen(library, screen.show, screen.episode, screen.startAt, screen.video, onBack = { stack.removeAt(stack.lastIndex) })
+            is Screen.Player -> PlayerScreen(library, screen.show, screen.episode, screen.startAt, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Discover -> DiscoverScreen(library, onWatch = { stack += Screen.Watch(it) }, onBack = { stack.removeAt(stack.lastIndex) })
-            is Screen.Watch -> WatchScreen(library, screen.query, onPlay = { s, e, url -> stack[stack.lastIndex] = Screen.Player(s, e, video = url) },
-                onBack = { stack.removeAt(stack.lastIndex) })
+            is Screen.Watch -> androidx.compose.runtime.key(screen.query) { // the next episode: a new screen, not this one's state
+                WatchScreen(library, screen.query, onNext = { stack[stack.lastIndex] = Screen.Watch(it) }, onBack = { stack.removeAt(stack.lastIndex) })
+            }
             is Screen.Prepare -> PrepareScreen(library, screen.query, onPlay = { s, e -> stack[stack.lastIndex] = Screen.Player(s, e) }, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Feed -> FeedScreen(library, langShows, homeLang, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.IPlusOne -> IPlusOneScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },

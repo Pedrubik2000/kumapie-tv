@@ -128,7 +128,7 @@ private fun TitleScreen(api: Api, title: Found) {
                                 Line(i, f.optString("label"), f.optString("about"), null) {
                                     val link = Uri.parse("kumapie://watch").buildUpon().apply {
                                         listOf("lang" to "ja", "type" to title.type, "id" to pick.first, "hash" to f.getString("hash"),
-                                            "file" to f.getString("file"), "idx" to f.optInt("idx", -1).toString(), "title" to pick.second)
+                                            "file" to f.getString("file"), "idx" to f.optInt("idx", -1).toString(), "title" to pick.second, "show" to title.name)
                                             .forEach { (k, v) -> appendQueryParameter(k, v) }
                                     }.build()
                                     context.startActivity(Intent(context, StreamActivity::class.java).setData(link))
@@ -143,8 +143,13 @@ private fun TitleScreen(api: Api, title: Found) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(12.dp)) {
                     if (eps.isEmpty()) item { Line(0, tr("Watch"), m.optString("year"), null) { picking = title.id to title.name } }
                     itemsIndexed(eps, key = { _, e -> e.getString("id") }) { i, e ->
-                        Line(i, tr("Episode %1\$d", e.optInt("number")), e.optString("title"), e.optString("thumb")) {
-                            picking = e.getString("id") to "${title.name} ${e.optInt("number")}"
+                        val ready = e.optBoolean("ready") // the PC got a file ready for it: no file list, it starts at once
+                        Line(i, (if (ready) "▶ " else "") + tr("Episode %1\$d", e.optInt("number")), e.optString("title"), e.optString("thumb")) {
+                            val name = "${title.name} ${e.optInt("number")}"
+                            if (ready) context.startActivity(Intent(context, StreamActivity::class.java).setData(Uri.parse("kumapie://watch").buildUpon()
+                                .appendQueryParameter("lang", "ja").appendQueryParameter("type", title.type).appendQueryParameter("id", e.getString("id"))
+                                .appendQueryParameter("title", name).appendQueryParameter("show", title.name).build()))
+                            else picking = e.getString("id") to name
                         }
                     }
                 }

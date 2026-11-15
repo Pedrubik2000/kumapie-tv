@@ -5,6 +5,12 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import io.github.pedrubik2000.kumapie.ui.rememberPlayer
+import androidx.media3.ui.PlayerView
+import androidx.media3.common.Player
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.DisposableEffect
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -69,11 +75,13 @@ class StreamActivity : ComponentActivity() {
         var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
         var step by remember { mutableStateOf("") }
+        var url by remember { mutableStateOf<String?>(null) } // Discover: plays before the words are ready
+        var next by remember { mutableStateOf("") }
         val link = Uri.parse(video)
         val title = intent.getStringExtra("title") ?: link.lastPathSegment.orEmpty()
         LaunchedEffect(Unit) {
             runCatching {
-                if (link.host == "watch") return@runCatching watched(api, link) { step = it }
+                if (link.host == "watch") return@runCatching watched(api, link, { step = it }, { if (url == null) url = it }, { next = it })
                 if (link.scheme?.startsWith("kumapie") == true) return@runCatching prepared(api, link) { step = it }
                 val subs = subtitles()
                 val (lang, spoken) = SPOKEN.firstNotNullOfOrNull { l -> subs[l]?.let { l to it } }
@@ -86,7 +94,9 @@ class StreamActivity : ComponentActivity() {
         }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             val shown = detail
+            val playing = url
             when {
+                playing != null -> Watching(api, settings, playing, shown, error ?: tr("Words coming: %1\$s", step), next, link)
                 error != null -> Message(error!!)
                 shown == null && link.scheme?.startsWith("kumapie") == true -> Message(tr("The PC is making the episode: %1\$s", step.ifEmpty { "…" }))
                 shown == null -> Message(tr("%1\$s: getting its words from the PC (a new subtitle file: about a minute)…", title))
@@ -118,19 +128,61 @@ class StreamActivity : ComponentActivity() {
     }
 
     /**
-     * kumapie://watch?lang&type&id&hash&file&idx&title (kumapie's Discover page): the PC gets Real-Debrid's link and makes
-     * only the words (kumapie-server discover.py); the TV streams the link. Asks every 3 s, [shown] gets the step.
+     * kumapie://watch?lang&type&id&hash&file&idx&title&show (kumapie's Discover page; no hash/file/idx: the file the PC
+     * got ready for that episode): the PC gets Real-Debrid's link and makes only the words (kumapie-server
+     * discover.py); the TV streams the link. Asks every 3 s: [shown] gets the step, [video] the link as soon as it
+     * exists (it plays at once), [onNext] the next episode's id; answers the episode once its words are ready.
      */
-    private suspend fun watched(api: Api, link: Uri, shown: (String) -> Unit): EpisodeDetail {
+    private suspend fun watched(api: Api, link: Uri, shown: (String) -> Unit, video: (String) -> Unit, onNext: (String) -> Unit): EpisodeDetail {
         val query = link.queryParameterNames.associateWith { link.getQueryParameter(it).orEmpty() }
         while (true) {
             val r = api.watch(query)
+            onNext(r.optString("next"))
+            if (r.has("url")) video(r.getString("url"))
             when (r.optString("state")) {
-                "ready" -> return api.episode(r.getString("id")).copy(video = r.getString("url"), show = query["title"].orEmpty())
+                "ready" -> {
+                    val d = api.episode(r.getString("id"))
+                    val at = withContext(Dispatchers.Main) { player?.currentPosition ?: 0L } / 1000.0
+                    return d.copy(video = r.getString("url"), show = query["title"].orEmpty(), resume = if (at > 1) at else d.resume)
+                }
+                "none" -> error(tr("No file is ready for this episode yet: pick one in its files"))
                 "failed" -> error(tr("The PC couldn't get it: %1\$s", r.optString("error")))
                 else -> shown(r.optString("step"))
             }
             delay(3_000)
+        }
+    }
+
+    /**
+     * A Discover stream playing: plain (the player's own controls, [note] on top) until its words are ready ([shown]),
+     * then the same player goes on in [ScenePlayer]. At the video's end: the next episode's StreamActivity.
+     */
+    @Composable
+    private fun Watching(api: Api, settings: Settings, video: String, shown: EpisodeDetail?, note: String, next: String, link: Uri) {
+        val p = rememberPlayer(video, null, link.getQueryParameter("lang") ?: "ja")
+        remember(p) { player = p; p.playWhenReady = true }
+        val upcoming by rememberUpdatedState(next)
+        DisposableEffect(p) {
+            val ended = object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state != Player.STATE_ENDED || upcoming.isEmpty()) return
+                    val show = link.getQueryParameter("show").orEmpty()
+                    startActivity(Intent(this@StreamActivity, StreamActivity::class.java).setData(Uri.parse("kumapie://watch").buildUpon()
+                        .appendQueryParameter("lang", link.getQueryParameter("lang") ?: "ja").appendQueryParameter("type", link.getQueryParameter("type"))
+                        .appendQueryParameter("id", upcoming).appendQueryParameter("show", show)
+                        .appendQueryParameter("title", "$show ${upcoming.substringAfterLast(':')}").build()))
+                    finish()
+                }
+            }
+            p.addListener(ended)
+            onDispose { p.removeListener(ended) }
+        }
+        if (shown != null) return ScenePlayer(api, settings, shown, onClose = ::finish, player = p)
+        Box(Modifier.fillMaxSize()) {
+            AndroidView({ PlayerView(it).apply { player = p; useController = true; requestFocus() } }, Modifier.fillMaxSize(),
+                onRelease = { it.player = null })
+            Text(note, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)
+                .background(Color(0x99000000)).padding(12.dp, 6.dp))
         }
     }
 

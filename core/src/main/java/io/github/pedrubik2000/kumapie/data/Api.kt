@@ -277,7 +277,16 @@ class Api(private val base: String, private val person: String = "") : Backend {
         .put("id", title.id).put("type", title.type).put("name", title.name).put("poster", title.poster).put("year", title.year)
         .put("on", on).toString())).found()
 
-    private fun JSONArray.found() = objects().map { Found(it.getString("id"), it.getString("type"), it.optString("name"), it.optString("poster"), it.optString("year")) }
+    private fun JSONArray.found() = objects().map { found(it) }
+
+    /** A title object of discover.py (also a meta answer: [discoverMeta]). */
+    fun found(o: JSONObject) = Found(o.optString("id"), o.optString("type", "series"), o.optString("name"), o.optString("poster"), o.optString("year"),
+        o.optString("background"), o.optString("logo"), o.optString("description"), o.optString("genres"), o.optString("rating"), o.optString("runtime"))
+
+    /** Discover's board (Stremio's): rows of titles, the person's AniList Planning list first: [(name, titles)]. */
+    suspend fun board(): List<Pair<String, List<Found>>> =
+        JSONArray(get("/api/discover/board?person=" + java.net.URLEncoder.encode(person, "UTF-8"), readTimeout = 60_000))
+            .objects().map { it.optString("name") to it.getJSONArray("items").found() }
 
     /** A Discover title: {"name", "poster", "background", "description", "year", "episodes": [{"id", "season", "number", "title", "thumb", "ready"}]} (ready: the PC got a file ready for it). */
     suspend fun discoverMeta(type: String, id: String) =
@@ -386,7 +395,15 @@ data class SrsDue(val due: Int, val new: Int, val today: Int, val cards: List<Sr
 data class SrsCard(val word: String, val sentence: String, val translation: String, val meaning: String, val state: String, val audio: String)
 
 /** A Discover title: Stremio [id] ("kitsu:46474"), [type] "series" / "movie". */
-data class Found(val id: String, val type: String, val name: String, val poster: String, val year: String)
+/** A Discover title (kumapie-server discover.py `_title`): the rest is for the hero banner and the title page. */
+data class Found(
+    val id: String, val type: String, val name: String, val poster: String, val year: String,
+    val background: String = "", val logo: String = "", val description: String = "", val genres: String = "",
+    val rating: String = "", val runtime: String = "",
+) {
+    /** "2023-2024 · ★ 8.9 · 24 min · Adventure, Comedy" */
+    val line get() = listOf(year, rating.takeIf { it.isNotEmpty() }?.let { "★ $it" }.orEmpty(), runtime, genres).filter { it.isNotEmpty() }.joinToString(" · ")
+}
 
 data class ServerInfo(val api: Int, val language: String, val translation: String, val episodes: Int)
 

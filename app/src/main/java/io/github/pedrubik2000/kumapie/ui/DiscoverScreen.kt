@@ -1,5 +1,18 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -48,20 +61,27 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import org.json.JSONObject
 
 /**
- * Discover (kumapie-server discover.py), as on the phone: Kitsu's anime, an episode's Torrentio files, then
- * [StreamActivity] with kumapie://watch?…: the PC makes the words, the TV streams Real-Debrid's link.
+ * Discover (kumapie-server discover.py), laid out like Stremio's and Nuvio's TV board: the focused title's backdrop,
+ * logo, rating, genres and text on top, rows of posters under it (the person's AniList Planning list first, then
+ * Kitsu's catalogs); a search shows a grid. A title's files go to [StreamActivity] with kumapie://watch?…: the PC
+ * makes the words, the TV streams Real-Debrid's link.
  */
 @Composable
 fun DiscoverScreen(api: Api, start: Found? = null) {
     var query by rememberSaveable { mutableStateOf("") }
     var searched by rememberSaveable { mutableStateOf("") }
     var found by remember { mutableStateOf<List<Found>?>(null) }
+    var rows by remember { mutableStateOf<List<Pair<String, List<Found>>>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var open by remember { mutableStateOf(start) } // a title kept on Home: its page at once (Back: Home)
+    var focused by remember { mutableStateOf<Found?>(null) }
     val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        if (start == null) runCatching { api.board() }.onSuccess { rows = it }.onFailure { error = it.message ?: it.toString() }
+    }
     LaunchedEffect(searched) {
-        if (start != null) return@LaunchedEffect
         found = null
+        if (searched.isEmpty()) return@LaunchedEffect
         error = null
         runCatching { api.discover(searched) }.onSuccess { found = it }.onFailure { error = it.message ?: it.toString() }
     }
@@ -69,30 +89,84 @@ fun DiscoverScreen(api: Api, start: Found? = null) {
         if (start == null) BackHandler { open = null }
         return TitleScreen(api, title)
     }
-    Column(Modifier.fillMaxSize().padding(32.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Title(tr("Discover").uppercase())
-            Spacer(Modifier.width(32.dp))
-            TvTextField(query, { query = it }, onDone = { searched = query.trim() }, Modifier.width(420.dp))
-        }
-        Heading(if (searched.isEmpty()) tr("Trending") else searched, Modifier.padding(top = 16.dp, start = 16.dp))
-        val list = found
-        when {
-            error != null -> Text(error!!, color = Colors.dim)
-            list == null -> Text(tr("Loading…"), color = Colors.dim)
-            list.isEmpty() -> Text(tr("Nothing found"), color = Colors.dim)
-            else -> LazyVerticalGrid(GridCells.Adaptive(130.dp), contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                itemsIndexed(list, key = { _, f -> f.id }) { i, f ->
-                    Poster(f.poster, f.name, f.year, null, if (i == 0) Modifier.focusRequester(first) else Modifier) { open = f }
+    if (searched.isNotEmpty()) BackHandler { searched = ""; query = "" }
+    val board = rows
+    Box(Modifier.fillMaxSize()) {
+        val shown = focused ?: board?.firstOrNull()?.second?.firstOrNull()
+        if (searched.isEmpty() && shown != null) Backdrop(shown.background.ifEmpty { shown.poster })
+        Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Title(tr("Discover").uppercase())
+                Spacer(Modifier.width(32.dp))
+                TvTextField(query, { query = it }, onDone = { searched = query.trim() }, Modifier.width(420.dp))
+            }
+            val list = found
+            when {
+                error != null -> Text(error!!, color = Colors.dim)
+                searched.isNotEmpty() && list == null || searched.isEmpty() && board == null -> Text(tr("Loading…"), color = Colors.dim)
+                searched.isNotEmpty() && list!!.isEmpty() -> Text(tr("Nothing found"), color = Colors.dim)
+                searched.isNotEmpty() -> {
+                    Heading(searched, Modifier.padding(top = 16.dp, start = 16.dp))
+                    LazyVerticalGrid(GridCells.Adaptive(130.dp), contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        itemsIndexed(list!!, key = { _, f -> f.id }) { i, f ->
+                            Poster(f.poster, f.name, f.year, null, if (i == 0) Modifier.focusRequester(first) else Modifier) { open = f }
+                        }
+                    }
+                }
+                else -> {
+                    // The focused title, Stremio's way: its logo (else name), rating, genres and the start of its text.
+                    Column(Modifier.fillMaxWidth(0.5f).height(200.dp).padding(top = 16.dp), verticalArrangement = Arrangement.Bottom) {
+                        shown?.let { f ->
+                            TitleLogo(f)
+                            Text(f.line, color = Colors.text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+                            Text(f.description, color = Colors.dim, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    // The top edge fades out: a row scrolled up peeked its years out under the text (Chromecast).
+                    LazyColumn(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
+                        drawContent()
+                        drawRect(Brush.verticalGradient(0.08f to Color.Transparent, 0.2f to Color.Black), blendMode = BlendMode.DstIn)
+                    }) {
+                        board!!.forEachIndexed { r, (name, titles) ->
+                            item(key = "row-$name") {
+                                Heading(tr(name).uppercase(), Modifier.padding(start = 16.dp, top = 12.dp))
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+                                    itemsIndexed(titles, key = { _, f -> f.id }) { i, f ->
+                                        Poster(f.poster, f.name, f.year, null, (if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier)
+                                            .onFocusChanged { if (it.isFocused) focused = f }) { open = f }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-    LaunchedEffect(found) { if (!found.isNullOrEmpty()) first.focusSoon() }
+    LaunchedEffect(found, rows) { if (!found.isNullOrEmpty() || !rows.isNullOrEmpty()) first.focusSoon() }
 }
 
-/** A title's episodes (or the movie), then the picked one's files; OK on a file starts it. */
+/** A backdrop over the whole screen, dark where the text and rows are (left and bottom). */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.Backdrop(image: String) {
+    AsyncImage(image, null, contentScale = ContentScale.Crop, alignment = Alignment.TopEnd, modifier = Modifier.matchParentSize())
+    Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Colors.background, 0.6f to Colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
+    Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 0.75f to Colors.background)))
+}
+
+/** The title's logo (fanart.tv), else its name. */
+@Composable
+private fun TitleLogo(f: Found) {
+    if (f.logo.isNotEmpty()) AsyncImage(f.logo, f.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
+        modifier = Modifier.height(80.dp).widthIn(max = 360.dp))
+    else Text(f.name.uppercase(), color = Colors.text, fontSize = 28.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
+}
+
+/**
+ * A title, Stremio's way: its backdrop, logo, rating, runtime and genres, ▶ (the first episode the PC got ready, else
+ * the first one's files), + HOME and its text on the left; its episodes (or the picked one's files) on the right.
+ */
 @Composable
 private fun TitleScreen(api: Api, title: Found) {
     val context = LocalContext.current
@@ -112,16 +186,36 @@ private fun TitleScreen(api: Api, title: Found) {
         runCatching { api.discoverStreams(title.type, id).objects() }.onSuccess { files = it }.onFailure { error = it.message ?: it.toString() }
     }
     if (picking != null) BackHandler { picking = null; error = null }
+    val t = meta?.let { api.found(it) } ?: title
+    val eps = meta?.optJSONArray("episodes")?.objects().orEmpty()
+    fun play(e: JSONObject) {
+        val name = "${title.name} ${e.optInt("number")}"
+        // The PC got a file ready for it: no file list, it starts at once.
+        if (e.optBoolean("ready")) context.startActivity(Intent(context, StreamActivity::class.java).setData(Uri.parse("kumapie://watch").buildUpon()
+            .appendQueryParameter("lang", "ja").appendQueryParameter("type", title.type).appendQueryParameter("id", e.getString("id"))
+            .appendQueryParameter("title", name).appendQueryParameter("show", title.name).build()))
+        else picking = e.getString("id") to name
+    }
+    Box(Modifier.fillMaxSize()) {
+    Backdrop(t.background.ifEmpty { t.poster })
     Row(Modifier.fillMaxSize().padding(32.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-        Column(Modifier.width(320.dp)) {
-            // 220 dp wide: at the column's full width the poster filled the screen's height and hid the name, + HOME and the text.
-            AsyncImage(title.poster, title.name, contentScale = ContentScale.Crop, modifier = Modifier.width(220.dp).aspectRatio(2f / 3f))
-            Text(title.name.uppercase(), color = Colors.text, fontSize = 22.sp, style = Arcade.label, modifier = Modifier.padding(top = 12.dp))
-            kept?.let { on ->
-                Button(onClick = { scope.launch { runCatching { api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } } },
-                    modifier = Modifier.padding(vertical = 8.dp)) { Text(if (on) "✓ " + tr("On Home").uppercase() else "+ " + tr("Home").uppercase()) }
+        Column(Modifier.width(420.dp).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+            TitleLogo(t)
+            Text(t.line, color = Colors.text, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
+            Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (meta != null) {
+                    val next = eps.firstOrNull { it.optBoolean("ready") } ?: eps.firstOrNull()
+                    Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }) {
+                        Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) else tr("Watch")).uppercase())
+                    }
+                }
+                kept?.let { on ->
+                    Button(onClick = { scope.launch { runCatching { api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } } }) {
+                        Text(if (on) "✓ " + tr("On Home").uppercase() else "+ " + tr("Home").uppercase())
+                    }
+                }
             }
-            Text(meta?.optString("description").orEmpty(), color = Colors.dim, fontSize = 14.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
+            Text(t.description, color = Colors.dim, fontSize = 14.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
         }
         val m = meta
         val pick = picking
@@ -151,22 +245,16 @@ private fun TitleScreen(api: Api, title: Found) {
                 }
             }
             else -> {
-                val eps = m.optJSONArray("episodes")?.objects().orEmpty()
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(12.dp)) {
                     if (eps.isEmpty()) item { Line(0, tr("Watch"), m.optString("year"), null) { picking = title.id to title.name } }
                     itemsIndexed(eps, key = { _, e -> e.getString("id") }) { i, e ->
                         val ready = e.optBoolean("ready") // the PC got a file ready for it: no file list, it starts at once
-                        Line(i, (if (ready) "▶ " else "") + tr("Episode %1\$d", e.optInt("number")), e.optString("title"), e.optString("thumb")) {
-                            val name = "${title.name} ${e.optInt("number")}"
-                            if (ready) context.startActivity(Intent(context, StreamActivity::class.java).setData(Uri.parse("kumapie://watch").buildUpon()
-                                .appendQueryParameter("lang", "ja").appendQueryParameter("type", title.type).appendQueryParameter("id", e.getString("id"))
-                                .appendQueryParameter("title", name).appendQueryParameter("show", title.name).build()))
-                            else picking = e.getString("id") to name
-                        }
+                        Line(i, (if (ready) "▶ " else "") + tr("Episode %1\$d", e.optInt("number")), e.optString("title"), e.optString("thumb")) { play(e) }
                     }
                 }
             }
         }
+    }
     }
 }
 

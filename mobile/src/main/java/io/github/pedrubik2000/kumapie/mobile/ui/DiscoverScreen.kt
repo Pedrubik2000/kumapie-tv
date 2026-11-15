@@ -317,7 +317,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
     var next by remember { mutableStateOf("") }
     val player = remember {
-        ExoPlayer.Builder(context).build().apply {
+        io.github.pedrubik2000.kumapie.player.videoPlayer(context).build().apply {
             // As ScenePlayer's own: the episode's audio language, the file's own subtitle tracks off.
             trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(query["lang"] ?: "ja")
                 .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true).build()
@@ -330,6 +330,11 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
                 if (state == Player.STATE_ENDED && next.isNotEmpty()) onNext(mapOf("lang" to (query["lang"] ?: "ja"),
                     "type" to query["type"].orEmpty(), "id" to next, "show" to query["show"].orEmpty(),
                     "title" to "${query["show"].orEmpty()} ${next.substringAfterLast(':')}"))
+            }
+
+            // Plain playback had no word of it: the video just stood still under "Words coming".
+            override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
+                error = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
             }
         }
         player.addListener(ended)

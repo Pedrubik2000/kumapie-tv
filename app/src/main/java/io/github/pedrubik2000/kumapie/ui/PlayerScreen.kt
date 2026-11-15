@@ -99,7 +99,7 @@ fun PlayerScreen(api: Api, settings: Settings, show: Show, episode: Episode, onC
 fun rememberPlayer(video: String, resume: Double?, lang: String? = null): ExoPlayer {
     val context = LocalContext.current
     val player = remember {
-        ExoPlayer.Builder(context).build().apply {
+        io.github.pedrubik2000.kumapie.player.videoPlayer(context).build().apply {
             // A streamed file with several audio tracks (the English dub first): the episode's language.
             // Its own subtitle tracks off: kumapie draws the lines (a CR file's English track showed over them).
             trackSelectionParameters = trackSelectionParameters.buildUpon().setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)

@@ -162,8 +162,13 @@ class StreamActivity : ComponentActivity() {
         val p = rememberPlayer(video, null, link.getQueryParameter("lang") ?: "ja")
         remember(p) { player = p; p.playWhenReady = true }
         val upcoming by rememberUpdatedState(next)
+        var failed by remember { mutableStateOf<String?>(null) } // plain playback had no word of it: it just stood still
         DisposableEffect(p) {
             val ended = object : Player.Listener {
+                override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
+                    failed = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
+                }
+
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state != Player.STATE_ENDED || upcoming.isEmpty()) return
                     val show = link.getQueryParameter("show").orEmpty()
@@ -181,7 +186,7 @@ class StreamActivity : ComponentActivity() {
         Box(Modifier.fillMaxSize()) {
             AndroidView({ PlayerView(it).apply { player = p; useController = true; requestFocus() } }, Modifier.fillMaxSize(),
                 onRelease = { it.player = null })
-            Text(note, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)
+            Text(failed ?: note, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)
                 .background(Color(0x99000000)).padding(12.dp, 6.dp))
         }
     }

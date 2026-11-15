@@ -204,7 +204,7 @@ internal fun ScenePlayer(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val player = remember {
-        preloaded ?: ExoPlayer.Builder(context).build().apply {
+        preloaded ?: io.github.pedrubik2000.kumapie.player.videoPlayer(context).build().apply {
             // A streamed file with several audio tracks (the English dub first): the episode's language.
             // Its own subtitle tracks off: kumapie draws the lines (a CR file's English track showed over them).
             trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(episode.lang)

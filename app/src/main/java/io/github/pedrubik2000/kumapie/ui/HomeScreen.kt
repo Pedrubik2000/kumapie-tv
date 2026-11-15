@@ -71,7 +71,7 @@ suspend fun FocusRequester.focusSoon() {
 @Composable
 fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onShow: (Show) -> Unit,
                onPlay: (Show, Episode) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit,
-               onReview: (String) -> Unit = {}) {
+               onReview: (String) -> Unit = {}, onDiscover: () -> Unit = {}) {
     var shows by remember { mutableStateOf<List<Show>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -96,6 +96,10 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
                     modifier = Modifier.padding(end = 8.dp)) { Text(Lang.of(c).displayName.uppercase()) }
             }
             Spacer(Modifier.weight(1f))
+            if (lang == "ja") { // Discover: Japanese only for now
+                Button(onClick = onDiscover) { Text(tr("Discover").uppercase()) }
+                Spacer(Modifier.width(8.dp))
+            }
             if (lang != null) ReviewButton(api, lang, onReview)
             Button(onClick = onProfiles) { Text(who.uppercase()) } // back to "Who's watching?"
             Spacer(Modifier.width(8.dp))
@@ -191,7 +195,7 @@ private fun Shelf(title: String, content: androidx.compose.foundation.lazy.LazyL
 }
 
 @Composable
-private fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, onClick: () -> Unit) {
+internal fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, onClick: () -> Unit) {
     Column(Modifier.width(110.dp)) {
         Card(onClick = onClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
             Box(Modifier.fillMaxSize()) { // a Card lays out as a column: the box puts the image over the neutral poster

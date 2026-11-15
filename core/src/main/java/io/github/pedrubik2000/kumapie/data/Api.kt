@@ -266,6 +266,23 @@ class Api(private val base: String, private val person: String = "") : Backend {
     suspend fun prepare(query: Map<String, String>): JSONObject =
         JSONObject(post("/api/tv/prepare", JSONObject(query).toString(), readTimeout = 120_000))
 
+    /** The Discover page (kumapie-server discover.py): Kitsu's anime matching [q], trending when it's empty. */
+    suspend fun discover(q: String): List<Found> = JSONArray(get("/api/discover/catalog?q=" + java.net.URLEncoder.encode(q, "UTF-8")))
+        .objects().map { Found(it.getString("id"), it.getString("type"), it.optString("name"), it.optString("poster"), it.optString("year")) }
+
+    /** A Discover title: {"name", "poster", "background", "description", "year", "episodes": [{"id", "season", "number", "title", "thumb"}]}. */
+    suspend fun discoverMeta(type: String, id: String) = JSONObject(get("/api/discover/meta/$type/$id"))
+
+    /** Torrentio's files for a title or episode, best first: [{"q", "label", "about", "hash", "file", "idx"}] (indexers: up to a minute). */
+    suspend fun discoverStreams(type: String, id: String) = JSONArray(get("/api/discover/streams/$type/$id", readTimeout = 90_000))
+
+    /**
+     * A Discover file to stream (POST /api/tv/watch): the PC gets Real-Debrid's link and makes the words only.
+     * {"state": "ready", "id": episode, "url": video} or {"state": running/failed, "step", "error"}: ask again until ready.
+     */
+    suspend fun watch(query: Map<String, String>): JSONObject =
+        JSONObject(post("/api/tv/watch", JSONObject(query).put("person", person).toString()))
+
     /** Marks [episodes] watched (all their scenes seen) or not watched (from the beginning), on every device. */
     suspend fun mark(episodes: List<String>, watched: Boolean) {
         post("/api/tv/mark", who(JSONObject().put("episodes", JSONArray(episodes)).put("watched", watched)).toString())
@@ -330,11 +347,11 @@ class Api(private val base: String, private val person: String = "") : Backend {
         }
     }
 
-    private suspend fun get(path: String): String = withContext(Dispatchers.IO) {
+    private suspend fun get(path: String, readTimeout: Int = 20_000): String = withContext(Dispatchers.IO) {
         val started = System.currentTimeMillis()
         val conn = URL(url(path)).openConnection() as HttpURLConnection
         conn.connectTimeout = 8_000
-        conn.readTimeout = 20_000
+        conn.readTimeout = readTimeout
         try {
             if (conn.responseCode != 200) throw IOException(tr("HTTP %1\$d for %2\$s", conn.responseCode, path))
             conn.inputStream.bufferedReader().use { it.readText() }
@@ -355,6 +372,9 @@ data class SrsDue(val due: Int, val new: Int, val today: Int, val cards: List<Sr
 
 /** A PC card: the word, its line and the line's translation, the meaning mined with it, its state, the line's audio (server path). */
 data class SrsCard(val word: String, val sentence: String, val translation: String, val meaning: String, val state: String, val audio: String)
+
+/** A Discover title: Stremio [id] ("kitsu:46474"), [type] "series" / "movie". */
+data class Found(val id: String, val type: String, val name: String, val poster: String, val year: String)
 
 data class ServerInfo(val api: Int, val language: String, val translation: String, val episodes: Int)
 

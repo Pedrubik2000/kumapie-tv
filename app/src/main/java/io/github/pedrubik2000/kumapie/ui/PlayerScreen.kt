@@ -96,10 +96,12 @@ fun PlayerScreen(api: Api, settings: Settings, show: Show, episode: Episode, onC
 
 /** A player loading [video] from [resume] seconds (the start without), released with the composition. */
 @Composable
-fun rememberPlayer(video: String, resume: Double?): ExoPlayer {
+fun rememberPlayer(video: String, resume: Double?, lang: String? = null): ExoPlayer {
     val context = LocalContext.current
     val player = remember {
         ExoPlayer.Builder(context).build().apply {
+            // A streamed file with several audio tracks (the English dub first): the episode's language.
+            if (lang != null) trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(lang).build()
             setMediaItem(MediaItem.fromUri(video), ((resume ?: 0.0) * 1000).toLong())
             prepare()
         }
@@ -111,7 +113,7 @@ fun rememberPlayer(video: String, resume: Double?): ExoPlayer {
 /** [onPlayer]: the player, once made (StreamActivity hands its position back to NuvioTV). */
 @Composable
 fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: () -> Unit, onPlayer: (ExoPlayer) -> Unit = {},
-                player: ExoPlayer = rememberPlayer(episode.video, episode.resume)) {
+                player: ExoPlayer = rememberPlayer(episode.video, episode.resume, episode.lang)) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     remember { onPlayer(player) }

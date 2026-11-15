@@ -73,6 +73,7 @@ class StreamActivity : ComponentActivity() {
         val title = intent.getStringExtra("title") ?: link.lastPathSegment.orEmpty()
         LaunchedEffect(Unit) {
             runCatching {
+                if (link.host == "watch") return@runCatching watched(api, link) { step = it }
                 if (link.scheme?.startsWith("kumapie") == true) return@runCatching prepared(api, link) { step = it }
                 val subs = subtitles()
                 val (lang, spoken) = SPOKEN.firstNotNullOfOrNull { l -> subs[l]?.let { l to it } }
@@ -111,6 +112,23 @@ class StreamActivity : ComponentActivity() {
                 "ready" -> return api.episode(r.getString("id"))
                 "failed" -> error(tr("The PC couldn't make it: %1\$s", r.optString("error")))
                 else -> shown(r.optString("step").ifEmpty { tr("waiting for the job before it") })
+            }
+            delay(3_000)
+        }
+    }
+
+    /**
+     * kumapie://watch?lang&type&id&hash&file&idx&title (kumapie's Discover page): the PC gets Real-Debrid's link and makes
+     * only the words (kumapie-server discover.py); the TV streams the link. Asks every 3 s, [shown] gets the step.
+     */
+    private suspend fun watched(api: Api, link: Uri, shown: (String) -> Unit): EpisodeDetail {
+        val query = link.queryParameterNames.associateWith { link.getQueryParameter(it).orEmpty() }
+        while (true) {
+            val r = api.watch(query)
+            when (r.optString("state")) {
+                "ready" -> return api.episode(r.getString("id")).copy(video = r.getString("url"), show = query["title"].orEmpty())
+                "failed" -> error(tr("The PC couldn't get it: %1\$s", r.optString("error")))
+                else -> shown(r.optString("step"))
             }
             delay(3_000)
         }

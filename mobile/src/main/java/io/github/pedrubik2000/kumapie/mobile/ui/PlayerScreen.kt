@@ -104,7 +104,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 
 /** Loads the episode (from the PC, or its download), then plays it scene by scene, full screen in landscape. */
 @Composable
-fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double? = null, onBack: () -> Unit) {
+fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double? = null, video: String? = null, onBack: () -> Unit) {
     var upright by remember { mutableStateOf(library.settings.upright) }
     // Upright: the same player (one video for the episode), held upright, swipe left/right for the scenes.
     key(upright) { FullScreen(if (upright) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) }
@@ -115,7 +115,8 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
     val context = LocalContext.current
     LaunchedEffect(attempt) {
         error = null
-        runCatching { library.episode(episode.id) }.onSuccess { detail = if (startAt != null) it.copy(resume = startAt + 0.05) else it }.onFailure { error = it.message ?: it.toString() }
+        runCatching { library.episode(episode.id).let { if (video != null) it.copy(video = video) else it } }
+            .onSuccess { detail = if (startAt != null) it.copy(resume = startAt + 0.05) else it }.onFailure { error = it.message ?: it.toString() }
     }
     BackHandler(onBack = onBack)
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -204,6 +205,8 @@ internal fun ScenePlayer(
     val scope = rememberCoroutineScope()
     val player = remember {
         preloaded ?: ExoPlayer.Builder(context).build().apply {
+            // A streamed file with several audio tracks (the English dub first): the episode's language.
+            trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(episode.lang).build()
             setMediaItem(MediaItem.fromUri(episode.video))
             prepare()
         }

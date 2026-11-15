@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -132,6 +133,8 @@ fun HomeScreen(
     onSettings: (section: String?) -> Unit,
     onSearch: () -> Unit = {},
     onDownloads: () -> Unit = {},
+    /** Discover (Japanese): Stremio-like catalog, streamed from Real-Debrid. */
+    onDiscover: () -> Unit = {},
     /** An episode of "Continue watching": straight to the player, where it was left. */
     onPlay: (Show, Episode) -> Unit = { s, _ -> onShow(s) },
     /** The language Home, the feed and i+1 show ([io.github.pedrubik2000.kumapie.data.Lang.code]). */
@@ -171,7 +174,8 @@ fun HomeScreen(
     // The rail needs height too: a phone on its side (~410 dp tall) keeps the bottom bar, or the rail runs off-screen.
     val config = androidx.compose.ui.platform.LocalConfiguration.current
     val wide = config.screenWidthDp >= 600 && config.screenHeightDp >= 560
-    val main = listOf(
+    val main = listOfNotNull(
+        Dest(Icons.Default.Explore, tr("Discover"), onDiscover).takeIf { homeLang == "ja" },
         Dest(Icons.Default.Swipe, tr("Feed"), onFeed),
         Dest(Icons.Default.AutoAwesome, tr("i+1 scenes"), onIPlusOne),
         Dest(Icons.Default.Download, tr("Downloads"), onDownloads, badge = active),

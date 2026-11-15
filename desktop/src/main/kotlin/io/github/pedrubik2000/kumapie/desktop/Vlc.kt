@@ -72,7 +72,11 @@ class VlcPlayer : Player {
                 val h = (sourceHeight * scale).toInt() and 1.inv()
                 rowBytes = w * 4
                 bytes = ByteArray(rowBytes * h)
-                info = ImageInfo(w, h, ColorType.BGRA_8888, ColorAlphaType.OPAQUE) // VLC's RV32 is B, G, R, X
+                // VLC hands over the stored size (1080p H.264: 1920x1088 or 1090, padding rows at the bottom): the image
+                // keeps only the track's visible rows, or the picture is drawn too narrow with a strip under it.
+                val visible = mp.media().info().videoTracks().firstOrNull()?.height()?.takeIf { it in 1..sourceHeight }
+                val shown = visible?.let { (it * scale).toInt().coerceAtMost(h) } ?: h
+                info = ImageInfo(w, shown, ColorType.BGRA_8888, ColorAlphaType.OPAQUE) // VLC's RV32 is B, G, R, X
                 return RV32BufferFormat(w, h)
             }
             override fun newFormatSize(bufferWidth: Int, bufferHeight: Int, displayWidth: Int, displayHeight: Int) {}

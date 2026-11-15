@@ -101,9 +101,9 @@ private fun androidx.compose.ui.window.ApplicationScope.KumapieWindow() {
 }
 
 /**
- * Fullscreen as a borderless window over the whole monitor, not Compose's WindowPlacement.Fullscreen: that one is
- * Windows' exclusive fullscreen, where Direct3D drew only 33-47 times a second (video dropped to 13-19 of 24 fps),
- * OpenGL tore, AMD's overlay popped up, and F11 didn't leave it.
+ * Fullscreen as a borderless window exactly over the monitor (the taskbar hides only for an exact fit). Not Compose's
+ * WindowPlacement.Fullscreen: that one is Windows' exclusive fullscreen, where Direct3D drew only 33-47 times a second
+ * (video dropped to 13-19 of 24 fps), OpenGL tore, AMD's overlay popped up, and F11 didn't leave it.
  */
 private var restore: Triple<Int, com.sun.jna.platform.win32.WinDef.RECT, Boolean>? = null
 private fun borderless(window: java.awt.Frame, on: Boolean) {

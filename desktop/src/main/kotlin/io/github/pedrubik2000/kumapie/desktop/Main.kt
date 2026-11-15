@@ -86,20 +86,47 @@ fun main() {
 @Composable
 private fun androidx.compose.ui.window.ApplicationScope.KumapieWindow() {
     val state = rememberWindowState(width = 1500.dp, height = 950.dp)
-    var before by remember { mutableStateOf(WindowPlacement.Floating) }
-    toggleFullscreen = {
-        if (state.placement == WindowPlacement.Fullscreen) state.placement = before
-        else { before = state.placement; state.placement = WindowPlacement.Fullscreen }
-    }
+    var full by remember { mutableStateOf(false) }
     Window(onCloseRequest = ::exitApplication, title = "kumapie", state = state, onPreviewKeyEvent = { e ->
         // The player's keys first; then F11 toggles fullscreen and Esc leaves it.
         keys?.invoke(e) == true || e.type == KeyEventType.KeyDown && when {
             e.key == Key.F11 -> { toggleFullscreen(); true } // not F: it would fire while typing in the mine form
-            e.key == Key.Escape && state.placement == WindowPlacement.Fullscreen -> { toggleFullscreen(); true }
+            e.key == Key.Escape && full -> { toggleFullscreen(); true }
             else -> false
         }
     }) {
+        toggleFullscreen = { full = !full; borderless(window, full) }
         App()
+    }
+}
+
+/**
+ * Fullscreen as a borderless window over the whole monitor, not Compose's WindowPlacement.Fullscreen: that one is
+ * Windows' exclusive fullscreen, where Direct3D drew only 33-47 times a second (video dropped to 13-19 of 24 fps),
+ * OpenGL tore, AMD's overlay popped up, and F11 didn't leave it.
+ */
+private var restore: Triple<Int, com.sun.jna.platform.win32.WinDef.RECT, Boolean>? = null
+private fun borderless(window: java.awt.Frame, on: Boolean) {
+    val u = com.sun.jna.platform.win32.User32.INSTANCE
+    val hwnd = com.sun.jna.platform.win32.WinDef.HWND(com.sun.jna.Native.getWindowPointer(window))
+    val chrome = com.sun.jna.platform.win32.WinUser.WS_CAPTION or com.sun.jna.platform.win32.WinUser.WS_THICKFRAME
+    val flags = 0x0020 or 0x0004 or 0x0200 // SWP_FRAMECHANGED, SWP_NOZORDER, SWP_NOOWNERZORDER
+    if (on) {
+        val maximized = window.extendedState and java.awt.Frame.MAXIMIZED_BOTH != 0
+        if (maximized) window.extendedState = java.awt.Frame.NORMAL
+        val r = com.sun.jna.platform.win32.WinDef.RECT().also { u.GetWindowRect(hwnd, it) }
+        val style = u.GetWindowLong(hwnd, com.sun.jna.platform.win32.WinUser.GWL_STYLE)
+        restore = Triple(style, r, maximized)
+        u.SetWindowLong(hwnd, com.sun.jna.platform.win32.WinUser.GWL_STYLE, style and chrome.inv())
+        val mi = com.sun.jna.platform.win32.WinUser.MONITORINFO()
+        u.GetMonitorInfo(u.MonitorFromWindow(hwnd, com.sun.jna.platform.win32.WinUser.MONITOR_DEFAULTTONEAREST), mi)
+        val m = mi.rcMonitor
+        u.SetWindowPos(hwnd, null, m.left, m.top, m.right - m.left, m.bottom - m.top, flags)
+    } else {
+        val (style, r, maximized) = restore ?: return
+        u.SetWindowLong(hwnd, com.sun.jna.platform.win32.WinUser.GWL_STYLE, style)
+        u.SetWindowPos(hwnd, null, r.left, r.top, r.right - r.left, r.bottom - r.top, flags)
+        if (maximized) window.extendedState = java.awt.Frame.MAXIMIZED_BOTH
     }
 }
 

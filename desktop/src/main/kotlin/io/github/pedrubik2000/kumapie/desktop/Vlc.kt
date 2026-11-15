@@ -7,8 +7,11 @@ import uk.co.caprica.vlcj.factory.discovery.NativeDiscovery
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,9 +33,9 @@ import java.nio.ByteBuffer
 import javax.swing.SwingUtilities
 import org.jetbrains.skia.Rect as SkRect
 
-/** libVLC, found in KUMAPIE_VLC (a VLC 3 folder, e.g. the portable zip) or where VLC is installed. */
+/** libVLC, found in KUMAPIE_VLC (a VLC 3 folder, e.g. the portable zip; at build time it goes into the app) or where VLC is installed. */
 object Vlc {
-    private val folder = System.getenv("KUMAPIE_VLC")?.takeIf { it.isNotBlank() }
+    private val folder = (System.getenv("KUMAPIE_VLC") ?: System.getProperty("kumapie.vlc"))?.takeIf { it.isNotBlank() }
 
     val factory: MediaPlayerFactory by lazy {
         folder?.let { System.setProperty("jna.library.path", it) } // VLCJ's discovery looks there first
@@ -49,8 +52,8 @@ object Vlc {
  */
 class VlcPlayer : Player {
     private val mp = Vlc.factory.mediaPlayers().newEmbeddedMediaPlayer()
-    /** The newest frame (set on the UI thread); null until the first one. */
-    var frame by mutableStateOf<Image?>(null)
+    /** The newest frame (set on the UI thread); null until the first one. [VideoFrame] reads it on every screen refresh. */
+    var frame: Image? = null
         private set
     private val old = ArrayDeque<Image>() // frames drawn lately, closed a few frames later (the renderer may still hold one)
     private var info: ImageInfo? = null
@@ -119,9 +122,12 @@ class VlcPlayer : Player {
 /** The video, fitted and centred, letterboxed in black. */
 @Composable
 fun VideoFrame(player: VlcPlayer, modifier: Modifier) {
-    val image = player.frame
+    // Redrawn on every screen refresh with the newest frame (a frame is a plain field, not Compose state: no recomposition).
+    var vsync by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(player) { while (true) withFrameNanos { vsync = it } }
     Canvas(modifier.background(Color.Black)) {
-        val img = image ?: return@Canvas
+        vsync // read: a new screen frame redraws
+        val img = player.frame ?: return@Canvas
         val scale = minOf(size.width / img.width, size.height / img.height)
         val w = img.width * scale
         val h = img.height * scale

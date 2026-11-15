@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -122,6 +123,8 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
     var anchor by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) } // the picked word on screen
     var options by remember { mutableStateOf(false) }
     var now by remember { mutableStateOf(android.os.SystemClock.uptimeMillis()) }
+    // Read through derivedStateOf: `now` changes every 40 ms, and reading it directly rebuilt the whole player 25 times a second.
+    val showTop by remember { derivedStateOf { !ctl.playing || now < ctl.bannerUntil || picker.isOpen } }
 
     /** kuma3's card states onto the episode's words (KnownWords.paint): a word with its own card gets its state. */
     suspend fun reloadCards() {
@@ -231,7 +234,7 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
                     onDoubleTap = { p -> picker.close(); if (p.x < size.width / 2) ctl.replayLine() else ctl.replayScene() },
                 )
             })
-            if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) {
+            if (showTop) {
                 TopRow(ctl, transcript, onTranscript = { transcript = !transcript; settings.prefs.edit().putBoolean("desktop_transcript", transcript).apply() }, onOptions = { options = !options }, onClose)
             }
             // Hover = the word's short gloss, no click, no pause (kumapie_pc_plan.md: the PC's one new gesture).

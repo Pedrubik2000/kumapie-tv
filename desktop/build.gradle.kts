@@ -25,8 +25,15 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "io.github.pedrubik2000.kumapie.desktop.MainKt"
+        // The VLC folder the build was made with goes into kumapie.exe, so it plays when opened on its own too.
+        // (forward slashes: the .cfg eats backslashes)
+        System.getenv("KUMAPIE_VLC")?.takeIf { it.isNotBlank() }?.let { jvmArgs += "-Dkumapie.vlc=" + it.replace('\\', '/') }
         // createDistributable: build/compose/binaries/main/app/kumapie/kumapie.exe, a runnable app with its own JRE
         // (started from there, it doesn't keep a Gradle build open the way `run` does).
-        nativeDistributions { packageName = "kumapie" }
+        nativeDistributions {
+            packageName = "kumapie"
+            // libVLC's video frames come through JNA callbacks that need sun.misc.Unsafe: without it, sound but no picture.
+            modules("jdk.unsupported")
+        }
     }
 }

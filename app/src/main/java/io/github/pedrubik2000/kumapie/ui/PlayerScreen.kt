@@ -101,7 +101,9 @@ fun rememberPlayer(video: String, resume: Double?, lang: String? = null): ExoPla
     val player = remember {
         ExoPlayer.Builder(context).build().apply {
             // A streamed file with several audio tracks (the English dub first): the episode's language.
-            if (lang != null) trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(lang).build()
+            // Its own subtitle tracks off: kumapie draws the lines (a CR file's English track showed over them).
+            trackSelectionParameters = trackSelectionParameters.buildUpon().setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
+                .apply { if (lang != null) setPreferredAudioLanguage(lang) }.build()
             setMediaItem(MediaItem.fromUri(video), ((resume ?: 0.0) * 1000).toLong())
             prepare()
         }

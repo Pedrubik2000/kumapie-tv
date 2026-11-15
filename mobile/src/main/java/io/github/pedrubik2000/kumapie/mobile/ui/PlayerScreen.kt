@@ -206,7 +206,9 @@ internal fun ScenePlayer(
     val player = remember {
         preloaded ?: ExoPlayer.Builder(context).build().apply {
             // A streamed file with several audio tracks (the English dub first): the episode's language.
-            trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(episode.lang).build()
+            // Its own subtitle tracks off: kumapie draws the lines (a CR file's English track showed over them).
+            trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(episode.lang)
+                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true).build()
             setMediaItem(MediaItem.fromUri(episode.video))
             prepare()
         }

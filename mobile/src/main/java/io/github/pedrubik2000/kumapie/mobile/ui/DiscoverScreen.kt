@@ -327,10 +327,9 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     var next by remember { mutableStateOf("") }
     var file by remember { mutableStateOf(query["file"].orEmpty()) }
     val player = remember {
-        io.github.pedrubik2000.kumapie.player.videoPlayer(context).build().apply {
+        io.github.pedrubik2000.kumapie.player.videoPlayer(context, query["lang"] ?: "ja").apply {
             // As ScenePlayer's own: the episode's audio language, the file's own subtitle tracks off.
-            trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(query["lang"] ?: "ja")
-                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true).build()
+            trackSelectionParameters = trackSelectionParameters.buildUpon().setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true).build()
         }
     }
     DisposableEffect(Unit) { onDispose { if (detail == null) player.release() } } // else ScenePlayer releases it

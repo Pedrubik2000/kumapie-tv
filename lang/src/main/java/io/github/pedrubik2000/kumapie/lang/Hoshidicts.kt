@@ -279,6 +279,22 @@ class YomitanDictionaries private constructor(private val context: Context) {
             .firstNotNullOfOrNull { g -> portraitPath(g.raw)?.let { Hoshidicts.nativeMedia(h, g.dict, it) } }
     }
 
+    /**
+     * A picture dictionary's picture for [word] (イナゴ: 新世紀ビジュアル大辞典's いなご), or null: drawn before the word like
+     * a character's face (user, 2026-11-16). Katakana words are looked up in hiragana too (the dictionaries' headwords).
+     */
+    fun wordPicture(lang: Lang, word: String): ByteArray? = synchronized(this) {
+        val h = handles["pictures:" + lang.code] ?: run {
+            val dicts = of(lang).filter { it.enabled && it.terms > 0 && it.group == GlossaryHtml.PICTURES }
+            if (dicts.isEmpty()) return null
+            Hoshidicts.nativeOpen().also { h -> dicts.forEach { Hoshidicts.nativeAdd(h, File(base, it.folder).path, 0) }; handles["pictures:" + lang.code] = h }
+        }
+        val hira = word.map { if (it in 'ァ'..'ヶ') it - 0x60 else it }.joinToString("")
+        listOf(word, hira).distinct().asSequence()
+            .flatMap { parseTerms(JSONArray(Hoshidicts.nativeQuery(h, it))).flatMap { t -> t.glossaries } }
+            .firstNotNullOfOrNull { g -> picturePath(g.raw)?.let { Hoshidicts.nativeMedia(h, g.dict, it) } }
+    }
+
     /** Yomitan's scan from the start of [text] (Japanese deinflection, longest match first): (matched text, term). */
     fun scan(lang: Lang, text: String, max: Int = 16): List<Pair<String, Term>> = synchronized(this) {
         val own = personal.startingAt(lang.code, text)?.let { e -> personalTerms(lang, e).map { e.text to it } }.orEmpty()
@@ -482,6 +498,18 @@ class YomitanDictionaries private constructor(private val context: Context) {
 
         private fun workKey(s: String) =
             java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC).lowercase().filter { it.isLetterOrDigit() }
+
+        /** The first picture in a glossary's structured content, not a letter drawn as an image (EPWING gaiji: sized in em). */
+        fun picturePath(glossary: String): String? {
+            fun walk(o: Any?): String? = when (o) {
+                is JSONObject -> if (o.optString("tag") == "img" && o.has("path") && o.optString("sizeUnits") != "em") o.getString("path")
+                    else o.keys().asSequence().firstNotNullOfOrNull { walk(o.opt(it)) }
+                is JSONArray -> (0 until o.length()).firstNotNullOfOrNull { walk(o.opt(it)) }
+                else -> null
+            }
+            if ("\"path\"" !in glossary) return null
+            return walk(runCatching { org.json.JSONTokener(glossary).nextValue() }.getOrNull())
+        }
 
         /** The image file of a character entry's portrait (not its voice actor's, which comes later), or null. */
         fun portraitPath(glossary: String): String? =

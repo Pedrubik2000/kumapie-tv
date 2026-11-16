@@ -218,10 +218,14 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
             else runCatching { yomitan.characterPortrait(lang, k, episode.work)?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) } }.getOrNull()
                 ?.let { k to it.asImageBitmap() }
         }.toMap()
-        android.util.Log.i("kumapie", "names: ${names.size} in ${faceStart - started} ms, faces: ${portraits.keys} in ${System.currentTimeMillis() - faceStart} ms")
+        // Pictures (user, 2026-11-16: イナゴ like the faces): words not known yet that a [Pictures] dictionary has.
+        val pictures = (keys - portraits.keys - names).filter { episode.words[it]?.let { w -> w.status == "k" || w.marked } != true }
+            .mapNotNull { k -> runCatching { yomitan.wordPicture(lang, k)?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) } }.getOrNull()
+                ?.let { k to it.asImageBitmap() } }.toMap()
+        android.util.Log.i("kumapie", "names: ${names.size} in ${faceStart - started} ms, faces: ${portraits.keys}, pictures: ${pictures.size} in ${System.currentTimeMillis() - faceStart} ms")
         // Joined names (猫猫 from the PC's 猫|猫) are characters' names: known, as [autoKnown] says. Red here ignored every
         // mark on the TV, whose colours come only from the PC's split (user 2026-11-16: "marked mao mao a lot of times").
-        return episode.copy(scenes = scenes, words = episode.words + names.associateWith { Word("k", "") }, portraits = portraits)
+        return episode.copy(scenes = scenes, words = episode.words + names.associateWith { Word("k", "") }, portraits = pictures + portraits)
     }
 
     /**

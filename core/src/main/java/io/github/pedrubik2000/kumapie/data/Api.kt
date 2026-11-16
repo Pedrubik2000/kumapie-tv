@@ -277,6 +277,19 @@ class Api(private val base: String, private val person: String = "") : Backend {
     /** The Discover titles this person keeps on Home (to stream later), newest first. */
     suspend fun saved(): List<Found> = JSONArray(get("/api/discover/saved?person=" + java.net.URLEncoder.encode(person, "UTF-8"))).found()
 
+    /**
+     * Streamed titles to go on with (kumapie-server discover.py going()), as "Continue watching" cards: a Show of kind
+     * "stream" (id = the Discover title) holding its one episode (id = the Discover episode; resume null = the next one).
+     */
+    suspend fun going(): List<Pair<Show, Episode>> = JSONArray(get("/api/discover/going?lang=ja&person=" + java.net.URLEncoder.encode(person, "UTF-8")))
+        .objects().map { g ->
+            val t = g.getJSONObject("title")
+            val n = if (g.isNull("number")) null else g.getInt("number")
+            val e = Episode(g.getString("id"), n?.let { tr("Episode %d", it) } ?: t.getString("name"), 1, n, g.optDouble("duration", 0.0), "",
+                0, 0, 0, if (g.isNull("resume")) null else g.getDouble("resume"), resumedAt = g.optLong("resumed_at"), ready = g.optBoolean("ready"))
+            Show(t.getString("id"), t.getString("name"), "stream", t.optString("poster"), listOf(e), "ja") to e
+        }
+
     /** Keeps [title] on Home ([on]) or drops it; answers the new list. */
     suspend fun save(title: Found, on: Boolean): List<Found> = JSONArray(post("/api/discover/saved", JSONObject().put("person", person)
         .put("id", title.id).put("type", title.type).put("name", title.name).put("poster", title.poster).put("year", title.year)
@@ -448,6 +461,8 @@ data class Episode(
     val episodeTitle: String = "",
     /** When [resume] was saved (epoch seconds, 0 = never): "Continue watching" lists the newest first. */
     val resumedAt: Long = 0,
+    /** A streamed episode ([Show.kind] "stream", [Api.going]): the PC has a file ready, it plays at once. */
+    val ready: Boolean = true,
 ) {
     /** Every scene seen to its end (on any device), or marked watched: no spoilers left in it. */
     val watched: Boolean get() = scenes > 0 && seen >= scenes

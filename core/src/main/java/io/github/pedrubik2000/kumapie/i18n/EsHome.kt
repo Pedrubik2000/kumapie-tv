@@ -63,6 +63,8 @@ internal val esHome: Map<String, String> = mapOf(
     "Continue" to "Continuar",
     "%s left" to "quedan %s",
     "%d min left" to "quedan %d min",
+    "Next episode" to "Siguiente episodio",
+    "Episode %d" to "Episodio %d",
     "%d%% easy" to "%d%% fácil",
     "Hard cards" to "Difíciles",
     "Dictionary" to "Diccionario",

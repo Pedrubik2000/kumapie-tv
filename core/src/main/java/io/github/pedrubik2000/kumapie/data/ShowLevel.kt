@@ -24,20 +24,36 @@ fun levelLine(s: Show): String {
 /**
  * Home's "Continue" row: one card per show, its episode left partway most recently; newest first (user, 2026-10-14:
  * BOFURI filled 4 of 6 TV cards). Under 2 minutes left counts as watched (credits). Shorts are feed-only.
+ * When the episode played last is finished, the next one not watched instead, from the start (resume null; user,
+ * 2026-11-16). [streams]: streamed titles' cards ([Api.going]), already picked by the PC.
  */
-fun continueRow(shows: List<Show>): List<Pair<Show, Episode>> = shows.filter { it.kind != "reels" }.mapNotNull { s ->
-    s.episodes.filter { e ->
-        val at = e.resume ?: 0.0
-        !e.watched && e.duration > 0 && at > 20 && e.duration - at > 120
-    }.maxByOrNull { it.resumedAt }?.let { s to it }
-}.sortedByDescending { it.second.resumedAt }
+fun continueRow(shows: List<Show>, streams: List<Pair<Show, Episode>> = emptyList()): List<Pair<Show, Episode>> =
+    (shows.filter { it.kind != "reels" }.mapNotNull { s ->
+        val partway = s.episodes.filter { e ->
+            val at = e.resume ?: 0.0
+            !e.watched && e.duration > 0 && at > 20 && e.duration - at > 120
+        }.maxByOrNull { it.resumedAt }
+        val last = s.episodes.filter { it.resumedAt > 0 }.maxByOrNull { it.resumedAt }
+        val done = last != null && last !== partway && (last.watched || last.duration > 0 && last.duration - (last.resume ?: 0.0) <= 120)
+        val next = if (done) s.episodes.drop(s.episodes.indexOf(last) + 1).firstOrNull { !it.watched } else null
+        // The next one from the start, unless it was left partway itself.
+        (next?.let { n -> n.copy(resume = n.resume?.takeIf { it > 20 && n.duration - it > 120 }, resumedAt = last!!.resumedAt) } ?: partway)
+            ?.let { s to it }
+    } + streams).sortedByDescending { it.second.resumedAt }
+
+/** A streamed card's title for the Discover page ([Show.kind] "stream"). */
+fun streamFound(s: Show, e: Episode) = Found(s.id, if (e.number == null) "movie" else "series", s.title, s.poster, "")
+
+/** A streamed card's episode to play (kumapie://watch's query; the PC's prepared file). */
+fun streamQuery(s: Show, e: Episode) = mapOf("lang" to "ja", "type" to streamFound(s, e).type, "id" to e.id, "show" to s.title,
+    "title" to (e.number?.let { "${s.title} $it" } ?: s.title))
 
 /** A title cut at its subtitle for one-line places (the TV): "BOFURI: I Don't Want to Get Hurt…" -> "BOFURI". */
 fun shortTitle(title: String): String = title.substringBefore(": ").ifBlank { title }
 
 /** Home's resume card: "14 min left · 61% easy" (the episode's share of i+0 / i+1 scenes, when the PC counted it). */
 fun resumeLine(e: Episode): String {
-    val left = tr("%d min left", ((e.duration - (e.resume ?: 0.0)) / 60).toInt().coerceAtLeast(1))
+    val left = if (e.resume == null) tr("Next episode") else tr("%d min left", ((e.duration - e.resume) / 60).toInt().coerceAtLeast(1))
     val easy = if (e.easy > 0 && e.scenes > 0) e.easy * 100 / e.scenes else null
     return easy?.let { "$left · " + tr("%d%% easy", it) } ?: left
 }

@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun App(settings: Settings) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
     var profile by remember { mutableStateOf<Profile?>(null) } // asked at every start, like Netflix
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
@@ -101,7 +102,15 @@ fun App(settings: Settings) {
                 }, onSettings = { stack.add(Screen.Settings) })
             } else when (screen) {
                 Screen.Home -> HomeScreen(api, settings, profile?.id.orEmpty(), profile?.name.orEmpty(),
-                    onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e -> stack.add(Screen.Player(s, e)) },
+                    onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e ->
+                        when { // a streamed card: its prepared file, else its page to pick one
+                            s.kind != "stream" -> stack.add(Screen.Player(s, e))
+                            e.ready -> context.startActivity(android.content.Intent(context, StreamActivity::class.java).setData(
+                                io.github.pedrubik2000.kumapie.data.streamQuery(s, e).entries.fold(android.net.Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) ->
+                                    b.appendQueryParameter(k, v) }.build()))
+                            else -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e)))
+                        }
+                    },
                     onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
                     onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.add(Screen.Discover()) },
                     onDiscovered = { stack.add(Screen.Discover(it)) })

@@ -160,7 +160,13 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 library,
                 onShows = { shows = it },
                 onShow = { stack += Screen.ShowEpisodes(it.id) },
-                onPlay = { s, e -> stack += Screen.Player(s, e) },
+                onPlay = { s, e ->
+                    stack += when { // a streamed card: its prepared file, else its page to pick one
+                        s.kind != "stream" -> Screen.Player(s, e)
+                        e.ready -> Screen.Watch(io.github.pedrubik2000.kumapie.data.streamQuery(s, e))
+                        else -> Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e))
+                    }
+                },
                 onStats = { stack += Screen.Stats },
                 onIPlusOne = { stack += Screen.IPlusOne },
                 onFeed = { stack += Screen.Feed },

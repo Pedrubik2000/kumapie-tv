@@ -91,6 +91,9 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
     // Discover titles kept on Home (+ HOME on a title's page), to stream later: Japanese only, as Discover.
     var kept by remember { mutableStateOf(emptyList<Found>()) }
     LaunchedEffect(lang) { kept = if (lang == "ja") runCatching { api.saved() }.getOrDefault(emptyList()) else emptyList() }
+    // Streamed titles in "Continue watching" too (the episode left partway, or the next one).
+    var streams by remember { mutableStateOf(emptyList<Pair<Show, Episode>>()) }
+    LaunchedEffect(lang) { streams = if (lang == "ja") runCatching { api.going() }.getOrDefault(emptyList()) else emptyList() }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 32.dp)) {
         // Scrolls sideways when the buttons don't fit (a squeezed SETTINGS wrapped letter by letter, 353 px tall, and
@@ -122,7 +125,7 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
             lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim)
             else -> {
                 LangCard(api, lang)
-                Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered)
+                Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams)
             }
         }
     }
@@ -160,8 +163,8 @@ private fun LangCard(api: Api, lang: String) {
 /** "Continue watching" (episodes left partway, as on the phone), then a row per media type. */
 @Composable
 private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit,
-                 kept: List<Found> = emptyList(), onDiscovered: (Found) -> Unit = {}) {
-    val going = io.github.pedrubik2000.kumapie.data.continueRow(shows)
+                 kept: List<Found> = emptyList(), onDiscovered: (Found) -> Unit = {}, streams: List<Pair<Show, Episode>> = emptyList()) {
+    val going = io.github.pedrubik2000.kumapie.data.continueRow(shows, streams)
     val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
     val rows = KINDS.map { (k, label) -> tr(label) to shows.filter { it.kind == k } } + listOf(tr("Other") to other)
     val first = remember { FocusRequester() }
@@ -169,7 +172,8 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
         // As on the phone: the last episode as a big card (focused first, OK plays it), the other shows in progress
         // beside it as small cards (user, 2026-10-15: Home is for resuming fast). Novels are read: they count too.
         if (going.isNotEmpty()) item(key = "going") {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Bottom,
+            // A new state when the streamed cards arrive: else the row stays scrolled to the old first card.
+            LazyRow(state = remember(streams) { androidx.compose.foundation.lazy.LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Bottom,
                 contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 20.dp, bottom = 24.dp)) { // room for the focused card to grow 10%
                 itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
                     ResumeCard(s, e, if (i == 0) Modifier.focusRequester(first) else Modifier, width = if (i == 0) 360.dp else 220.dp) { onPlay(s, e) }
@@ -197,7 +201,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
             }
         }
     }
-    LaunchedEffect(lang, shows) { first.focusSoon() }
+    LaunchedEffect(lang, shows, streams) { first.focusSoon() }
 }
 
 @Composable

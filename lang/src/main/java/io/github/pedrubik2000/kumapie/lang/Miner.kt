@@ -10,10 +10,16 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.C
 import androidx.media3.common.audio.SonicAudioProcessor
+import androidx.media3.common.util.Clock
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.effect.Presentation
 import androidx.media3.transformer.AudioEncoderSettings
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultAssetLoaderFactory
+import androidx.media3.transformer.DefaultDecoderFactory
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EncoderUtil
@@ -47,6 +53,8 @@ class Miner(
     private val context: Context,
     private val languages: Languages,
     private val dictionary: Dictionary,
+    /** The PC (kumapie-server), which cuts what this device can't decode ([cutOnPc]); "" = none. */
+    private val server: String = "",
 ) {
     private val anki = AnkiCards(context)
     private val dir = File(context.cacheDir, "mining")
@@ -165,7 +173,7 @@ class Miner(
         val endMs = ((cues.last().end + 0.25) * 1000).toLong()
         progress(tr("Cutting the line's audio…"))
         val lineFile = File(dir, if (opus) "line.ogg" else "line.m4a").apply { delete() }
-        audioClip(r.episode.video, startMs, endMs, lineFile)
+        cutOnPc(r, startMs, endMs, lineFile) { audioClip(r.episode.video, startMs, endMs, lineFile, r.episode.lang) }
         val line = addAudio(pkg, lineFile, "${slug}_$startMs-$endMs")
         lineFile.delete()
         if ("Video" in fieldNames) {
@@ -174,7 +182,7 @@ class Miner(
             val clipFile = File(dir, "clip.webm").apply { delete() }
             val start = (r.scene.start * 1000).toLong()
             val end = (r.scene.end * 1000).toLong()
-            clip(r.episode.video, start, end, clipFile)
+            cutOnPc(r, start, end, clipFile) { clip(r.episode.video, start, end, clipFile, r.episode.lang) }
             fields["Video"] = "[audio:$line][audio:${anki.addMedia(pkg, clipFile, "${slug}_$start-$end")}]"
             clipFile.delete()
         } else {
@@ -303,16 +311,50 @@ class Miner(
         }
     }
 
-    /** [startMs]..[endMs] of [source]'s audio alone: Opus 32 kbps 48 kHz when [out] is .ogg, else AAC in .m4a. */
+    /**
+     * [onDevice] (cutting [out] from [r]'s video here); when the device can't decode the episode's audio (the living-room
+     * Chromecast has no AC-3/E-AC-3 decoder, so Netflix tracks failed every mine, 2026-11-16), the PC cuts it with
+     * ffmpeg (`/api/tv/cut`, same formats) from the same stream.
+     */
+    private suspend fun cutOnPc(r: Request, startMs: Long, endMs: Long, out: File, onDevice: suspend () -> Unit) {
+        try {
+            onDevice()
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException || server.isEmpty() || !r.episode.video.startsWith("http")) throw e
+            Log.w("kumapie", "cut on the PC: ${e.cause ?: e}")
+            val q = "src=${java.net.URLEncoder.encode(r.episode.video, "UTF-8")}&start=$startMs&end=$endMs&lang=${r.episode.lang}&kind=${out.extension}"
+            val conn = URL("${server.trimEnd('/')}/api/tv/cut?$q").openConnection() as HttpURLConnection
+            conn.readTimeout = 180_000
+            try {
+                if (conn.responseCode != 200) throw e
+                conn.inputStream.use { i -> out.outputStream().use { i.copyTo(it) } }
+            } finally {
+                conn.disconnect()
+            }
+        }
+    }
+
+    /** Transformer reading the [lang] audio track: by default it took the file's first ("Castellano (Netflix)" of a Japanese episode). */
     @OptIn(UnstableApi::class)
-    suspend fun audioClip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
+    private fun Transformer.Builder.audioOf(lang: String?): Transformer.Builder = if (lang == null) this else setAssetLoaderFactory(
+        DefaultAssetLoaderFactory(context, DefaultDecoderFactory.Builder(context).build(), Clock.DEFAULT, DefaultMediaSourceFactory(context),
+            DataSourceBitmapLoader(context)) { c ->
+            // As Transformer's own selector, plus the language.
+            DefaultTrackSelector(c, DefaultTrackSelector.Parameters.Builder().setConstrainAudioChannelCountToDeviceCapabilities(false)
+                .setForceHighestSupportedBitrate(true).setPreferredAudioLanguage(lang).build())
+        },
+    )
+
+    /** [startMs]..[endMs] of [source]'s audio alone ([lang]'s track): Opus 32 kbps 48 kHz when [out] is .ogg, else AAC in .m4a. */
+    @OptIn(UnstableApi::class)
+    suspend fun audioClip(source: String, startMs: Long, endMs: Long, out: File, lang: String? = null) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
             val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
             val item = MediaItem.Builder().setUri(uri).setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build(),
             ).build()
             val ogg = out.extension == "ogg"
-            val transformer = Transformer.Builder(context)
+            val transformer = Transformer.Builder(context).audioOf(lang)
                 .setAudioMimeType(if (ogg) MimeTypes.AUDIO_OPUS else MimeTypes.AUDIO_AAC)
                 .apply {
                     if (ogg) setMuxerFactory(WebmMuxer.Factory(ogg = true)).setEncoderFactory(DefaultEncoderFactory.Builder(context)
@@ -370,7 +412,7 @@ class Miner(
      * as video), from the downloaded file or the PC's stream.
      */
     @OptIn(UnstableApi::class)
-    suspend fun clip(source: String, startMs: Long, endMs: Long, out: File) = withContext(Dispatchers.Main) {
+    suspend fun clip(source: String, startMs: Long, endMs: Long, out: File, lang: String? = null) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
             val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
             val item = MediaItem.Builder().setUri(uri).setClippingConfiguration(
@@ -379,7 +421,7 @@ class Miner(
             val edited = EditedMediaItem.Builder(item)
                 .setEffects(Effects(listOf(), listOf(Presentation.createForHeight(480))))
                 .build()
-            val transformer = Transformer.Builder(context)
+            val transformer = Transformer.Builder(context).audioOf(lang)
                 .setMuxerFactory(WebmMuxer.Factory())
                 .setVideoMimeType(if (EncoderUtil.getSupportedEncoders(MimeTypes.VIDEO_VP9).isNotEmpty()) MimeTypes.VIDEO_VP9 else MimeTypes.VIDEO_VP8)
                 .setAudioMimeType(MimeTypes.AUDIO_OPUS)

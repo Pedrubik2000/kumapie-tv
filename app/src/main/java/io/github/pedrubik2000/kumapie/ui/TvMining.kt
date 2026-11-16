@@ -107,7 +107,7 @@ private object TvMining {
     fun miner(context: Context, settings: Settings): Miner = miner ?: run {
         val languages = languages(context, settings)
         val d = dictionary!!.also { d -> if (Dictionary.RECORDINGS.any { !d.recordingsFile(it).exists() }) d.download() }
-        Miner(context.applicationContext, languages, d).also { miner = it }
+        Miner(context.applicationContext, languages, d, settings.server).also { miner = it }
     }
     /**
      * The PC's Japanese Yomitan zips (state\dicts\yomitan-ja, the phone's set) this TV hasn't imported yet (by file

@@ -78,11 +78,35 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     val importedWords: Set<String> get() = imported
 
-    /** Replaces the imported known words (empty: none). */
-    fun setImported(words: Set<String>) {
+    /** Replaces the imported known words (empty: none); [time] = when (the PC's, when they came from another device). */
+    fun setImported(words: Set<String>, time: Long = System.currentTimeMillis()) {
         imported = words
         runCatching { importedFile.writeText(words.sorted().joinToString("\n")) }
+        settings.prefs.edit().putLong("imported_time_${lang.code}", time).putLong("imported_sent_${lang.code}", -1).apply()
         _status.value = describe()
+    }
+
+    /**
+     * The imported words for POST /api/tv/known_lists, which keeps the newest import of all the person's devices:
+     * the words go only while the PC may not have them (marks sync through Anki, [useMarked]).
+     */
+    fun listsBody(): JSONObject {
+        val p = settings.prefs
+        val time = p.getLong("imported_time_${lang.code}", 0)
+        val imp = JSONObject().put("time", time)
+        if (p.getLong("imported_sent_${lang.code}", -1) != time) imp.put("words", org.json.JSONArray(imported.sorted()))
+        return JSONObject().put("imported", imp)
+    }
+
+    /** The PC's answer to [listsBody]: takes another device's import when it's newer. */
+    fun useLists(o: JSONObject) {
+        val p = settings.prefs
+        val imp = o.optJSONObject("imported") ?: return
+        val time = imp.getLong("time")
+        val words = imp.optJSONArray("words")
+        if (words != null && time > p.getLong("imported_time_${lang.code}", 0))
+            setImported((0 until words.length()).map(words::getString).toSet(), time)
+        if (time == p.getLong("imported_time_${lang.code}", 0)) p.edit().putLong("imported_sent_${lang.code}", time).apply()
     }
 
     /** Known without a card of its own: imported, or [Language.autoKnown]. */

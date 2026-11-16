@@ -213,10 +213,15 @@ class Api(private val base: String, private val person: String = "") : Backend {
     /** [o] with this device's person: a language's libraries are shared, so the PC needs to know who is watching. */
     private fun who(o: JSONObject) = o.apply { if (person.isNotEmpty()) put("person", person) }
 
-    /** The words this device shows as known in [lang] (white or green): the PC's feed and TV count by them. */
+    /** The words this device shows as known in [lang] (white or green): the PC keeps each device's and counts by all of them. */
     suspend fun knownWords(lang: String, words: List<String>) {
-        post("/api/tv/known_words", JSONObject().put("person", person).put("lang", lang).put("words", org.json.JSONArray(words)).toString())
+        post("/api/tv/known_words", JSONObject().put("person", person).put("lang", lang).put("device", android.os.Build.MODEL)
+            .put("words", org.json.JSONArray(words)).toString())
     }
+
+    /** This device's own known lists ([lang]'s KnownWords.listsBody) sent; answers every device's, merged. */
+    suspend fun knownLists(lang: String, body: JSONObject): JSONObject =
+        JSONObject(post("/api/tv/known_lists", body.put("person", person).put("lang", lang).toString()))
 
     /** This device's personal dictionary sent; answers the merged one (lang's PersonalDictionary). */
     suspend fun personalDictionary(entries: String): String =

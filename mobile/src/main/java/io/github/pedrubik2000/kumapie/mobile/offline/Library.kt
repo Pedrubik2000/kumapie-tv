@@ -74,6 +74,7 @@ class Library(context: Context, val settings: Settings) {
     /** Sends this device's progress to Anki and reads the others' (when Anki was read here once). */
     suspend fun syncProgress() {
         sendPersonal()
+        sendKnownLists()
         if (languages.all.none { it.known.ready }) return
         progress.sync(runCatching { api }.getOrNull())
         val marked = progress.merged.marked
@@ -87,6 +88,19 @@ class Library(context: Context, val settings: Settings) {
         val api = runCatching { api }.getOrNull() ?: return
         yomitan.personal.sync(api::personalDictionary)
     }
+
+    /**
+     * Each language's imported known words and the known threshold to the PC, and what another device changed
+     * later: the Jiten import done on one device colours the others too. Offline: the local lists, sent next sync.
+     */
+    private suspend fun sendKnownLists() {
+        val api = runCatching { api }.getOrNull() ?: return
+        for (l in languages.all) runCatching { l.known.useLists(api.knownLists(l.lang.code, l.known.listsBody())) }
+            .onFailure { android.util.Log.w("kumapie", "known lists: ${l.lang.code} not synced: $it") }
+    }
+
+    /** After an import or a threshold change: in the background. */
+    fun syncKnownLists() { background.launch { sendKnownLists() } }
 
     /** After an entry changed: in the background (offline, it goes with the next sync). */
     fun syncPersonal() { background.launch { sendPersonal() } }
@@ -121,7 +135,7 @@ class Library(context: Context, val settings: Settings) {
         for (l in languages.all.filter { it.known.ready }) {
             val words = withContext(Dispatchers.Default) { l.known.knownList() }
             val hash = words.hashCode().toString()
-            val key = "known_sent_${l.lang.code}"
+            val key = "known_sent2_${l.lang.code}" // 2: once more, now with the device (one file per device on the PC)
             if (settings.prefs.getString(key, null) == hash) { android.util.Log.i("kumapie", "known words: ${l.lang.code} unchanged"); continue }
             runCatching { api.knownWords(l.lang.code, words) }
                 .onSuccess {

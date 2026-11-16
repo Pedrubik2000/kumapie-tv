@@ -299,7 +299,7 @@ private fun KnownWordsSection(library: Library, learning: Set<String>) {
         }), fontSize = 14.sp, color = Colors.dim)
     }
 
-    library.languages.all.filter { it.lang.code in learning }.forEach { LanguageWordsSection(it, allowed, app) }
+    library.languages.all.filter { it.lang.code in learning }.forEach { LanguageWordsSection(it, allowed, app, library::syncKnownLists) }
 }
 
 /**
@@ -307,7 +307,7 @@ private fun KnownWordsSection(library: Library, learning: Set<String>) {
  * once) and reading its cards again (also done when the app starts).
  */
 @Composable
-private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.Language, allowed: Boolean, app: String?) {
+private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.Language, allowed: Boolean, app: String?, onImported: () -> Unit) {
     val known = language.known
     val model = language.model
     val scope = rememberCoroutineScope()
@@ -340,7 +340,7 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
         scope.launch { known.refresh(); busy = false }
     }) { Text(if (busy) tr("Reading Anki…") else tr("Read ${language.lang.name} cards now")) }
 
-    if (language is io.github.pedrubik2000.kumapie.lang.Japanese) JitenImport(known)
+    if (language is io.github.pedrubik2000.kumapie.lang.Japanese) JitenImport(known, onImported)
 }
 
 /**
@@ -348,7 +348,7 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
  * picked word sets. They count as known while the word has no Mined card; names and fillers are known anyway.
  */
 @Composable
-private fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords) {
+private fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, onImported: () -> Unit) {
     val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
     val scope = rememberCoroutineScope()
     var top by remember { mutableStateOf("10000") }
@@ -374,14 +374,14 @@ private fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords) {
                     val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         jiten.top(top.toIntOrNull() ?: 0) + sets.filterValues { it }.keys.flatMap(jiten::set)
                     }
-                    known.setImported(words)
+                    known.setImported(words); onImported()
                     tr("%d words imported as known.", words.size)
                 }.getOrElse { it.message ?: it.toString() }
                 busy = false
             }
         }) { Text(tr("Import")) }
         if (known.importedWords.isNotEmpty()) OutlinedButton(enabled = !busy, onClick = {
-            known.setImported(emptySet()); said = ""
+            known.setImported(emptySet()); said = ""; onImported()
         }) { Text(tr("Remove imported")) }
     }
     if (said.isNotEmpty()) Text(said, fontSize = 14.sp, color = Colors.dim)

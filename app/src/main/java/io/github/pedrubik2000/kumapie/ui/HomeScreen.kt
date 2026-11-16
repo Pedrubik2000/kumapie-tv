@@ -2,6 +2,8 @@ package io.github.pedrubik2000.kumapie.ui
 
 import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -91,7 +93,9 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
     LaunchedEffect(lang) { kept = if (lang == "ja") runCatching { api.saved() }.getOrDefault(emptyList()) else emptyList() }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 32.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        // Scrolls sideways when the buttons don't fit (a squeezed SETTINGS wrapped letter by letter, 353 px tall, and
+        // pushed everything down: bedroom TV, 2026-11-15); focus brings the far ones into view.
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
             Title("kuma", "pie")
             Spacer(Modifier.width(32.dp))
             if (langs.size > 1) langs.forEach { c ->
@@ -99,7 +103,7 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
                     colors = arcadeButtonColors(selected = c == lang),
                     modifier = Modifier.padding(end = 8.dp)) { Text(Lang.of(c).displayName.uppercase()) }
             }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(24.dp))
             if (lang == "ja") { // Discover: Japanese only for now
                 Button(onClick = onDiscover) { Text(tr("Discover").uppercase()) }
                 Spacer(Modifier.width(8.dp))

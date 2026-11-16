@@ -27,6 +27,9 @@ import android.content.pm.ActivityInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -196,10 +199,11 @@ private fun TitleLogo(f: Found) {
 }
 
 /**
- * A title, Stremio's way: its backdrop with logo, rating, runtime and genres; ▶ (the first episode the PC got ready,
- * else the first one's files), + Home and its text; then the episodes. An episode (or the movie) opens its files.
+ * A title, Stremio's way: its backdrop with logo, rating, runtime and genres; ▶ (the episode after the last watched,
+ * else the first the PC got ready, else the first one's files), + Home and its text; then the episodes. An episode
+ * (or the movie) opens its files; a long press offers other files and watched / not watched (✓).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, String>) -> Unit, onBack: () -> Unit) {
     var meta by remember { mutableStateOf<JSONObject?>(null) }
@@ -208,7 +212,9 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
     var kept by remember { mutableStateOf<Boolean?>(null) } // on Home (null: not known yet)
     var more by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    LaunchedEffect(title.id) {
+    var reload by remember { mutableStateOf(0) }
+    var menu by remember { mutableStateOf<String?>(null) } // the long-pressed episode's id
+    LaunchedEffect(title.id, reload) {
         runCatching { library.api.discoverMeta(title.type, title.id) }.onSuccess { meta = it }.onFailure { error = it.message ?: it.toString() }
     }
     LaunchedEffect(title.id) { kept = runCatching { library.api.saved().any { it.id == title.id } }.getOrNull() }
@@ -233,7 +239,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                 }
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (m != null) {
-                        val first = eps.firstOrNull { it.optBoolean("ready") } ?: eps.firstOrNull()
+                        val first = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
                         Button(onClick = { if (first != null) play(first) else picking = title.id to title.name }) {
                             Text("▶ " + if (first != null) tr("Episode %1\$d", first.optInt("number")) else tr("Watch"))
                         }
@@ -255,14 +261,26 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
             }
             items(eps, key = { it.getString("id") }) { e ->
                 val ready = e.optBoolean("ready")
-                Row(Modifier.fillMaxWidth().clickable { play(e) }.padding(16.dp, 8.dp),
+                val watched = e.optBoolean("watched")
+                Box {
+                Row(Modifier.fillMaxWidth().combinedClickable(onLongClick = { menu = e.getString("id") }) { play(e) }.padding(16.dp, 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     AsyncImage(e.optString("thumb"), null, contentScale = ContentScale.Crop,
                         modifier = Modifier.width(120.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Colors.surface))
                     Column(Modifier.weight(1f)) {
-                        Text((if (ready) "▶ " else "") + tr("Episode %1\$d", e.optInt("number")), color = if (ready) Colors.accent else Colors.text)
+                        Text((if (watched) "✓ " else if (ready) "▶ " else "") + tr("Episode %1\$d", e.optInt("number")),
+                            color = if (watched) Colors.dim else if (ready) Colors.accent else Colors.text)
                         Text(e.optString("title"), color = Colors.dim, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
+                }
+                DropdownMenu(expanded = menu == e.getString("id"), onDismissRequest = { menu = null }) {
+                    DropdownMenuItem(text = { Text(tr("Other files")) }, onClick = {
+                        menu = null; picking = e.getString("id") to "${title.name} ${e.optInt("number")}"
+                    })
+                    DropdownMenuItem(text = { Text(if (watched) tr("Mark not watched") else tr("Mark watched")) }, onClick = {
+                        menu = null; scope.launch { runCatching { library.api.seen(e.getString("id"), !watched) }; reload++ }
+                    })
+                }
                 }
             }
         }

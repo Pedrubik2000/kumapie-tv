@@ -164,8 +164,9 @@ private fun TitleLogo(f: Found) {
 }
 
 /**
- * A title, Stremio's way: its backdrop, logo, rating, runtime and genres, ▶ (the first episode the PC got ready, else
- * the first one's files), + HOME and its text on the left; its episodes (or the picked one's files) on the right.
+ * A title, Stremio's way: its backdrop, logo, rating, runtime and genres, ▶ (the episode after the last watched, else
+ * the first the PC got ready, else the first one's files), + HOME and its text on the left; its episodes (or the picked
+ * one's files) on the right. Holding OK on an episode offers other files and watched / not watched (✓).
  */
 @Composable
 private fun TitleScreen(api: Api, title: Found) {
@@ -175,9 +176,11 @@ private fun TitleScreen(api: Api, title: Found) {
     var picking by remember { mutableStateOf<Pair<String, String>?>(null) } // (Stremio id, its name)
     var files by remember { mutableStateOf<List<JSONObject>?>(null) }
     var kept by remember { mutableStateOf<Boolean?>(null) } // on Home (null: not known yet)
+    var menu by remember { mutableStateOf<JSONObject?>(null) } // the episode OK was held on
+    var reload by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(title.id) { kept = runCatching { api.saved().any { it.id == title.id } }.getOrNull() }
-    LaunchedEffect(title.id) {
+    LaunchedEffect(title.id, reload) {
         runCatching { api.discoverMeta(title.type, title.id) }.onSuccess { meta = it }.onFailure { error = it.message ?: it.toString() }
     }
     LaunchedEffect(picking) {
@@ -186,6 +189,7 @@ private fun TitleScreen(api: Api, title: Found) {
         runCatching { api.discoverStreams(title.type, id).objects() }.onSuccess { files = it }.onFailure { error = it.message ?: it.toString() }
     }
     if (picking != null) BackHandler { picking = null; error = null }
+    if (menu != null && picking == null) BackHandler { menu = null }
     val t = meta?.let { api.found(it) } ?: title
     val eps = meta?.optJSONArray("episodes")?.objects().orEmpty()
     fun play(e: JSONObject) {
@@ -204,7 +208,7 @@ private fun TitleScreen(api: Api, title: Found) {
             Text(t.line, color = Colors.text, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
             Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (meta != null) {
-                    val next = eps.firstOrNull { it.optBoolean("ready") } ?: eps.firstOrNull()
+                    val next = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
                     Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }) {
                         Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) else tr("Watch")).uppercase())
                     }
@@ -222,6 +226,21 @@ private fun TitleScreen(api: Api, title: Found) {
         when {
             error != null -> Text(error!!, color = Colors.dim)
             m == null -> Text(tr("Loading…"), color = Colors.dim)
+            pick == null && menu != null -> {
+                val e = menu!!
+                val watched = e.optBoolean("watched")
+                Column {
+                    Heading(tr("Episode %1\$d", e.optInt("number")))
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(12.dp)) {
+                        item { Line(0, tr("Other files"), "", null) { menu = null; picking = e.getString("id") to "${title.name} ${e.optInt("number")}" } }
+                        item {
+                            Line(1, if (watched) tr("Mark not watched") else tr("Mark watched"), "", null) {
+                                menu = null; scope.launch { runCatching { api.seen(e.getString("id"), !watched) }; reload++ }
+                            }
+                        }
+                    }
+                }
+            }
             pick != null -> {
                 val list = files
                 Column {
@@ -249,7 +268,9 @@ private fun TitleScreen(api: Api, title: Found) {
                     if (eps.isEmpty()) item { Line(0, tr("Watch"), m.optString("year"), null) { picking = title.id to title.name } }
                     itemsIndexed(eps, key = { _, e -> e.getString("id") }) { i, e ->
                         val ready = e.optBoolean("ready") // the PC got a file ready for it: no file list, it starts at once
-                        Line(i, (if (ready) "▶ " else "") + tr("Episode %1\$d", e.optInt("number")), e.optString("title"), e.optString("thumb")) { play(e) }
+                        val mark = if (e.optBoolean("watched")) "✓ " else if (ready) "▶ " else ""
+                        Line(i, mark + tr("Episode %1\$d", e.optInt("number")), e.optString("title"), e.optString("thumb"),
+                            onLongClick = { menu = e }) { play(e) }
                     }
                 }
             }
@@ -260,9 +281,9 @@ private fun TitleScreen(api: Api, title: Found) {
 
 /** One focusable line of the episode / file list ([i] 0 takes the focus first). */
 @Composable
-private fun Line(i: Int, text: String, line: String, thumb: String?, onClick: () -> Unit) {
+private fun Line(i: Int, text: String, line: String, thumb: String?, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val first = remember { FocusRequester() }
-    Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab),
+    Card(onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab),
         modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)) {
         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
             if (!thumb.isNullOrEmpty()) AsyncImage(thumb, null, contentScale = ContentScale.Crop, modifier = Modifier.width(160.dp).aspectRatio(16f / 9f))

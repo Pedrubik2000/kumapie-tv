@@ -277,6 +277,11 @@ class Api(private val base: String, private val person: String = "") : Backend {
         .put("id", title.id).put("type", title.type).put("name", title.name).put("poster", title.poster).put("year", title.year)
         .put("on", on).toString())).found()
 
+    /** Marks a Discover episode watched ([on]) or not. */
+    suspend fun seen(id: String, on: Boolean) {
+        post("/api/discover/seen", JSONObject().put("person", person).put("lang", "ja").put("id", id).put("on", on).toString())
+    }
+
     private fun JSONArray.found() = objects().map { found(it) }
 
     /** A title object of discover.py (also a meta answer: [discoverMeta]). */
@@ -296,7 +301,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
         JSONArray(get("/api/discover/board?person=" + java.net.URLEncoder.encode(person, "UTF-8"), readTimeout = 60_000))
             .objects().map { it.optString("name") to it.getJSONArray("items").found() }
 
-    /** A Discover title: {"name", "poster", "background", "description", "year", "episodes": [{"id", "season", "number", "title", "thumb", "ready"}]} (ready: the PC got a file ready for it). */
+    /** A Discover title: {"name", "poster", "background", "description", "year", "episodes": [{"id", "season", "number", "title", "thumb", "ready", "watched"}]} (ready: the PC got a file ready for it). */
     suspend fun discoverMeta(type: String, id: String) =
         JSONObject(get("/api/discover/meta/$type/$id?lang=ja&person=" + java.net.URLEncoder.encode(person, "UTF-8")))
 
@@ -605,3 +610,9 @@ fun unknownIn(cues: List<Cue>, words: Map<String, Word>): Int = cues.flatMap { i
 fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
 
 fun JSONObject.optIntOrNull(name: String): Int? = if (isNull(name)) null else optInt(name)
+
+/** A Discover title's ▶ episode: the one after the last watched, else the first the PC got ready, else the first. */
+fun nextEpisode(eps: List<JSONObject>): JSONObject? {
+    val last = eps.indexOfLast { it.optBoolean("watched") }
+    return if (last >= 0) eps.getOrNull(last + 1) ?: eps.last() else eps.firstOrNull { it.optBoolean("ready") } ?: eps.firstOrNull()
+}

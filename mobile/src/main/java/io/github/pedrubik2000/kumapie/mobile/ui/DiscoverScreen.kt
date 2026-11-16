@@ -1,5 +1,12 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
+import io.github.pedrubik2000.kumapie.player.LiveLines
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.material3.MaterialTheme
@@ -306,7 +313,9 @@ private fun Files(library: Library, type: String, id: String, onPick: (JSONObjec
  * A picked Discover file (or, without hash/file/idx, the one the PC got ready for that episode): the PC gets
  * Real-Debrid's link and makes the episode's words (asked every 3 s, its step shown). The video plays as soon as the
  * link exists, plain; when the words are ready the same player goes on in [ScenePlayer] (no new start: from the scene
- * it is in). At the video's end, [onNext] with the next episode (the PC gets it ready while this one plays).
+ * it is in). Until then, SubMiner's way: the Japanese lines live as it plays ([LiveLines]: the file's own track, else
+ * Jimaku's file with a ±0.5 s nudge), each one coloured on the phone. At the video's end, [onNext] with the next
+ * episode (the PC gets it ready while this one plays).
  */
 @Composable
 fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<String, String>) -> Unit, onBack: () -> Unit) {
@@ -316,6 +325,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     var playing by remember { mutableStateOf(false) }
     var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
     var next by remember { mutableStateOf("") }
+    var file by remember { mutableStateOf(query["file"].orEmpty()) }
     val player = remember {
         io.github.pedrubik2000.kumapie.player.videoPlayer(context).build().apply {
             // As ScenePlayer's own: the episode's audio language, the file's own subtitle tracks off.
@@ -324,6 +334,8 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         }
     }
     DisposableEffect(Unit) { onDispose { if (detail == null) player.release() } } // else ScenePlayer releases it
+    val live = remember { LiveLines(player) { library.api.discoverSubs(query["type"].orEmpty(), query["id"].orEmpty(), file) } }
+    LaunchedEffect(live) { live.run() }
     DisposableEffect(Unit) {
         val ended = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
@@ -346,6 +358,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
             while (true) {
                 val r = library.api.watch(query)
                 next = r.optString("next")
+                r.optString("file").takeIf { it.isNotEmpty() }?.let { file = it }
                 val state = r.optString("state")
                 when (state) {
                     "none" -> error(tr("No file is ready for this episode yet: pick one in its files"))
@@ -359,6 +372,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
                 }
                 if (state == "ready") {
                     val d = library.episode(r.getString("id"))
+                    live.stop() // the scenes draw the lines now
                     val at = player.currentPosition / 1000.0
                     detail = d.copy(video = r.getString("url"), resume = if (at > 1) at else d.resume)
                     return@runCatching
@@ -378,7 +392,9 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     }
     if (playing) { // words failed: the video goes on plain, the reason on top
         return Box(Modifier.fillMaxSize().background(Color.Black)) {
-            AndroidView({ PlayerView(it).apply { this.player = player } }, Modifier.fillMaxSize(), onRelease = { it.player = null })
+            AndroidView({ PlayerView(it).apply { this.player = player; subtitleView?.visibility = android.view.View.GONE } },
+                Modifier.fillMaxSize(), onRelease = { it.player = null })
+            LiveLine(library, live, Modifier.align(Alignment.BottomCenter))
             Text(error ?: tr("Words coming: %1\$s", step), color = Color.White, fontSize = 13.sp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).background(Color(0x99000000), RoundedCornerShape(6.dp)).padding(8.dp, 4.dp))
         }
@@ -389,6 +405,43 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         if (error == null) CircularProgressIndicator(color = Colors.accent)
         Text(error ?: step, color = if (error == null) Colors.dim else Colors.unknown, fontSize = 16.sp, textAlign = TextAlign.Center)
         Button(onClick = onBack) { Text(if (error == null) tr("Not now") else tr("Back")) }
+    }
+}
+
+/** The live line, its words coloured as the phone knows them (once the splitter is loaded: plain until then). */
+@Composable
+private fun LiveLine(library: Library, live: LiveLines, modifier: Modifier) {
+    val line = live.line
+    val styled by androidx.compose.runtime.produceState<AnnotatedString?>(null, line) {
+        value = line?.let { AnnotatedString(it) }
+        if (line != null) value = withContext(Dispatchers.Default) { runCatching { coloured(library, line) }.getOrNull() } ?: value
+    }
+    Column(modifier.padding(bottom = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (live.source == "jimaku") Row(verticalAlignment = Alignment.CenterVertically) {
+            // Jimaku's file may be timed for another release: nudged by hand, as SubMiner's subtitle delay.
+            androidx.compose.material3.TextButton(onClick = { live.offset -= 0.5 }) { Text("−0.5 s", color = Color.White) }
+            Text(tr("Jimaku %1\$s s", "%+.1f".format(live.offset)), color = Color.White, fontSize = 13.sp)
+            androidx.compose.material3.TextButton(onClick = { live.offset += 0.5 }) { Text("+0.5 s", color = Color.White) }
+        }
+        styled?.let {
+            Text(it, color = Color.White, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 32.sp,
+                modifier = Modifier.background(Color(0x99000000), RoundedCornerShape(8.dp)).padding(12.dp, 6.dp))
+        }
+    }
+}
+
+/** [line] split as kumapie splits Japanese, its words not known yet in the unknown colour. */
+private fun coloured(library: Library, line: String): AnnotatedString {
+    val ja = library.languages.japanese
+    val tokens = ja.model.words(listOf(line))[0]
+    return buildAnnotatedString {
+        var at = 0
+        tokens.forEach { t ->
+            if (t.begin > at) append(line.substring(at, minOf(t.begin, line.length)))
+            withStyle(SpanStyle(color = if (!t.isWord || ja.known.status(t.base) == "k") Color.White else Colors.unknown)) { append(t.surface) }
+            at = maxOf(at, t.begin + t.surface.length)
+        }
+        if (at < line.length) append(line.substring(at))
     }
 }
 

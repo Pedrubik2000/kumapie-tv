@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import io.github.pedrubik2000.kumapie.player.LiveLines
 import io.github.pedrubik2000.kumapie.ui.rememberPlayer
 import androidx.media3.ui.PlayerView
 import androidx.media3.common.Player
@@ -51,6 +52,7 @@ import java.net.URL
  */
 class StreamActivity : ComponentActivity() {
     private var player: ExoPlayer? = null
+    private var watchFile = "" // the Discover file playing: its Jimaku lines are asked by its name
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -138,6 +140,7 @@ class StreamActivity : ComponentActivity() {
         while (true) {
             val r = api.watch(query)
             onNext(r.optString("next"))
+            watchFile = r.optString("file").ifEmpty { query["file"].orEmpty() }
             if (r.has("url")) video(r.getString("url"))
             when (r.optString("state")) {
                 "ready" -> {
@@ -155,7 +158,8 @@ class StreamActivity : ComponentActivity() {
 
     /**
      * A Discover stream playing: plain (the player's own controls, [note] on top) until its words are ready ([shown]),
-     * then the same player goes on in [ScenePlayer]. At the video's end: the next episode's StreamActivity.
+     * then the same player goes on in [ScenePlayer]. Until then its Japanese lines live, SubMiner's way ([LiveLines]:
+     * the file's own track, else Jimaku's file). At the video's end: the next episode's StreamActivity.
      */
     @Composable
     private fun Watching(api: Api, settings: Settings, video: String, shown: EpisodeDetail?, note: String, next: String, link: Uri) {
@@ -182,10 +186,19 @@ class StreamActivity : ComponentActivity() {
             p.addListener(ended)
             onDispose { p.removeListener(ended) }
         }
-        if (shown != null) return ScenePlayer(api, settings, shown, onClose = ::finish, player = p)
+        val live = remember(p) { LiveLines(p) { api.discoverSubs(link.getQueryParameter("type").orEmpty(), link.getQueryParameter("id").orEmpty(), watchFile) } }
+        LaunchedEffect(live) { live.run() }
+        if (shown != null) {
+            remember(shown) { live.stop() } // the scenes draw the lines now
+            return ScenePlayer(api, settings, shown, onClose = ::finish, player = p)
+        }
         Box(Modifier.fillMaxSize()) {
-            AndroidView({ PlayerView(it).apply { player = p; useController = true; requestFocus() } }, Modifier.fillMaxSize(),
-                onRelease = { it.player = null })
+            AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; requestFocus() } },
+                Modifier.fillMaxSize(), onRelease = { it.player = null })
+            live.line?.let {
+                Text(it, color = Color.White, fontSize = 30.sp, lineHeight = 40.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).background(Color(0x99000000)).padding(16.dp, 8.dp))
+            }
             Text(failed ?: note, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)
                 .background(Color(0x99000000)).padding(12.dp, 6.dp))
         }

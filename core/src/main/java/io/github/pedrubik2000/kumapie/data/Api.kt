@@ -283,6 +283,14 @@ class Api(private val base: String, private val person: String = "") : Backend {
     fun found(o: JSONObject) = Found(o.optString("id"), o.optString("type", "series"), o.optString("name"), o.optString("poster"), o.optString("year"),
         o.optString("background"), o.optString("logo"), o.optString("description"), o.optString("genres"), o.optString("rating"), o.optString("runtime"))
 
+    /**
+     * A Jimaku file's Japanese lines for a Discover file (GET /api/discover/subs: the one made for its release first),
+     * shown live while its episode is made: [(start, end, text)], empty when Jimaku has none.
+     */
+    suspend fun discoverSubs(type: String, id: String, file: String): List<Triple<Double, Double, String>> =
+        JSONObject(get("/api/discover/subs/$type/$id?file=" + java.net.URLEncoder.encode(file, "UTF-8"), readTimeout = 60_000))
+            .getJSONArray("cues").let { a -> (0 until a.length()).map { a.getJSONArray(it).let { c -> Triple(c.getDouble(0), c.getDouble(1), c.getString(2)) } } }
+
     /** Discover's board (Stremio's): rows of titles, the person's AniList Planning list first: [(name, titles)]. */
     suspend fun board(): List<Pair<String, List<Found>>> =
         JSONArray(get("/api/discover/board?person=" + java.net.URLEncoder.encode(person, "UTF-8"), readTimeout = 60_000))

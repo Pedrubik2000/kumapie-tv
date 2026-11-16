@@ -210,7 +210,8 @@ private fun TitleScreen(api: Api, title: Found) {
                 if (meta != null) {
                     val next = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
                     Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }) {
-                        Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) else tr("Watch")).uppercase())
+                        Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) +
+                            (if (next.optBoolean("ready") && next.optString("source").isNotEmpty()) " · " + next.optString("source") else "") else tr("Watch")).uppercase())
                     }
                 }
                 kept?.let { on ->
@@ -253,7 +254,8 @@ private fun TitleScreen(api: Api, title: Found) {
                                 Line(i, f.optString("label"), f.optString("about"), null) {
                                     val link = Uri.parse("kumapie://watch").buildUpon().apply {
                                         listOf("lang" to "ja", "type" to title.type, "id" to pick.first, "hash" to f.getString("hash"),
-                                            "file" to f.getString("file"), "idx" to f.optInt("idx", -1).toString(), "title" to pick.second, "show" to title.name)
+                                            "file" to f.getString("file"), "idx" to f.optInt("idx", -1).toString(), "title" to pick.second, "show" to title.name,
+                                            "label" to f.optString("short"))
                                             .forEach { (k, v) -> appendQueryParameter(k, v) }
                                     }.build()
                                     context.startActivity(Intent(context, StreamActivity::class.java).setData(link))
@@ -269,7 +271,8 @@ private fun TitleScreen(api: Api, title: Found) {
                     itemsIndexed(eps, key = { _, e -> e.getString("id") }) { i, e ->
                         val ready = e.optBoolean("ready") // the PC got a file ready for it: no file list, it starts at once
                         val mark = if (e.optBoolean("watched")) "✓ " else if (ready) "▶ " else ""
-                        Line(i, mark + tr("Episode %1\$d", e.optInt("number")), e.optString("title"), e.optString("thumb"),
+                        val source = if (ready && e.optString("source").isNotEmpty()) " · " + e.optString("source") else "" // the ▶ file's quality, Mbps
+                        Line(i, mark + tr("Episode %1\$d", e.optInt("number")) + source, e.optString("title"), e.optString("thumb"),
                             onLongClick = { menu = e }) { play(e) }
                     }
                 }

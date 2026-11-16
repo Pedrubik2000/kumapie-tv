@@ -241,7 +241,8 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                     if (m != null) {
                         val first = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
                         Button(onClick = { if (first != null) play(first) else picking = title.id to title.name }) {
-                            Text("▶ " + if (first != null) tr("Episode %1\$d", first.optInt("number")) else tr("Watch"))
+                            Text("▶ " + if (first != null) tr("Episode %1\$d", first.optInt("number")) +
+                                (if (first.optBoolean("ready") && first.optString("source").isNotEmpty()) " · " + first.optString("source") else "") else tr("Watch"))
                         }
                     }
                     kept?.let { on ->
@@ -268,7 +269,8 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                     AsyncImage(e.optString("thumb"), null, contentScale = ContentScale.Crop,
                         modifier = Modifier.width(120.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Colors.surface))
                     Column(Modifier.weight(1f)) {
-                        Text((if (watched) "✓ " else if (ready) "▶ " else "") + tr("Episode %1\$d", e.optInt("number")),
+                        Text((if (watched) "✓ " else if (ready) "▶ " else "") + tr("Episode %1\$d", e.optInt("number")) +
+                            (if (ready && e.optString("source").isNotEmpty()) " · " + e.optString("source") else ""), // the ▶ file's quality, Mbps
                             color = if (watched) Colors.dim else if (ready) Colors.accent else Colors.text)
                         Text(e.optString("title"), color = Colors.dim, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
@@ -294,7 +296,8 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
             Files(library, title.type, id) { f ->
                 picking = null
                 onWatch(mapOf("lang" to "ja", "type" to title.type, "id" to id, "hash" to f.getString("hash"),
-                    "file" to f.getString("file"), "idx" to f.optInt("idx", -1).toString(), "title" to name, "show" to title.name))
+                    "file" to f.getString("file"), "idx" to f.optInt("idx", -1).toString(), "title" to name, "show" to title.name,
+                    "label" to f.optString("short")))
             }
         }
     }

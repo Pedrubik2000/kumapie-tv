@@ -92,11 +92,14 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      */
     fun listsBody(): JSONObject {
         val p = settings.prefs
-        val time = p.getLong("imported_time_${lang.code}", 0)
+        val time = importedTime()
         val imp = JSONObject().put("time", time)
         if (p.getLong("imported_sent_${lang.code}", -1) != time) imp.put("words", org.json.JSONArray(imported.sorted()))
         return JSONObject().put("imported", imp)
     }
+
+    /** When the import was made: 1 for one from before times were kept (older than any other), 0 for none. */
+    private fun importedTime() = settings.prefs.getLong("imported_time_${lang.code}", if (imported.isEmpty()) 0 else 1)
 
     /** The PC's answer to [listsBody]: takes another device's import when it's newer. */
     fun useLists(o: JSONObject) {
@@ -104,9 +107,9 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val imp = o.optJSONObject("imported") ?: return
         val time = imp.getLong("time")
         val words = imp.optJSONArray("words")
-        if (words != null && time > p.getLong("imported_time_${lang.code}", 0))
+        if (words != null && time > importedTime())
             setImported((0 until words.length()).map(words::getString).toSet(), time)
-        if (time == p.getLong("imported_time_${lang.code}", 0)) p.edit().putLong("imported_sent_${lang.code}", time).apply()
+        if (time == importedTime()) p.edit().putLong("imported_sent_${lang.code}", time).apply()
     }
 
     /** Known without a card of its own: imported, or [Language.autoKnown]. */

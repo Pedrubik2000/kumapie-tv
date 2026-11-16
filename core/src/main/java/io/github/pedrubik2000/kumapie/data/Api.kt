@@ -132,6 +132,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
             duration = e.optDouble("duration", 0.0), video = url(e.getString("video")),
             resume = if (e.isNull("resume")) null else e.getDouble("resume"), scenes = scenes, words = words,
             novel = e.optBoolean("novel"), work = e.optString("work"), srs = e.optBoolean("srs"),
+            marked = e.optJSONArray("marked")?.let { a -> (0 until a.length()).map(a::getString).toSet() }.orEmpty(),
         )
     }
 
@@ -514,6 +515,8 @@ data class EpisodeDetail(
     val work: String = "",
     /** The person's cards live on the PC, not in kuma3 ([Api.srsAdd]; Jackson's TV, user 2026-11-13). */
     val srs: Boolean = false,
+    /** Words marked known that the PC's split doesn't have (personal-dictionary words joined here): white when joined. */
+    val marked: Set<String> = emptySet(),
 )
 
 data class Scene(

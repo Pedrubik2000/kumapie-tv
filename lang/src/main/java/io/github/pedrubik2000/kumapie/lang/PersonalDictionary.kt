@@ -49,7 +49,7 @@ class PersonalDictionary private constructor(context: Context) {
     fun join(episode: EpisodeDetail): EpisodeDetail {
         if (live(episode.lang).isEmpty()) return episode
         val scenes = joinScenes(episode.lang, episode.scenes)
-        return episode.copy(scenes = scenes, words = episode.words + newKeys(scenes, episode.words.keys).associateWith { Word("u", "") })
+        return episode.copy(scenes = scenes, words = episode.words + newKeys(scenes, episode.words.keys).associateWith { Word("u", "", marked = it in episode.marked) })
     }
 
     /** [scenes] with this language's entries as one word each. */

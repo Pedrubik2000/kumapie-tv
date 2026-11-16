@@ -235,7 +235,7 @@ class SceneController(
     /** [joined]: the scenes split again, with the same timing and order; a word new to the episode ([added]) starts red. */
     fun rejoin(joined: List<Scene>, added: Set<String>) {
         scenes = joined
-        added.forEach { if (it !in words) words[it] = Word("u", "") }
+        added.forEach { if (it !in words) words[it] = Word("u", "", marked = it in episode.marked) }
     }
 
     /** The scene's level, live: a rating or marking a word known lowers it ([io.github.pedrubik2000.kumapie.data.levelOf]). */

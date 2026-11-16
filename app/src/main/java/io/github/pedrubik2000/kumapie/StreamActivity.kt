@@ -38,6 +38,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.ui.KumapieTheme
 import io.github.pedrubik2000.kumapie.ui.ScenePlayer
+import io.github.pedrubik2000.kumapie.ui.joinNames
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -81,7 +82,9 @@ class StreamActivity : ComponentActivity() {
         var next by remember { mutableStateOf("") }
         val link = Uri.parse(video)
         val title = intent.getStringExtra("title") ?: link.lastPathSegment.orEmpty()
+        val personal = remember { io.github.pedrubik2000.kumapie.lang.PersonalDictionary.get(this) }
         LaunchedEffect(Unit) {
+            personal.sync(api::personalDictionary)
             runCatching {
                 if (link.host == "watch") return@runCatching watched(api, link, { step = it }, { if (url == null) url = it }, { next = it })
                 if (link.scheme?.startsWith("kumapie") == true) return@runCatching prepared(api, link) { step = it }
@@ -92,7 +95,8 @@ class StreamActivity : ComponentActivity() {
                 val id = api.stream(lang, title, read(spoken), under?.let { read(it) })
                 val resume = intent.getIntExtra("position", 0) / 1000.0
                 api.episode(id).copy(video = video, show = title, resume = resume.takeIf { it > 0 })
-            }.onSuccess { detail = it }.onFailure { error = it.message ?: it.toString() }
+            }.mapCatching { personal.join(joinNames(this@StreamActivity, settings, it)) } // names as one word + faces, as PlayerScreen
+                .onSuccess { detail = it }.onFailure { error = it.message ?: it.toString() }
         }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             val shown = detail

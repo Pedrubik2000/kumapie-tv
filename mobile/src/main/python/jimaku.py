@@ -134,6 +134,8 @@ def cues(path: str, lang: str = "ja") -> str:
             elif line.startswith("Dialogue:") and fields:
                 row = dict(zip(fields, line[9:].split(",", len(fields) - 1)))
                 body = row.get("text", "")
+                if lang == "ja" and CHINESE_STYLE.search(row.get("style", "")):
+                    continue  # a bilingual file's Chinese half (Zombieland Saga movie: MainCN beside MainJP)
                 sung = lang == "ja" and lyric(row.get("style", ""), body)
                 if not sung and not dialogue(row.get("style", ""), body):
                     continue
@@ -160,6 +162,8 @@ def cues(path: str, lang: str = "ja") -> str:
         sung = lang == "ja" and "♪" in t
         if sung and not re.search(r"[ぁ-ヿ]", t):
             continue
+        if lang == "ja" and not re.search(r"[ぁ-ヿ]", t) and SIMPLIFIED.search(t):
+            continue  # a Chinese fansub credit or note (字幕组, 请勿…) with no kana
         t = clean(t)
         if sung and t:
             t = SONG + t
@@ -173,6 +177,8 @@ SONG_OR_SIGN = re.compile(r"sign|\bop\d*\b|\bed\d*\b|opening|ending|song|karaoke
                           r"typeset|\bts\b|stars|eyecatch|logo|card", re.I)
 
 
+CHINESE_STYLE = re.compile(r"CN|CHS|CHT|ZH|[中简繁]|(?i:(?:^|[\W_])(?:cn|chs|cht|zh|chi)(?:$|[\W_]))")  # MainCN, Default-chs
+SIMPLIFIED = re.compile(r"[们这说吗么个关发问还时对没会东组贺尸电让谁吧呢啥咱该样请删载协词效注从开为里给见现国过长门车马鸟鱼并纵转轮闪传达远层图]")
 SONG = "♪ "  # how a sung line starts: Skip intro / ending and the watched count go by it (kumapie's Scene.song)
 SONG_STYLE = re.compile(r"\bop\d*\b|\bed\d*\b|opening|ending|song|karaoke|lyric|insert|\bin\b", re.I)
 NOT_LYRICS = re.compile(r"sign|\brom|romaji|title|typeset|\bts\b|stars|eyecatch|logo|card|kfx|staff|credit", re.I)
@@ -217,6 +223,15 @@ if __name__ == "__main__":  # python jimaku.py: the picking rules (and AniList, 
         "Frieren.S01E07.7z")]
     got = [f["name"] for f in rank(files, 7, "Sousou.no.Frieren.S01E07.1080p.NF.WEB-DL.mkv")]
     assert got == [files[1]["name"], files[0]["name"], "Frieren BD 1-28.zip"], got
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".ass", delete=False, encoding="utf-8") as t:  # a bilingual file
+        t.write("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+                "Dialogue: 0,0:00:01.00,0:00:02.00,MainCN,,0,0,0,,这个时间点\n"
+                "Dialogue: 0,0:00:01.00,0:00:02.00,MainJP,,0,0,0,,このタイミングで\n"
+                "Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,字幕: 佐贺僵尸中文电台字幕组\n"
+                "Dialogue: 0,0:00:05.00,0:00:06.00,Default,,0,0,0,,大丈夫\n")
+    assert [c[2] for c in json.loads(cues(t.name))] == ["このタイミングで", "大丈夫"], cues(t.name)
+    os.remove(t.name)
     assert anilist("Sousou no Frieren")["id"] == 154587
     assert anilist("Sousou no Frieren", 2)["id"] == 182255
     buf = io.BytesIO()

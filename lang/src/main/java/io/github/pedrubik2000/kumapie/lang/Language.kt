@@ -219,7 +219,9 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
                 ?.let { k to it.asImageBitmap() }
         }.toMap()
         android.util.Log.i("kumapie", "names: ${names.size} in ${faceStart - started} ms, faces: ${portraits.keys} in ${System.currentTimeMillis() - faceStart} ms")
-        return episode.copy(scenes = scenes, words = episode.words + names.associateWith { Word("u", "") }, portraits = portraits)
+        // Joined names (猫猫 from the PC's 猫|猫) are characters' names: known, as [autoKnown] says. Red here ignored every
+        // mark on the TV, whose colours come only from the PC's split (user 2026-11-16: "marked mao mao a lot of times").
+        return episode.copy(scenes = scenes, words = episode.words + names.associateWith { Word("k", "") }, portraits = portraits)
     }
 
     /**
@@ -282,13 +284,17 @@ class Languages(context: Context, settings: Settings, yomitan: YomitanDictionari
 private val JAPANESE_TEXT = Regex("[぀-ヿ㐀-鿿]")
 /** A Progress mark with a language prefix ("en:word"). */
 private val PREFIXED = Regex("^[a-z]{2}:")
+/** A Latin letter (German/English words; fullwidth ＫＯ isn't one). */
+private val LATIN = Regex("[A-Za-zÀ-ɏ]")
 
 /**
  * The word of Progress mark [key] when it is the language's with mark [prefix] ("en:"; "" German, whose marks are bare;
  * null Japanese, told by its script), else null.
  */
 internal fun markWord(key: String, prefix: String?): String? = when {
-    prefix == null -> key.takeIf { !PREFIXED.containsMatchIn(it) && JAPANESE_TEXT.containsMatchIn(it) }
+    // Also 3, ～, ＫＯ (no Latin letter): German claims those bare marks too, harmless; without this Japanese lost them on
+    // every sync and they came back red (user 2026-11-16).
+    prefix == null -> key.takeIf { !PREFIXED.containsMatchIn(it) && (JAPANESE_TEXT.containsMatchIn(it) || !LATIN.containsMatchIn(it)) }
     prefix.isNotEmpty() -> key.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)
     PREFIXED.containsMatchIn(key) || JAPANESE_TEXT.containsMatchIn(key) -> null
     else -> key

@@ -11,4 +11,10 @@ class MarkWordTest {
         assertEquals(listOf("give up", "sushi寿司"), keys.mapNotNull { markWord(it, "en:") })
         assertEquals(listOf("気にする"), keys.mapNotNull { markWord(it, null) })
     }
+
+    /** Numbers and signs marked in Japanese have no Japanese script: Japanese keeps them too (they came back red). */
+    @Test fun numbersAndSignsStayJapanese() {
+        val keys = listOf("3", "～", "ＫＯ", "gehst", "en:give up")
+        assertEquals(listOf("3", "～", "ＫＯ"), keys.mapNotNull { markWord(it, null) })
+    }
 }

@@ -175,4 +175,5 @@ internal val esTv: Map<String, String> = mapOf(
     "Installing…" to "Instalando…",
     "Allow kumapie to install apps on the page that opened, then press Update again." to
         "Permite que kumapie instale apps en la página que se abrió y vuelve a pulsar Actualizar.",
+    "This TV can't play this video (%s)." to "Esta tele no puede reproducir este video (%s).",
 )

@@ -198,6 +198,16 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
         }
     }
 
+    // A video the TV can't decode (10-bit HEVC, AC-3 on the Chromecast) would otherwise be a silent black screen.
+    var playError by remember { mutableStateOf<String?>(null) }
+    DisposableEffect(player) {
+        val l = object : androidx.media3.common.Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) { playError = error.errorCodeName }
+        }
+        player.addListener(l)
+        onDispose { player.removeListener(l) }
+    }
+
     val view = LocalView.current
     DisposableEffect(Unit) {
         view.keepScreenOn = true
@@ -297,6 +307,10 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
         if ((settings.showHelp || rating.open) && !options && !help)
             PlayerHints(ctl, picker, rating, watchBindings, pickerBindings, Modifier.align(Alignment.BottomStart))
         if (help) HelpOverlay(settings, ctl.lang)
+        playError?.let {
+            Text(tr("This TV can't play this video (%s).", it), color = Colors.text, fontSize = 24.sp,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 90.dp).background(Colors.surface, RoundedCornerShape(8.dp)).padding(24.dp))
+        }
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
 }

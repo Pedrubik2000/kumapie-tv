@@ -13,7 +13,10 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
+    <!-- enableOnBackInvokedCallback false: Android 16 with a new targetSdk sends Back past the views' key handlers
+         (the player's picker, onBackKey), so one Back closed the player instead of the word card. -->
     <application
+        android:enableOnBackInvokedCallback="false"
         android:allowBackup="false"
         android:networkSecurityConfig="@xml/network_security_config"
         android:banner="@drawable/banner"

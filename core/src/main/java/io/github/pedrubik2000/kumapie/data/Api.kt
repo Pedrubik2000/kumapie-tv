@@ -40,7 +40,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
                 description = s.optString("description"), year = s.optIntOrNull("year"),
                 episodes = s.getJSONArray("episodes").objects().map { e ->
                     Episode(
-                        id = e.getString("id"), title = e.getString("title"),
+                        id = e.getString("id"), title = episodeTitle(e.getString("title")),
                         season = e.optIntOrNull("season"), number = e.optIntOrNull("episode"),
                         duration = e.optDouble("duration", 0.0), thumb = url(e.getString("thumb")),
                         scenes = e.optInt("scenes"), seen = e.optInt("seen"), easy = e.optInt("easy"),
@@ -128,7 +128,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
             )
         }
         return EpisodeDetail(
-            id = e.getString("id"), show = e.getString("show"), title = e.getString("title"), lang = e.optString("lang", "de"),
+            id = e.getString("id"), show = e.getString("show"), title = episodeTitle(e.getString("title")), lang = e.optString("lang", "de"),
             duration = e.optDouble("duration", 0.0), video = url(e.getString("video")),
             resume = if (e.isNull("resume")) null else e.getDouble("resume"), scenes = scenes, words = words,
             novel = e.optBoolean("novel"), work = e.optString("work"), srs = e.optBoolean("srs"),
@@ -648,3 +648,6 @@ fun nextEpisode(eps: List<JSONObject>): JSONObject? {
     val last = eps.indexOfLast { it.optBoolean("watched") }
     return if (last >= 0) eps.getOrNull(last + 1) ?: eps.last() else eps.firstOrNull { it.optBoolean("ready") } ?: eps.firstOrNull()
 }
+
+/** The PC names untitled episodes "Episode 3": in the menu language here (the parents' profiles are Spanish). */
+fun episodeTitle(t: String): String = Regex("""Episode (\d+)""").matchEntire(t)?.let { tr("Episode %d", it.groupValues[1].toInt()) } ?: t

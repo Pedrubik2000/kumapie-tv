@@ -78,23 +78,29 @@ fun ProgressBar(fraction: Float, modifier: Modifier = Modifier) {
 @Composable
 fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
+    // Read-only until OK: a TV opens its keyboard on any focused editable field, so scrolling Settings past the
+    // server field popped the keyboard up and took the D-pad.
+    var editing by remember { mutableStateOf(false) }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
+        readOnly = !editing,
         singleLine = true,
         textStyle = TextStyle(color = Colors.text, fontSize = 20.sp),
         cursorBrush = SolidColor(Colors.accent),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { onDone() }),
+        keyboardActions = KeyboardActions(onDone = { editing = false; onDone() }),
         modifier = modifier
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged { focused = it.isFocused; if (!it.isFocused) editing = false }
             // A one-line field has no use for up/down: let the D-pad leave it (it would trap focus otherwise).
             .onPreviewKeyEvent {
                 if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (it.nativeKeyEvent.keyCode) {
                     KeyEvent.KEYCODE_DPAD_DOWN -> focusManager.moveFocus(FocusDirection.Down)
                     KeyEvent.KEYCODE_DPAD_UP -> focusManager.moveFocus(FocusDirection.Up)
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> if (editing) false else { editing = true; keyboard?.show(); true }
                     else -> false
                 }
             }

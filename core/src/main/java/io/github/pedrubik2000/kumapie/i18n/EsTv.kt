@@ -178,6 +178,18 @@ internal val esTv: Map<String, String> = mapOf(
     "No server? kumapie also works on its own." to "¿Sin servidor? kumapie también funciona solo.",
     "Use without a server" to "Usar sin servidor",
     "Nothing to watch yet." to "Aún no hay nada que ver.",
-    "Streaming without a server is not ready in this version. With a kumapie server on a PC, add its address in Settings." to
-        "El streaming sin servidor aún no está listo en esta versión. Si tienes un servidor kumapie en un PC, añade su dirección en Ajustes.",
+    "kumapie plays what your own Stremio addons give it. Add one in Settings, or the address of a kumapie server on a PC." to
+        "kumapie reproduce lo que le dan tus propios addons de Stremio. Añade uno en Ajustes, o la dirección de un servidor kumapie en un PC.",
+    "Stremio addons" to "Addons de Stremio",
+    "Paste an addon's address (…/manifest.json). One that lists titles (Cinemeta, Kitsu) and one that gives links: a torrent addon needs your debrid key in it." to
+        "Pega la dirección de un addon (…/manifest.json). Uno que liste títulos (Cinemeta, Kitsu) y uno que dé enlaces: un addon de torrents necesita tu clave de debrid.",
+    "(no answer)" to "(sin respuesta)",
+    "Remove" to "Quitar",
+    "Add" to "Añadir",
+    "Japanese subtitles for a stream that has none of its own: your free API key from jimaku.cc." to
+        "Subtítulos en japonés para un stream que no trae los suyos: tu clave gratuita de jimaku.cc.",
+    "Asking your addons…" to "Preguntando a tus addons…",
+    "No Japanese subtitles: none in this file, none on Jimaku" to "Sin subtítulos en japonés: ni en este archivo ni en Jimaku",
+    "Jimaku's subtitles" to "Subtítulos de Jimaku",
+    "That didn't work" to "No ha funcionado",
 )

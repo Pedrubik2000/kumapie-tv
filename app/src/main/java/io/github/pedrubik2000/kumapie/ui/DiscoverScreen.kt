@@ -67,7 +67,7 @@ import org.json.JSONObject
  * makes the words, the TV streams Real-Debrid's link.
  */
 @Composable
-fun DiscoverScreen(api: Api, start: Found? = null) {
+fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Found? = null) {
     var query by rememberSaveable { mutableStateOf("") }
     var searched by rememberSaveable { mutableStateOf("") }
     var found by remember { mutableStateOf<List<Found>?>(null) }
@@ -104,7 +104,7 @@ fun DiscoverScreen(api: Api, start: Found? = null) {
             }
             val list = found
             when {
-                error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = null)
+                error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = null, server = api is Api)
                 searched.isNotEmpty() && list == null || searched.isEmpty() && board == null -> Text(tr("Loading…"), color = Colors.dim)
                 searched.isNotEmpty() && list!!.isEmpty() -> Text(tr("Nothing found"), color = Colors.dim, fontSize = 20.sp, modifier = Modifier.padding(top = 32.dp, start = 16.dp))
                 searched.isNotEmpty() -> {
@@ -168,7 +168,7 @@ private fun TitleLogo(f: Found) {
  * one's files) on the right. Holding OK on an episode offers other files and watched / not watched (✓).
  */
 @Composable
-private fun TitleScreen(api: Api, title: Found) {
+private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, title: Found) {
     val context = LocalContext.current
     var meta by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -224,7 +224,7 @@ private fun TitleScreen(api: Api, title: Found) {
         val m = meta
         val pick = picking
         when {
-            error != null -> ErrorBox(error!!, onRetry = { error = null; reload++ }, onSettings = null)
+            error != null -> ErrorBox(error!!, onRetry = { error = null; reload++ }, onSettings = null, server = api is Api)
             m == null -> Text(tr("Loading…"), color = Colors.dim)
             pick == null && menu != null -> {
                 val e = menu!!
@@ -246,11 +246,17 @@ private fun TitleScreen(api: Api, title: Found) {
                 Column {
                     Heading(pick.second)
                     when {
-                        list == null -> Text(tr("Asking Torrentio…"), color = Colors.dim)
+                        list == null -> Text(if (api is Api) tr("Asking Torrentio…") else tr("Asking your addons…"), color = Colors.dim)
                         list.isEmpty() -> Text(tr("No files found for this"), color = Colors.dim)
                         else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(12.dp)) {
                             itemsIndexed(list) { i, f ->
                                 Line(i, f.optString("label"), f.optString("about"), null) {
+                                    // An addon's stream (no PC): a link that plays as it is, with its live Japanese lines.
+                                    if (f.has("url")) return@Line context.startActivity(Intent(context, StreamActivity::class.java).setData(
+                                        Uri.parse("kumapie://play").buildUpon().apply {
+                                            listOf("url" to f.getString("url"), "type" to title.type, "id" to pick.first, "title" to pick.second,
+                                                "show" to title.name, "file" to f.optString("file")).forEach { (k, v) -> appendQueryParameter(k, v) }
+                                        }.build()))
                                     val link = Uri.parse("kumapie://watch").buildUpon().apply {
                                         listOf("lang" to "ja", "type" to title.type, "id" to pick.first, "hash" to f.getString("hash"),
                                             "file" to f.getString("file"), "idx" to f.optInt("idx", -1).toString(), "title" to pick.second, "show" to title.name,

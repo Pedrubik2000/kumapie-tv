@@ -63,6 +63,9 @@ class MainActivity : ComponentActivity() {
         // The server address can be sent from the PC instead of typed with the remote:
         //   adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.MainActivity --es server https://...
         intent?.getStringExtra("server")?.let { settings.server = it }
+        // Without a PC, the same way (long to type with a remote): --es addon <address> adds one, --es jimaku <key>.
+        intent?.getStringExtra("addon")?.let { a -> if (a.isBlank()) settings.addons = emptyList() else settings.addons = (settings.addons + a.trim()).distinct() }
+        intent?.getStringExtra("jimaku")?.let { settings.prefs.edit().putString("jimaku_key", it.trim()).apply() }
         setContent { KumapieTheme { App(settings) } }
     }
 
@@ -98,7 +101,12 @@ fun App(settings: Settings) {
                 Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
                     onSaved = { server = settings.server }, onUpdate = { update = it })
                 Screen.Buttons -> ButtonsScreen(settings)
-                else -> io.github.pedrubik2000.kumapie.ui.AloneHome(onSettings = { stack.add(Screen.Settings) })
+                is Screen.Discover -> {
+                    val addons = remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }
+                    io.github.pedrubik2000.kumapie.ui.DiscoverScreen(addons, (stack.last() as Screen.Discover).open)
+                }
+                else -> io.github.pedrubik2000.kumapie.ui.AloneHome(settings, onDiscover = { stack.add(Screen.Discover(it)) },
+                    onSettings = { stack.add(Screen.Settings) })
             }
         } else {
             val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }

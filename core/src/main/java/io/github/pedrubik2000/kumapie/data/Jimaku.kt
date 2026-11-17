@@ -1,0 +1,184 @@
+package io.github.pedrubik2000.kumapie.data
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.ByteArrayInputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.util.zip.ZipInputStream
+
+/**
+ * Japanese subtitles from jimaku.cc for a stream with no Japanese track of its own, asked from the device
+ * (kumapie_plan.md "for other people"). The phone's `mobile/src/main/python/jimaku.py` in Kotlin: the same picking
+ * ([rank]) and reading ([cues]) rules; keep the two alike. The user's own free API key.
+ */
+object Jimaku {
+    private const val API = "https://jimaku.cc/api"
+    private const val AGENT = "kumapie (github.com/Pedrubik2000/kumapie-tv)"
+    private val SUB_EXT = listOf(".srt", ".ass", ".ssa", ".vtt")
+
+    /** One line: seconds and text. */
+    data class Line(val start: Double, val end: Double, val text: String)
+
+    /**
+     * The Japanese lines for [episode] of [show] (its name as the addon gives it; AniList finds the entry), from the
+     * file that fits [videoName] best. Empty when Jimaku has none.
+     */
+    suspend fun lines(key: String, show: String, season: Int?, episode: Int?, videoName: String = ""): List<Line> {
+        if (key.isBlank()) error("Jimaku needs your API key (free, jimaku.cc): add it in Settings")
+        val media = runCatching { anilist(show, season) }.getOrNull()
+        fun search(q: String) = "$API/entries/search?anime=true&$q"
+        var entries = JSONArray(String(get(search(media?.let { "anilist_id=${it.first}" } ?: "query=${enc(show)}"), key)))
+        if (entries.length() == 0 && media != null) entries = JSONArray(String(get(search("query=${enc(media.second)}"), key)))
+        if (entries.length() == 0) return emptyList()
+        val files = JSONArray(String(get("$API/entries/${entries.getJSONObject(0).getInt("id")}/files", key)))
+        val best = rank((0 until files.length()).map { files.getJSONObject(it).let { f -> f.getString("name") to f.getString("url") } }, episode, videoName)
+            .firstOrNull() ?: return emptyList()
+        var name = best.first
+        var data = get(best.second, key)
+        if (name.lowercase().endsWith(".zip")) {
+            val inside = unzip(data).filter { (n, _) -> SUB_EXT.any(n.lowercase()::endsWith) && (episode == null || numbers(n).second == episode) }
+                .minByOrNull { (n, _) -> !n.lowercase().endsWith(".srt") } ?: return emptyList()
+            name = inside.first
+            data = inside.second
+        }
+        return cues(name, data)
+    }
+
+    /** Jimaku files for [episode], best first: its own files (else packs), subtitles over archives, then the most words shared with the video's name, .srt first. */
+    fun rank(files: List<Pair<String, String>>, episode: Int?, videoName: String = ""): List<Pair<String, String>> {
+        val words = Regex("[a-z0-9]+").findAll(videoName.lowercase()).map { it.value }.toSet()
+        fun score(name: String): List<Int> {
+            val n = name.lowercase()
+            return listOf(if (episode == null || numbers(n).second == episode) 1 else 0, if (SUB_EXT.any(n::endsWith)) 1 else 0,
+                Regex("[a-z0-9]+").findAll(n).map { it.value }.toSet().intersect(words).size, if (n.endsWith(".srt")) 1 else 0)
+        }
+        return files.filter { (n, _) -> n.lowercase().let { l -> l.endsWith(".zip") || (SUB_EXT.any(l::endsWith) && (episode == null || numbers(n).second == episode)) } }
+            .sortedWith { a, b -> score(b.first).zip(score(a.first)).firstOrNull { it.first != it.second }?.let { it.first - it.second } ?: 0 }
+    }
+
+    /** (season, episode) from a file name: S01E05, E05, " - 05", a lone 05; null where not found (realdebrid.py numbers). */
+    fun numbers(name: String): Pair<Int?, Int?> {
+        val stem = name.substringAfterLast('/').substringBeforeLast('.')
+        Regex("""[Ss](\d{1,2})[ ._-]?[Ee](\d{1,3})""").find(stem)?.let { return it.groupValues[1].toInt() to it.groupValues[2].toInt() }
+        val season = Regex("""(?:[Ss]taffel|[Ss]eason)[ ._-]?(\d{1,2})""").find(stem)?.groupValues?.get(1)?.toInt()
+        for (p in listOf("""\b(?:[Ee][Pp]?|[Ff]olge)[ ._-]?(\d{1,3})\b""", """ - (\d{1,3})\b""", """(?<![\dxp])(\d{1,2})(?![\dp])"""))
+            Regex(p).find(stem)?.let { return season to it.groupValues[1].toInt() }
+        return season to null
+    }
+
+    private val CHINESE_STYLE = Regex("""CN|CHS|CHT|ZH|[中简繁]|(?i:(?:^|[\W_])(?:cn|chs|cht|zh|chi)(?:$|[\W_]))""")
+    private val SONG_OR_SIGN = Regex("""sign|\bop\d*\b|\bed\d*\b|opening|ending|song|karaoke|kfx|lyric|\brom|romaji|kanji|title|insert|typeset|\bts\b|credit|staff""", RegexOption.IGNORE_CASE)
+    private val KANA = Regex("[ぁ-ヿ]")
+    private val JAPANESE = Regex("[぀-ヿ一-鿿]")
+    private val STAMP = """(\d+):(\d+):(\d+)[,.](\d+)"""
+
+    /**
+     * A subtitle file (.srt / .vtt / .ass / .ssa) -> the lines that are said, in time order: styling dropped, ASS signs,
+     * songs and karaoke left out, a bilingual file's Chinese half too, readings and sounds in brackets dropped.
+     * ponytail: sung lines are left out (the phone keeps them as "♪ …" for Skip intro); add them when the TV builds episodes.
+     */
+    fun cues(name: String, data: ByteArray): List<Line> {
+        val text = decode(data).replace("\r", "")
+        val out = ArrayList<Line>()
+        if (name.lowercase().let { it.endsWith(".ass") || it.endsWith(".ssa") }) {
+            var fields: List<String>? = null
+            var events = false
+            for (line in text.lines()) when {
+                line.startsWith("[") -> events = line.trim().lowercase() == "[events]"
+                line.startsWith("Format:") && events -> fields = line.substring(7).split(",").map { it.trim().lowercase() }
+                line.startsWith("Dialogue:") && fields != null -> {
+                    val row = fields!!.zip(line.substring(9).split(",", limit = fields!!.size)).toMap()
+                    val style = row["style"].orEmpty()
+                    val body = row["text"].orEmpty()
+                    if (CHINESE_STYLE.containsMatchIn(style) || !dialogue(style, body)) continue
+                    val said = body.replace(Regex("""\{[^}]*\}"""), "").replace(Regex("""\\[Nnh]"""), " ").trim()
+                    val a = time(row["start"].orEmpty())
+                    val b = time(row["end"].orEmpty())
+                    if (said.isNotEmpty() && a != null && b != null) out += Line(a, b, said)
+                }
+            }
+        } else for (block in text.split(Regex("""\n\s*\n"""))) {
+            val m = Regex("$STAMP\\s*-->\\s*$STAMP").find(block) ?: continue
+            val body = block.substring(m.range.last + 1).trim().lines().joinToString(" ") { it.trim() }
+                .replace(Regex("""<[^>]+>|\{[^}]*\}"""), "").trim()
+            val g = m.groupValues
+            if (body.isNotEmpty()) out += Line(secs(g[1], g[2], g[3], g[4]), secs(g[5], g[6], g[7], g[8]), body)
+        }
+        val seen = HashSet<Line>()
+        return out.sortedBy { it.start }.mapNotNull { l ->
+            if ("♪" in l.text) return@mapNotNull null
+            val t = spoken(l.text)
+            Line(Math.round(l.start * 1000) / 1000.0, Math.round(l.end * 1000) / 1000.0, t).takeIf { t.isNotEmpty() && seen.add(it) }
+        }
+    }
+
+    /** An ASS line that is said: not a sign / song / karaoke style, no karaoke timing, no drawing; a placed line only in a dialogue-looking style. */
+    private fun dialogue(style: String, body: String): Boolean {
+        if (SONG_OR_SIGN.containsMatchIn(style) || Regex("""\\(k[fo]?\d|p[1-9])""").containsMatchIn(body)) return false
+        return !Regex("""\\(pos|move)""").containsMatchIn(body) ||
+            Regex("default|main|dialog|alt|italic|top|flash|overlap", RegexOption.IGNORE_CASE).containsMatchIn(style)
+    }
+
+    /** Only what is said: readings 後藤(ごとう), speaker names and sounds （園児）（拍手）, music marks dropped; "" when nothing Japanese is left. */
+    fun spoken(text: String): String {
+        val t = text.replace(Regex("""\([^)]*\)"""), "").replace(Regex("""（[^）]*）|［[^］]*］|\[[^\]]*\]|[♪♬～〜]"""), "").trim()
+        return if (JAPANESE.containsMatchIn(t) && (KANA.containsMatchIn(t) || t.length <= 12)) t.replace(Regex("""\s+"""), " ") else ""
+    }
+
+    private fun time(s: String): Double? = Regex("""\s*(\d+):(\d+):(\d+)\.(\d+)""").find(s)?.groupValues?.let { secs(it[1], it[2], it[3], it[4]) }
+    private fun secs(h: String, m: String, s: String, frac: String) = h.toInt() * 3600 + m.toInt() * 60 + s.toInt() + frac.toInt() / Math.pow(10.0, frac.length.toDouble())
+
+    private fun decode(data: ByteArray): String {
+        if (data.size >= 2 && ((data[0] == 0xFF.toByte() && data[1] == 0xFE.toByte()) || (data[0] == 0xFE.toByte() && data[1] == 0xFF.toByte()))) return String(data, Charsets.UTF_16)
+        val utf8 = String(data, Charsets.UTF_8).removePrefix("\uFEFF")
+        return if ('\uFFFD' in utf8) String(data, charset("windows-31j")) else utf8 // Shift-JIS files exist
+    }
+
+    private fun unzip(data: ByteArray): List<Pair<String, ByteArray>> = ZipInputStream(ByteArrayInputStream(data)).use { z ->
+        generateSequence { z.nextEntry }.filter { !it.isDirectory }.map { it.name.substringAfterLast('/') to z.readBytes() }.toList()
+    }
+
+    /** (AniList id, romaji name) of [show]; for season 2+ the entry named for that season. */
+    private suspend fun anilist(show: String, season: Int?): Pair<Int, String>? = withContext(Dispatchers.IO) {
+        val body = JSONObject().put("query", "query(\$s:String){Page(perPage:8){media(search:\$s,type:ANIME){id title{romaji english native}}}}")
+            .put("variables", JSONObject().put("s", show)).toString().toByteArray()
+        val c = (URL("https://graphql.anilist.co").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"; doOutput = true; connectTimeout = 15_000; readTimeout = 30_000
+            setRequestProperty("Content-Type", "application/json"); setRequestProperty("User-Agent", AGENT)
+        }
+        try {
+            c.outputStream.use { it.write(body) }
+            val found = JSONObject(c.inputStream.bufferedReader().use { it.readText() }).getJSONObject("data").getJSONObject("Page").getJSONArray("media")
+            val all = (0 until found.length()).map { found.getJSONObject(it) }
+            val word = season?.takeIf { it > 1 }?.let { Regex("""\b(?:$it(?:st|nd|rd|th) Season|Season $it)\b|第${it}期""", RegexOption.IGNORE_CASE) }
+            val pick = all.firstOrNull { m -> word != null && m.getJSONObject("title").let { t -> t.keys().asSequence().any { k -> word.containsMatchIn(t.optString(k)) } } }
+                ?: all.firstOrNull() ?: return@withContext null
+            pick.getInt("id") to pick.getJSONObject("title").optString("romaji")
+        } finally { c.disconnect() }
+    }
+
+    private suspend fun get(url: String, key: String): ByteArray = withContext(Dispatchers.IO) {
+        repeat(4) { attempt ->
+            val c = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 15_000; readTimeout = 60_000
+                setRequestProperty("User-Agent", AGENT); setRequestProperty("Authorization", key)
+            }
+            try {
+                when (val code = c.responseCode) {
+                    in 200..299 -> return@withContext c.inputStream.use { it.readBytes() }
+                    429 -> if (attempt < 3) { delay(((c.getHeaderField("x-ratelimit-reset-after")?.toDoubleOrNull() ?: 5.0) * 1000).toLong() + 500); return@repeat }
+                    401 -> error("Jimaku refused the API key: check it in Settings")
+                    else -> error("jimaku.cc: HTTP $code")
+                }
+            } finally { c.disconnect() }
+        }
+        error("jimaku.cc: too many requests, try again in a minute")
+    }
+
+    private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+}

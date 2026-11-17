@@ -41,6 +41,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("standalone", false)
         set(value) = prefs.edit().putBoolean("standalone", value).apply()
 
+    /** Without a PC: the user's Stremio addons, their addresses as pasted ([Addons]). kumapie ships with none. */
+    var addons: List<String>
+        get() = prefs.getString("addons", "").orEmpty().lines().filter { it.isNotBlank() }
+        set(value) = prefs.edit().putString("addons", value.joinToString("\n")).apply()
+
     /** Pause when a scene ends (true) or play on into the next one. */
     /** Primed Listening: each new scene waits on its start, its lines on screen, until play (read first, then hear). */
     var pauseAtSceneStart: Boolean

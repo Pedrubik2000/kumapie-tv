@@ -59,6 +59,10 @@ class StreamActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val settings = Settings(this)
         val video = intent.data?.toString()
+        if (video != null && Uri.parse(video).let { it.scheme == "kumapie" && it.host == "play" }) {
+            Tr.use(if (settings.server.isEmpty()) "" else settings.speaks)
+            return setContent { KumapieTheme { Alone(settings, Uri.parse(video)) } }
+        }
         if (video == null || settings.server.isEmpty()) {
             Toast.makeText(this, tr("Open kumapie once and set the PC's address first"), Toast.LENGTH_LONG).show()
             return finish()
@@ -206,6 +210,57 @@ class StreamActivity : ComponentActivity() {
             }
             Text(failed ?: note, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)
                 .background(Color(0x99000000)).padding(12.dp, 6.dp))
+        }
+    }
+
+    /**
+     * An addon's stream without a PC (kumapie://play?url&id&title&show&file): plain, with its Japanese lines live
+     * ([LiveLines]: the file's own track, else Jimaku's file for this episode with the user's key). It goes on where
+     * it was left on this TV. No words yet: an episode is not built without the PC (kumapie_plan.md "for other people").
+     */
+    @Composable
+    private fun Alone(settings: Settings, link: Uri) {
+        val id = link.getQueryParameter("id").orEmpty()
+        val resume = remember { settings.prefs.getFloat("alone_pos_$id", 0f).toDouble() }
+        val p = rememberPlayer(link.getQueryParameter("url").orEmpty(), resume.takeIf { it > 5 }, "ja")
+        remember(p) { player = p; p.playWhenReady = true }
+        var note by remember { mutableStateOf<String?>(null) }
+        DisposableEffect(p) {
+            val listener = object : Player.Listener {
+                override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
+                    note = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
+                }
+            }
+            p.addListener(listener)
+            onDispose {
+                p.removeListener(listener)
+                // Left near the end: from the start next time.
+                val at = if (p.duration > 0 && p.currentPosition > p.duration - 120_000) 0f else p.currentPosition / 1000f
+                settings.prefs.edit().putFloat("alone_pos_$id", at).apply()
+            }
+        }
+        val live = remember(p) {
+            LiveLines(p) {
+                val number = id.substringAfterLast(':').toIntOrNull()
+                runCatching {
+                    io.github.pedrubik2000.kumapie.data.Jimaku.lines(settings.prefs.getString("jimaku_key", "").orEmpty(),
+                        link.getQueryParameter("show").orEmpty(), null, number, link.getQueryParameter("file").orEmpty())
+                }.onFailure { note = it.message }.getOrDefault(emptyList()).map { Triple(it.start, it.end, it.text) }
+                    .also { if (it.isEmpty() && note == null) note = tr("No Japanese subtitles: none in this file, none on Jimaku") }
+            }
+        }
+        LaunchedEffect(live) { live.run() }
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; requestFocus() } },
+                Modifier.fillMaxSize(), onRelease = { it.player = null })
+            live.line?.let {
+                Text(it, color = Color.White, fontSize = 30.sp, lineHeight = 40.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).background(Color(0x99000000)).padding(16.dp, 8.dp))
+            }
+            (note ?: tr("Jimaku's subtitles").takeIf { live.source == "jimaku" })?.let {
+                Text(it, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)
+                    .background(Color(0x99000000)).padding(12.dp, 6.dp))
+            }
         }
     }
 

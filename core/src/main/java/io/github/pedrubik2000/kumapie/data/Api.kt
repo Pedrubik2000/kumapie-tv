@@ -14,7 +14,7 @@ import java.net.URL
  * The dojo server's /api/tv (services/feed/tv.py in the dojo repo). Every call runs on the IO dispatcher. [person]: whose
  * shows and history (the device's owner, "giovanna"); empty = the TV's person.
  */
-class Api(private val base: String, private val person: String = "") : Backend {
+class Api(private val base: String, private val person: String = "") : Backend, Discovery {
     private val whose get() = if (person.isEmpty()) "" else "?person=$person"
 
 
@@ -285,10 +285,10 @@ class Api(private val base: String, private val person: String = "") : Backend {
         JSONObject(post("/api/tv/prepare", JSONObject(query).toString(), readTimeout = 120_000))
 
     /** The Discover page (kumapie-server discover.py): Kitsu's anime matching [q], trending when it's empty. */
-    suspend fun discover(q: String): List<Found> = JSONArray(get("/api/discover/catalog?q=" + java.net.URLEncoder.encode(q, "UTF-8"))).found()
+    override suspend fun discover(q: String): List<Found> = JSONArray(get("/api/discover/catalog?q=" + java.net.URLEncoder.encode(q, "UTF-8"))).found()
 
     /** The Discover titles this person keeps on Home (to stream later), newest first. */
-    suspend fun saved(): List<Found> = JSONArray(get("/api/discover/saved?person=" + java.net.URLEncoder.encode(person, "UTF-8"))).found()
+    override suspend fun saved(): List<Found> = JSONArray(get("/api/discover/saved?person=" + java.net.URLEncoder.encode(person, "UTF-8"))).found()
 
     /**
      * Streamed titles to go on with (kumapie-server discover.py going()), as "Continue watching" cards: a Show of kind
@@ -304,20 +304,16 @@ class Api(private val base: String, private val person: String = "") : Backend {
         }
 
     /** Keeps [title] on Home ([on]) or drops it; answers the new list. */
-    suspend fun save(title: Found, on: Boolean): List<Found> = JSONArray(post("/api/discover/saved", JSONObject().put("person", person)
+    override suspend fun save(title: Found, on: Boolean): List<Found> = JSONArray(post("/api/discover/saved", JSONObject().put("person", person)
         .put("id", title.id).put("type", title.type).put("name", title.name).put("poster", title.poster).put("year", title.year)
         .put("on", on).toString())).found()
 
     /** Marks a Discover episode watched ([on]) or not. */
-    suspend fun seen(id: String, on: Boolean) {
+    override suspend fun seen(id: String, on: Boolean) {
         post("/api/discover/seen", JSONObject().put("person", person).put("lang", "ja").put("id", id).put("on", on).toString())
     }
 
     private fun JSONArray.found() = objects().map { found(it) }
-
-    /** A title object of discover.py (also a meta answer: [discoverMeta]). */
-    fun found(o: JSONObject) = Found(o.optString("id"), o.optString("type", "series"), o.optString("name"), o.optString("poster"), o.optString("year"),
-        o.optString("background"), o.optString("logo"), o.optString("description"), o.optString("genres"), o.optString("rating"), o.optString("runtime"))
 
     /**
      * A Jimaku file's Japanese lines for a Discover file (GET /api/discover/subs: the one made for its release first),
@@ -328,16 +324,16 @@ class Api(private val base: String, private val person: String = "") : Backend {
             .getJSONArray("cues").let { a -> (0 until a.length()).map { a.getJSONArray(it).let { c -> Triple(c.getDouble(0), c.getDouble(1), c.getString(2)) } } }
 
     /** Discover's board (Stremio's): rows of titles, the person's AniList Planning list first: [(name, titles)]. */
-    suspend fun board(): List<Pair<String, List<Found>>> =
+    override suspend fun board(): List<Pair<String, List<Found>>> =
         JSONArray(get("/api/discover/board?person=" + java.net.URLEncoder.encode(person, "UTF-8"), readTimeout = 60_000))
             .objects().map { it.optString("name") to it.getJSONArray("items").found() }
 
     /** A Discover title: {"name", "poster", "background", "description", "year", "episodes": [{"id", "season", "number", "title", "thumb", "ready", "watched"}]} (ready: the PC got a file ready for it). */
-    suspend fun discoverMeta(type: String, id: String) =
+    override suspend fun discoverMeta(type: String, id: String) =
         JSONObject(get("/api/discover/meta/$type/$id?lang=ja&person=" + java.net.URLEncoder.encode(person, "UTF-8")))
 
     /** Torrentio's files for a title or episode, best first: [{"q", "label", "about", "hash", "file", "idx"}] (indexers: up to a minute). */
-    suspend fun discoverStreams(type: String, id: String) = JSONArray(get("/api/discover/streams/$type/$id", readTimeout = 90_000))
+    override suspend fun discoverStreams(type: String, id: String) = JSONArray(get("/api/discover/streams/$type/$id", readTimeout = 90_000))
 
     /**
      * A Discover file to stream (POST /api/tv/watch): the PC gets Real-Debrid's link and makes the words only.

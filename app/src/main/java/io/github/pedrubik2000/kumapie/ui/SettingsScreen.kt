@@ -77,6 +77,37 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server").uppercase()) }
         }
 
+        if (!firstRun && settings.server.isEmpty()) {
+            // Without a PC: the user's own Stremio addons (kumapie has none of its own) and their Jimaku key.
+            Heading(tr("Stremio addons"), Modifier.padding(top = 24.dp))
+            var addons by remember { mutableStateOf(settings.addons) }
+            var names by remember { mutableStateOf<List<String>>(emptyList()) }
+            var adding by remember { mutableStateOf("") }
+            LaunchedEffect(addons) { names = runCatching { io.github.pedrubik2000.kumapie.data.Addons(addons, settings.prefs).names() }.getOrDefault(emptyList()) }
+            Text(tr("Paste an addon's address (…/manifest.json). One that lists titles (Cinemeta, Kitsu) and one that gives links: a torrent addon needs your debrid key in it."),
+                color = Colors.dim)
+            addons.forEachIndexed { i, a ->
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(names.getOrNull(i).orEmpty().ifEmpty { tr("(no answer)") } + " · " + java.net.URI(io.github.pedrubik2000.kumapie.data.Addons.base(a)).host.orEmpty(),
+                        color = Colors.text, modifier = Modifier.width(640.dp))
+                    Button(onClick = { addons = addons - a; settings.addons = addons }) { Text(tr("Remove").uppercase()) }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                fun add() { if (adding.isNotBlank()) { addons = (addons + adding.trim()).distinct(); settings.addons = addons; adding = "" } }
+                TvTextField(adding, { adding = it }, onDone = ::add, modifier = Modifier.width(640.dp))
+                Button(onClick = ::add) { Text(tr("Add").uppercase()) }
+            }
+            Heading(tr("Jimaku"), Modifier.padding(top = 24.dp))
+            Text(tr("Japanese subtitles for a stream that has none of its own: your free API key from jimaku.cc."), color = Colors.dim)
+            var key by remember { mutableStateOf(settings.prefs.getString("jimaku_key", "").orEmpty()) }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                fun keep() = settings.prefs.edit().putString("jimaku_key", key.trim()).apply()
+                TvTextField(key, { key = it }, onDone = ::keep, modifier = Modifier.width(640.dp))
+                Button(onClick = ::keep) { Text(tr("Save").uppercase()) }
+            }
+        }
+
         if (!firstRun) {
             Heading(tr("Buttons and help"), Modifier.padding(top = 24.dp))
             var showHelp by remember { mutableStateOf(settings.showHelp) }
@@ -122,18 +153,29 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
 }
 
 /**
- * Home without a PC server: nothing to list yet (kumapie_plan.md "for other people": streaming from the user's own
- * addon comes next). Settings is where a server can be added.
+ * Home without a PC server (kumapie_plan.md "for other people"): Discover (the user's Stremio addons), the titles kept
+ * on Home, Settings. Without an addon it says where to add one.
  */
 @Composable
-fun AloneHome(onSettings: () -> Unit) {
+fun AloneHome(settings: Settings, onDiscover: (io.github.pedrubik2000.kumapie.data.Found?) -> Unit, onSettings: () -> Unit) {
     val focus = remember { FocusRequester() }
-    Column(Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    val addons = remember { settings.addons }
+    var kept by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.data.Found>>(emptyList()) }
+    LaunchedEffect(Unit) { kept = runCatching { io.github.pedrubik2000.kumapie.data.Addons(addons, settings.prefs).saved() }.getOrDefault(emptyList()) }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Title("kumapie", fontSize = 32.sp)
-        Text(tr("Nothing to watch yet."), color = Colors.text, fontSize = 22.sp)
-        Text(tr("Streaming without a server is not ready in this version. With a kumapie server on a PC, add its address in Settings."),
-            color = Colors.dim)
-        Button(onClick = onSettings, modifier = Modifier.focusRequester(focus)) { Text(tr("Settings").uppercase()) }
+        if (addons.isEmpty()) {
+            Text(tr("Nothing to watch yet."), color = Colors.text, fontSize = 22.sp)
+            Text(tr("kumapie plays what your own Stremio addons give it. Add one in Settings, or the address of a kumapie server on a PC."), color = Colors.dim)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (addons.isNotEmpty()) Button(onClick = { onDiscover(null) }, modifier = Modifier.focusRequester(focus)) { Text(tr("Discover").uppercase()) }
+            Button(onClick = onSettings, modifier = if (addons.isEmpty()) Modifier.focusRequester(focus) else Modifier) { Text(tr("Settings").uppercase()) }
+        }
+        if (kept.isNotEmpty()) {
+            Heading(tr("On Home"), Modifier.padding(top = 16.dp))
+            kept.forEach { f -> Button(onClick = { onDiscover(f) }) { Text(listOf(f.name, f.year).filter { it.isNotEmpty() }.joinToString(" · ")) } }
+        }
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }

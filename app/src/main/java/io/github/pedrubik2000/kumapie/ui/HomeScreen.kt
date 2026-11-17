@@ -272,13 +272,13 @@ private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, onCli
 }
 
 @Composable
-fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: (() -> Unit)?) {
+fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: (() -> Unit)?, server: Boolean = true) {
     val retry = remember { FocusRequester() }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Title(tr("Can't reach the dojo server"), fontSize = 26.sp)
+            Title(if (server) tr("Can't reach the dojo server") else tr("That didn't work"), fontSize = 26.sp) // [server] false: no PC, the addons answered
             Text(plainError(message), color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
-            Text(tr("Is the PC on, and Tailscale connected on the TV?"), color = Colors.dim)
+            if (server) Text(tr("Is the PC on, and Tailscale connected on the TV?"), color = Colors.dim)
             Row(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again").uppercase()) }
                 if (onSettings != null) Button(onClick = onSettings) { Text(tr("Settings").uppercase()) }

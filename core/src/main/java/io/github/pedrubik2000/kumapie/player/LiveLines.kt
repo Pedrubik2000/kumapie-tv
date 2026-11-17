@@ -46,7 +46,10 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
     }
 
     override fun onCues(cueGroup: CueGroup) {
-        if (source == "file") line = cueGroup.cues.mapNotNull { it.text?.toString() }.joinToString("\n").ifBlank { null }
+        // Netflix's Japanese track is closed captions: （モモ）, （男子生徒の話し声）, ♪ go, as in a Jimaku file. Line by line,
+        // so a two-line cue keeps its break.
+        if (source == "file") line = cueGroup.cues.flatMap { it.text?.toString().orEmpty().lines() }
+            .map(io.github.pedrubik2000.kumapie.data.Jimaku::spoken).filter { it.isNotEmpty() }.joinToString("\n").ifBlank { null }
     }
 
     /** Jimaku's lines by the clock, once the file turned out to have no Japanese track; runs until cancelled. */

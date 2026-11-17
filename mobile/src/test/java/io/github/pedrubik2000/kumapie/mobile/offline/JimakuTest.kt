@@ -34,6 +34,10 @@ class JimakuTest {
         assertEquals(listOf(Jimaku.Line(1.0, 2.5, "後藤さん"), Jimaku.Line(63.25, 64.0, "はい そうです")), Jimaku.cues("x.srt", srt.toByteArray()))
     }
 
+    /** A stream's own Netflix Japanese track (Dan Da Dan 01 [Erai-raws] NF, bedroom TV 2026-11-17): what LiveLines shows. */
+    @Test fun netflixCaptionsKeepOnlyWhatIsSaid() = assertEquals(listOf("", "ちょっ てめっ", "絶滅したわ そんな男", "ああ ヤダヤダ", ""),
+        listOf("（男子生徒の話し声）", "（彼氏）ちょっ てめっ", "（ミーコ･ムーコ）絶滅したわ そんな男", "（モモ）ああ ヤダヤダ", "♪～").map(Jimaku::spoken))
+
     @Test fun anAddonsAddressAsPasted() = assertEquals(List(4) { "https://a.example/cfg=1" }, listOf(
         "https://a.example/cfg=1/manifest.json", "stremio://a.example/cfg=1/manifest.json", " a.example/cfg=1/ ", "https://a.example/cfg=1").map(Addons::base))
 }

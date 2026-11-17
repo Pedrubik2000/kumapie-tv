@@ -219,12 +219,12 @@ private fun TitleScreen(api: Api, title: Found) {
                     }
                 }
             }
-            Text(t.description, color = Colors.dim, fontSize = 14.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
+            Text(t.description.replace(Regex("""\s+"""), " "), color = Colors.dim, fontSize = 14.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
         }
         val m = meta
         val pick = picking
         when {
-            error != null -> Text(error!!, color = Colors.dim)
+            error != null -> ErrorBox(error!!, onRetry = { error = null; reload++ }, onSettings = null)
             m == null -> Text(tr("Loading…"), color = Colors.dim)
             pick == null && menu != null -> {
                 val e = menu!!
@@ -270,8 +270,9 @@ private fun TitleScreen(api: Api, title: Found) {
                     itemsIndexed(eps, key = { _, e -> e.getString("id") }) { i, e ->
                         val ready = e.optBoolean("ready") // the PC got a file ready for it: no file list, it starts at once
                         val mark = if (e.optBoolean("watched")) "✓ " else if (ready) "▶ " else ""
-                        val source = if (ready && e.optString("source").isNotEmpty()) " · " + e.optString("source") else "" // the ▶ file's quality, Mbps
-                        Line(i, mark + tr("Episode %1\$d", e.optInt("number")) + source, e.optString("title"), e.optString("thumb"),
+                        // The ▶ file's quality goes under the title: on its line it wrapped ("Episode 1 · 1080p ·" / "15.7 Mbps").
+                        val source = if (ready) e.optString("source") else ""
+                        Line(i, mark + tr("Episode %1\$d", e.optInt("number")), listOf(source, e.optString("title")).filter { it.isNotEmpty() }.joinToString(" · "), e.optString("thumb"),
                             onLongClick = { menu = e }) { play(e) }
                     }
                 }
@@ -288,7 +289,10 @@ private fun Line(i: Int, text: String, line: String, thumb: String?, onLongClick
     Card(onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab),
         modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)) {
         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (!thumb.isNullOrEmpty()) AsyncImage(thumb, null, contentScale = ContentScale.Crop, modifier = Modifier.width(160.dp).aspectRatio(16f / 9f))
+            // A picture that doesn't load (metahub has none for some seasons: 404) leaves no empty frame.
+            var failed by remember(thumb) { mutableStateOf(false) }
+            if (!thumb.isNullOrEmpty() && !failed) AsyncImage(thumb, null, contentScale = ContentScale.Crop, onError = { failed = true },
+                modifier = Modifier.width(160.dp).aspectRatio(16f / 9f))
             Column {
                 Text(text, color = Colors.text, fontSize = 18.sp)
                 Text(line, color = Colors.dim, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)

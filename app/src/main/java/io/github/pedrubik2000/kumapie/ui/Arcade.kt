@@ -113,7 +113,8 @@ fun Modifier.arcadeBackdrop(): Modifier = drawBehind {
 
 @Composable
 fun arcadeButtonColors(selected: Boolean = false): ButtonColors = ButtonDefaults.colors(
-    containerColor = if (selected) Arcade.accent else Arcade.slab, contentColor = if (selected) Arcade.background else Colors.text,
+    // Selected = accent text: an accent slab looked just like a focused one (Chromecast, 2026-11-17).
+    containerColor = Arcade.slab, contentColor = if (selected) Arcade.accent else Colors.text,
     focusedContainerColor = if (selected) Color.White else Arcade.accent, focusedContentColor = Arcade.background)
 
 /** The TV's button: a slab, accent with dark bold italic text when focused. Screens use it in place of tv-material's. */

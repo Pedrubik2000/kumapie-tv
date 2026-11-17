@@ -244,8 +244,9 @@ internal fun Poster(image: String, title: String, line: String, progress: Float?
                 AsyncImage(model = image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
         }
-        Text(title.uppercase(), color = Colors.text, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label), maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 10.dp))
+        // Two lines: seasons were all "SOUSOU NO FRIEREN …"; 16 dp: the focused card's frame ran into it (Chromecast).
+        Text(title.uppercase(), color = Colors.text, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label), maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 16.dp))
         Text(line, color = Colors.dim, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) // one line cut it to "quedan …"
         if (progress != null) ProgressBar(progress, Modifier.fillMaxWidth().padding(top = 4.dp))
     }

@@ -91,9 +91,9 @@ fun DiscoverScreen(api: Api, start: Found? = null) {
         if (start == null) BackHandler { open = null }
         return TitleScreen(api, title)
     }
-    if (searched.isNotEmpty()) BackHandler { searched = ""; query = "" }
     val board = rows
-    Box(Modifier.fillMaxSize()) {
+    // onBackKey, not BackHandler: the first Back left Discover (Chromecast, 2026-11-17).
+    Box(Modifier.fillMaxSize().onBackKey(searched.isNotEmpty()) { searched = ""; query = "" }) {
         val shown = focused ?: board?.firstOrNull()?.second?.firstOrNull()
         if (searched.isEmpty() && shown != null) Backdrop(shown.background.ifEmpty { shown.poster })
         Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {
@@ -106,7 +106,7 @@ fun DiscoverScreen(api: Api, start: Found? = null) {
             when {
                 error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = null)
                 searched.isNotEmpty() && list == null || searched.isEmpty() && board == null -> Text(tr("Loading…"), color = Colors.dim)
-                searched.isNotEmpty() && list!!.isEmpty() -> Text(tr("Nothing found"), color = Colors.dim)
+                searched.isNotEmpty() && list!!.isEmpty() -> Text(tr("Nothing found"), color = Colors.dim, fontSize = 20.sp, modifier = Modifier.padding(top = 32.dp, start = 16.dp))
                 searched.isNotEmpty() -> {
                     Heading(searched, Modifier.padding(top = 16.dp, start = 16.dp))
                     LazyVerticalGrid(GridCells.Adaptive(130.dp), contentPadding = PaddingValues(16.dp),

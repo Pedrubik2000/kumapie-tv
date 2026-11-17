@@ -15,7 +15,7 @@ from german import _morphemizer
 from morphemizer import VERB_POS
 
 SONIOX_API = "https://api.soniox.com/v1"
-MAX_GAP = 1.5   # [feed] max_gap: silence that ends a scene
+MAX_GAP = 1.5   # [feed] max_gap: silence that ends an exchange (only used to tell a German line's language, [build])
 MAX_SECS = 15   # [feed] max_secs: longer runs are split at their biggest pause
 PAD = 0.3       # [feed] pad
 
@@ -238,8 +238,9 @@ def nearest(scenes, line):
 
 def build(model_dir: str, episode_id: str, show: str, title: str, duration: float, video: str,
           cues_json: str, english_json: str, lang: str = "de", parsed_json: str = "") -> str:
-    """Target-language and English cues -> the episode JSON (scenes, their cues as word segments, English, every
-    word). German is parsed here (spaCy); other languages come parsed from Kotlin ([parsed_json]: per cue, in order,
+    """Target-language and English cues -> the episode JSON: every subtitle line as a "scene" of its own (the line is
+    kumapie's only unit, kumapie_plan.md "no more scenes"; the JSON keeps the key so older files and builds still
+    read), its words as segments, the translation lines that overlap it, every word. German is parsed here (spaCy); other languages come parsed from Kotlin ([parsed_json]: per cue, in order,
     [[surface, offset, dictionary form or None, None]]: Sudachi for Japanese)."""
     cues = [tuple(c) for c in json.loads(cues_json)]
     english = json.loads(english_json)
@@ -249,12 +250,16 @@ def build(model_dir: str, episode_id: str, show: str, title: str, duration: floa
     mz = _morphemizer(model_dir) if given is None else None
     scenes, words, lemmas = [], {}, {}
     plan = []
-    scenes_ex = exchanges(cues)
-    owner = [nearest(scenes_ex, e) for e in english]
-    for i, (p, start, end) in enumerate(scenes_ex):
+    # A line's translation: the English lines it overlaps most (else the closest line gets them).
+    owner = [nearest([([c],) for c in cues], e) for e in english]
+    # German only (spaCy): is a line in the episode's language? Told by its whole exchange, a short line alone can't.
+    german_of = []
+    for p, _, _ in (exchanges(cues) if given is None else []):
+        a, b = p[0][0], p[-1][1]
+        german_of += [is_german(" ".join(c[2] for c in p), " ".join(e[2] for e in english if min(b, e[1]) > max(a, e[0])))] * len(p)
+    for i, c in enumerate(cues):
         en = [[e[0], e[1], re.sub(r"\s*\([^)]*\)", "", e[2]).strip()] for e, o in zip(english, owner) if o == i]
-        german = is_german(" ".join(c[2] for c in p), " ".join(e[2] for e in en)) if given is None else True
-        plan.append((i, p, start, end, en, german))
+        plan.append((i, [c], round(c[0], 3), round(c[1], 3), en, german_of[i] if given is None else True))
     texts = [c[2] for (_, p, _, _, _, g) in plan if g for c in p]
     parsed = iter(parse(mz, texts)) if given is None else given
     for i, p, start, end, en, german in plan:
@@ -287,4 +292,13 @@ def text_segments(model_dir: str, texts_json: str) -> str:
 if __name__ == "__main__":  # self-check: .venv python newepisode.py (kumapie-server's venv has spaCy)
     assert unsplit([(1, 2, "a"), (1.5, 2.5, "b"), (2, 3, "a"), (3.04, 4, "a")]) == \
         ([0, 1, 3], [(1, 3, "a"), (1.5, 2.5, "b"), (3.04, 4, "a")])
+    ep = json.loads(build("", "ep", "Show", "1", 30.0, "", json.dumps([[1.0, 2.5, "ねこ"], [2.6, 4.0, "いぬ だ"], [20.0, 21.0, "♪ うた"]]),
+                          json.dumps([[1.1, 2.4, "A cat"], [2.7, 3.9, "It's a dog (barks)"], [4.5, 5.0, "Hm"]]), "ja",
+                          json.dumps([[["ねこ", 0, "猫", None]], [["いぬ", 0, "犬", None], ["だ", 3, "だ", None]], []])))
+    sc = ep["scenes"]
+    assert [len(x["cues"]) for x in sc] == [1, 1, 1] and [x["i"] for x in sc] == [0, 1, 2], sc
+    assert [(x["start"], x["end"]) for x in sc] == [(1.0, 2.5), (2.6, 4.0), (20.0, 21.0)]
+    assert [[e[2] for e in x["english"]] for x in sc] == [["A cat"], ["It's a dog", "Hm"], []], sc
+    assert sc[1]["cues"][0]["seg"] == [["いぬ", "犬"], [" ", None], ["だ", "だ"]] and set(ep["words"]) == {"猫", "犬", "だ"}
+    assert len({x["id"] for x in sc}) == 3
     print("ok")

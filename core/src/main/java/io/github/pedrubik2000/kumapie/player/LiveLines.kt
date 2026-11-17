@@ -25,11 +25,17 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
     var source by mutableStateOf("")
         private set
     var offset by mutableDoubleStateOf(0.0)
+
+    /** The offset [fit] found from the file's other subtitle track (null: not yet / no track); a hand nudge after it wins. */
+    var fitted by mutableStateOf<Double?>(null)
+        private set
     private var needJimaku = false
+    private var starts = emptyList<Double>() // Jimaku's line starts
+    private val refs = ArrayList<Double>() // when the file's other track showed a line (seconds of video)
 
     init {
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguage("ja").build()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguages("ja", "en").setSelectUndeterminedTextLanguage(true).build()
         player.addListener(this)
     }
 
@@ -38,14 +44,16 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         val ja = tracks.groups.any { g ->
             g.type == C.TRACK_TYPE_TEXT && (0 until g.length).any { g.getTrackFormat(it).language.orEmpty().startsWith("ja") }
         }
-        if (ja) source = "file" else {
-            // No Japanese track: no other language's lines either (an English default track would be picked).
-            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
-            needJimaku = true
-        }
+        // No Japanese track: Jimaku's lines, and the file's other text track (English…) stays on, never shown (players hide
+        // ExoPlayer's subtitle view): its cue times are the video's own clock, to fit Jimaku's file to ([fit]).
+        if (ja) source = "file" else needJimaku = true
     }
 
     override fun onCues(cueGroup: CueGroup) {
+        if (needJimaku) {
+            if (cueGroup.cues.isNotEmpty() && fitted == null) refs += player.currentPosition / 1000.0
+            return
+        }
         // Netflix's Japanese track is closed captions: （モモ）, （男子生徒の話し声）, ♪ go, as in a Jimaku file. Line by line,
         // so a two-line cue keeps its break.
         if (source == "file") line = cueGroup.cues.flatMap { it.text?.toString().orEmpty().lines() }
@@ -58,10 +66,33 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         val got = runCatching { jimaku() }.getOrDefault(emptyList())
         if (got.isEmpty()) return
         source = "jimaku"
+        starts = got.map { it.first }
         while (true) {
+            if (fitted == null && refs.size >= MIN_REFS && refs.size % 2 == 0)
+                fit(refs, starts)?.let { if (offset == 0.0) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
             val t = player.currentPosition / 1000.0 - offset
             line = got.lastOrNull { it.first <= t }?.takeIf { t < it.second }?.third
             delay(100)
+        }
+    }
+
+    companion object {
+        private const val MIN_REFS = 8
+
+        /**
+         * One offset for Jimaku's line [starts] (seconds) that puts the most of them on the other track's line starts
+         * [refs]: every pair within 60 s votes for its difference (0.1 s steps, a step either side counts too); the
+         * winner needs 5 votes and a third of [refs]. Null when nothing agrees (no match, or another script).
+         * ponytail: one offset for the whole episode; a release with a different cut (recap, OP) needs one per part.
+         */
+        fun fit(refs: List<Double>, starts: List<Double>): Double? {
+            val votes = HashMap<Long, Int>()
+            for (r in refs) for (j in starts) if (kotlin.math.abs(r - j) <= 60) {
+                val bin = Math.round((r - j) * 10)
+                for (b in bin - 1..bin + 1) votes.merge(b, 1, Int::plus)
+            }
+            val (bin, n) = votes.maxByOrNull { it.value } ?: return null
+            return if (n >= 5 && n * 3 >= refs.size) bin / 10.0 else null
         }
     }
 

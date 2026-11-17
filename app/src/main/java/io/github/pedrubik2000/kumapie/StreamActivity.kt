@@ -41,6 +41,7 @@ import io.github.pedrubik2000.kumapie.ui.ScenePlayer
 import io.github.pedrubik2000.kumapie.ui.joinNames
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 
@@ -54,6 +55,8 @@ import java.net.URL
 class StreamActivity : ComponentActivity() {
     private var player: ExoPlayer? = null
     private var watchFile = "" // the Discover file playing: its Jimaku lines are asked by its name
+    private var alone: LiveLines? = null // the no-PC player's lines: UP / DOWN shift Jimaku's
+    private var aloneView: PlayerView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +76,13 @@ class StreamActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
         io.github.pedrubik2000.kumapie.ui.Pad.seen(event)
+        // Jimaku's lines early or late (another release's timing): UP = 0.5 s earlier, DOWN = later, with the controls hidden.
+        val live = alone
+        val by = when (event.keyCode) { android.view.KeyEvent.KEYCODE_DPAD_UP -> -0.5; android.view.KeyEvent.KEYCODE_DPAD_DOWN -> 0.5; else -> null }
+        if (live != null && by != null && live.source == "jimaku" && aloneView?.isControllerFullyVisible != true) {
+            if (event.action == android.view.KeyEvent.ACTION_DOWN) live.offset += by
+            return true
+        }
         return super.dispatchKeyEvent(event)
     }
 
@@ -222,6 +232,7 @@ class StreamActivity : ComponentActivity() {
     private fun Alone(settings: Settings, link: Uri) {
         val id = link.getQueryParameter("id").orEmpty()
         val resume = remember { settings.prefs.getFloat("alone_pos_$id", 0f).toDouble() }
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
         val p = rememberPlayer(link.getQueryParameter("url").orEmpty(), resume.takeIf { it > 5 }, "ja")
         remember(p) { player = p; p.playWhenReady = true }
         var note by remember { mutableStateOf<String?>(null) }
@@ -230,13 +241,18 @@ class StreamActivity : ComponentActivity() {
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
                     note = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
                 }
+
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_ENDED) scope.launch { playNext(settings, link) { note = it } }
+                }
             }
             p.addListener(listener)
             onDispose {
                 p.removeListener(listener)
                 // Left near the end: from the start next time.
                 val at = if (p.duration > 0 && p.currentPosition > p.duration - 120_000) 0f else p.currentPosition / 1000f
-                settings.prefs.edit().putFloat("alone_pos_$id", at).apply()
+                settings.prefs.edit().putFloat("alone_pos_$id", at).putFloat("alone_off_$id", alone?.offset?.toFloat() ?: 0f).apply()
+                alone = null; aloneView = null
             }
         }
         val live = remember(p) {
@@ -249,19 +265,55 @@ class StreamActivity : ComponentActivity() {
                     .also { if (it.isEmpty() && note == null) note = tr("No Japanese subtitles: none in this file, none on Jimaku") }
             }
         }
+        remember(live) { alone = live; live.offset = settings.prefs.getFloat("alone_off_$id", 0f).toDouble() }
         LaunchedEffect(live) { live.run() }
+        // Which lines and how far moved, for a few seconds after it changes (it used to stay on the whole time).
+        val label = when {
+            live.source != "jimaku" -> null
+            live.offset == 0.0 -> tr("Jimaku's subtitles") + " · ▲▼"
+            else -> tr("Jimaku's subtitles") + " · " + "%+.1f s".format(live.offset) + (if (live.offset == live.fitted) " · " + tr("fitted") else "") + " · ▲▼"
+        }
+        var showLabel by remember { mutableStateOf(false) }
+        LaunchedEffect(label) { showLabel = label != null; delay(5000); showLabel = false }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
-            AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; requestFocus() } },
+            AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; requestFocus(); aloneView = this } },
                 Modifier.fillMaxSize(), onRelease = { it.player = null })
             live.line?.let {
                 Text(it, color = Color.White, fontSize = 30.sp, lineHeight = 40.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).background(Color(0x99000000)).padding(16.dp, 8.dp))
             }
-            (note ?: tr("Jimaku's subtitles").takeIf { live.source == "jimaku" })?.let {
+            (note ?: label?.takeIf { showLabel })?.let {
                 Text(it, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)
                     .background(Color(0x99000000)).padding(12.dp, 6.dp))
             }
         }
+    }
+
+    /**
+     * The end of a no-PC stream: the next episode from the user's addons (id …:N -> …:N+1), the file of the same release
+     * group ([Group] at the start of the name) if there is one, else the first this device decodes ([Playable]).
+     * This one is marked watched. [say] shows how it goes on screen.
+     */
+    private suspend fun playNext(settings: Settings, link: Uri, say: (String) -> Unit) {
+        val id = link.getQueryParameter("id").orEmpty()
+        val n = id.substringAfterLast(':').toIntOrNull() ?: return
+        val next = id.substringBeforeLast(':') + ":" + (n + 1)
+        val type = link.getQueryParameter("type") ?: "series"
+        val addons = io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)
+        runCatching { addons.seen(id, true) }
+        say(tr("Next: episode %1\$d…", n + 1))
+        val files = runCatching { addons.discoverStreams(type, next) }.getOrElse { return say(it.message ?: it.toString()) }
+            .let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
+        val plays = files.filter { io.github.pedrubik2000.kumapie.data.Playable.missing(it.optString("label") + " " + it.optString("about") + " " + it.optString("file")).isEmpty() }
+        val group = Regex("""^\[[^\]]+\]""").find(link.getQueryParameter("file").orEmpty())?.value
+        val f = plays.firstOrNull { group != null && it.optString("file").startsWith(group, ignoreCase = true) } ?: plays.firstOrNull() ?: files.firstOrNull()
+            ?: return say(tr("No files found for episode %1\$d", n + 1))
+        val show = link.getQueryParameter("show").orEmpty()
+        startActivity(Intent(this, StreamActivity::class.java).setData(Uri.parse("kumapie://play").buildUpon().apply {
+            listOf("url" to f.getString("url"), "type" to type, "id" to next, "title" to "$show ${n + 1}",
+                "show" to show, "file" to f.optString("file")).forEach { (k, v) -> appendQueryParameter(k, v) }
+        }.build()))
+        finish()
     }
 
     /** Where it was, for NuvioTV (MX Player's result: position and duration in ms, end_by). */

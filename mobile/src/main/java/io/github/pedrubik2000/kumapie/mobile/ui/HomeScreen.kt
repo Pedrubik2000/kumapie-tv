@@ -166,7 +166,7 @@ internal fun GlassMenu(main: List<Dest>, selected: String?, onHome: () -> Unit, 
 /** More's list as a bottom sheet. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun MoreSheet(items: List<Dest>, onClose: () -> Unit) = ModalBottomSheet(onDismissRequest = onClose) {
+internal fun MoreSheet(items: List<Dest>, onClose: () -> Unit) = ModalBottomSheet(onDismissRequest = onClose, properties = DarkSheet) {
     items.forEach { d ->
         ListItem(headlineContent = { Text(d.label) }, leadingContent = { Icon(d.icon, null) }, colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier.clickable { onClose(); d.go() })
@@ -312,7 +312,7 @@ fun HomeScreen(
     if (more) MoreSheet(extra + if (wide) listOf(Dest(Icons.Default.Add, tr("Add an episode"), { adding = true }),
         Dest(Icons.Default.Refresh, tr("Refresh"), { attempt++ })) else emptyList()) { more = false }
     if (adding) {
-        ModalBottomSheet(onDismissRequest = { adding = false; attempt++ }) {
+        ModalBottomSheet(properties = DarkSheet, onDismissRequest = { adding = false; attempt++ }) {
             AddEpisodeSheet(library, sharedLink, homeLang, onSettings = { adding = false; onSettings(it) })
         }
     }

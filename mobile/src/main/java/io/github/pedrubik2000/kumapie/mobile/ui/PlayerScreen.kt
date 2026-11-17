@@ -447,24 +447,24 @@ internal fun ScenePlayer(
     }
 
     if (options) {
-        ModalBottomSheet(onDismissRequest = { options = false }) {
+        ModalBottomSheet(properties = DarkSheet, onDismissRequest = { options = false }) {
             Options(ctl, seekStep, { seekStep = it; settings.seekStep = it }, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow,
                 onShift?.let { f -> { secs: Double -> options = false; ctl.report(); f(secs, ctl.position) } },
                 onShift?.let { library.local.shifted(episode.id) })
         }
     }
     if (backlog) {
-        ModalBottomSheet(onDismissRequest = { backlog = false }) {
+        ModalBottomSheet(properties = DarkSheet, onDismissRequest = { backlog = false }) {
             Backlog(ctl, onPick = { i -> backlog = false; picker.close(); auto = false; ctl.playScene(i) })
         }
     }
     if (sceneList) {
-        ModalBottomSheet(onDismissRequest = { sceneList = false }) {
+        ModalBottomSheet(properties = DarkSheet, onDismissRequest = { sceneList = false }) {
             SceneList(ctl, onPick = { i -> sceneList = false; picker.close(); ctl.playScene(i) })
         }
     }
     selected?.let { text ->
-        ModalBottomSheet(onDismissRequest = { selected = null }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        ModalBottomSheet(properties = DarkSheet, onDismissRequest = { selected = null }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             PersonalEntrySheet(library, ctl.lang, text, onDone = {
                 selected = null
                 // The new word at once, in its colour. A deleted one stays split as it is until the episode opens again.
@@ -476,7 +476,7 @@ internal fun ScenePlayer(
     }
     if (mining) {
         // Opened full: half open hid the Add button under the screen.
-        ModalBottomSheet(onDismissRequest = { mining = false }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) { MineSheet(library, episode, ctl, picker, onDone = { mining = false }) }
+        ModalBottomSheet(properties = DarkSheet, onDismissRequest = { mining = false }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) { MineSheet(library, episode, ctl, picker, onDone = { mining = false }) }
     }
 }
 

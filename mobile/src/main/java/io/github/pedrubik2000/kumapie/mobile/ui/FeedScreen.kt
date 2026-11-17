@@ -180,7 +180,7 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
     }
 
     if (filter) {
-        ModalBottomSheet(onDismissRequest = { filter = false }) {
+        ModalBottomSheet(properties = DarkSheet, onDismissRequest = { filter = false }) {
             Column(Modifier.padding(horizontal = 24.dp).navigationBarsPadding().padding(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(tr("Scenes in the feed") + " · " + io.github.pedrubik2000.kumapie.data.Lang.of(lang).displayName, color = Colors.accent, fontSize = 17.sp)

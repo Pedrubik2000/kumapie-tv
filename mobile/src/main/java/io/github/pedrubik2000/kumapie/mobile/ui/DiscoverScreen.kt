@@ -333,7 +333,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
         }
     }
     picking?.let { (id, name) ->
-        ModalBottomSheet(onDismissRequest = { picking = null }, containerColor = Colors.surface) {
+        ModalBottomSheet(properties = DarkSheet, onDismissRequest = { picking = null }, containerColor = Colors.surface) {
             Files(library, title.type, id) { f ->
                 picking = null
                 onWatch(mapOf("lang" to "ja", "type" to title.type, "id" to id, "hash" to f.getString("hash"),

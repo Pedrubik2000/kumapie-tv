@@ -170,3 +170,7 @@ fun minutes(seconds: Double): String {
         else -> "${m / 60} h ${m % 60} min"
     }
 }
+
+/** Every bottom sheet: dark system bars under it (Material's sheet followed the system's light theme: a white bar). */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+internal val DarkSheet = androidx.compose.material3.ModalBottomSheetProperties(isAppearanceLightStatusBars = false, isAppearanceLightNavigationBars = false)

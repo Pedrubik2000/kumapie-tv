@@ -184,6 +184,8 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
     private fun tapped(note: AnkiCards.Note, spelling: String): List<String> {
         val bold = Regex("""<b>([^<\[]+)""").find(note.fields["Sentence"].orEmpty())?.groupValues?.get(1)?.trim()
             ?.takeIf { it.isNotEmpty() && it != spelling } ?: return emptyList()
+        // No Sudachi (the TVs): the bold as written, or まひ on a 麻痺 card went back to red after mining (user, 2026-11-17).
+        if (!model.isReady) return listOf(bold)
         val word = runCatching { model.words(listOf(bold)).first().filter { it.isWord }.singleOrNull() }.getOrNull() ?: return emptyList()
         return listOf(bold, word.base)
     }

@@ -46,7 +46,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
                         scenes = e.optInt("scenes"), seen = e.optInt("seen"), easy = e.optInt("easy"),
                         resume = if (e.isNull("resume")) null else e.getDouble("resume"),
                         episodeTitle = e.optString("episode_title").takeIf { it != "null" }.orEmpty(),
-                        resumedAt = e.optLong("resumed_at"),
+                        resumedAt = e.optLong("resumed_at"), watchedFlag = e.optBoolean("watched"),
                     )
                 },
             )
@@ -132,13 +132,15 @@ class Api(private val base: String, private val person: String = "") : Backend {
             duration = e.optDouble("duration", 0.0), video = url(e.getString("video")),
             resume = if (e.isNull("resume")) null else e.getDouble("resume"), scenes = scenes, words = words,
             novel = e.optBoolean("novel"), work = e.optString("work"), srs = e.optBoolean("srs"),
+            ranges = Ranges.parse(e.optJSONArray("ranges")),
             marked = e.optJSONArray("marked")?.let { a -> (0 until a.length()).map(a::getString).toSet() }.orEmpty(),
         )
     }
 
     /** Where the episode was left, scenes watched to their end, and seconds watched since the last report. */
-    override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {
-        val body = who(JSONObject().put("episode", episode).put("pos", pos).put("seen", JSONArray(seen)).put("watched", watched))
+    override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double, ranges: List<Span>, done: Boolean) {
+        val body = who(JSONObject().put("episode", episode).put("pos", pos).put("seen", JSONArray(seen)).put("watched", watched)
+            .put("ranges", Ranges.json(ranges)))
         post("/api/tv/progress", body.toString())
     }
 
@@ -239,8 +241,9 @@ class Api(private val base: String, private val person: String = "") : Backend {
 
     /** What this person's devices count as seen ({scene: episode}) and their "Mark as not watched" times ({episode:
      *  epoch s}): the TV blurs and counts by them too. */
-    suspend fun deviceSeen(seen: Map<String, String>, unwatched: Map<String, Long>) {
+    suspend fun deviceSeen(seen: Map<String, String>, unwatched: Map<String, Long>, ranges: Map<String, List<Span>>) {
         post("/api/tv/device_seen", JSONObject().put("person", person).put("seen", JSONObject(seen))
+            .put("ranges", JSONObject().also { o -> ranges.forEach { (e, r) -> o.put(e, Ranges.json(r)) } })
             .put("unwatched", JSONObject(unwatched)).toString())
     }
 
@@ -481,9 +484,11 @@ data class Episode(
     val resumedAt: Long = 0,
     /** A streamed episode ([Show.kind] "stream", [Api.going]): the PC has a file ready, it plays at once. */
     val ready: Boolean = true,
+    /** Its spoken lines all played, by watched time ranges ([Ranges.watched]; the PC or the device's progress says so). */
+    val watchedFlag: Boolean = false,
 ) {
-    /** Every scene seen to its end (on any device), or marked watched: no spoilers left in it. */
-    val watched: Boolean get() = scenes > 0 && seen >= scenes
+    /** Watched (on any device) or marked watched: no spoilers left in it. Still also: every scene seen (older builds). */
+    val watched: Boolean get() = watchedFlag || (scenes > 0 && seen >= scenes)
 }
 
 /** Watch time (seconds) per study day ("2026-10-04", days start at 4 am) and what was done. */
@@ -534,6 +539,8 @@ data class EpisodeDetail(
     val srs: Boolean = false,
     /** Words marked known that the PC's split doesn't have (personal-dictionary words joined here): white when joined. */
     val marked: Set<String> = emptySet(),
+    /** What the person already watched of it, on any device. */
+    val ranges: List<Span> = emptyList(),
 )
 
 data class Scene(

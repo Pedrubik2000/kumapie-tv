@@ -116,7 +116,8 @@ fun FeedScreen(library: Library, shows: List<Show>, lang: String, onBack: () -> 
     val backend = remember {
         val real = library.backend(lang) // the feed follows Home's language
         object : Backend by real {
-            override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double) {}
+            override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double,
+                                          ranges: List<io.github.pedrubik2000.kumapie.data.Span>, done: Boolean) {}
         }
     }
     // A whole reel counts as watched (its scenes seen): which reels come next goes by that.

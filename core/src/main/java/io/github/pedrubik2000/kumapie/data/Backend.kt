@@ -5,8 +5,12 @@ package io.github.pedrubik2000.kumapie.data
  * wraps it so a downloaded episode plays from local files and its reports wait in a queue while offline.
  */
 interface Backend {
-    /** Where the episode was left, scenes watched to their end, and seconds watched since the last report. */
-    suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double)
+    /**
+     * Where the episode was left, scenes watched to their end, and seconds watched since the last report.
+     * [ranges]: what played since the last report; [done]: with them the whole episode is watched ([Ranges.watched]).
+     */
+    suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double,
+                         ranges: List<Span> = emptyList(), done: Boolean = false)
 
     /** A word looked up; answers how many times it has been looked up. */
     suspend fun lookup(word: String, scene: String): Int

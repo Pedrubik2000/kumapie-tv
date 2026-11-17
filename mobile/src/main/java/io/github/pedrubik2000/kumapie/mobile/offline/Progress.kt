@@ -4,7 +4,9 @@ import android.content.Context
 import io.github.pedrubik2000.kumapie.i18n.tr
 import android.os.Build
 import android.util.Log
+import io.github.pedrubik2000.kumapie.data.Ranges
 import io.github.pedrubik2000.kumapie.data.Settings
+import io.github.pedrubik2000.kumapie.data.Span
 import io.github.pedrubik2000.kumapie.lang.AnkiCards
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -51,14 +53,21 @@ class Progress private constructor(context: Context, private val settings: Setti
         val posAt: Map<String, Long> = emptyMap(),
         /** Language code -> study day -> seconds; only since 2026-10-15 ([watch] has all of it). */
         val langWatch: Map<String, Map<String, Double>> = emptyMap(),
+        /** Episode -> what was watched of it (any device, since its last "not watched"). */
+        val ranges: Map<String, List<Span>> = emptyMap(),
+        /** Episodes watched to the end (their spoken lines all played, or marked watched). */
+        val done: Set<String> = emptySet(),
     ) {
         fun seenIn(episode: String) = seen.count { it.value == episode }
     }
 
     // ------------------------------------------------------------------ recording (this device)
 
-    fun record(episode: String, pos: Double?, seen: Collection<String>, watched: Double, lang: String? = null) = change {
+    fun record(episode: String, pos: Double?, seen: Collection<String>, watched: Double, lang: String? = null,
+               ranges: List<Span> = emptyList(), done: Boolean = false) = change {
         val now = now()
+        if (ranges.isNotEmpty()) addRanges(it, episode, ranges, now)
+        if (done) it.child("done").put(episode, now)
         if (pos != null) it.getJSONObject("pos").put(episode, JSONArray().put(pos).put(now))
         val s = it.getJSONObject("seen")
         for (scene in seen) {
@@ -84,8 +93,31 @@ class Progress private constructor(context: Context, private val settings: Setti
      */
     fun unwatch(episode: String) = change {
         val now = now()
+        it.optJSONObject("ranges")?.remove(episode)
+        it.optJSONObject("done")?.remove(episode)
         (it.optJSONObject("unwatched") ?: JSONObject().also { u -> it.put("unwatched", u) }).put(episode, now)
         it.getJSONObject("pos").put(episode, JSONArray().put(0.0).put(now))
+    }
+
+    /** This device's ranges of an episode: [since, [[start, end], ...]]; started again after a "not watched". */
+    private fun addRanges(d: JSONObject, episode: String, ranges: List<Span>, now: Long) {
+        val unwatched = merged.unwatched[episode] ?: -1
+        val old = d.child("ranges").optJSONArray(episode)?.takeIf { it.getLong(0) > unwatched }
+        d.child("ranges").put(episode, JSONArray().put(old?.getLong(0) ?: maxOf(now, unwatched + 1))
+            .put(Ranges.json(Ranges.union(Ranges.parse(old?.getJSONArray(1)) + ranges))))
+    }
+
+    private fun JSONObject.child(name: String): JSONObject = optJSONObject(name) ?: JSONObject().also { put(name, it) }
+
+    /** The scenes seen became ranges ([convert]): done once per device. */
+    val converted: Boolean get() = data.optInt("conv") == 1
+
+    /** Once: [spans] (episode -> the time of its scenes seen on any device) and the episodes they finish. */
+    fun convert(spans: Map<String, List<Span>>, done: Set<String>) = change {
+        val now = now()
+        for ((episode, s) in spans) if (s.isNotEmpty()) addRanges(it, episode, s, now)
+        for (episode in done) it.child("done").put(episode, now)
+        it.put("conv", 1)
     }
 
     fun mark(word: String, known: Boolean) = change { it.getJSONObject("marked").put(word, JSONArray().put(known).put(now())) }
@@ -130,9 +162,9 @@ class Progress private constructor(context: Context, private val settings: Setti
             merged = merge()
             // The PC (and so the TV) learns what counts as seen here: it blurs and counts episodes by it (item 14).
             if (api != null) {
-                val sent = merged.seen.hashCode() * 31 + merged.unwatched.hashCode()
+                val sent = (merged.seen.hashCode() * 31 + merged.unwatched.hashCode()) * 31 + merged.ranges.hashCode()
                 if (settings.prefs.getInt("device_seen_sent", 0) != sent) {
-                    runCatching { api.deviceSeen(merged.seen, merged.unwatched) }
+                    runCatching { api.deviceSeen(merged.seen, merged.unwatched, merged.ranges) }
                         .onSuccess { settings.prefs.edit().putInt("device_seen_sent", sent).apply() }
                         .onFailure { Log.w("kumapie", "device seen not sent: $it") }
                 }
@@ -168,7 +200,13 @@ class Progress private constructor(context: Context, private val settings: Setti
         val lookups = HashMap<String, Int>()
         val marked = HashMap<String, Pair<Boolean, Long>>()
         val gloss = HashMap<String, String>()
+        val ranges = ArrayList<Map<String, Pair<Long, List<Span>>>>()
+        val done = HashMap<String, Long>()
         for (p in parts) {
+            p.optJSONObject("ranges")?.let { o ->
+                ranges += o.keys().asSequence().associateWith { k -> o.getJSONArray(k).let { it.getLong(0) to Ranges.parse(it.getJSONArray(1)) } }
+            }
+            p.optJSONObject("done")?.let { o -> for (k in o.keys()) done[k] = maxOf(done[k] ?: 0, o.getLong(k)) }
             p.optJSONObject("pos")?.let { o ->
                 for (k in o.keys()) {
                     val a = o.getJSONArray(k)
@@ -197,7 +235,8 @@ class Progress private constructor(context: Context, private val settings: Setti
             p.optJSONObject("gloss")?.let { o -> for (k in o.keys()) gloss[k] = o.getString(k) }
         }
         return View(pos.mapValues { it.value.first }, stillSeen(seen, seenLast, unwatched), watch, lookups, marked.filterValues { it.first }.keys, gloss, unwatched,
-            pos.mapValues { it.value.second }, langWatch)
+            pos.mapValues { it.value.second }, langWatch, stillWatched(ranges, unwatched),
+            done.filter { (ep, at) -> at > (unwatched[ep] ?: -1) }.keys)
     }
 
     companion object {
@@ -219,6 +258,11 @@ class Progress private constructor(context: Context, private val settings: Setti
         /** Scenes (-> episode) that still count: seen on some device after their episode's last "not watched" mark. */
         fun stillSeen(seen: Map<String, String>, seenLast: Map<String, Long>, unwatched: Map<String, Long>): Map<String, String> =
             seen.filter { (scene, ep) -> (seenLast[scene] ?: 0) > (unwatched[ep] ?: -1) }
+
+        /** Episode -> its ranges that still count: each device's ([since] to spans) started after the last "not watched". */
+        fun stillWatched(parts: List<Map<String, Pair<Long, List<Span>>>>, unwatched: Map<String, Long>): Map<String, List<Span>> =
+            parts.flatMap { it.entries }.filter { (ep, r) -> r.first > (unwatched[ep] ?: -1) }
+                .groupBy({ it.key }, { it.value.second }).mapValues { Ranges.union(it.value.flatten()) }
 
         /**
          * Seconds per study day in [lang]: its own time, plus its share of the time kept before languages were (and of

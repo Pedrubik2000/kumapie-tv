@@ -107,6 +107,18 @@ class SceneController(
     /** Something played since the episode opened (a scene opened from i+1 and left at once didn't). */
     private var played = false
     private var watchedMs = 0L
+    /** Watched time ranges: the stretch playing now ([rangeFrom] -1: none), those since the last report, and all of them. */
+    private var rangeFrom = -1L
+    private var rangeTo = -1L
+    private val rangesNew = ArrayList<io.github.pedrubik2000.kumapie.data.Span>()
+    private var have = io.github.pedrubik2000.kumapie.data.Ranges.union(episode.ranges)
+    private val need = io.github.pedrubik2000.kumapie.data.Ranges.spoken(episode.scenes.filterNot { it.song }.flatMap { it.cues })
+
+    private fun closeRange(next: Long) {
+        if (rangeFrom in 0 until rangeTo) rangesNew += io.github.pedrubik2000.kumapie.data.Span(rangeFrom, rangeTo)
+        rangeFrom = next
+        rangeTo = next
+    }
     private var lastTick = SystemClock.uptimeMillis()
     private var lastReport = SystemClock.uptimeMillis()
 
@@ -329,6 +341,9 @@ class SceneController(
         playing = player.isPlaying || (player.playWhenReady && player.playbackState == Player.STATE_BUFFERING)
         if (playing) watchedMs += now - lastTick
         lastTick = now
+        // The same stretch while the video moves on by itself; a jump (seek, another line) or a pause ends it.
+        val ms = player.currentPosition
+        if (playing && rangeFrom >= 0 && ms >= rangeTo && ms - rangeTo < 2_000) rangeTo = ms else closeRange(if (playing) ms else -1)
         if (scenes.isEmpty()) return
 
         if (playing && position >= scene.end) seen(scene)
@@ -380,12 +395,17 @@ class SceneController(
         val seen = seenNew.toList()
         val watched = watchedMs / 1000.0
         val pos = position
+        closeRange(rangeTo.takeIf { rangeFrom >= 0 } ?: -1)
+        val ranges = rangesNew.toList()
+        rangesNew.clear()
+        have = io.github.pedrubik2000.kumapie.data.Ranges.union(have + ranges)
+        val done = ranges.isNotEmpty() && io.github.pedrubik2000.kumapie.data.Ranges.watched(need, have)
         if (watched >= 1 || seen.isNotEmpty()) played = true
         if (!played || (seen.isEmpty() && watched < 1 && reportedPos == pos)) return
         reportedPos = pos
         seenNew.clear()
         watchedMs = 0
-        AppScope.launch { runCatching { api.progress(episode.id, pos, seen, watched) } }
+        AppScope.launch { runCatching { api.progress(episode.id, pos, seen, watched, ranges, done) } }
     }
 
     // ------------------------------------------------------------ helpers

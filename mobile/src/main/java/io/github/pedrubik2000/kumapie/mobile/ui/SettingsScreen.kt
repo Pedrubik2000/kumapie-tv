@@ -175,7 +175,7 @@ private fun rememberSummaries(library: Library): Map<String, String> {
             .map { l -> "${tr(l.name)} ${dicts.count { it.lang == l.code && it.enabled }}" }.joinToString(" · "),
         "watching" to (if (settings.blurUnwatched) tr("No spoilers on") else tr("No spoilers off")) + " · " +
             tr("popup %1\$d × %2\$d", settings.popupWidth, settings.popupHeight),
-        "device" to listOf(when (settings.owner) { "" -> tr("Nobody's (no sync)"); else -> tr("%s's", settings.owner.replaceFirstChar(Char::uppercase)) },
+        "device" to listOf(when (settings.owner) { "" -> if (settings.server.isEmpty()) tr("No server") else tr("Nobody's (no sync)"); else -> tr("%s's", settings.owner.replaceFirstChar(Char::uppercase)) },
             when (settings.menuLanguage) { "en" -> "English"; "es" -> "Español"; else -> tr("Phone's language") }).joinToString(" · "),
     )
 }
@@ -260,9 +260,10 @@ private fun StorageSection(library: Library, onUpdate: (Updater.Release) -> Unit
         text = { Text(tr("This deletes %.1f GB of episodes saved on this device. You can download them again on Wi-Fi.", used / 1e9)) },
         confirmButton = { androidx.compose.material3.TextButton(onClick = { library.downloads.deleteAll(); refresh++; confirmRemove = false }) { Text(tr("Remove downloads")) } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmRemove = false }) { Text(tr("Keep them")) } })
-    Text(if (waiting == 0) tr("Nothing waiting to be sent to the PC.") else tr("%d reports waiting for the PC (sent when it answers).", waiting),
+    // No PC: nothing is ever sent, so no line about it.
+    if (library.settings.server.isNotEmpty()) Text(if (waiting == 0) tr("Nothing waiting to be sent to the PC.") else tr("%d reports waiting for the PC (sent when it answers).", waiting),
         fontSize = 15.sp, color = Colors.dim)
-    if (waiting > 0) OutlinedButton(onClick = {
+    if (waiting > 0 && library.settings.server.isNotEmpty()) OutlinedButton(onClick = {
         scope.launch { library.pending.flush(library.api, force = true); refresh++ }
     }) { Text(tr("Send now")) }
     HorizontalDivider(Modifier.padding(vertical = 8.dp))

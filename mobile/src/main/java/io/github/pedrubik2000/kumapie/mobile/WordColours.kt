@@ -143,6 +143,7 @@ class WordColours : ContentProvider() {
         if (method == "sense") { // the AI ✓ sense for Hoshi/chimahon popups: `word`, `reading`, `sentence`, `check` -> `json`
             val s = Settings(ctx)
             val json = runCatching {
+                check(s.server.isNotEmpty()) // no PC: no AI sense (kumapie_plan.md: AI only with a server or the user's own key)
                 runBlocking {
                     io.github.pedrubik2000.kumapie.data.Api(s.server, s.owner).sense(extras?.getString("word").orEmpty(),
                         extras?.getString("reading").orEmpty(), extras?.getString("sentence").orEmpty(), extras?.getBoolean("check") == true)

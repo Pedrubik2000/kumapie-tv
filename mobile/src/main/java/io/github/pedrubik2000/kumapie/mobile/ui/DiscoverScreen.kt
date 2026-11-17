@@ -441,12 +441,21 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     }
     BackHandler(onBack = onBack)
     if (alone.isNotEmpty()) {
+        val posKey = "alone_pos_" + query["id"].orEmpty()
         LaunchedEffect(Unit) {
-            player.setMediaItem(MediaItem.fromUri(alone))
+            // Where it was left on this device (no PC to keep it), as the TV does.
+            val at = library.settings.prefs.getFloat(posKey, 0f)
+            player.setMediaItem(MediaItem.fromUri(alone), if (at > 5) (at * 1000).toLong() else 0L)
             player.prepare()
             player.play()
             playing = true
             step = tr("Japanese lines from Jimaku…")
+            while (true) { // saved as it plays: the word player takes this player over, and releases it
+                delay(5_000)
+                val d = player.duration
+                if (d > 0) library.settings.prefs.edit().putFloat(posKey,
+                    if (player.currentPosition > d - 120_000) 0f else player.currentPosition / 1000f).apply() // near the end: from the start next time
+            }
         }
         // Jimaku's lines are all there: the episode is made on the phone, after the fit had its chance (as on the TV).
         LaunchedEffect(live.lines) {

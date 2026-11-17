@@ -193,7 +193,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
             onDismissRequest = { deleting = null },
             title = { Text(ep.title) },
             text = { Text((if (copy) tr("Delete here: only this device's copy goes; the episode stays and plays from the PC.") + "\n\n" else "") +
-                tr("Delete everywhere: off the PC and all your devices.")) },
+                if (library.settings.server.isEmpty()) tr("Delete it from this device?") else tr("Delete everywhere: off the PC and all your devices.")) },
             confirmButton = {
                 Row {
                     if (copy) TextButton(onClick = { sync.removeCopy(ep.id); deleting = null; reload++ }) { Text(tr("Delete here")) }
@@ -204,7 +204,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
                                 .onSuccess { gone() }
                                 .onFailure { android.widget.Toast.makeText(context, tr("Couldn't reach the PC: %s", it.message ?: it.toString()), android.widget.Toast.LENGTH_LONG).show() }
                         }
-                    }) { Text(tr("Delete everywhere")) }
+                    }) { Text(if (library.settings.server.isEmpty()) tr("Delete") else tr("Delete everywhere")) }
                 }
             },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text(tr("Keep")) } },

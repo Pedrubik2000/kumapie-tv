@@ -77,6 +77,9 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         val days = c.lastReview?.let { elapsedDays(it, now) } ?: 0
         val r = before?.let { fsrs.retrievability(days.toDouble(), it.stability) }
         val after = fsrs.next(before, days, rating)
+        // Scenes it was heard in (played to their end, on any device) since its last rating, or since it was mined.
+        val heard = watch.heard ?: db.rawQuery("SELECT COUNT(*) FROM exposures WHERE card = ? AND time > ?",
+            arrayOf("$cardId", "${c.lastReview ?: c.created}")).use { if (it.moveToFirst()) it.getInt(0) else 0 }
         db.beginTransaction()
         try {
             append("revlog", ContentValues().apply {
@@ -84,7 +87,7 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
                 put("device", device); put("s_before", before?.stability); put("d_before", before?.difficulty)
                 put("s_after", after.stability); put("d_after", after.difficulty); put("r", r)
                 put("episode", watch.episode); put("scene", watch.scene); put("subs", watch.subs)
-                put("looked_up", watch.lookedUp?.let { if (it) 1 else 0 }); put("speed", watch.speed); put("heard", watch.heard)
+                put("looked_up", watch.lookedUp?.let { if (it) 1 else 0 }); put("speed", watch.speed); put("heard", heard)
             })
             cache(cardId, after, now)
             db.setTransactionSuccessful()

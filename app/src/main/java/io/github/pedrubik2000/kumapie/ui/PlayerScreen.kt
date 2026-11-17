@@ -428,13 +428,10 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
         ) {
             Title(tr("Options"), fontSize = 26.sp)
             Button(onClick = ctl::togglePauseAtSceneEnd, modifier = Modifier.fillMaxWidth().focusRequester(first)) {
-                Text(tr("At the end of a scene: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")).uppercase())
+                Text(tr("After each line: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")).uppercase())
             }
             Button(onClick = ctl::togglePlayThroughKnown, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("i+0 scenes (no new words): %s", if (ctl.playThroughKnown) tr("play through") else tr("pause")).uppercase().replace("I+0", "i+0"))
-            }
-            Button(onClick = ctl::toggleNewStraight, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("Gaps between scenes: %s", if (ctl.newStraight) tr("play them") else tr("skip them")).uppercase())
+                Text(tr("i+0 lines (no new or due word): %s", if (ctl.playThroughKnown) tr("play through") else tr("pause")).uppercase().replace("I+0", "i+0"))
             }
             Button(onClick = ctl::toggleSlow, modifier = Modifier.fillMaxWidth()) {
                 Text(tr("Speed: %s", if (ctl.slow) "0.75x" else tr("normal")).uppercase())

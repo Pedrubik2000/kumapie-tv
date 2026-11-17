@@ -562,7 +562,7 @@ fun rateWord(context: Context, api: Api, settings: Settings, ctl: SceneControlle
         if (rating.busy) return
         rating.busy = true
         scope.launch {
-            runCatching { api.srsRate(form, ease, scene = ctl.scene.id) }.onSuccess { c ->
+            runCatching { api.srsRate(form, ease, scene = ctl.scene.source) }.onSuccess { c ->
                 setCard(ctl, form, c)
                 rating.last = form to KnownWords.Rated(emptyList(), 1, PC_CARDS)
                 rating.said = tr(RATINGS[ease - 1])
@@ -609,7 +609,7 @@ fun undoRating(context: Context, api: Api, settings: Settings, ctl: SceneControl
     if (rated.undoLabel == PC_CARDS) {
         rating.busy = true
         scope.launch {
-            runCatching { api.srsUndo(scene = ctl.scene.id) }.onSuccess { (word, c) ->
+            runCatching { api.srsUndo(scene = ctl.scene.source) }.onSuccess { (word, c) ->
                 setCard(ctl, word, c)
                 rating.last = null
                 rating.fresh = false
@@ -659,7 +659,7 @@ private fun mineOnPc(context: Context, api: Api, ctl: SceneController, picker: W
     val line = picker.line
     val meaning = scene.def(line, key)?.english?.takeIf { it.isNotBlank() } ?: (scene.meanings[key] ?: w?.meaning).orEmpty()
     scope.launch {
-        runCatching { api.srsAdd(scene.id, line, key, meaning) }
+        runCatching { api.srsAdd(scene.source, scene.sourceLine + line, key, meaning) }
             .onSuccess { c -> setCard(ctl, key, c); say(tr("Added to your reviews")) }
             .onFailure { say(it.message ?: it.toString()) }
     }

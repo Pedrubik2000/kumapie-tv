@@ -132,12 +132,11 @@ internal fun activeJobs(): Int {
 
 /** The menu's destinations: the main ones (round buttons / bottom bar), then More's. */
 @Composable
-internal fun destinations(homeLang: String, onDiscover: () -> Unit, onFeed: () -> Unit, onIPlusOne: () -> Unit, onDownloads: () -> Unit,
+internal fun destinations(homeLang: String, onDiscover: () -> Unit, onFeed: () -> Unit, onDownloads: () -> Unit,
                           onStats: () -> Unit, onImprove: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit): Pair<List<Dest>, List<Dest>> {
     val main = listOfNotNull(
         Dest(Icons.Default.Explore, tr("Discover"), onDiscover).takeIf { homeLang == "ja" },
-        Dest(Icons.Default.Swipe, tr("Feed"), onFeed),
-        Dest(Icons.Default.AutoAwesome, tr("i+1 scenes"), onIPlusOne),
+        Dest(Icons.Default.Swipe, tr("Reels"), onFeed),
         Dest(Icons.Default.Download, tr("Downloads"), onDownloads, badge = activeJobs()),
     )
     // Cards that don't stick (German Core 1000) only in German; the Japanese dictionary only in Japanese.
@@ -175,7 +174,7 @@ internal fun MoreSheet(items: List<Dest>, onClose: () -> Unit) = ModalBottomShee
 
 /**
  * Home: the language switch, then rows of posters (streaming-app style): "Continue watching", then one row per category.
- * Navigation: a bottom bar on a phone (Home, Feed, i+1, Downloads, More), a side rail on a tablet (everything).
+ * Navigation: a bottom bar on a phone (Home, Reels, Downloads, More), a side rail on a tablet (everything).
  * Offline: the last list the PC sent, with only downloaded episodes playable.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -185,7 +184,6 @@ fun HomeScreen(
     onShows: (List<Show>) -> Unit,
     onShow: (Show) -> Unit,
     onStats: () -> Unit,
-    onIPlusOne: () -> Unit,
     onFeed: () -> Unit,
     onImprove: () -> Unit,
     onSettings: (section: String?) -> Unit,
@@ -230,7 +228,7 @@ fun HomeScreen(
     }
 
     val wide = wide()
-    val (main, extra) = destinations(homeLang, onDiscover, onFeed, onIPlusOne, onDownloads, onStats, onImprove, onSearch) { onSettings(null) }
+    val (main, extra) = destinations(homeLang, onDiscover, onFeed, onDownloads, onStats, onImprove, onSearch) { onSettings(null) }
 
     val all = shows.orEmpty()
     val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { l -> all.any { it.lang == l.code } }

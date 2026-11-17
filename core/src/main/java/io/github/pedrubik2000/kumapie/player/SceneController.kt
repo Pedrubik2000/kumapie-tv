@@ -98,8 +98,7 @@ class SceneController(
     /** Called once per scene the first time it plays to its end here (kumapie's own cards log the words heard in it). */
     var onSceneSeen: ((Scene) -> Unit)? = null
 
-    private fun seen(s: Scene) {
-        seenNew += s.id
+    private fun seen(s: Scene) { // no scene ids to the PC any more: what was watched goes as time ranges ([report])
         if (seenHere.add(s.id)) onSceneSeen?.invoke(s)
     }
     /** The position last sent to the server, so a paused player doesn't send the same one every 20 s. */
@@ -231,11 +230,8 @@ class SceneController(
     fun togglePlay() {
         when {
             playing -> player.pause()
-            atSceneEnd && newStraight && !episode.novel && index < scenes.lastIndex -> { // play on through the gap into the next scene
-                atSceneEnd = false; stopAt = null; player.play(); playing = true
-            }
-            // The last scene: play on to the end of the video, the ending song (user, 2026-10-25: it replayed the scene).
-            atSceneEnd && !episode.novel && index == scenes.lastIndex -> {
+            // After a line's end pause the video plays on by itself (the silence too) into the next line.
+            atSceneEnd && !episode.novel -> {
                 atSceneEnd = false; stopAt = null; player.play(); playing = true
             }
             atSceneEnd -> if (index < scenes.lastIndex) nextScene() else replayScene()
@@ -359,7 +355,7 @@ class SceneController(
         // After the stop: a next scene starting at (or within a tick of) this one's end moved on first and replaced
         // this scene's end pause, so Skip nothing played through (2026-10-15). Paused at the end: stay on this scene.
         // Playing past the scene's end without its end pause (a seek, or play in the ending) follows the video too.
-        if (!atSceneEnd && (!pausesAtEnd(scene) || (newStraight && !episode.novel) || (playing && position > scene.end))) { // playing on: follow the video into the next scene
+        if (!atSceneEnd && (!pausesAtEnd(scene) || !episode.novel || (playing && position > scene.end))) { // playing on: follow the video into the next scene
             val i = scenes.indexOfLast { it.start <= position }
             // Scenes often overlap by ~0.2 s (their padding): move on only once this one has ended, unless its end
             // doesn't pause anyway; moving on early dropped every end pause (2026-10-15, 74 of 133 in an episode).
@@ -416,7 +412,7 @@ class SceneController(
     }
 
     // A novel waits after every line until a tap, like the game: the modes don't apply.
-    private fun pausesAtStart(s: Scene) = !episode.novel && pauseAtSceneStart && !newStraight && !known(s)
+    private fun pausesAtStart(s: Scene) = !episode.novel && pauseAtSceneStart && !known(s)
     private fun pausesAtEnd(s: Scene) = episode.novel || (pauseAtSceneEnd && !known(s))
     // A due word (green) counts as not known: its scene stops, so it can be rated there (user, 2026-11-06).
     private fun known(s: Scene) = playThroughKnown && levelOf(s) == 0 &&

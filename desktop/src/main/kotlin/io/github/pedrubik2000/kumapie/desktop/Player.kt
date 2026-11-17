@@ -166,7 +166,7 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
         mining = false
         status = Status(if (lang == "ja") "Cutting the line's audio…" else "Cutting the clip…")
         scope.launch {
-            runCatching { bridge.mine(episode.id, ctl.scene.id, line, if (word) seg.word else null, seg.text, gloss, english) }
+            runCatching { bridge.mine(episode.id, ctl.scene.source, ctl.scene.sourceLine + line, if (word) seg.word else null, seg.text, gloss, english) }
                 .onSuccess { m ->
                     reloadCards()
                     val added = Status("Added to ${m.deck}", "Undo") {
@@ -231,7 +231,7 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
             VideoFrame(player, Modifier.fillMaxSize().pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { if (picker.isOpen) picker.close() else ctl.togglePlay() },
-                    onDoubleTap = { p -> picker.close(); if (p.x < size.width / 2) ctl.replayLine() else ctl.replayScene() },
+                    onDoubleTap = { p -> picker.close(); ctl.replayLine() },
                 )
             })
             if (showTop) {
@@ -274,9 +274,8 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
                 val full = Modifier.fillMaxWidth()
                 ArcadeButton("Subtitles: ${ctl.subtitles.label(ctl.lang)}", full) { ctl.changeSubtitles(ctl.subtitles.next()) }
                 ArcadeButton("0.75×: ${if (ctl.slow) "on" else "off"}", full, selected = ctl.slow) { ctl.toggleSlow() }
-                ArcadeButton("Skip nothing: ${if (ctl.newStraight) "on" else "off"}", full, selected = ctl.newStraight) { ctl.toggleNewStraight() }
                 ArcadeButton("Don't stop on i+0: ${if (ctl.playThroughKnown) "on" else "off"}", full, selected = ctl.playThroughKnown) { ctl.togglePlayThroughKnown() }
-                ArcadeButton("Pause at scene end: ${if (ctl.pauseAtSceneEnd) "on" else "off"}", full, selected = ctl.pauseAtSceneEnd) { ctl.togglePauseAtSceneEnd() }
+                ArcadeButton("Pause after each line: ${if (ctl.pauseAtSceneEnd) "on" else "off"}", full, selected = ctl.pauseAtSceneEnd) { ctl.togglePauseAtSceneEnd() }
                 ArcadeButton("Close", full, key = "O") { options = false }
             }
             val hints = when {

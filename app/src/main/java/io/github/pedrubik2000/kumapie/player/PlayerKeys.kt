@@ -9,16 +9,16 @@ enum class KeyContext(val label: String) { WATCH("While watching"), PICKER("In t
 
 /** Everything a button can do in the player. */
 enum class Action(val label: String, val context: KeyContext = KeyContext.WATCH) {
-    PLAY_PAUSE("Play / pause (at a scene end: next scene)"),
-    NEXT_SCENE("Next scene"),
-    PREVIOUS_SCENE("Previous scene"),
+    PLAY_PAUSE("Play / pause"),
+    NEXT_SCENE("Next line"),
+    PREVIOUS_SCENE("Previous line"),
     REPLAY_LINE("Replay line"),
-    REPLAY_SCENE("Replay scene"),
+    REPLAY_SCENE("Replay line"),
     CYCLE_SUBTITLES("Subtitles: hidden → blurred → both blurred → %s → both (at a scene end: pick a word)"),
     TOGGLE_GERMAN("%s subtitles"),   // the episode's language (the name stays: saved button maps use it)
     TOGGLE_ENGLISH("%s subtitles"),  // the translation's
     SLOW("Speed 0.75x"),
-    PAUSE_AT_SCENE_END("Pause at scene end / play on"),
+    PAUSE_AT_SCENE_END("Pause after each line / play on"),
     OPTIONS("Options"),
     HELP("Help (this list of buttons)"),
     WORD_PICKER("Pick a word"),
@@ -68,7 +68,7 @@ class KeyMap(
             KeyEvent.KEYCODE_MEDIA_PAUSE to Action.PLAY_PAUSE,
             KeyEvent.KEYCODE_MEDIA_FAST_FORWARD to Action.NEXT_SCENE,
             KeyEvent.KEYCODE_MEDIA_NEXT to Action.NEXT_SCENE,
-            KeyEvent.KEYCODE_MEDIA_REWIND to Action.REPLAY_SCENE,
+            KeyEvent.KEYCODE_MEDIA_REWIND to Action.PREVIOUS_SCENE,
             KeyEvent.KEYCODE_MEDIA_PREVIOUS to Action.PREVIOUS_SCENE,
             KeyEvent.KEYCODE_MENU to Action.OPTIONS,
             // gamepad (8BitDo Ultimate 2C; its D-pad and stick arrive as the arrows, B as Back)

@@ -130,7 +130,8 @@ class Api(private val base: String, private val person: String = "") : Backend {
         return EpisodeDetail(
             id = e.getString("id"), show = e.getString("show"), title = episodeTitle(e.getString("title")), lang = e.optString("lang", "de"),
             duration = e.optDouble("duration", 0.0), video = url(e.getString("video")),
-            resume = if (e.isNull("resume")) null else e.getDouble("resume"), scenes = scenes, words = words,
+            resume = if (e.isNull("resume")) null else e.getDouble("resume"),
+            scenes = if (e.optBoolean("novel")) scenes else lines(scenes, Ranges.parse(e.optJSONArray("ranges"))), words = words,
             novel = e.optBoolean("novel"), work = e.optString("work"), srs = e.optBoolean("srs"),
             ranges = Ranges.parse(e.optJSONArray("ranges")),
             marked = e.optJSONArray("marked")?.let { a -> (0 until a.length()).map(a::getString).toSet() }.orEmpty(),
@@ -543,6 +544,25 @@ data class EpisodeDetail(
     val ranges: List<Span> = emptyList(),
 )
 
+/**
+ * The player's only unit is the subtitle line (kumapie_plan.md "no more scenes"): every line of the PC's [scenes]
+ * as a [Scene] of its own, in the order they are said. It ends a moment after the line (subtitles end early), never
+ * inside the next one; seen = its middle is in [watched].
+ */
+fun lines(scenes: List<Scene>, watched: List<Span>): List<Scene> {
+    val all = scenes.flatMap { s -> s.cues.indices.map { s to it } }.sortedBy { (s, i) -> s.cues[i].start }
+    return all.mapIndexed { n, (s, i) ->
+        val c = s.cues[i]
+        val next = all.getOrNull(n + 1)?.let { (s2, i2) -> s2.cues[i2].start } ?: Double.MAX_VALUE
+        s.copy(
+            id = "${s.id}:$i", index = n, start = c.start, end = maxOf(c.end, minOf(c.end + 0.25, next)), level = null,
+            cues = listOf(c), english = s.english.filter { it.start < c.end && it.end > c.start },
+            defs = s.defs.filterKeys { it.startsWith("$i|") }.mapKeys { "0|" + it.key.substringAfter('|') },
+            source = s.id, sourceLine = i,
+        ).let { l -> l.copy(seen = s.seen || watched.any { l.middle in it.start..it.end }) }
+    }
+}
+
 data class Scene(
     val id: String,
     val index: Int,
@@ -564,8 +584,17 @@ data class Scene(
     /** A novel kumapie draws (item 46): the screen when the line starts (URL), then its changes in order. */
     val base: String? = null,
     val pics: List<Pic> = emptyList(),
+    /**
+     * The PC's scene this line was cut from and the line's place in it ([lines]): what the PC's calls still take
+     * (definition audio, lookups, its cards) until it has no scenes. A novel's scene is its own.
+     */
+    val source: String = id,
+    val sourceLine: Int = 0,
 ) {
     fun def(line: Int, word: String): LineDef? = defs["$line|$word"]
+
+    /** Its middle (ms): the line counts as watched when a watched range has it. */
+    val middle: Long get() = ((start + end) * 500).toLong()
 
     /**
      * An opening's or ending's lyrics: every line starts with ♪ (jimaku.py's SONG). Lines like any other (colours,

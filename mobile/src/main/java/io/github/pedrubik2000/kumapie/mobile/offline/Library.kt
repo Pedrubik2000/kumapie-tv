@@ -256,10 +256,11 @@ class Library(context: Context, val settings: Settings) {
     /** Scenes watched to the end on any device. */
     private fun withSeen(d: EpisodeDetail): EpisodeDetail {
         val m = progress.merged
-        val mine = m.ranges[d.id].orEmpty()
-        if (d.id in m.unwatched) return d.copy(scenes = d.scenes.map { it.copy(seen = it.id in m.seen) }, ranges = mine)
-        return d.copy(scenes = d.scenes.map { if (it.seen || it.id !in m.seen) it else it.copy(seen = true) },
-            ranges = io.github.pedrubik2000.kumapie.data.Ranges.union(d.ranges + mine))
+        val unwatched = d.id in m.unwatched // the PC's own count is from before the mark
+        val ranges = io.github.pedrubik2000.kumapie.data.Ranges.union((if (unwatched) emptyList() else d.ranges) + m.ranges[d.id].orEmpty())
+        return d.copy(ranges = ranges, scenes = d.scenes.map { s ->
+            s.copy(seen = (s.seen && !unwatched) || s.source in m.seen || ranges.any { s.middle in it.start..it.end })
+        })
     }
 
     /**
@@ -280,7 +281,7 @@ class Library(context: Context, val settings: Settings) {
                 else if (downloads.isComplete(id)) downloads.episodeJson(id).readText() else api.episodeJson(id)
             }.getOrElse { android.util.Log.w("kumapie", "seen scenes not converted yet ($id): $it"); return@withContext }
             val scenes = api.parseEpisode(json).scenes
-            val got = io.github.pedrubik2000.kumapie.data.Ranges.union(scenes.filter { it.id in seen }
+            val got = io.github.pedrubik2000.kumapie.data.Ranges.union(scenes.filter { it.source in seen }
                 .map { io.github.pedrubik2000.kumapie.data.Span((it.start * 1000).toLong(), (it.end * 1000).toLong()) })
             spans[id] = got
             if (io.github.pedrubik2000.kumapie.data.Ranges.watched(
@@ -349,7 +350,7 @@ class Library(context: Context, val settings: Settings) {
     suspend fun markWatched(id: String) {
         val detail = episodeCache[id] ?: episode(id)
         val end = maxOf(detail.duration, detail.scenes.maxOfOrNull { it.end } ?: 0.0)
-        progress.record(id, null, detail.scenes.map { it.id }, 0.0,
+        progress.record(id, null, detail.scenes.map { it.source }.distinct(), 0.0, // scene ids: for a device on an older build
             ranges = listOf(io.github.pedrubik2000.kumapie.data.Span(0, (end * 1000).toLong())), done = true)
         syncLater()
     }

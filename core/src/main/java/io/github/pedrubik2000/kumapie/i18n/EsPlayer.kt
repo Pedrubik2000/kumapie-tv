@@ -117,4 +117,17 @@ internal val esPlayer: Map<String, String> = mapOf(
     // Condensed audio
     "Couldn't open the episode: %s" to "No se pudo abrir el episodio: %s",
     "%s · condensed" to "%s · condensado",
+    // No more scenes: the line is the unit
+    "Primed Listening: wait before each line (read, then play)" to "Primed Listening: esperar antes de cada línea (lee y luego reproduce)",
+    "Pause after each line" to "Pausa después de cada línea",
+    "Wait only on lines with a new or due word" to "Esperar solo en líneas con una palabra nueva o pendiente",
+    "Upright: line by line, swipe left" to "Vertical: línea por línea, desliza a la izquierda",
+    "Reels" to "Reels",
+    "No reels yet." to "Aún no hay reels.",
+    "Play / pause" to "Reproducir / pausa",
+    "Next line" to "Línea siguiente",
+    "Previous line" to "Línea anterior",
+    "Pause after each line / play on" to "Pausa después de cada línea / seguir",
+    "After each line: %s" to "Después de cada línea: %s",
+    "i+0 lines (no new or due word): %s" to "Líneas i+0 (sin palabra nueva o pendiente): %s",
 )

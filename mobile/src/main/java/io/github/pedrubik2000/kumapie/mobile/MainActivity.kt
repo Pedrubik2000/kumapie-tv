@@ -35,7 +35,6 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.mobile.ui.FeedScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.ImproveScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.HomeScreen
-import io.github.pedrubik2000.kumapie.mobile.ui.IPlusOneScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.MobileTheme
 import io.github.pedrubik2000.kumapie.mobile.ui.PlayerScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.PrepareScreen
@@ -57,7 +56,6 @@ sealed interface Screen {
     data class Discover(val open: io.github.pedrubik2000.kumapie.data.Found? = null) : Screen
     /** A Discover file: the PC makes its words, then it streams (the next episode at the video's end). */
     data class Watch(val query: Map<String, String>) : Screen
-    data object IPlusOne : Screen
     data object Feed : Screen
     data object Improve : Screen
     data class Settings(val section: String? = null) : Screen
@@ -165,12 +163,11 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     // Glass menu (tablet) beside the top-level screens: a button goes there from Home, so Back returns Home.
     fun top(s: Screen?) { while (stack.size > 1) stack.removeAt(stack.lastIndex); if (s != null) stack += s }
     var more by remember { mutableStateOf(false) }
-    val (main, extra) = destinations(homeLang, { top(Screen.Discover()) }, { top(Screen.Feed) }, { top(Screen.IPlusOne) }, { top(Screen.Downloads) },
+    val (main, extra) = destinations(homeLang, { top(Screen.Discover()) }, { top(Screen.Feed) }, { top(Screen.Downloads) },
         { top(Screen.Stats) }, { top(Screen.Improve) }, { top(Screen.Search) }) { top(Screen.Settings(null)) }
     val tab: String? = when (stack.last()) { // the button shown selected: "" = Home, null = More, "-" = no menu
         is Screen.Discover -> tr("Discover")
         // Feed: upright and fullscreen like the player, so no menu beside it (it squeezed the video).
-        Screen.IPlusOne -> tr("i+1 scenes")
         Screen.Downloads -> tr("Downloads")
         Screen.Stats, Screen.Improve, Screen.Search, is Screen.Settings -> null
         is Screen.ShowEpisodes -> ""
@@ -201,7 +198,6 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                     }
                 },
                 onStats = { stack += Screen.Stats },
-                onIPlusOne = { stack += Screen.IPlusOne },
                 onFeed = { stack += Screen.Feed },
                 onImprove = { stack += Screen.Improve },
                 onSearch = { stack += Screen.Search },
@@ -223,8 +219,6 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             }
             is Screen.Prepare -> PrepareScreen(library, screen.query, onPlay = { s, e -> stack[stack.lastIndex] = Screen.Player(s, e) }, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Feed -> FeedScreen(library, langShows, homeLang, onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.IPlusOne -> IPlusOneScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
-                onBack = { stack.removeAt(stack.lastIndex) })
             is Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server },
                 onUpdate = { update = it }, onBack = { stack.removeAt(stack.lastIndex) }, section = screen.section)
             Screen.Improve -> ImproveScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },

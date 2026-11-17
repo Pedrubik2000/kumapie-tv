@@ -364,7 +364,7 @@ internal fun ScenePlayer(
                         // Not in a novel: fast taps through narration would replay instead (and wait for a second tap).
                         onDoubleTap = if (episode.novel) null else ({ p ->
                             picker.close()
-                            if (p.x < size.width / 2) { ctl.replayLine(); flash(tr("↺ line")) } else { ctl.replayScene(); flash(tr("↺ scene")) }
+                            ctl.replayLine(); flash(tr("↺ line"))
                         }),
                         onLongPress = if (!episode.novel) null else ({ menuUntil = SystemClock.uptimeMillis() + 4_000 }),
                     )
@@ -510,7 +510,7 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
             withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)) { append(ctl.episode.show) }
             withStyle(androidx.compose.ui.text.SpanStyle(color = Glass.dim)) { append("   " + ctl.episode.title) }
         }, color = Colors.text, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        val modes = listOfNotNull(if (ctl.newStraight) tr("skip nothing") else null,
+        val modes = listOfNotNull(
             if (ctl.pauseAtSceneStart) tr("primed") else null, if (ctl.pauseAtSceneEnd) null else tr("plays on"),
             if (ctl.slow) "0.75x" else null)
         if (modes.isNotEmpty()) Text(modes.joinToString(" · "), color = Colors.dim, fontSize = 13.sp,
@@ -635,12 +635,11 @@ private fun Options(ctl: SceneController, seekStep: Int, onSeekStep: (Int) -> Un
                     onShift: ((Double) -> Unit)? = null, shifted: Double? = null) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OptionRow(tr("Primed Listening: pause at the start of each scene (read, then play)"), ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
-        OptionRow(tr("Pause at the end of each scene"), ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
-        OptionRow(tr("Skip nothing: play the gaps between scenes too"), ctl.newStraight, ctl::toggleNewStraight)
-        OptionRow(tr("Don't stop on i+0 scenes (no new words)"), ctl.playThroughKnown, ctl::togglePlayThroughKnown)
+        OptionRow(tr("Primed Listening: wait before each line (read, then play)"), ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
+        OptionRow(tr("Pause after each line"), ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
+        OptionRow(tr("Wait only on lines with a new or due word"), ctl.playThroughKnown, ctl::togglePlayThroughKnown)
         OptionRow(tr("Slow (0.75x)"), ctl.slow, ctl::toggleSlow)
-        if (onUpright != null) OptionRow(tr("Upright: scene by scene, swipe left"), uprightNow, onUpright)
+        if (onUpright != null) OptionRow(tr("Upright: line by line, swipe left"), uprightNow, onUpright)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(tr("Back / forward buttons"), modifier = Modifier.weight(1f))
             listOf(5, 10, 30).forEach { s ->

@@ -102,7 +102,7 @@ class WordPicker(
         val def = definition
         val word = selected?.word
         if (def != null && word != null && now - lastOk < 1_500) {
-            audio.play(api.definitionAudio(ctl.scene.id, line, word))
+            audio.play(api.definitionAudio(ctl.scene.source, ctl.scene.sourceLine + line, word))
             lastOk = 0L
             return
         }
@@ -136,7 +136,7 @@ class WordPicker(
     /** The selected word's German definition read aloud. */
     fun hearDefinition() {
         val word = selected?.word ?: return
-        if (definition != null) audio.play(api.definitionAudio(ctl.scene.id, line, word))
+        if (definition != null) audio.play(api.definitionAudio(ctl.scene.source, ctl.scene.sourceLine + line, word))
     }
 
     /** The selected word's line again; the picker stays open. */
@@ -148,7 +148,7 @@ class WordPicker(
         val now = ctl.words[word] ?: return
         val mark = !now.marked
         scope.launch {
-            runCatching { api.markKnown(word, mark, ctl.scene.id) }.onSuccess { s ->
+            runCatching { api.markKnown(word, mark, ctl.scene.source) }.onSuccess { s ->
                 ctl.words[word] = now.copy(status = s, marked = mark)
             }
         }
@@ -209,7 +209,7 @@ class WordPicker(
         lastOk = 0L
         audio.play(api.wordAudio(segment.text, ctl.lang.code), segment.text)
         val word = segment.word ?: return
-        val scene = ctl.scene.id
+        val scene = ctl.scene.source
         scope.launch {
             runCatching { api.lookup(word, scene) }.onSuccess { n ->
                 ctl.words[word]?.let { ctl.words[word] = it.copy(lookups = n) }

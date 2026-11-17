@@ -401,7 +401,8 @@ fun mineWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
         TvMining.fetching?.let { return say(it) }
         if (TvMining.yomitan.of(Lang.JAPANESE).isEmpty()) {
             TvMining.fetchJapanese(context, settings)
-            return say(tr("Getting the Japanese dictionaries from the PC (once, a few minutes): hold ↑ again after"))
+            return say(if (settings.server.isEmpty()) tr("Downloading the Japanese dictionaries (once): hold ↑ again after")
+                else tr("Getting the Japanese dictionaries from the PC (once, a few minutes): hold ↑ again after"))
         }
     }
     val anki = io.github.pedrubik2000.kumapie.lang.Cards.get(context)
@@ -423,7 +424,7 @@ fun mineWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
     val word = ctl.words[key]
     val def = scene.def(line, key)
     val lemma = def?.lemma?.takeIf { it.isNotBlank() } ?: word?.lemma?.takeIf { it.isNotBlank() }
-    say(tr("Adding to Anki…"))
+    say(if (pkg == io.github.pedrubik2000.kumapie.lang.SrsCards.PKG) tr("Adding the card…") else tr("Adding to Anki…"))
     scope.launch {
         runCatching {
             val w = if (japanese) {
@@ -439,7 +440,7 @@ fun mineWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
         }
             .onSuccess {
                 TvMining.mined[key] = miner.lastNote
-                say(it + tr(" · hold ↑ again: see the card"))
+                say(if (pkg == io.github.pedrubik2000.kumapie.lang.SrsCards.PKG) it else it + tr(" · hold ↑ again: see the card")) // no previewer for kumapie's own cards
                 // Blue now (mined, never reviewed); the PC learns it from the phone after kuma3 syncs.
                 ctl.words[key]?.let { w -> ctl.words[key] = w.copy(card = "b") }
                 // Its card into the index, or a rating finds none ("kuma3 didn't take the rating", user 2026-11-10).
@@ -596,7 +597,7 @@ fun rateWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
         }
         return
     }
-    if (TvMining.reading) return say(tr("Still reading your cards from Anki: try again in a moment"))
+    if (TvMining.reading) return say(tr("Still reading your cards: try again in a moment"))
     if (!picker.cardOpen) return say(tr("See its meaning first"))
     if (rating.busy) return
     val language = TvMining.languages(context, settings).of(ctl.lang)
@@ -605,7 +606,7 @@ fun rateWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
     scope.launch {
         try {
             val done = language.known.rate(form, ease, ms, io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.ms, settings.subtitles.name.lowercase(), null, ctl.speed.toDouble()))
-            if (done == null) say(tr("kuma3 didn't take the rating."))
+            if (done == null) say(tr("The rating didn't go in."))
             else {
                 rating.last = form to done
                 rating.said = tr(RATINGS[ease - 1])
@@ -653,7 +654,7 @@ fun undoRating(context: Context, api: io.github.pedrubik2000.kumapie.data.Backen
                 language.known.refreshDue(force = true) // due again: the rating took it off the queue kumapie holds
                 repaint(language, ctl)
                 say(tr("Undone: %s is due again", form))
-            } else say(tr("kuma3 didn't undo it (something else was done there since?)."))
+            } else say(tr("Couldn't undo it (something else was done since?)."))
         } catch (e: Exception) {
             say(e.message ?: e.toString())
         } finally {

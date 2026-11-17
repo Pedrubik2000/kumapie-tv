@@ -97,6 +97,21 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         return out
     }
 
+    /**
+     * The episode after [id] (…:N -> …:N+1) and its file: the one of the same release group as [file] ([Group] at the
+     * start of its name) if there is one, else the first this device decodes ([Playable]), else the first. Null when
+     * [id] has no episode number; throws when the addons give nothing for it.
+     */
+    suspend fun next(type: String, id: String, file: String): Pair<String, JSONObject>? {
+        val n = id.substringAfterLast(':').toIntOrNull() ?: return null
+        val next = id.substringBeforeLast(':') + ":" + (n + 1)
+        val files = discoverStreams(type, next).objects()
+        val plays = files.filter { Playable.missing(it.optString("label") + " " + it.optString("about") + " " + it.optString("file")).isEmpty() }
+        val group = Regex("""^\[[^\]]+\]""").find(file)?.value
+        val f = plays.firstOrNull { group != null && it.optString("file").startsWith(group, ignoreCase = true) } ?: plays.firstOrNull() ?: files.firstOrNull()
+        return f?.let { next to it }
+    }
+
     override suspend fun saved(): List<Found> = JSONArray(store.getString(SAVED, "[]")).objects().map { found(it) }
 
     override suspend fun save(title: Found, on: Boolean): List<Found> {

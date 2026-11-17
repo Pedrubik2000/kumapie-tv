@@ -286,7 +286,7 @@ class StreamActivity : ComponentActivity() {
             // Null while Sudachi's dictionary downloads (the first time): the lines go on meanwhile, then it is made.
             while (shown == null) {
                 shown = runCatching {
-                    io.github.pedrubik2000.kumapie.ui.aloneEpisode(context, "alone:$id", show, link.getQueryParameter("title") ?: show,
+                    io.github.pedrubik2000.kumapie.lang.EpisodeBuilder.fromLines(context, "alone:$id", show, link.getQueryParameter("title") ?: show,
                         link.getQueryParameter("url").orEmpty(), (p.duration.takeIf { it > 0 } ?: 0L) / 1000.0, live.lines, live.offset, p.currentPosition / 1000.0)
                 }.getOrElse { note = it.message; return@LaunchedEffect }
                 if (shown == null) { note = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
@@ -319,16 +319,11 @@ class StreamActivity : ComponentActivity() {
     private suspend fun playNext(settings: Settings, link: Uri, say: (String) -> Unit) {
         val id = link.getQueryParameter("id").orEmpty()
         val n = id.substringAfterLast(':').toIntOrNull() ?: return
-        val next = id.substringBeforeLast(':') + ":" + (n + 1)
         val type = link.getQueryParameter("type") ?: "series"
         val addons = io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)
         runCatching { addons.seen(id, true) }
         say(tr("Next: episode %1\$d…", n + 1))
-        val files = runCatching { addons.discoverStreams(type, next) }.getOrElse { return say(it.message ?: it.toString()) }
-            .let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
-        val plays = files.filter { io.github.pedrubik2000.kumapie.data.Playable.missing(it.optString("label") + " " + it.optString("about") + " " + it.optString("file")).isEmpty() }
-        val group = Regex("""^\[[^\]]+\]""").find(link.getQueryParameter("file").orEmpty())?.value
-        val f = plays.firstOrNull { group != null && it.optString("file").startsWith(group, ignoreCase = true) } ?: plays.firstOrNull() ?: files.firstOrNull()
+        val (next, f) = runCatching { addons.next(type, id, link.getQueryParameter("file").orEmpty()) }.getOrElse { return say(it.message ?: it.toString()) }
             ?: return say(tr("No files found for episode %1\$d", n + 1))
         val show = link.getQueryParameter("show").orEmpty()
         startActivity(Intent(this, StreamActivity::class.java).setData(Uri.parse("kumapie://play").buildUpon().apply {

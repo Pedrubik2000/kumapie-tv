@@ -49,6 +49,7 @@ internal val esTv: Map<String, String> = mapOf(
     "Getting the Japanese dictionaries from the PC…" to "Descargando los diccionarios de japonés del PC…",
     "Downloading the Japanese dictionaries…" to "Descargando los diccionarios de japonés…",
     "Words: downloading the Japanese dictionary (once)…" to "Palabras: descargando el diccionario de japonés (una vez)…",
+    "Japanese lines from Jimaku…" to "Líneas en japonés de Jimaku…",
     "Getting the Japanese dictionaries from the PC (%1\$d/%2\$d)…" to "Descargando los diccionarios de japonés del PC (%1\$d/%2\$d)…",
     "Getting the Japanese dictionaries from the PC (once, a few minutes): hold ↑ again after" to
         "Descargando los diccionarios de japonés del PC (una vez, unos minutos): luego vuelve a mantener ↑",

@@ -174,6 +174,12 @@ class Library(context: Context, val settings: Settings) {
 
     val api: Api get() = Api(settings.server, settings.owner)
 
+    private var addonsFor: Pair<List<String>, io.github.pedrubik2000.kumapie.data.Addons>? = null
+    /** What Discover asks: the PC, else (no server: kumapie for other people) the user's own Stremio addons. */
+    val discovery: io.github.pedrubik2000.kumapie.data.Discovery get() = if (settings.server.isNotEmpty()) api else settings.addons.let { urls ->
+        addonsFor?.takeIf { it.first == urls }?.second ?: io.github.pedrubik2000.kumapie.data.Addons(urls, settings.prefs).also { addonsFor = urls to it }
+    }
+
     /** The shows, and whether they came from the saved copy (offline); [saved]: the saved copy at once, without the PC. */
     suspend fun shows(saved: Boolean = false): Pair<List<Show>, Boolean> {
         showMeta // starts the YouTube pictures fill once

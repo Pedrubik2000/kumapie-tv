@@ -724,18 +724,3 @@ class AloneBackend(private val context: Context, private val settings: Settings)
 
     override fun definitionAudio(scene: String, line: Int, word: String) = ""
 }
-
-/**
- * A Jimaku stream's episode made on the TV without a PC ([io.github.pedrubik2000.kumapie.lang.EpisodeBuilder]): its
- * lines moved by [offset] (the fit or the hand shift), its words split by Sudachi. Null while Sudachi's dictionary
- * isn't on the TV yet: its download starts here (about 80 MB, once).
- */
-suspend fun aloneEpisode(context: Context, id: String, show: String, title: String, video: String, duration: Double,
-                         lines: List<Triple<Double, Double, String>>, offset: Double, resume: Double): io.github.pedrubik2000.kumapie.data.EpisodeDetail? =
-    withContext(Dispatchers.IO) {
-        val model = io.github.pedrubik2000.kumapie.lang.JapaneseModel(context)
-        if (!model.isReady) { model.download(); return@withContext null }
-        val cues = lines.map { io.github.pedrubik2000.kumapie.lang.EpisodeBuilder.Cue(it.first + offset, it.second + offset, it.third) }
-        val json = io.github.pedrubik2000.kumapie.lang.EpisodeBuilder.build(id, show, title, duration, video, cues, emptyList(), model.words(cues.map { it.text }))
-        Api("").parseEpisode(json.put("resume", resume).toString())
-    }

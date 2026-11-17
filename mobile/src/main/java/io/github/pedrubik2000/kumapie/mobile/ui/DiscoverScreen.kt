@@ -110,13 +110,13 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
     var error by remember { mutableStateOf<String?>(null) }
     var open by remember { mutableStateOf(start) }
     LaunchedEffect(Unit) {
-        if (start == null) runCatching { library.api.board() }.onSuccess { rows = it }.onFailure { error = it.message ?: it.toString() }
+        if (start == null) runCatching { library.discovery.board() }.onSuccess { rows = it }.onFailure { error = it.message ?: it.toString() }
     }
     LaunchedEffect(searched) {
         found = null
         if (searched.isEmpty()) return@LaunchedEffect
         error = null
-        runCatching { library.api.discover(searched) }.onSuccess { found = it }.onFailure { error = it.message ?: it.toString() }
+        runCatching { library.discovery.discover(searched) }.onSuccess { found = it }.onFailure { error = it.message ?: it.toString() }
     }
     open?.let { title ->
         val back = { if (start != null) onBack() else open = null }
@@ -228,9 +228,9 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
     var reload by remember { mutableStateOf(0) }
     var menu by remember { mutableStateOf<String?>(null) } // the long-pressed episode's id
     LaunchedEffect(title.id, reload) {
-        runCatching { library.api.discoverMeta(title.type, title.id) }.onSuccess { meta = it }.onFailure { error = it.message ?: it.toString() }
+        runCatching { library.discovery.discoverMeta(title.type, title.id) }.onSuccess { meta = it }.onFailure { error = it.message ?: it.toString() }
     }
-    LaunchedEffect(title.id) { kept = runCatching { library.api.saved().any { it.id == title.id } }.getOrNull() }
+    LaunchedEffect(title.id) { kept = runCatching { library.discovery.saved().any { it.id == title.id } }.getOrNull() }
     fun play(e: JSONObject) {
         val name = "${title.name} ${e.optInt("number")}"
         // The PC got a file ready for it: no file list, it starts at once.
@@ -239,7 +239,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
     }
     Box(Modifier.fillMaxSize().background(Colors.background)) {
         val m = meta
-        val t = m?.let { library.api.found(it) } ?: title
+        val t = m?.let { library.discovery.found(it) } ?: title
         val eps = m?.optJSONArray("episodes")?.objects().orEmpty()
         val wide = wide()
         // The logo, line, ▶ and + Home, the text, then "Episodes". A tablet: left column over the dimmed backdrop.
@@ -253,7 +253,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                 }
                 kept?.let { on ->
                     Pill(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"), {
-                        scope.launch { runCatching { library.api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } }
+                        scope.launch { runCatching { library.discovery.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } }
                     })
                 }
             }
@@ -286,7 +286,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                         menu = null; picking = e.getString("id") to "${title.name} ${e.optInt("number")}"
                     })
                     DropdownMenuItem(text = { Text(if (watched) tr("Mark not watched") else tr("Mark watched")) }, onClick = {
-                        menu = null; scope.launch { runCatching { library.api.seen(e.getString("id"), !watched) }; reload++ }
+                        menu = null; scope.launch { runCatching { library.discovery.seen(e.getString("id"), !watched) }; reload++ }
                     })
                 }
                 }
@@ -336,6 +336,9 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
         ModalBottomSheet(properties = DarkSheet, onDismissRequest = { picking = null }, containerColor = Colors.surface) {
             Files(library, title.type, id) { f ->
                 picking = null
+                // An addon's link (no PC): it plays as it is, its Japanese lines live, its words made on the phone.
+                if (f.has("url")) return@Files onWatch(mapOf("lang" to "ja", "type" to title.type, "id" to id, "url" to f.getString("url"),
+                    "file" to f.optString("file"), "title" to name, "show" to title.name))
                 onWatch(mapOf("lang" to "ja", "type" to title.type, "id" to id, "hash" to f.getString("hash"),
                     "file" to f.getString("file"), "idx" to f.optInt("idx", -1).toString(), "title" to name, "show" to title.name,
                     "label" to f.optString("short")))
@@ -350,14 +353,16 @@ private fun Files(library: Library, type: String, id: String, onPick: (JSONObjec
     var files by remember { mutableStateOf<List<JSONObject>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(id) {
-        runCatching { library.api.discoverStreams(type, id).objects() }.onSuccess { files = it }.onFailure { error = it.message ?: it.toString() }
+        runCatching { library.discovery.discoverStreams(type, id).objects() }.onSuccess { l ->
+            files = l.sortedBy { io.github.pedrubik2000.kumapie.data.Playable.missing(it.optString("label") + " " + it.optString("about") + " " + it.optString("file")).isNotEmpty() }
+        }.onFailure { error = it.message ?: it.toString() }
     }
     val list = files
     when {
         error != null -> Message(error!!)
         list == null -> Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = Colors.accent)
-            Text(tr("Asking Torrentio…"), color = Colors.dim, modifier = Modifier.padding(top = 12.dp))
+            Text(if (library.settings.server.isEmpty()) tr("Asking your addons…") else tr("Asking Torrentio…"), color = Colors.dim, modifier = Modifier.padding(top = 12.dp))
         }
         list.isEmpty() -> Message(tr("No files found for this"))
         else -> LazyColumn(Modifier.fillMaxWidth().height(480.dp)) {
@@ -395,11 +400,32 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         }
     }
     DisposableEffect(Unit) { onDispose { if (detail == null) player.release() } } // else ScenePlayer releases it
-    val live = remember { LiveLines(player) { library.api.discoverSubs(query["type"].orEmpty(), query["id"].orEmpty(), file) } }
+    // An addon's link (no PC, kumapie for other people): no polling; Jimaku is asked on the phone with the user's key.
+    val alone = query["url"].orEmpty()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val live = remember {
+        LiveLines(player) {
+            if (alone.isEmpty()) library.api.discoverSubs(query["type"].orEmpty(), query["id"].orEmpty(), file)
+            else io.github.pedrubik2000.kumapie.data.Jimaku.lines(library.settings.prefs.getString("jimaku_key", "").orEmpty(), query["show"].orEmpty(),
+                null, query["id"].orEmpty().substringAfterLast(':').toIntOrNull(), file).map { Triple(it.start, it.end, it.text) }
+                .also { if (it.isEmpty()) error = tr("No Japanese subtitles: none in this file, none on Jimaku") }
+        }
+    }
     LaunchedEffect(live) { live.run() }
     DisposableEffect(Unit) {
         val ended = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
+                // No PC: the next episode's file from the addons (the same release group if there is one).
+                if (state == Player.STATE_ENDED && alone.isNotEmpty()) scope.launch {
+                    step = tr("Next: episode %1\$d…", (query["id"].orEmpty().substringAfterLast(':').toIntOrNull() ?: 0) + 1)
+                    val addons = library.discovery as? io.github.pedrubik2000.kumapie.data.Addons ?: return@launch
+                    runCatching { addons.seen(query["id"].orEmpty(), true) }
+                    runCatching { addons.next(query["type"].orEmpty(), query["id"].orEmpty(), file) }.onSuccess { n ->
+                        if (n == null) error = tr("No files found for this") else onNext(mapOf("lang" to (query["lang"] ?: "ja"), "type" to query["type"].orEmpty(),
+                            "id" to n.first, "url" to n.second.getString("url"), "file" to n.second.optString("file"), "show" to query["show"].orEmpty(),
+                            "title" to "${query["show"].orEmpty()} ${n.first.substringAfterLast(':')}"))
+                    }.onFailure { error = it.message ?: it.toString() }
+                }
                 if (state == Player.STATE_ENDED && next.isNotEmpty()) onNext(mapOf("lang" to (query["lang"] ?: "ja"),
                     "type" to query["type"].orEmpty(), "id" to next, "show" to query["show"].orEmpty(),
                     "title" to "${query["show"].orEmpty()} ${next.substringAfterLast(':')}"))
@@ -414,7 +440,30 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         onDispose { player.removeListener(ended) }
     }
     BackHandler(onBack = onBack)
-    LaunchedEffect(Unit) {
+    if (alone.isNotEmpty()) {
+        LaunchedEffect(Unit) {
+            player.setMediaItem(MediaItem.fromUri(alone))
+            player.prepare()
+            player.play()
+            playing = true
+            step = tr("Japanese lines from Jimaku…")
+        }
+        // Jimaku's lines are all there: the episode is made on the phone, after the fit had its chance (as on the TV).
+        LaunchedEffect(live.lines) {
+            if (live.lines.isEmpty()) return@LaunchedEffect
+            kotlinx.coroutines.withTimeoutOrNull(30_000) { while (live.fitted == null) delay(500) }
+            var d: EpisodeDetail? = null
+            while (d == null) {
+                d = runCatching {
+                    io.github.pedrubik2000.kumapie.lang.EpisodeBuilder.fromLines(context, "alone:" + query["id"].orEmpty(), query["show"].orEmpty(),
+                        query["title"].orEmpty(), alone, (player.duration.takeIf { it > 0 } ?: 0L) / 1000.0, live.lines, live.offset, player.currentPosition / 1000.0)
+                }.getOrElse { error = it.message; return@LaunchedEffect }
+                if (d == null) { step = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
+            }
+            live.stop()
+            detail = d.copy(video = alone, resume = player.currentPosition / 1000.0)
+        }
+    } else LaunchedEffect(Unit) {
         runCatching {
             while (true) {
                 val r = library.api.watch(query)

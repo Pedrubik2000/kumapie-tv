@@ -85,6 +85,21 @@ object EpisodeBuilder {
         if (overlap > 0) overlap else -minOf(kotlin.math.abs(e.start - b), kotlin.math.abs(a - e.end))
     } ?: -1
 
+    /**
+     * A Jimaku stream's episode made on the device without a PC (TV and phone): its lines moved by [offset] (the fit
+     * or the hand shift), its words split by Sudachi. Null while Sudachi's dictionary isn't on the device yet: its
+     * download starts here (about 80 MB, once).
+     */
+    suspend fun fromLines(context: android.content.Context, id: String, show: String, title: String, video: String, duration: Double,
+                          lines: List<Triple<Double, Double, String>>, offset: Double, resume: Double): io.github.pedrubik2000.kumapie.data.EpisodeDetail? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val model = JapaneseModel(context)
+            if (!model.isReady) { model.download(); return@withContext null }
+            val cues = lines.map { Cue(it.first + offset, it.second + offset, it.third) }
+            val json = build(id, show, title, duration, video, cues, emptyList(), model.words(cues.map { it.text }))
+            io.github.pedrubik2000.kumapie.data.Api("").parseEpisode(json.put("resume", resume).toString())
+        }
+
     private fun round3(x: Double) = Math.round(x * 1000) / 1000.0
     private fun sha1(s: String) = MessageDigest.getInstance("SHA-1").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
 }

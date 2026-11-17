@@ -71,6 +71,11 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             Button(onClick = ::save) { Text(tr("Save").uppercase()) }
         }
         if (status.isNotEmpty()) Text(status, color = Colors.dim)
+        if (firstRun) {
+            // No PC: the app alone (kumapie_plan.md "for other people"). A server can still be added later, here.
+            Text(tr("No server? kumapie also works on its own."), color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+            Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server").uppercase()) }
+        }
 
         if (!firstRun) {
             Heading(tr("Buttons and help"), Modifier.padding(top = 24.dp))
@@ -114,4 +119,21 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
     }
     // Focus on Change buttons scrolled the title and Server off the top: back to the top once it has landed.
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() }; kotlinx.coroutines.delay(100); scroll.scrollTo(0) }
+}
+
+/**
+ * Home without a PC server: nothing to list yet (kumapie_plan.md "for other people": streaming from the user's own
+ * addon comes next). Settings is where a server can be added.
+ */
+@Composable
+fun AloneHome(onSettings: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    Column(Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Title("kumapie", fontSize = 32.sp)
+        Text(tr("Nothing to watch yet."), color = Colors.text, fontSize = 22.sp)
+        Text(tr("Streaming without a server is not ready in this version. With a kumapie server on a PC, add its address in Settings."),
+            color = Colors.dim)
+        Button(onClick = onSettings, modifier = Modifier.focusRequester(focus)) { Text(tr("Settings").uppercase()) }
+    }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }

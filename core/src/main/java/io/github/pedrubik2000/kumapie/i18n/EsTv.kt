@@ -174,4 +174,10 @@ internal val esTv: Map<String, String> = mapOf(
     "play them" to "reproducirlos",
     "skip them" to "saltarlos",
     "This TV can't play this video (%s)." to "Esta tele no puede reproducir este video (%s).",
+    // Without a PC server
+    "No server? kumapie also works on its own." to "¿Sin servidor? kumapie también funciona solo.",
+    "Use without a server" to "Usar sin servidor",
+    "Nothing to watch yet." to "Aún no hay nada que ver.",
+    "Streaming without a server is not ready in this version. With a kumapie server on a PC, add its address in Settings." to
+        "El streaming sin servidor aún no está listo en esta versión. Si tienes un servidor kumapie en un PC, añade su dirección en Ajustes.",
 )

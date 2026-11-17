@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
 fun App(settings: Settings) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
+    var standalone by remember { mutableStateOf(settings.standalone) } // no PC server: chosen on the first run
     var profile by remember { mutableStateOf<Profile?>(null) } // asked at every start, like Netflix
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
@@ -86,9 +87,19 @@ fun App(settings: Settings) {
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
 
     Box(Modifier.fillMaxSize().background(Colors.background).arcadeBackdrop()
-        .onBackKey(enabled = stack.size > 1 && server.isNotEmpty()) { stack.removeAt(stack.lastIndex) }) {
-        if (server.isEmpty()) {
-            SettingsScreen(settings, firstRun = true, onSaved = { server = settings.server }, onUpdate = { update = it })
+        .onBackKey(enabled = stack.size > 1 && (server.isNotEmpty() || standalone)) { stack.removeAt(stack.lastIndex) }) {
+        if (server.isEmpty() && !standalone) {
+            SettingsScreen(settings, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone },
+                onUpdate = { update = it })
+        } else if (server.isEmpty()) {
+            // No server: no profiles to ask for (one person, the device's language) and nothing to list yet.
+            LaunchedEffect(Unit) { Tr.use("") } // the device's language
+            when (stack.last()) {
+                Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
+                    onSaved = { server = settings.server }, onUpdate = { update = it })
+                Screen.Buttons -> ButtonsScreen(settings)
+                else -> io.github.pedrubik2000.kumapie.ui.AloneHome(onSettings = { stack.add(Screen.Settings) })
+            }
         } else {
             val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }
             LaunchedEffect(api) { api.findLan() }

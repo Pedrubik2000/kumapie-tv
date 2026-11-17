@@ -546,22 +546,38 @@ data class EpisodeDetail(
 
 /**
  * The player's only unit is the subtitle line (kumapie_plan.md "no more scenes"): every line of the PC's [scenes]
- * as a [Scene] of its own, in the order they are said. It ends a moment after the line (subtitles end early), never
- * inside the next one; seen = its middle is in [watched].
+ * as a [Scene] of its own (its cues: the pieces shown together, mostly one), in the order they are said. It ends a
+ * moment after the line (subtitles end early), never inside the next one; seen = its middle is in [watched].
  */
 fun lines(scenes: List<Scene>, watched: List<Span>): List<Scene> {
     val all = scenes.flatMap { s -> s.cues.indices.map { s to it } }.sortedBy { (s, i) -> s.cues[i].start }
-    return all.mapIndexed { n, (s, i) ->
-        val c = s.cues[i]
-        val next = all.getOrNull(n + 1)?.let { (s2, i2) -> s2.cues[i2].start } ?: Double.MAX_VALUE
+    // Pieces shown together are one line: downloaded subtitles cut a subtitle into cues with the same start (a name,
+    // a thought in 《》, each row of it; 355 of 675 cues in a Kusuriya stream), and ← → then seemed to do nothing.
+    val groups = ArrayList<MutableList<Pair<Scene, Int>>>()
+    for (e in all) {
+        val first = groups.lastOrNull()?.first()
+        if (first != null && first.first === e.first && kotlin.math.abs(e.first.cues[e.second].start - first.first.cues[first.second].start) < SAME) groups.last() += e
+        else groups += mutableListOf(e)
+    }
+    return groups.mapIndexed { n, g ->
+        val (s, i) = g.first()
+        val cues = g.map { (_, j) -> s.cues[j] }
+        val start = cues.first().start
+        val last = cues.maxOf { it.end }
+        val next = groups.getOrNull(n + 1)?.first()?.let { (s2, j) -> s2.cues[j].start } ?: Double.MAX_VALUE
         s.copy(
-            id = "${s.id}:$i", index = n, start = c.start, end = maxOf(c.end, minOf(c.end + 0.25, next)), level = null,
-            cues = listOf(c), english = s.english.filter { it.start < c.end && it.end > c.start },
-            defs = s.defs.filterKeys { it.startsWith("$i|") }.mapKeys { "0|" + it.key.substringAfter('|') },
+            id = "${s.id}:$i", index = n, start = start, end = maxOf(last, minOf(last + 0.25, next)), level = null,
+            cues = cues, english = s.english.filter { it.start < last && it.end > start },
+            defs = g.withIndex().flatMap { (place, e) ->
+                s.defs.filterKeys { it.startsWith("${e.second}|") }.map { "$place|" + it.key.substringAfter('|') to it.value }
+            }.toMap(),
             source = s.id, sourceLine = i,
         ).let { l -> l.copy(seen = s.seen || watched.any { l.middle in it.start..it.end }) }
     }
 }
+
+/** Cues that start within this of each other (seconds) are one line; the PC: ranges.py SAME_S. */
+const val SAME = 0.05
 
 data class Scene(
     val id: String,

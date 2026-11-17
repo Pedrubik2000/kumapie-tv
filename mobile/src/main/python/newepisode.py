@@ -18,6 +18,7 @@ SONIOX_API = "https://api.soniox.com/v1"
 MAX_GAP = 1.5   # [feed] max_gap: silence that ends an exchange (only used to tell a German line's language, [build])
 MAX_SECS = 15   # [feed] max_secs: longer runs are split at their biggest pause
 PAD = 0.3       # [feed] pad
+SAME = 0.05     # cues that start within this of each other are shown together: one line ([build])
 
 
 # ---------------------------------------------------------------- Soniox
@@ -250,16 +251,26 @@ def build(model_dir: str, episode_id: str, show: str, title: str, duration: floa
     mz = _morphemizer(model_dir) if given is None else None
     scenes, words, lemmas = [], {}, {}
     plan = []
+    # Pieces shown together are one line: downloaded subtitles cut a subtitle into cues with the same start (a
+    # name, a thought, each row); the PC has the same rule (ranges.together) for the files made before.
+    lines = []
+    for c in cues:
+        if lines and abs(c[0] - lines[-1][0][0]) < SAME:
+            lines[-1].append(c)
+        else:
+            lines.append([c])
     # A line's translation: the English lines it overlaps most (else the closest line gets them).
-    owner = [nearest([([c],) for c in cues], e) for e in english]
+    owner = [nearest([(p,) for p in lines], e) for e in english]
     # German only (spaCy): is a line in the episode's language? Told by its whole exchange, a short line alone can't.
     german_of = []
     for p, _, _ in (exchanges(cues) if given is None else []):
         a, b = p[0][0], p[-1][1]
         german_of += [is_german(" ".join(c[2] for c in p), " ".join(e[2] for e in english if min(b, e[1]) > max(a, e[0])))] * len(p)
-    for i, c in enumerate(cues):
+    at = 0  # the line's first cue among all of them
+    for i, p in enumerate(lines):
         en = [[e[0], e[1], re.sub(r"\s*\([^)]*\)", "", e[2]).strip()] for e, o in zip(english, owner) if o == i]
-        plan.append((i, [c], round(c[0], 3), round(c[1], 3), en, german_of[i] if given is None else True))
+        plan.append((i, p, round(p[0][0], 3), round(max(c[1] for c in p), 3), en, german_of[at] if given is None else True))
+        at += len(p)
     texts = [c[2] for (_, p, _, _, _, g) in plan if g for c in p]
     parsed = iter(parse(mz, texts)) if given is None else given
     for i, p, start, end, en, german in plan:
@@ -292,12 +303,12 @@ def text_segments(model_dir: str, texts_json: str) -> str:
 if __name__ == "__main__":  # self-check: .venv python newepisode.py (kumapie-server's venv has spaCy)
     assert unsplit([(1, 2, "a"), (1.5, 2.5, "b"), (2, 3, "a"), (3.04, 4, "a")]) == \
         ([0, 1, 3], [(1, 3, "a"), (1.5, 2.5, "b"), (3.04, 4, "a")])
-    ep = json.loads(build("", "ep", "Show", "1", 30.0, "", json.dumps([[1.0, 2.5, "ねこ"], [2.6, 4.0, "いぬ だ"], [20.0, 21.0, "♪ うた"]]),
+    ep = json.loads(build("", "ep", "Show", "1", 30.0, "", json.dumps([[1.0, 2.5, "ねこ"], [2.6, 4.0, "いぬ だ"], [20.0, 21.0, "♪ うた"], [20.0, 22.0, "♪ うた"]]),
                           json.dumps([[1.1, 2.4, "A cat"], [2.7, 3.9, "It's a dog (barks)"], [4.5, 5.0, "Hm"]]), "ja",
-                          json.dumps([[["ねこ", 0, "猫", None]], [["いぬ", 0, "犬", None], ["だ", 3, "だ", None]], []])))
+                          json.dumps([[["ねこ", 0, "猫", None]], [["いぬ", 0, "犬", None], ["だ", 3, "だ", None]], [], []])))
     sc = ep["scenes"]
-    assert [len(x["cues"]) for x in sc] == [1, 1, 1] and [x["i"] for x in sc] == [0, 1, 2], sc
-    assert [(x["start"], x["end"]) for x in sc] == [(1.0, 2.5), (2.6, 4.0), (20.0, 21.0)]
+    assert [len(x["cues"]) for x in sc] == [1, 1, 2] and [x["i"] for x in sc] == [0, 1, 2], sc  # shown together: one line
+    assert [(x["start"], x["end"]) for x in sc] == [(1.0, 2.5), (2.6, 4.0), (20.0, 22.0)]
     assert [[e[2] for e in x["english"]] for x in sc] == [["A cat"], ["It's a dog", "Hm"], []], sc
     assert sc[1]["cues"][0]["seg"] == [["いぬ", "犬"], [" ", None], ["だ", "だ"]] and set(ep["words"]) == {"猫", "犬", "だ"}
     assert len({x["id"] for x in sc}) == 3

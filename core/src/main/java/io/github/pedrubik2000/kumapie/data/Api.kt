@@ -224,6 +224,11 @@ class Api(private val base: String, private val person: String = "") : Backend {
     suspend fun knownLists(lang: String, body: JSONObject): JSONObject =
         JSONObject(post("/api/tv/known_lists", body.put("person", person).put("lang", lang).toString()))
 
+    /** This device's progress (offline/Progress) to the PC; answers the person's other devices', by device name. */
+    suspend fun devicesProgress(device: String, data: JSONObject): JSONObject =
+        JSONObject(post("/api/tv/devices_progress", JSONObject().put("person", person).put("device", device).put("data", data).toString(),
+            readTimeout = 60_000)).getJSONObject("devices")
+
     /** kumapie's own cards in [lang]: this device's new rows sent, everyone else's back (lang's Srs.sync). */
     suspend fun srsSync(lang: String, body: JSONObject): JSONObject =
         JSONObject(post("/api/tv/srs/sync", body.put("person", person).put("lang", lang).toString(), readTimeout = 120_000))

@@ -285,7 +285,7 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
                     if (canRate()) add(Hint("1-4", "Rate"))
                     add(Hint("M", "Mine")); add(Hint("K", "Known")); add(Hint("A", "Hear word")); add(Hint("Esc", "Close"))
                 }
-                ctl.atSceneEnd -> listOf(Hint("Space", "Next scene"), Hint("→", "Next scene"), Hint("R", "Line"), Hint("Tab", "Pick a word"), Hint("←", "Previous"))
+                ctl.atSceneEnd -> listOf(Hint("Space", "Play"), Hint("→", "Next line"), Hint("R", "Line"), Hint("Tab", "Pick a word"), Hint("←", "Previous"))
                 !ctl.playing -> listOf(Hint("Space", "Play"), Hint("Tab", "Pick a word"), Hint("R", "Line"), Hint("O", "Options"))
                 else -> emptyList()
             }

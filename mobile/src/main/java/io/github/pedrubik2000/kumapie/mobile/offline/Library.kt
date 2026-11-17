@@ -198,8 +198,10 @@ class Library(context: Context, val settings: Settings) {
         // A device-made show without a match of its own: the PC's poster (the PC looks every show up).
         val pcPoster = pc.flatMap { s -> s.episodes.map { it.id to s.poster } }.toMap()
         // Its easy scenes too: only the PC counts them (against the known words this phone sent); the device's list has 0.
-        val pcEasy = pc.flatMap { s -> s.episodes.map { it.id to it.easy } }.toMap()
-        val mineShown = mine.map { s -> s.copy(episodes = s.episodes.map { e -> e.copy(easy = pcEasy[e.id] ?: e.easy) }) }
+        // Its lines too: the device's own list counts what its file holds (scenes, for one made before 2026-11-17),
+        // and easy lines over that showed "316% easy".
+        val pcCount = pc.flatMap { s -> s.episodes.map { it.id to it } }.toMap()
+        val mineShown = mine.map { s -> s.copy(episodes = s.episodes.map { e -> pcCount[e.id]?.let { p -> e.copy(easy = p.easy, scenes = p.scenes, seen = p.seen, watchedFlag = p.watchedFlag) } ?: e }) }
             .map { s -> if (s.poster.isNotEmpty()) s else s.copy(poster = s.episodes.firstNotNullOfOrNull { pcPoster[it.id]?.ifEmpty { null } } ?: "") }
         val m = progress.merged
         return (mineShown + pcOwn).also { lastShows = it }.map { s ->

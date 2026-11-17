@@ -115,7 +115,62 @@ private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "
 fun io.github.pedrubik2000.kumapie.data.Settings.learning(): Set<String> =
     prefs.getStringSet("learning", null)?.takeIf { it.isNotEmpty() } ?: io.github.pedrubik2000.kumapie.data.Lang.ALL.map { it.code }.toSet()
 
-private class Dest(val icon: ImageVector, val label: String, val go: () -> Unit, val badge: Int = 0, val short: String = label)
+internal class Dest(val icon: ImageVector, val label: String, val go: () -> Unit, val badge: Int = 0, val short: String = label)
+
+/** A tablet (or anything as big): the Glass menu of round buttons. A phone on its side (~410 dp tall) is not. */
+@Composable
+internal fun wide(): Boolean = androidx.compose.ui.platform.LocalConfiguration.current.let { it.screenWidthDp >= 600 && it.screenHeightDp >= 560 }
+
+/** Episodes being made on this device (the Downloads badge). */
+@Composable
+internal fun activeJobs(): Int {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val jobList by remember { io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker.jobs(context) }.collectAsState(initial = emptyList())
+    return jobList.count { it.state == "running" || it.state == "waiting" }
+}
+
+/** The menu's destinations: the main ones (round buttons / bottom bar), then More's. */
+@Composable
+internal fun destinations(homeLang: String, onDiscover: () -> Unit, onFeed: () -> Unit, onIPlusOne: () -> Unit, onDownloads: () -> Unit,
+                          onStats: () -> Unit, onImprove: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit): Pair<List<Dest>, List<Dest>> {
+    val main = listOfNotNull(
+        Dest(Icons.Default.Explore, tr("Discover"), onDiscover).takeIf { homeLang == "ja" },
+        Dest(Icons.Default.Swipe, tr("Feed"), onFeed),
+        Dest(Icons.Default.AutoAwesome, tr("i+1 scenes"), onIPlusOne),
+        Dest(Icons.Default.Download, tr("Downloads"), onDownloads, badge = activeJobs()),
+    )
+    // Cards that don't stick (German Core 1000) only in German; the Japanese dictionary only in Japanese.
+    val extra = listOfNotNull(
+        Dest(Icons.Default.BarChart, tr("Stats"), onStats),
+        Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove, short = tr("Hard cards")),
+        Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch, short = tr("Dictionary")).takeIf { homeLang == "ja" },
+        Dest(Icons.Default.Settings, tr("Settings"), onSettings),
+    )
+    return main to extra
+}
+
+/**
+ * Glass menu (tablet): round buttons down the left edge, Home first, More last. [selected]: the main destination's
+ * label shown, "" = Home, null = one of More's.
+ */
+@Composable
+internal fun GlassMenu(main: List<Dest>, selected: String?, onHome: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.padding(start = 22.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+        RoundButton(Icons.Default.Home, tr("Home"), selected = selected == "", onClick = onHome)
+        main.forEach { d -> RoundButton(d.icon, d.label, selected = selected == d.label, badge = d.badge, onClick = d.go) }
+        RoundButton(Icons.Default.MoreHoriz, tr("More"), selected = selected == null, onClick = onMore)
+    }
+}
+
+/** More's list as a bottom sheet. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun MoreSheet(items: List<Dest>, onClose: () -> Unit) = ModalBottomSheet(onDismissRequest = onClose) {
+    items.forEach { d ->
+        ListItem(headlineContent = { Text(d.label) }, leadingContent = { Icon(d.icon, null) },
+            modifier = Modifier.clickable { onClose(); d.go() })
+    }
+}
 
 /**
  * Home: the language switch, then rows of posters (streaming-app style): "Continue watching", then one row per category.
@@ -160,8 +215,6 @@ fun HomeScreen(
     val jobs by remember { io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker.states(context) }.collectAsState(initial = emptyList())
     val finished = jobs.count { it.startsWith("Done") }
     LaunchedEffect(finished) { if (finished > 0) attempt++ }
-    val jobList by remember { io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker.jobs(context) }.collectAsState(initial = emptyList())
-    val active = jobList.count { it.state == "running" || it.state == "waiting" }
 
     LaunchedEffect(attempt) {
         error = null
@@ -175,22 +228,8 @@ fun HomeScreen(
             .onFailure { error = it.message ?: it.toString() }
     }
 
-    // The rail needs height too: a phone on its side (~410 dp tall) keeps the bottom bar, or the rail runs off-screen.
-    val config = androidx.compose.ui.platform.LocalConfiguration.current
-    val wide = config.screenWidthDp >= 600 && config.screenHeightDp >= 560
-    val main = listOfNotNull(
-        Dest(Icons.Default.Explore, tr("Discover"), onDiscover).takeIf { homeLang == "ja" },
-        Dest(Icons.Default.Swipe, tr("Feed"), onFeed),
-        Dest(Icons.Default.AutoAwesome, tr("i+1 scenes"), onIPlusOne),
-        Dest(Icons.Default.Download, tr("Downloads"), onDownloads, badge = active),
-    )
-    // Cards that don't stick (German Core 1000) only in German; the Japanese dictionary only in Japanese.
-    val extra = listOfNotNull(
-        Dest(Icons.Default.BarChart, tr("Stats"), onStats),
-        Dest(Icons.Default.Healing, tr("Cards that don't stick"), onImprove, short = tr("Hard cards")),
-        Dest(Icons.Default.Translate, tr("Japanese dictionary"), onSearch, short = tr("Dictionary")).takeIf { homeLang == "ja" },
-        Dest(Icons.Default.Settings, tr("Settings"), { onSettings(null) }),
-    )
+    val wide = wide()
+    val (main, extra) = destinations(homeLang, onDiscover, onFeed, onIPlusOne, onDownloads, onStats, onImprove, onSearch) { onSettings(null) }
 
     val all = shows.orEmpty()
     val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { l -> all.any { it.lang == l.code } }
@@ -234,11 +273,7 @@ fun HomeScreen(
     // Glass (tablet): the page runs under the status bar; the menu is round buttons down the left edge, the rest under More.
     if (wide) Box(Modifier.fillMaxSize().background(Glass.page)) {
         content(PaddingValues(0.dp))
-        Column(Modifier.align(Alignment.CenterStart).padding(start = 22.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-            RoundButton(Icons.Default.Home, tr("Home"), selected = true) {}
-            main.forEach { d -> RoundButton(d.icon, d.label, badge = d.badge, onClick = d.go) }
-            RoundButton(Icons.Default.MoreHoriz, tr("More")) { more = true }
-        }
+        GlassMenu(main, "", {}, { more = true }, Modifier.align(Alignment.CenterStart))
         androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(io.github.pedrubik2000.kumapie.mobile.R.drawable.ic_launcher_foreground),
             "kumapie", Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 4.dp).size(92.dp))
         if (langs.size > 1) Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 12.dp, end = 24.dp)) {
@@ -262,14 +297,9 @@ fun HomeScreen(
         },
     ) { content(it) }
 
-    if (more) ModalBottomSheet(onDismissRequest = { more = false }) {
-        // The tablet's More also holds what the rail's "+" and the top bar's refresh did.
-        val add = if (wide) listOf(Dest(Icons.Default.Add, tr("Add an episode"), { adding = true }), Dest(Icons.Default.Refresh, tr("Refresh"), { attempt++ })) else emptyList()
-        (extra + add).forEach { d ->
-            ListItem(headlineContent = { Text(d.label) }, leadingContent = { Icon(d.icon, null) },
-                modifier = Modifier.clickable { more = false; d.go() })
-        }
-    }
+    // The tablet's More also holds what the rail's "+" and the top bar's refresh did.
+    if (more) MoreSheet(extra + if (wide) listOf(Dest(Icons.Default.Add, tr("Add an episode"), { adding = true }),
+        Dest(Icons.Default.Refresh, tr("Refresh"), { attempt++ })) else emptyList()) { more = false }
     if (adding) {
         ModalBottomSheet(onDismissRequest = { adding = false; attempt++ }) {
             AddEpisodeSheet(library, sharedLink, homeLang, onSettings = { adding = false; onSettings(it) })

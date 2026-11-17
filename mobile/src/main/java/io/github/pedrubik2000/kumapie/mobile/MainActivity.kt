@@ -9,6 +9,16 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import io.github.pedrubik2000.kumapie.i18n.tr
+import io.github.pedrubik2000.kumapie.mobile.ui.GlassMenu
+import io.github.pedrubik2000.kumapie.mobile.ui.MoreSheet
+import io.github.pedrubik2000.kumapie.mobile.ui.destinations
+import io.github.pedrubik2000.kumapie.mobile.ui.wide
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -152,7 +162,26 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
 
-    Box(Modifier.fillMaxSize().background(Colors.background)) {
+    // Glass menu (tablet) beside the top-level screens: a button goes there from Home, so Back returns Home.
+    fun top(s: Screen?) { while (stack.size > 1) stack.removeAt(stack.lastIndex); if (s != null) stack += s }
+    var more by remember { mutableStateOf(false) }
+    val (main, extra) = destinations(homeLang, { top(Screen.Discover()) }, { top(Screen.Feed) }, { top(Screen.IPlusOne) }, { top(Screen.Downloads) },
+        { top(Screen.Stats) }, { top(Screen.Improve) }, { top(Screen.Search) }) { top(Screen.Settings(null)) }
+    val tab: String? = when (stack.last()) { // the button shown selected: "" = Home, null = More, "-" = no menu
+        is Screen.Discover -> tr("Discover")
+        Screen.Feed -> tr("Feed")
+        Screen.IPlusOne -> tr("i+1 scenes")
+        Screen.Downloads -> tr("Downloads")
+        Screen.Stats, Screen.Improve, Screen.Search, is Screen.Settings -> null
+        is Screen.ShowEpisodes -> ""
+        else -> "-"
+    }
+
+    Row(Modifier.fillMaxSize().background(Colors.background)) {
+    if (wide() && server.isNotEmpty() && tab != "-") Box(Modifier.fillMaxHeight().width(98.dp), contentAlignment = Alignment.CenterStart) {
+        GlassMenu(main, tab, { top(null) }, { more = true })
+    }
+    Box(Modifier.weight(1f).fillMaxHeight()) {
         if (server.isEmpty()) {
             SettingsScreen(library, firstRun = true, onSaved = { server = settings.server }, onUpdate = { update = it }, onBack = {})
         } else when (val screen = stack.last()) {
@@ -202,4 +231,6 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
     }
+    }
+    if (more) MoreSheet(extra) { more = false }
 }

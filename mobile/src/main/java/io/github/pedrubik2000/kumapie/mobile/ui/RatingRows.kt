@@ -94,7 +94,10 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
     }
 
     for (f in forms) key(f.key) {
-        val state = remember(tick, f.key) { known.cardIndex.state(f.key) }
+        // Read each time (a map lookup): a card mined meanwhile (the Mine sheet reloads the index and recolours the
+        // words, which redraws this) shows at once instead of "No card yet". [tick] redraws after a rating.
+        @Suppress("UNUSED_EXPRESSION") tick
+        val state = known.cardIndex.state(f.key)
         if (state != null && (state != "u" || f.make != null)) Column(Modifier.padding(top = 6.dp)) {
             f.label?.let {
                 Text(it, fontSize = 15.sp, color = when (state) { "d" -> Colors.due; "k" -> Colors.text; "b" -> Colors.mined; else -> Colors.unknown })

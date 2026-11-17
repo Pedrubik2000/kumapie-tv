@@ -690,6 +690,7 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
                       ratings: Ratings, queueScope: kotlinx.coroutines.CoroutineScope, queueBusy: androidx.compose.runtime.MutableState<Boolean>) {
     val segment = picker.selectedInDef ?: picker.selected
     val key = segment?.word ?: return
+    ctl.words[key] // read: the word's recolouring (a card mined meanwhile) redraws the rows below
     val language = library.languages.of(ctl.lang)
     val line = picker.line
     val forms = if (language is io.github.pedrubik2000.kumapie.lang.Japanese) {

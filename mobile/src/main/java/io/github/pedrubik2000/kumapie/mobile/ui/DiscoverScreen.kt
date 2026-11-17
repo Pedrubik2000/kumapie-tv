@@ -453,8 +453,18 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     }
     if (playing) { // words failed: the video goes on plain, the reason on top
         return Box(Modifier.fillMaxSize().background(Color.Black)) {
-            AndroidView({ PlayerView(it).apply { this.player = player; subtitleView?.visibility = android.view.View.GONE } },
+            // Glass, as the scene player: no stock controls; a tap plays / pauses, paused shows ▶ and the timeline.
+            AndroidView({ PlayerView(it).apply { this.player = player; useController = false; subtitleView?.visibility = android.view.View.GONE } },
                 Modifier.fillMaxSize(), onRelease = { it.player = null })
+            var position by remember { androidx.compose.runtime.mutableDoubleStateOf(0.0) }
+            var paused by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) { while (true) { position = player.currentPosition / 1000.0; paused = !player.isPlaying; delay(250) } }
+            Box(Modifier.fillMaxSize().clickable(interactionSource = null, indication = null) { if (player.isPlaying) player.pause() else player.play() })
+            if (paused) {
+                Box(Modifier.align(Alignment.Center).size(80.dp).background(Color(0x59000000), CircleShape).border(1.dp, Glass.line, CircleShape),
+                    contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, tr("Play"), tint = Color.White, modifier = Modifier.size(48.dp)) }
+                player.duration.takeIf { it > 0 }?.let { Timeline(position, it / 1000.0, { s -> player.seekTo((s * 1000).toLong()) }, Modifier.align(Alignment.BottomCenter)) }
+            }
             LiveLine(library, live, Modifier.align(Alignment.BottomCenter))
             Text(error ?: tr("Words coming: %1\$s", step), color = Color.White, fontSize = 13.sp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).background(Color(0x99000000), RoundedCornerShape(18.dp)).border(1.dp, Glass.line, RoundedCornerShape(18.dp)).padding(14.dp, 6.dp))

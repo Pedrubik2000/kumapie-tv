@@ -412,7 +412,11 @@ internal fun ScenePlayer(
             }
         }
         // The episode's timeline with times, under the subtitles (user 2026-11-17: a real bar); drag to seek.
-        if (barVisible && !picker.isOpen && !episode.novel) Timeline(ctl, player, Modifier.align(Alignment.BottomCenter))
+        if (barVisible && !picker.isOpen && !episode.novel) {
+            // Before the video is ready its length is unknown: the last scene's end (ctl.position redraws this, then it's exact).
+            val total = player.duration.takeIf { it > 0 }?.div(1000.0) ?: ctl.scenes.lastOrNull()?.end?.takeIf { it > 0 }
+            if (total != null) Timeline(ctl.position, total, ctl::seekTo, Modifier.align(Alignment.BottomCenter))
+        }
         // Skip intro / ending: in a long stretch without lines (its own composable: it reads the position every tick).
         if (!picker.isOpen) SkipButton(ctl, Modifier.align(Alignment.BottomEnd).padding(24.dp).padding(bottom = if (barVisible) 32.dp else 0.dp), onEnding = onBack)
 
@@ -530,20 +534,18 @@ private val CardGlass = RoundedCornerShape(22.dp).let { Modifier.clip(it).backgr
 /** Position, the episode's timeline, its length. Dragging shows where it will land; letting go seeks there. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Timeline(ctl: SceneController, player: ExoPlayer, modifier: Modifier) {
-    // Before the video is ready its length is unknown: the last scene's end (ctl.position redraws this, then it's exact).
-    val total = player.duration.takeIf { it > 0 }?.div(1000.0) ?: ctl.scenes.lastOrNull()?.end?.takeIf { it > 0 } ?: return
+internal fun Timeline(position: Double, total: Double, onSeek: (Double) -> Unit, modifier: Modifier) {
     var drag by remember { mutableStateOf<Float?>(null) }
-    val at = drag?.let { it * total } ?: ctl.position
+    val at = drag?.let { it * total } ?: position
     Row(modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(clock(at), color = Colors.text, fontSize = 15.sp)
         val colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White,
             inactiveTrackColor = Color.White.copy(alpha = 0.3f))
         // A thin line and a round knob (the mockup), not Material's thick split track.
         androidx.compose.material3.Slider(
-            value = drag ?: (ctl.position / total).toFloat().coerceIn(0f, 1f),
+            value = drag ?: (position / total).toFloat().coerceIn(0f, 1f),
             onValueChange = { drag = it },
-            onValueChangeFinished = { drag?.let { ctl.seekTo(it * total) }; drag = null },
+            onValueChangeFinished = { drag?.let { onSeek(it * total) }; drag = null },
             colors = colors,
             thumb = { Box(Modifier.size(20.dp).background(Color.White, CircleShape)) },
             track = { androidx.compose.material3.SliderDefaults.Track(it, Modifier.height(4.dp), colors = colors,

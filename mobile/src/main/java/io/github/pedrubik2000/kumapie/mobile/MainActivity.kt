@@ -169,7 +169,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
         { top(Screen.Stats) }, { top(Screen.Improve) }, { top(Screen.Search) }) { top(Screen.Settings(null)) }
     val tab: String? = when (stack.last()) { // the button shown selected: "" = Home, null = More, "-" = no menu
         is Screen.Discover -> tr("Discover")
-        Screen.Feed -> tr("Feed")
+        // Feed: upright and fullscreen like the player, so no menu beside it (it squeezed the video).
         Screen.IPlusOne -> tr("i+1 scenes")
         Screen.Downloads -> tr("Downloads")
         Screen.Stats, Screen.Improve, Screen.Search, is Screen.Settings -> null

@@ -133,9 +133,10 @@ private fun EpisodeCard(ep: Episode, blur: Boolean, onClick: () -> Unit, onLongC
                 // The episode's own title only once watched (titles can spoil).
                 Text(if (ep.watched && ep.episodeTitle.isNotBlank()) "${ep.title} · ${ep.episodeTitle}" else ep.title,
                     fontSize = 20.sp, color = Colors.text, style = Arcade.label)
-                Text((if (ep.easy > 0) tr("%1\$d min · %2\$d scenes · %3\$d easy today", minutes(ep.duration), ep.scenes, ep.easy)
+                Text(((if (ep.easy > 0) tr("%1\$d min · %2\$d scenes · %3\$d easy today", minutes(ep.duration), ep.scenes, ep.easy)
                     else tr("%1\$d min · %2\$d scenes", minutes(ep.duration), ep.scenes)) +
-                    if (ep.seen > 0) tr(" · %d seen", ep.seen) else "", fontSize = 14.sp, color = Colors.dim,
+                    (if (ep.seen > 0) tr(" · %d seen", ep.seen) else "")).replace(" · ", " · "), // a wrap starts a line with "·", never ends one
+                    fontSize = 14.sp, color = Colors.dim,
                     modifier = Modifier.padding(vertical = 6.dp))
                 val resume = ep.resume
                 if (resume != null && ep.duration > 0) {

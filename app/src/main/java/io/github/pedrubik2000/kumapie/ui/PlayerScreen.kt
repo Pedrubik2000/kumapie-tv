@@ -285,7 +285,7 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
             },
             modifier = Modifier.fillMaxSize(),
         )
-        if (!ctl.playing || now < ctl.bannerUntil || picker.isOpen) TopBar(ctl, title = shortTitle(ctl.episode.show))
+        if ((!ctl.playing || now < ctl.bannerUntil || picker.isOpen) && !options) TopBar(ctl, title = shortTitle(ctl.episode.show))
         Subtitles(ctl, picker, onAnchor = { anchor = it }, aboveBox = true)
         if (picker.isOpen && picker.cardOpen) anchor?.let {
             val japanese = ctl.lang == Lang.JAPANESE
@@ -307,7 +307,7 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
         if ((settings.showHelp || rating.open) && !options && !help)
             PlayerHints(ctl, picker, rating, watchBindings, pickerBindings, Modifier.align(Alignment.BottomStart))
         if (help) HelpOverlay(settings, ctl.lang)
-        playError?.let {
+        if (!picker.isOpen && !options) playError?.let {
             Text(tr("This TV can't play this video (%s).", it), color = Colors.text, fontSize = 24.sp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 90.dp).background(Colors.surface, RoundedCornerShape(8.dp)).padding(24.dp))
         }
@@ -326,7 +326,7 @@ private fun TopBar(ctl: SceneController, title: String) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // One line, cut with "…": a long title must not push the counter and level away (item 13d).
-        Text("$title · ${ctl.episode.title}", color = Colors.text, fontSize = 20.sp, maxLines = 1,
+        Text(ctl.episode.title.let { if (it.startsWith(title, ignoreCase = true)) it else "$title · $it" }, color = Colors.text, fontSize = 20.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 24.dp))
         val modes = listOfNotNull(
             if (ctl.pauseAtSceneEnd) tr("pauses at scene end") else tr("no pause at scene end"),
@@ -431,10 +431,10 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
                 Text(tr("At the end of a scene: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")).uppercase())
             }
             Button(onClick = ctl::togglePlayThroughKnown, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("i+0 scenes (no new words): %s", if (ctl.playThroughKnown) tr("play through") else tr("pause")).uppercase())
+                Text(tr("i+0 scenes (no new words): %s", if (ctl.playThroughKnown) tr("play through") else tr("pause")).uppercase().replace("I+0", "i+0"))
             }
             Button(onClick = ctl::toggleNewStraight, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("Skip nothing: %s", if (ctl.newStraight) tr("on, the whole episode") else tr("off, scene by scene")).uppercase())
+                Text(tr("Gaps between scenes: %s", if (ctl.newStraight) tr("play them") else tr("skip them")).uppercase())
             }
             Button(onClick = ctl::toggleSlow, modifier = Modifier.fillMaxWidth()) {
                 Text(tr("Speed: %s", if (ctl.slow) "0.75x" else tr("normal")).uppercase())

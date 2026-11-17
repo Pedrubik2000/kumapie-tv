@@ -76,7 +76,7 @@ fun ProgressBar(fraction: Float, modifier: Modifier = Modifier) {
 
 /** A one-line text field that shows a ring when the D-pad is on it (OK opens the TV keyboard). */
 @Composable
-fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Unit, modifier: Modifier = Modifier) {
+fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Unit, modifier: Modifier = Modifier, placeholder: String = "") {
     var focused by remember { mutableStateOf(false) }
     // Read-only until OK: a TV opens its keyboard on any focused editable field, so scrolling Settings past the
     // server field popped the keyboard up and took the D-pad.
@@ -107,5 +107,11 @@ fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Un
             .background(Colors.surface, RoundedCornerShape(8.dp))
             .border(2.dp, if (focused) Colors.accent else Colors.surface, RoundedCornerShape(8.dp))
             .padding(horizontal = 16.dp, vertical = 12.dp),
+        decorationBox = { inner ->
+            androidx.compose.foundation.layout.Box {
+                if (value.isEmpty()) androidx.tv.material3.Text(placeholder, color = Colors.dim, fontSize = 20.sp)
+                inner()
+            }
+        },
     )
 }

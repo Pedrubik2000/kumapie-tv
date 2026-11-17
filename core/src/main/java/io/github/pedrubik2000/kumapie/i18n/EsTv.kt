@@ -175,5 +175,11 @@ internal val esTv: Map<String, String> = mapOf(
     "Installing…" to "Instalando…",
     "Allow kumapie to install apps on the page that opened, then press Update again." to
         "Permite que kumapie instale apps en la página que se abrió y vuelve a pulsar Actualizar.",
+    "The connection to the PC was cut." to "Se cortó la conexión con la PC.",
+    "The PC took too long to answer." to "La PC tardó demasiado en responder.",
+    "The PC didn't answer." to "La PC no respondió.",
+    "Gaps between scenes: %s" to "Huecos entre escenas: %s",
+    "play them" to "reproducirlos",
+    "skip them" to "saltarlos",
     "This TV can't play this video (%s)." to "Esta tele no puede reproducir este video (%s).",
 )

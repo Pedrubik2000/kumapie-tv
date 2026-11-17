@@ -191,7 +191,7 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
             val kana = hw?.reading?.takeIf { it.isNotBlank() } ?: word.reading
             val expression = hw?.expression ?: word.lemma.ifBlank { segment.text }
             if (kana.isNotBlank() && kana != expression) PitchReading(kana, hw?.pitches?.flatMap { it.second }?.firstOrNull())
-            Text(expression, color = Colors.text, fontSize = 40.sp, lineHeight = 46.sp, style = Arcade.label)
+            Text(expression, color = Colors.text, fontSize = 40.sp, lineHeight = 46.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) // no italic: Japanese has none, it only slants the glyphs
             if (segment.text != expression) Text(segment.text, color = Colors.dim, fontSize = 16.sp)
             (ctl.scene.meanings[key] ?: word.meaning).substringAfter(" = ").takeIf { it.isNotBlank() }?.let {
                 Text(it, color = Colors.text, fontSize = 19.sp, maxLines = 5, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,

@@ -57,7 +57,8 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
     }
 
     // Scrolls: the D-pad brings the focused button into view (Font and Updates were below the screen).
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    val scroll = rememberScrollState()
+    Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Title(if (firstRun) tr("Welcome to kumapie") else tr("Settings"), fontSize = 32.sp)
         if (firstRun) {
             Text(tr("Type the address of the dojo server on the PC (Tailscale), e.g. https://my-pc.tailnet.ts.net:8445"),
@@ -111,5 +112,6 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             Text(tr("Version %s", BuildConfig.VERSION_NAME), color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
         }
     }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    // Focus on Change buttons scrolled the title and Server off the top: back to the top once it has landed.
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() }; kotlinx.coroutines.delay(100); scroll.scrollTo(0) }
 }

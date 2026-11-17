@@ -397,6 +397,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
         val conn = URL(url(path)).openConnection() as HttpURLConnection
         conn.connectTimeout = 8_000
         conn.readTimeout = readTimeout
+        conn.setRequestProperty("Connection", "close")
         conn.requestMethod = "POST"
         conn.doOutput = true
         conn.setRequestProperty("Content-Type", "application/json")
@@ -414,6 +415,7 @@ class Api(private val base: String, private val person: String = "") : Backend {
         val conn = URL(url(path)).openConnection() as HttpURLConnection
         conn.connectTimeout = 8_000
         conn.readTimeout = readTimeout
+        conn.setRequestProperty("Connection", "close") // the PC closes every connection (HTTP/1.0): a pooled one came back dead ("unexpected end of stream")
         try {
             if (conn.responseCode != 200) throw IOException(tr("HTTP %1\$d for %2\$s", conn.responseCode, path))
             conn.inputStream.bufferedReader().use { it.readText() }

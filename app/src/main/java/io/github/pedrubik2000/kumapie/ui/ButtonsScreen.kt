@@ -78,7 +78,7 @@ fun ButtonsScreen(settings: Settings) {
             }
             Text(tr("Choose an action, then press the button for it (hold it for a long press). Back can't be changed."),
                 color = Colors.dim, fontSize = 15.sp, modifier = Modifier.padding(vertical = 10.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+            LazyColumn(Modifier.fadeTop(0.05f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(top = 14.dp, bottom = 8.dp)) { // fades out under the header
                 KeyContext.entries.forEach { context ->
                     item(key = context.name) {
                         Heading(context.text, Modifier.padding(top = 10.dp))

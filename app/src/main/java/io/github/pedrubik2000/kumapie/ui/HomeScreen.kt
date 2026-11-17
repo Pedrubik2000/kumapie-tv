@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,6 +35,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -92,44 +94,52 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
     var kept by remember { mutableStateOf(emptyList<Found>()) }
     LaunchedEffect(lang) { kept = if (lang == "ja") runCatching { api.saved() }.getOrDefault(emptyList()) else emptyList() }
     // Streamed titles in "Continue watching" too (the episode left partway, or the next one).
-    var streams by remember { mutableStateOf(emptyList<Pair<Show, Episode>>()) }
+    // null while loading: the row waited for them, else it showed without them and reshuffled (focus on a card that moved).
+    var streams by remember { mutableStateOf<List<Pair<Show, Episode>>?>(null) }
     LaunchedEffect(lang) { streams = if (lang == "ja") runCatching { api.going() }.getOrDefault(emptyList()) else emptyList() }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 32.dp)) {
         // Scrolls sideways when the buttons don't fit (a squeezed SETTINGS wrapped letter by letter, 353 px tall, and
         // pushed everything down: bedroom TV, 2026-11-15); focus brings the far ones into view.
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-            Title("kuma", "pie")
-            Spacer(Modifier.width(32.dp))
+        // The logo stays put; only the buttons scroll (Pedro's nine cut SETTINGS and pushed the logo off, 2026-11-16).
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+          Title("kuma", "pie")
+          Spacer(Modifier.width(20.dp))
+          Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
             if (langs.size > 1) langs.forEach { c ->
-                Button(onClick = { picked = c; settings.prefs.edit().putString("home_lang_$profile", c).apply() },
+                Button(padding = TAB, onClick = { picked = c; settings.prefs.edit().putString("home_lang_$profile", c).apply() },
                     colors = arcadeButtonColors(selected = c == lang),
                     modifier = Modifier.padding(end = 8.dp)) { Text(Lang.of(c).displayName.uppercase()) }
             }
-            Spacer(Modifier.width(24.dp))
+            Spacer(Modifier.width(16.dp))
             if (lang == "ja") { // Discover: Japanese only for now
-                Button(onClick = onDiscover) { Text(tr("Discover").uppercase()) }
+                Button(padding = TAB, onClick = onDiscover) { Text(tr("Discover").uppercase()) }
                 Spacer(Modifier.width(8.dp))
             }
             if (lang != null) ReviewButton(api, lang, onReview)
-            Button(onClick = onProfiles) { Text(who.uppercase()) } // back to "Who's watching?"
+            Button(padding = TAB, onClick = onProfiles) { Text(who.uppercase()) } // back to "Who's watching?"
             Spacer(Modifier.width(8.dp))
-            Button(onClick = onStats) { Text(tr("Stats").uppercase()) }
+            Button(padding = TAB, onClick = onStats) { Text(tr("Stats").uppercase()) }
             Spacer(Modifier.width(8.dp))
-            Button(onClick = onSettings) { Text(tr("Settings").uppercase()) }
+            Button(padding = TAB, onClick = onSettings) { Text(tr("Settings").uppercase()) }
+            Spacer(Modifier.width(12.dp)) // room for the focused button's 6% growth
+          }
         }
         Spacer(Modifier.padding(8.dp))
         when {
             error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings)
-            shows == null -> Text(tr("Loading…"), color = Colors.dim)
+            shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim)
             lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim)
             else -> {
                 LangCard(api, lang)
-                Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams)
+                Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!)
             }
         }
     }
 }
+
+/** The header's buttons: narrower than elsewhere so all nine of Pedro's fit a 960 dp TV. */
+private val TAB = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
 
 /** "Review · N" for a person whose cards are on the PC (the PC refuses the others: no button). */
 @Composable
@@ -137,7 +147,7 @@ private fun ReviewButton(api: Api, lang: String, onReview: (String) -> Unit) {
     var n by remember(lang) { mutableStateOf<Int?>(null) }
     LaunchedEffect(lang) { n = runCatching { api.srsDue(lang).let { it.due + it.new } }.getOrNull() }
     val count = n ?: return
-    Button(onClick = { onReview(lang) }, colors = arcadeButtonColors(selected = count > 0)) {
+    Button(padding = TAB, onClick = { onReview(lang) }, colors = arcadeButtonColors(selected = count > 0)) {
         Text((tr("Review") + if (count > 0) " · $count" else "").uppercase())
     }
     Spacer(Modifier.width(8.dp))
@@ -147,10 +157,11 @@ private fun ReviewButton(api: Api, lang: String, onReview: (String) -> Unit) {
 @Composable
 private fun LangCard(api: Api, lang: String) {
     var t by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.LangTotal?>(null) }
-    LaunchedEffect(lang) { t = runCatching { api.stats().langs[lang] }.getOrNull() }
-    val s = t ?: return
+    var loaded by remember(lang) { mutableStateOf(false) }
+    LaunchedEffect(lang) { t = runCatching { api.stats().langs[lang] }.getOrNull(); loaded = true }
+    val s = t ?: return Spacer(Modifier.height(if (loaded) 0.dp else 66.dp)) // its height while loading: Home jumped down when it came
     Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf(String.format(java.util.Locale.ROOT, "%.1f h", s.total / 3600) to tr("In total"), hoursMinutes(s.week) to tr("Last 7 days"),
+        listOf((if (s.total < 36000) hoursMinutes(s.total) else "${(s.total / 3600).toInt()} h") to tr("In total"), hoursMinutes(s.week) to tr("Last 7 days"),
             hoursMinutes(s.today) to tr("Today"), "${s.known}" to tr("Words known")).forEach { (v, l) ->
             Column(Modifier.background(Arcade.slab, RowSlab).padding(horizontal = 26.dp, vertical = 8.dp)) {
                 Text(v, fontSize = 22.sp, color = Colors.accent, style = Arcade.label)
@@ -168,7 +179,11 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
     val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
     val rows = KINDS.map { (k, label) -> tr(label) to shows.filter { it.kind == k } } + listOf(tr("Other") to other)
     val first = remember { FocusRequester() }
-    LazyColumn {
+    // Down from a Continue card goes to the row under it: the beam search took the next (lower, smaller) card instead.
+    val below = remember { FocusRequester() }
+    val firstShelf = rows.indexOfFirst { it.second.isNotEmpty() }
+    // The top edge fades out, as on Discover: a row scrolled up showed half posters cut flat under the header.
+    LazyColumn(Modifier.fadeTop(), contentPadding = PaddingValues(top = 12.dp)) {
         // As on the phone: the last episode as a big card (focused first, OK plays it), the other shows in progress
         // beside it as small cards (user, 2026-10-15: Home is for resuming fast). Novels are read: they count too.
         if (going.isNotEmpty()) item(key = "going") {
@@ -176,14 +191,15 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
             LazyRow(state = remember(streams) { androidx.compose.foundation.lazy.LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Bottom,
                 contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 20.dp, bottom = 24.dp)) { // room for the focused card to grow 10%
                 itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
-                    ResumeCard(s, e, if (i == 0) Modifier.focusRequester(first) else Modifier, width = if (i == 0) 360.dp else 220.dp) { onPlay(s, e) }
+                    ResumeCard(s, e, (if (i == 0) Modifier.focusRequester(first) else Modifier)
+                        .focusProperties { if (kept.isNotEmpty() || firstShelf >= 0) down = below }, width = if (i == 0) 360.dp else 220.dp) { onPlay(s, e) }
                 }
             }
         }
         if (kept.isNotEmpty()) item(key = "streaming") {
             Shelf(tr("Streaming")) {
                 itemsIndexed(kept, key = { _, f -> f.id }) { i, f ->
-                    Poster(f.poster, f.name, f.year, null, if (going.isEmpty() && i == 0) Modifier.focusRequester(first) else Modifier) { onDiscovered(f) }
+                    Poster(f.poster, f.name, f.year, null, when { i != 0 -> Modifier; going.isEmpty() -> Modifier.focusRequester(first); else -> Modifier.focusRequester(below) }) { onDiscovered(f) }
                 }
             }
         }
@@ -195,7 +211,12 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
                 Shelf(label) {
                     itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
                         Poster(s.poster, shortTitle(s.title), levelLine(s), null,
-                            if (top && i == 0) Modifier.focusRequester(first) else Modifier) { onShow(s) }
+                            when {
+                                i != 0 -> Modifier
+                                top -> Modifier.focusRequester(first)
+                                r == firstShelf && kept.isEmpty() && going.isNotEmpty() -> Modifier.focusRequester(below)
+                                else -> Modifier
+                            }) { onShow(s) }
                     }
                 }
             }
@@ -225,7 +246,7 @@ internal fun Poster(image: String, title: String, line: String, progress: Float?
         }
         Text(title.uppercase(), color = Colors.text, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label), maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 10.dp))
-        Text(line, color = Colors.dim, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(line, color = Colors.dim, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) // one line cut it to "quedan …"
         if (progress != null) ProgressBar(progress, Modifier.fillMaxWidth().padding(top = 4.dp))
     }
 }
@@ -250,18 +271,28 @@ private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, onCli
 }
 
 @Composable
-fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: () -> Unit) {
+fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: (() -> Unit)?) {
     val retry = remember { FocusRequester() }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Title(tr("Can't reach the dojo server"), fontSize = 26.sp)
-            Text(message, color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
+            Text(plainError(message), color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
             Text(tr("Is the PC on, and Tailscale connected on the TV?"), color = Colors.dim)
             Row(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again").uppercase()) }
-                Button(onClick = onSettings) { Text(tr("Settings").uppercase()) }
+                if (onSettings != null) Button(onClick = onSettings) { Text(tr("Settings").uppercase()) }
             }
         }
     }
     LaunchedEffect(Unit) { runCatching { retry.requestFocus() } }
+}
+
+/** Java's network messages in plain words, in the menu language (the parents saw "unexpected end of stream"). */
+internal fun plainError(m: String): String = m.lowercase().let {
+    when {
+        "end of stream" in it || "reset" in it || "aborted" in it -> tr("The connection to the PC was cut.")
+        "timeout" in it || "timed out" in it -> tr("The PC took too long to answer.")
+        "failed to connect" in it || "refused" in it || "unable to resolve" in it || "unreachable" in it -> tr("The PC didn't answer.")
+        else -> m
+    }
 }

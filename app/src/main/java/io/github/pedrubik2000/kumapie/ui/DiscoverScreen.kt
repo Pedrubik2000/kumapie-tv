@@ -76,10 +76,12 @@ fun DiscoverScreen(api: Api, start: Found? = null) {
     var open by remember { mutableStateOf(start) } // a title kept on Home: its page at once (Back: Home)
     var focused by remember { mutableStateOf<Found?>(null) }
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
+    var attempt by remember { mutableStateOf(0) } // Try again after a failed load (a bare message had no way out)
+    LaunchedEffect(attempt) {
+        error = null
         if (start == null) runCatching { api.board() }.onSuccess { rows = it }.onFailure { error = it.message ?: it.toString() }
     }
-    LaunchedEffect(searched) {
+    LaunchedEffect(searched, attempt) {
         found = null
         if (searched.isEmpty()) return@LaunchedEffect
         error = null
@@ -98,11 +100,11 @@ fun DiscoverScreen(api: Api, start: Found? = null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Title(tr("Discover").uppercase())
                 Spacer(Modifier.width(32.dp))
-                TvTextField(query, { query = it }, onDone = { searched = query.trim() }, Modifier.width(420.dp))
+                TvTextField(query, { query = it }, onDone = { searched = query.trim() }, Modifier.width(420.dp), placeholder = tr("Search"))
             }
             val list = found
             when {
-                error != null -> Text(error!!, color = Colors.dim)
+                error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = null)
                 searched.isNotEmpty() && list == null || searched.isEmpty() && board == null -> Text(tr("Loading…"), color = Colors.dim)
                 searched.isNotEmpty() && list!!.isEmpty() -> Text(tr("Nothing found"), color = Colors.dim)
                 searched.isNotEmpty() -> {
@@ -116,22 +118,19 @@ fun DiscoverScreen(api: Api, start: Found? = null) {
                 }
                 else -> {
                     // The focused title, Stremio's way: its logo (else name), rating, genres and the start of its text.
-                    Column(Modifier.fillMaxWidth(0.5f).height(200.dp).padding(top = 16.dp), verticalArrangement = Arrangement.Bottom) {
+                    Column(Modifier.fillMaxWidth(0.5f).height(160.dp).padding(top = 8.dp), verticalArrangement = Arrangement.Bottom) { // 200 dp cut the row's years off on a 540 dp tall TV
                         shown?.let { f ->
                             TitleLogo(f)
                             Text(f.line, color = Colors.text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-                            Text(f.description, color = Colors.dim, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(f.description.replace(Regex("""\s+"""), " "), color = Colors.dim, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
                     // The top edge fades out: a row scrolled up peeked its years out under the text (Chromecast).
-                    LazyColumn(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
-                        drawContent()
-                        drawRect(Brush.verticalGradient(0.08f to Color.Transparent, 0.2f to Color.Black), blendMode = BlendMode.DstIn)
-                    }) {
+                    LazyColumn(Modifier.fillMaxSize().fadeTop(0.06f), contentPadding = PaddingValues(top = 14.dp)) { // the fade ends above the first heading (it hid "ANILIST · PLANNING")
                         board!!.forEachIndexed { r, (name, titles) ->
                             item(key = "row-$name") {
                                 Heading(tr(name).uppercase(), Modifier.padding(start = 16.dp, top = 12.dp))
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
                                     itemsIndexed(titles, key = { _, f -> f.id }) { i, f ->
                                         Poster(f.poster, f.name, f.year, null, (if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier)
                                             .onFocusChanged { if (it.isFocused) focused = f }) { open = f }

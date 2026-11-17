@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -90,14 +92,23 @@ fun Modifier.arcadePanel(): Modifier = background(Arcade.band).drawBehind { draw
 /** The word card: dark, an accent bar on the left, the right edge slanted. */
 fun Modifier.arcadeCard(): Modifier = clip(GenericShape { size, _ ->
     moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width - size.height * 0.09f, size.height); lineTo(0f, size.height); close()
-}).background(Color(0xF20B0A10)).drawBehind { drawRect(Arcade.accent, size = Size(7.dp.toPx(), size.height)) }
+}).background(Arcade.background).drawBehind { drawRect(Arcade.accent, size = Size(7.dp.toPx(), size.height)) } // opaque: the top bar showed through
     .padding(start = 7.dp, end = 30.dp)
+
+/** A list's top edge fades out: rows scrolled up under a fixed header showed cut flat in half. */
+fun Modifier.fadeTop(until: Float = 0.08f): Modifier = graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Transparent, until to Color.Black),
+            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+    }
 
 /** The diagonal band and accent stripe behind the menus. */
 fun Modifier.arcadeBackdrop(): Modifier = drawBehind {
     val w = size.width; val h = size.height
     drawPath(Path().apply { moveTo(w * 0.78f, 0f); lineTo(w, 0f); lineTo(w, h); lineTo(w * 0.60f, h); close() }, Arcade.band)
-    drawPath(Path().apply { moveTo(w * 0.965f, 0f); lineTo(w * 0.985f, 0f); lineTo(w * 0.745f, h); lineTo(w * 0.725f, h); close() }, Arcade.accent)
+    // Dimmed: full yellow fought the text drawn over it ("23 min left") and showed as chopped bits between list rows.
+    drawPath(Path().apply { moveTo(w * 0.965f, 0f); lineTo(w * 0.985f, 0f); lineTo(w * 0.745f, h); lineTo(w * 0.725f, h); close() }, Arcade.accent, alpha = 0.3f)
 }
 
 @Composable
@@ -109,9 +120,10 @@ fun arcadeButtonColors(selected: Boolean = false): ButtonColors = ButtonDefaults
 @Composable
 fun Button(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
            scale: ButtonScale = ButtonDefaults.scale(focusedScale = 1.06f), colors: ButtonColors = arcadeButtonColors(),
+           padding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
            content: @Composable RowScope.() -> Unit) =
     androidx.tv.material3.Button(onClick = onClick, modifier = modifier, enabled = enabled, scale = scale, colors = colors,
-        shape = ButtonDefaults.shape(Slab), contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp)) {
+        shape = ButtonDefaults.shape(Slab), contentPadding = padding) {
         ProvideTextStyle(Arcade.label) { content() }
     }
 

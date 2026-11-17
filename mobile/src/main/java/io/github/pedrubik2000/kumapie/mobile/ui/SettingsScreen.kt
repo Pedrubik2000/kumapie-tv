@@ -677,7 +677,9 @@ private fun MenuLanguage(settings: Settings) {
             })
         }
     }
-    // Whose device: its episodes go to that person's PC library and to their other devices.
+    // Whose device: its episodes go to that person's PC library and to their other devices. No PC: nobody to sync
+    // with, and a stranger's phone shouldn't list the family.
+    if (settings.server.isEmpty()) return
     Text(tr("This device belongs to"), color = Colors.accent)
     Text(tr("Episodes made here go to the PC, and the PC's new episodes come here (on Wi-Fi)."), color = Colors.dim, fontSize = 14.sp)
     var owner by remember { mutableStateOf(settings.owner) }

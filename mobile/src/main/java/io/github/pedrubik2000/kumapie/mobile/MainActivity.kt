@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
         // The server address can be sent from the PC instead of typed:
         //   adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.mobile.MainActivity --es server https://...
         intent?.getStringExtra("server")?.let { settings.server = it }
+        addonsAndKey(intent, settings)
         // The download notification (Android 13+ asks once).
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         enableEdgeToEdge()
@@ -123,6 +124,16 @@ class MainActivity : ComponentActivity() {
             Settings(this).server = it
             recreate()
         }
+        if (addonsAndKey(intent, Settings(this))) recreate()
+    }
+
+    /** Without a PC, the same way as on the TV (long to type; the keyboard autocorrects addresses): --es addon <address>
+     *  adds one ('' clears them), --es jimaku <key>. Answers whether anything came. */
+    private fun addonsAndKey(intent: android.content.Intent?, settings: Settings): Boolean {
+        var any = false
+        intent?.getStringExtra("addon")?.let { a -> settings.addons = if (a.isBlank()) emptyList() else (settings.addons + a.trim()).distinct(); any = true }
+        intent?.getStringExtra("jimaku")?.let { settings.prefs.edit().putString("jimaku_key", it.trim()).apply(); any = true }
+        return any
     }
 }
 
@@ -137,7 +148,8 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     // The show list, kept here so the episode list and the player see the same (refreshed) shows.
     var shows by remember { mutableStateOf<List<Show>>(emptyList()) }
     // Home's language: Home, the feed and the i+1 list show only its shows.
-    var homeLang by remember { mutableStateOf(settings.prefs.getString("home_lang", "de") ?: "de") }
+    // Without a PC: Japanese (Discover is there), the only language at launch.
+    var homeLang by remember { mutableStateOf(settings.prefs.getString("home_lang", null) ?: if (settings.server.isEmpty()) "ja" else "de") }
     val langShows = shows.filter { it.lang == homeLang }
 
     LaunchedEffect(Unit) { // opened straight on another screen (an intent): Home, which loads the shows, isn't shown
@@ -147,6 +159,15 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
         if (!BuildConfig.DEBUG) update = runCatching { Updater.newer() }.getOrNull()
     }
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    // Without a PC, as on the TV: JMdict and JMnedict download in the background on the first run (and again if it
+    // didn't finish), so a word has a meaning without a trip to Settings.
+    LaunchedEffect(standalone, server) {
+        if (!standalone || server.isNotEmpty()) return@LaunchedEffect
+        val dicts = io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(appContext)
+        if (dicts.of(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE).isEmpty())
+            runCatching { dicts.installRecommended(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) {} }
+                .onSuccess { it.forEach { l -> android.util.Log.i("kumapie", "ja dictionary: $l") } }
+    }
     LaunchedEffect(Unit) { // the books' and manga's characters (Hoshi, chimahon): titles to the PC, its dictionary back
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ReadingCharacters.sync(appContext, library.settings) }
     }

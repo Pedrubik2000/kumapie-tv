@@ -111,10 +111,12 @@ private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "
 
 /**
  * The languages this device learns: the ones its shows are in (saved each time Home gets the list), so a parent's phone
- * shows nothing German or Japanese. Before the first list: all.
+ * shows nothing German or Japanese. Before the first list: all; without a PC, Japanese (the only one at launch,
+ * kumapie_plan.md "for other people").
  */
 fun io.github.pedrubik2000.kumapie.data.Settings.learning(): Set<String> =
-    prefs.getStringSet("learning", null)?.takeIf { it.isNotEmpty() } ?: io.github.pedrubik2000.kumapie.data.Lang.ALL.map { it.code }.toSet()
+    prefs.getStringSet("learning", null)?.takeIf { it.isNotEmpty() }
+        ?: if (server.isEmpty()) setOf("ja") else io.github.pedrubik2000.kumapie.data.Lang.ALL.map { it.code }.toSet()
 
 internal class Dest(val icon: ImageVector, val label: String, val go: () -> Unit, val badge: Int = 0, val short: String = label)
 
@@ -258,7 +260,7 @@ fun HomeScreen(
                 langs.forEach { l -> FilterChip(selected = lang == l.code, onClick = { onHomeLang(l.code) }, label = { Text(tr(l.name)) },
                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Colors.accent, selectedLabelColor = Color.Black)) }
             }
-            if (offline) Row(Modifier.fillMaxWidth().then(if (wide) Modifier.statusBarsPadding().padding(start = 112.dp, end = 200.dp) else Modifier.padding(start = 16.dp, end = 8.dp)),verticalAlignment = Alignment.CenterVertically) {
+            if (offline && library.settings.server.isNotEmpty()) Row(Modifier.fillMaxWidth().then(if (wide) Modifier.statusBarsPadding().padding(start = 112.dp, end = 200.dp) else Modifier.padding(start = 16.dp, end = 8.dp)),verticalAlignment = Alignment.CenterVertically) {
                 Text(tr("Offline: only episodes on this device play."), color = Colors.dim, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 TextButton(onClick = { attempt++ }) { Text(tr("Try again")) }
             }

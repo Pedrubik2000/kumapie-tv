@@ -71,9 +71,27 @@ class Library(context: Context, val settings: Settings) {
         }
     }
 
+    /** kumapie's own cards per language (kumapie_plan.md "own Anki"; the app doesn't read them yet, step 4d). */
+    val srs: Map<String, io.github.pedrubik2000.kumapie.lang.Srs> by lazy {
+        languages.all.associate { it.lang.code to io.github.pedrubik2000.kumapie.lang.Srs(appContext, settings.owner, it.lang) }
+    }
+
+    /** Each language's new ratings to the PC and the other devices' back; offline they wait in the store's outbox. */
+    private suspend fun sendSrs() {
+        if (settings.owner.isEmpty()) return
+        val api = runCatching { api }.getOrNull() ?: return
+        for ((lang, s) in srs) runCatching { s.sync { api.srsSync(lang, it) } }
+            .onSuccess { n ->
+                val cards = withContext(Dispatchers.IO) { s.cards() }
+                android.util.Log.i("kumapie", "srs $lang: $n rows in, ${cards.size} cards, ${cards.count { io.github.pedrubik2000.kumapie.lang.Srs.state(it.due) == "d" }} due, seq ${s.meta("sync_seq")}")
+            }
+            .onFailure { android.util.Log.w("kumapie", "srs $lang: not synced: $it") }
+    }
+
     /** Sends this device's progress to Anki and reads the others' (when Anki was read here once). */
     suspend fun syncProgress() {
         sendPersonal()
+        sendSrs()
         sendKnownLists()
         if (languages.all.none { it.known.ready }) return
         progress.sync(runCatching { api }.getOrNull())

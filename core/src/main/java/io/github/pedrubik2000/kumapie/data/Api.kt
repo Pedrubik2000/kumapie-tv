@@ -224,6 +224,10 @@ class Api(private val base: String, private val person: String = "") : Backend {
     suspend fun knownLists(lang: String, body: JSONObject): JSONObject =
         JSONObject(post("/api/tv/known_lists", body.put("person", person).put("lang", lang).toString()))
 
+    /** kumapie's own cards in [lang]: this device's new rows sent, everyone else's back (lang's Srs.sync). */
+    suspend fun srsSync(lang: String, body: JSONObject): JSONObject =
+        JSONObject(post("/api/tv/srs/sync", body.put("person", person).put("lang", lang).toString(), readTimeout = 120_000))
+
     /** This device's personal dictionary sent; answers the merged one (lang's PersonalDictionary). */
     suspend fun personalDictionary(entries: String): String =
         post("/api/tv/personal", JSONObject().put("person", person).put("entries", org.json.JSONArray(entries)).toString())

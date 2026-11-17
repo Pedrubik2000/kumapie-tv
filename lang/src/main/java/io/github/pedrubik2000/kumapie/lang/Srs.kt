@@ -13,6 +13,8 @@ import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
 import kotlin.random.Random
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * kumapie's own cards and reviews (kumapie_plan.md "kumapie's own Anki"), one `srs/<person>/<lang>.db` per person
@@ -39,11 +41,12 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
                      val lookedUp: Boolean? = null, val speed: Double? = null, val heard: Int? = null)
 
     /** FSRS-6 with the parameters and this language's retention fitted on the PC (`meta`), else the defaults. */
-    val fsrs: Fsrs6 by lazy {
+    val fsrs: Fsrs6 get() = scheduler ?: run {
         val w = meta("params")?.let { JSONArray(it) }?.let { a -> DoubleArray(a.length()) { a.getDouble(it) } } ?: Fsrs6.DEFAULT
         val r = meta("retention")?.let { JSONObject(it).optDouble(lang.code, 0.9) } ?: 0.9
-        Fsrs6(w, r)
+        Fsrs6(w, r).also { scheduler = it }
     }
+    @Volatile private var scheduler: Fsrs6? = null
 
     fun meta(key: String): String? = db.rawQuery("SELECT value FROM meta WHERE key = ?", arrayOf(key)).use { if (it.moveToFirst()) it.getString(0) else null }
 
@@ -61,7 +64,7 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
                 put("meaning", meaning); put("fields", fields); put("tags", tags); put("show", show); put("episode", episode)
                 put("scene", scene); put("created", now); put("modified", now)
             }
-            try { db.insertOrThrow("cards", null, v); return card(id)!! } catch (_: SQLiteConstraintException) { id++ }
+            try { append("cards", v); return card(id)!! } catch (_: SQLiteConstraintException) { id++ }
         }
     }
 
@@ -75,7 +78,7 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         val after = fsrs.next(before, days, rating)
         db.beginTransaction()
         try {
-            db.insertOrThrow("revlog", null, ContentValues().apply {
+            append("revlog", ContentValues().apply {
                 put("id", newId(now)); put("card", cardId); put("time", now); put("rating", rating); put("answer_ms", answerMs)
                 put("device", device); put("s_before", before?.stability); put("d_before", before?.difficulty)
                 put("s_after", after.stability); put("d_after", after.difficulty); put("r", r)
@@ -96,7 +99,7 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         val back = replay(rows + (now to 0), fsrs)
         db.beginTransaction()
         try {
-            db.insertOrThrow("revlog", null, ContentValues().apply {
+            append("revlog", ContentValues().apply {
                 put("id", newId(now)); put("card", cardId); put("time", now); put("rating", 0); put("device", device)
                 put("s_before", c.stability); put("d_before", c.difficulty)
                 put("s_after", back?.state?.stability); put("d_after", back?.state?.difficulty)
@@ -109,16 +112,16 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
 
     /** A carded word seen in a scene that played to its end without being rated. */
     fun expose(cardId: Long, episode: String?, scene: Int?, subs: String?, now: Long = System.currentTimeMillis()) {
-        db.insertOrThrow("exposures", null, ContentValues().apply {
+        append("exposures", ContentValues().apply {
             put("id", newId(now)); put("card", cardId); put("time", now); put("episode", episode); put("scene", scene); put("subs", subs)
         })
     }
 
-    /** The cached state of every card again from its revlog (after a sync brought other devices' rows). */
-    fun replayAll() {
+    /** The cached state of these cards (null = all) again from their revlog, after a sync brought other devices' rows. */
+    fun replayAll(only: Set<Long>? = null) {
         val rows = HashMap<Long, MutableList<Pair<Long, Int>>>()
         db.rawQuery("SELECT card, time, rating FROM revlog ORDER BY time, id", null).use { c ->
-            while (c.moveToNext()) rows.getOrPut(c.getLong(0)) { mutableListOf() }.add(c.getLong(1) to c.getInt(2))
+            while (c.moveToNext()) if (only == null || c.getLong(0) in only) rows.getOrPut(c.getLong(0)) { mutableListOf() }.add(c.getLong(1) to c.getInt(2))
         }
         db.beginTransaction()
         try {
@@ -126,6 +129,89 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
     }
+
+    /**
+     * Sends this device's new rows (the outbox: kept while offline) and takes everyone else's from the PC
+     * (`POST /api/tv/srs/sync`, [post] adds person and language). The first one downloads the whole store.
+     * Answers how many rows came in.
+     */
+    suspend fun sync(post: suspend (JSONObject) -> JSONObject): Int = withContext(Dispatchers.IO) {
+        val out = db.rawQuery("SELECT kind, id FROM outbox", null).use { c -> buildList { while (c.moveToNext()) add(c.getString(0) to c.getLong(1)) } }
+        val body = JSONObject().put("since", meta("sync_seq")?.toLong() ?: 0L)
+        for (t in SYNCED) body.put(t, JSONArray(out.filter { it.first == t }.mapNotNull { row(t, it.second) }))
+        val got = post(body)
+        val rated = HashSet<Long>()
+        var n = 0
+        db.beginTransaction()
+        try {
+            got.optJSONObject("meta")?.let { m -> m.keys().forEach { k -> db.insertWithOnConflict("meta", null, values(JSONObject().put("key", k).put("value", m.getString(k))), SQLiteDatabase.CONFLICT_REPLACE) } }
+            for (o in got.optJSONArray("cards").objects()) {
+                val v = values(o)
+                val old = db.rawQuery("SELECT modified FROM cards WHERE id = ?", arrayOf("${o.getLong("id")}")).use { if (it.moveToFirst()) it.getLong(0) else null }
+                when {
+                    old == null -> db.insertOrThrow("cards", null, v)
+                    o.getLong("modified") > old -> db.update("cards", v, "id = ?", arrayOf("${o.getLong("id")}"))
+                    else -> continue
+                }
+                n++
+            }
+            for (t in listOf("revlog", "exposures")) for (o in got.optJSONArray(t).objects()) {
+                if (db.insertWithOnConflict(t, null, values(o), SQLiteDatabase.CONFLICT_IGNORE) != -1L) {
+                    n++
+                    if (t == "revlog") rated += o.getLong("card")
+                }
+            }
+            for ((kind, id) in out) db.delete("outbox", "kind = ? AND id = ?", arrayOf(kind, "$id"))
+            db.insertWithOnConflict("meta", null, values(JSONObject().put("key", "sync_seq").put("value", "${got.getLong("seq")}")), SQLiteDatabase.CONFLICT_REPLACE)
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+        scheduler = null // the PC may have sent new parameters
+        if (got.optJSONObject("meta")?.has("params") == true && meta("replayed_params") != meta("params")) {
+            replayAll() // new parameters: every card again
+            db.insertWithOnConflict("meta", null, values(JSONObject().put("key", "replayed_params").put("value", meta("params"))), SQLiteDatabase.CONFLICT_REPLACE)
+        } else if (rated.isNotEmpty()) replayAll(rated)
+        n
+    }
+
+    /** A row this device made: stored, and queued for the PC. */
+    private fun append(table: String, v: ContentValues) {
+        db.beginTransaction()
+        try {
+            db.insertOrThrow(table, null, v)
+            db.insertWithOnConflict("outbox", null, ContentValues().apply { put("kind", table); put("id", v.getAsLong("id")) }, SQLiteDatabase.CONFLICT_IGNORE)
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+
+    /** One row as the PC takes it (cards without the FSRS cache columns: every device replays its own). */
+    private fun row(table: String, id: Long): JSONObject? = db.rawQuery("SELECT * FROM $table WHERE id = ?", arrayOf("$id")).use { c ->
+        if (!c.moveToFirst()) return null
+        JSONObject().apply {
+            for (i in 0 until c.columnCount) {
+                val k = c.getColumnName(i)
+                if (table == "cards" && k in CACHE) continue
+                put(k, when (c.getType(i)) {
+                    Cursor.FIELD_TYPE_NULL -> JSONObject.NULL
+                    Cursor.FIELD_TYPE_INTEGER -> c.getLong(i)
+                    Cursor.FIELD_TYPE_FLOAT -> c.getDouble(i)
+                    else -> c.getString(i)
+                })
+            }
+        }
+    }
+
+    private fun values(o: JSONObject) = ContentValues().apply {
+        for (k in o.keys()) when (val v = o.get(k)) {
+            JSONObject.NULL -> putNull(k)
+            is Int -> put(k, v.toLong())
+            is Long -> put(k, v)
+            is Double -> put(k, v)
+            is Number -> put(k, v.toDouble())
+            else -> put(k, v.toString())
+        }
+    }
+
+    private fun JSONArray?.objects(): List<JSONObject> = if (this == null) emptyList() else List(length()) { getJSONObject(it) }
 
     private fun history(cardId: Long) = db.rawQuery("SELECT time, rating FROM revlog WHERE card = ? ORDER BY time, id", arrayOf("$cardId"))
         .use { c -> buildList { while (c.moveToNext()) add(c.getLong(0) to c.getInt(1)) } }
@@ -141,6 +227,8 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
 
     companion object {
         const val DAY = 86_400_000L
+        private val SYNCED = listOf("cards", "revlog", "exposures")
+        private val CACHE = setOf("stability", "difficulty", "last_review", "due")
 
         /** Row id for revlog and exposures: ms * 1000 + a random 0..999, so two devices never collide. */
         fun newId(timeMs: Long = System.currentTimeMillis()) = timeMs * 1000 + Random.nextInt(1000)
@@ -216,6 +304,8 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
                 id INTEGER PRIMARY KEY, card INTEGER NOT NULL, time INTEGER NOT NULL,
                 episode TEXT, scene INTEGER, subs TEXT)""",
             "CREATE INDEX exposures_card ON exposures(card, time)",
+            // Device only: rows made here and not yet taken by the PC (the offline queue). Empty on the PC.
+            "CREATE TABLE outbox (kind TEXT NOT NULL, id INTEGER NOT NULL, PRIMARY KEY (kind, id))",
         ) + listOf("revlog", "exposures").flatMap { t ->
             listOf("UPDATE", "DELETE").map { op ->
                 "CREATE TRIGGER ${t}_no_${op.lowercase()} BEFORE $op ON $t BEGIN SELECT RAISE(ABORT, '$t is append-only'); END"

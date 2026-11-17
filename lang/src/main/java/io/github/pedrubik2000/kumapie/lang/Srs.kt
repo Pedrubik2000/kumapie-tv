@@ -51,7 +51,8 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
 
     fun meta(key: String): String? = db.rawQuery("SELECT value FROM meta WHERE key = ?", arrayOf(key)).use { if (it.moveToFirst()) it.getString(0) else null }
 
-    fun cards(): List<Card> = db.rawQuery("SELECT $CARD_COLS FROM cards", null).use { c -> buildList { while (c.moveToNext()) add(card(c)) } }
+    /** Every card but the deleted ones (tag `kumapie::deleted`: the sync has no deletes, a newer row carries the tag; duplicates, user 2026-11-17). */
+    fun cards(): List<Card> = db.rawQuery("SELECT $CARD_COLS FROM cards WHERE (' ' || tags || ' ') NOT LIKE '% $DELETED %'", null).use { c -> buildList { while (c.moveToNext()) add(card(c)) } }
 
     fun card(id: Long): Card? = db.rawQuery("SELECT $CARD_COLS FROM cards WHERE id = ?", arrayOf("$id")).use { if (it.moveToFirst()) card(it) else null }
 
@@ -301,6 +302,8 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
             else -> "k"
         }
 
+        /** The tag of a deleted card ([cards] skips it). */
+        const val DELETED = "kumapie::deleted"
         private const val CARD_COLS = "id, note, ord, word, sentence, meaning, fields, tags, show, episode, scene, created, modified, stability, difficulty, last_review, due"
 
         private fun card(c: Cursor) = Card(

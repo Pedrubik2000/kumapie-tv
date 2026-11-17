@@ -9,6 +9,8 @@ object Colors {
     var accent = Color(0xFFC98A4B)
     /** The picked word's background; null = the word's own colour (the phone). */
     var picked: Color? = null
+    /** The picked word keeps its colour on a soft white box (the phone/tablet Glass look); false = black on [picked]. */
+    var pickedSoft = false
     val text = Color(0xFFF2F0F7)
     val dim = Color(0xFFA9A4B8)
     // Words in subtitles are only white, red, green or blue (no orange, user): white = known (FSRS stability >= 7
@@ -24,3 +26,7 @@ object Colors {
     val levelZero = Color(0xFF7CC47F)
     val levelOne = Color(0xFFE6C463)
 }
+
+/** The tapped word in a line or a definition: see [Colors.pickedSoft]. */
+fun pickedStyle(color: Color) = if (Colors.pickedSoft) androidx.compose.ui.text.SpanStyle(color = color, background = Color.White.copy(alpha = 0.22f))
+    else androidx.compose.ui.text.SpanStyle(color = Color.Black, background = Colors.picked ?: color)

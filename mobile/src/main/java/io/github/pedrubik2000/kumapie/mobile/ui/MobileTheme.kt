@@ -55,6 +55,7 @@ fun MobileTheme(content: @Composable () -> Unit) {
     Colors.background = Glass.page
     Colors.surface = Glass.solid
     Colors.accent = Glass.accent
+    Colors.pickedSoft = true
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = Color.White,

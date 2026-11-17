@@ -161,7 +161,7 @@ private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: 
             "b" -> Colors.mined
             else -> Colors.text
         }
-        withStyle(if (i == selected) SpanStyle(color = Color.Black, background = Colors.picked ?: color) else SpanStyle(color = color)) {
+        withStyle(if (i == selected) pickedStyle(color) else SpanStyle(color = color)) {
             append(seg.text)
         }
     }

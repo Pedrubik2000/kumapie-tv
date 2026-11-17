@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -397,20 +400,21 @@ internal fun ScenePlayer(
                     30 -> Icons.Default.Replay30 to Icons.Default.Forward30
                     else -> Icons.Default.Replay10 to Icons.Default.Forward10
                 }
-                IconButton(onClick = { ctl.seekBy(-seekStep.toDouble()) }, Modifier.size(56.dp).background(Color(0x66000000), CircleShape)) {
+                IconButton(onClick = { ctl.seekBy(-seekStep.toDouble()) }, Modifier.size(64.dp).then(OverVideo)) {
                     Icon(back, tr("Back %d s").format(seekStep), tint = Colors.text, modifier = Modifier.size(32.dp))
                 }
-                Box(Modifier.size(64.dp).background(if (ctl.playing) Color.Transparent else Color(0x66000000), CircleShape),
-                    contentAlignment = Alignment.Center) {
-                    if (!ctl.playing) Icon(Icons.Default.PlayArrow, null, tint = Colors.text, modifier = Modifier.size(40.dp))
+                Box(Modifier.size(80.dp).then(if (ctl.playing) Modifier else OverVideo), contentAlignment = Alignment.Center) {
+                    if (!ctl.playing) Icon(Icons.Default.PlayArrow, null, tint = Colors.text, modifier = Modifier.size(48.dp))
                 }
-                IconButton(onClick = { ctl.seekBy(seekStep.toDouble()) }, Modifier.size(56.dp).background(Color(0x66000000), CircleShape)) {
+                IconButton(onClick = { ctl.seekBy(seekStep.toDouble()) }, Modifier.size(64.dp).then(OverVideo)) {
                     Icon(forward, tr("Forward %d s").format(seekStep), tint = Colors.text, modifier = Modifier.size(32.dp))
                 }
             }
         }
+        // The episode's timeline with times, under the subtitles (user 2026-11-17: a real bar); drag to seek.
+        if (barVisible && !picker.isOpen && !episode.novel) Timeline(ctl, player, Modifier.align(Alignment.BottomCenter))
         // Skip intro / ending: in a long stretch without lines (its own composable: it reads the position every tick).
-        if (!picker.isOpen) SkipButton(ctl, Modifier.align(Alignment.BottomEnd).padding(24.dp), onEnding = onBack)
+        if (!picker.isOpen) SkipButton(ctl, Modifier.align(Alignment.BottomEnd).padding(24.dp).padding(bottom = if (barVisible) 32.dp else 0.dp), onEnding = onBack)
 
         Subtitles(ctl, picker, onAnchor = { anchor = it }, onTap = { tap ->
             when (tap) {
@@ -428,7 +432,7 @@ internal fun ScenePlayer(
                 CardButtons(ctl, picker, onMine = { mining = true })
             }
             MeaningCard(ctl, picker, it, maxWidth = library.settings.popupWidth.dp * if (twoColumns) 2 else 1, onTapDef = picker::tapInDef,
-                ownMeaning = !dictionaries, onClose = { picker.close() }, footer = {
+                ownMeaning = !dictionaries, onClose = { picker.close() }, container = CardGlass, footer = {
                     // The dictionaries get the height the other rows leave, so the buttons stay on screen.
                     DictionaryPanel(library, ctl, picker, if (dictionaries) Modifier.weight(1f, fill = false) else Modifier,
                         side = if (twoColumns) actions else null)
@@ -498,8 +502,10 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Colors.text) }
-        Text("${ctl.episode.show} · ${ctl.episode.title}", color = Colors.text, fontSize = 15.sp, maxLines = 1,
-            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(androidx.compose.ui.text.buildAnnotatedString {
+            withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)) { append(ctl.episode.show) }
+            withStyle(androidx.compose.ui.text.SpanStyle(color = Glass.dim)) { append("   " + ctl.episode.title) }
+        }, color = Colors.text, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         val modes = listOfNotNull(if (ctl.newStraight) tr("skip nothing") else null,
             if (ctl.pauseAtSceneStart) tr("primed") else null, if (ctl.pauseAtSceneEnd) null else tr("plays on"),
             if (ctl.slow) "0.75x" else null)
@@ -507,12 +513,49 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
             modifier = Modifier.padding(horizontal = 8.dp))
         // One scene alone (feed): its place in the episode.
         // Tap: the list of scenes, to jump to one.
-        Text(if (ctl.scenes.size == 1) tr("scene %d", scene.index + 1) else "${scene.index + 1} / ${ctl.scenes.size}",
-            color = Colors.text, fontSize = 15.sp, modifier = if (ctl.scenes.size > 1)
+        Text(if (ctl.scenes.size == 1) tr("scene %d", scene.index + 1) else tr("Scene %1\$d of %2\$d", scene.index + 1, ctl.scenes.size),
+            color = Colors.text, fontSize = 18.sp, modifier = if (ctl.scenes.size > 1)
                 Modifier.clickable(onClick = onScenes).padding(horizontal = 6.dp, vertical = 8.dp) else Modifier)
         LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 10.dp))
         IconButton(onClick = onOptions) { Icon(Icons.Default.MoreVert, tr("Options"), tint = Colors.text) }
     }
+}
+
+/** A round control over the video: dark see-through with the Glass border (white glass alone vanished on bright frames). */
+private val OverVideo = Modifier.background(Color(0x59000000), CircleShape).border(1.dp, Glass.line, CircleShape)
+
+/** The word card (Glass, radius 22): nearly opaque, so the dictionary's own page inside it doesn't show as a box. */
+private val CardGlass = RoundedCornerShape(22.dp).let { Modifier.clip(it).background(Glass.solid.copy(alpha = 0.94f)).border(1.dp, Glass.line, it) }
+
+/** Position, the episode's timeline, its length. Dragging shows where it will land; letting go seeks there. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun Timeline(ctl: SceneController, player: ExoPlayer, modifier: Modifier) {
+    // Before the video is ready its length is unknown: the last scene's end (ctl.position redraws this, then it's exact).
+    val total = player.duration.takeIf { it > 0 }?.div(1000.0) ?: ctl.scenes.lastOrNull()?.end?.takeIf { it > 0 } ?: return
+    var drag by remember { mutableStateOf<Float?>(null) }
+    val at = drag?.let { it * total } ?: ctl.position
+    Row(modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(clock(at), color = Colors.text, fontSize = 15.sp)
+        val colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White,
+            inactiveTrackColor = Color.White.copy(alpha = 0.3f))
+        // A thin line and a round knob (the mockup), not Material's thick split track.
+        androidx.compose.material3.Slider(
+            value = drag ?: (ctl.position / total).toFloat().coerceIn(0f, 1f),
+            onValueChange = { drag = it },
+            onValueChangeFinished = { drag?.let { ctl.seekTo(it * total) }; drag = null },
+            colors = colors,
+            thumb = { Box(Modifier.size(20.dp).background(Color.White, CircleShape)) },
+            track = { androidx.compose.material3.SliderDefaults.Track(it, Modifier.height(4.dp), colors = colors,
+                drawStopIndicator = null, thumbTrackGapSize = 0.dp) },
+            modifier = Modifier.weight(1f).height(36.dp).padding(horizontal = 16.dp),
+        )
+        Text(clock(total), color = Colors.text, fontSize = 15.sp)
+    }
+}
+
+private fun clock(seconds: Double) = seconds.toInt().let { s ->
+    if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
 }
 
 @Composable

@@ -24,12 +24,15 @@ class Srs(context: Context, person: String, lang: Lang) {
         fun newId(timeMs: Long = System.currentTimeMillis()) = timeMs * 1000 + Random.nextInt(1000)
 
         val SCHEMA = listOf(
-            // word/forms as the Mined note has them; ord: kuma3's card ordinal (Japanese notes have several cards).
-            // Text only: no images, audio or video. modified = newest edit wins on sync.
+            // FSRS parameters ("params", JSON array of 21) and where they came from.
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            // word = the Mined note's Word field as is (German keeps its forms: "verstehe[→ verstehen]");
+            // ord: kuma3's card ordinal; fields = the note's other text fields (JSON). Text only: no images, audio
+            // or video. modified = newest edit wins on sync.
             """CREATE TABLE cards (
-                id INTEGER PRIMARY KEY, note INTEGER NOT NULL, ord INTEGER NOT NULL DEFAULT 0,
-                word TEXT NOT NULL, forms TEXT NOT NULL DEFAULT '', sentence TEXT NOT NULL DEFAULT '',
-                meaning TEXT NOT NULL DEFAULT '', show TEXT, episode TEXT, scene INTEGER,
+                id INTEGER PRIMARY KEY, note INTEGER NOT NULL, ord INTEGER NOT NULL DEFAULT 0, lang TEXT NOT NULL,
+                word TEXT NOT NULL, sentence TEXT NOT NULL DEFAULT '', meaning TEXT NOT NULL DEFAULT '',
+                fields TEXT NOT NULL DEFAULT '{}', show TEXT, episode TEXT, scene INTEGER,
                 created INTEGER NOT NULL, modified INTEGER NOT NULL,
                 stability REAL, difficulty REAL, last_review INTEGER, due INTEGER)""",
             "CREATE UNIQUE INDEX cards_note_ord ON cards(note, ord)",

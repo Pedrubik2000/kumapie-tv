@@ -168,23 +168,32 @@ class SrsCards(private val context: Context) : Cards {
 
     override fun addMedia(pkg: String, file: File, preferredName: String) = ""
 
-    override fun addNote(pkg: String, mid: Long, fields: List<String>, tags: List<String>, deck: Long): Long {
-        val lang = Lang.ALL[deck.toInt()]
-        val f = fields(Lang.ALL[mid.toInt()]).zip(fields).toMap()
+    override fun addNote(pkg: String, mid: Long, fields: List<String>, tags: List<String>, deck: Long): Long =
+        mine(Lang.ALL[deck.toInt()], fields(Lang.ALL[mid.toInt()]).zip(fields).toMap(), tags.joinToString(" "))
+
+    /** A card from the 🐻 note type's fields by name (kumapie's Miner, or Hoshi/chimahon through the provider); answers its id. */
+    fun mine(lang: Lang, f: Map<String, String>, tags: String): Long {
         val ctx = CONTEXT.find(f["Context"].orEmpty())
         val s = requireNotNull(store(lang)) { "no person on this device" }
         return s.addCard(text(f["Word"]), text(f["Sentence"]), text(f[KnownWords.DEF_BI]), ctx?.groupValues?.get(1)?.unescape(),
-            ctx?.groupValues?.get(2)?.unescape(), ctx?.groupValues?.get(3)?.toIntOrNull(), rest(f), tags.joinToString(" ")).id.also { syncSoon(lang) }
+            ctx?.groupValues?.get(2)?.unescape(), ctx?.groupValues?.get(3)?.toIntOrNull(), rest(f), tags).id.also { syncSoon(lang) }
     }
 
     override fun updateNote(pkg: String, nid: Long, tags: Set<String>, fields: List<String>?) {
+        val c = stores().firstNotNullOfOrNull { (_, s) -> s.cards().firstOrNull { it.note == nid } } ?: return
+        update(nid, fields?.let { names(c).zip(it).toMap() } ?: note(c).fields, tags.joinToString(" "))
+    }
+
+    /** A card's fields replaced by name (the others kept; [tags] null = kept); false when no card has that note id. */
+    fun update(nid: Long, fields: Map<String, String>, tags: String?): Boolean {
         for ((_, s) in stores()) {
             val c = s.cards().firstOrNull { it.note == nid } ?: continue
-            val f = fields?.let { names(c).zip(it).toMap() } ?: note(c).fields
-            s.updateCard(c.id, text(f["Word"]), text(f["Sentence"]), text(f[KnownWords.DEF_BI]), rest(f), tags.joinToString(" "))
+            val f = note(c).fields + fields
+            s.updateCard(c.id, text(f["Word"]), text(f["Sentence"]), text(f[KnownWords.DEF_BI]), rest(f), tags ?: c.tags)
             syncSoon(s.lang)
-            return
+            return true
         }
+        return false
     }
 
     override fun flag(pkg: String, nid: Long, ord: Int, flag: Int) = Unit

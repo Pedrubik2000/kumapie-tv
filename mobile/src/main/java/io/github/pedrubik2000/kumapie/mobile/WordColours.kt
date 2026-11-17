@@ -150,6 +150,7 @@ class WordColours : ContentProvider() {
             }.getOrDefault("{\"error\": true}") // no PC: the caller shows no box (check) or "couldn't ask" (vote)
             return android.os.Bundle().apply { putString("json", json) }
         }
+        if (method == "mine" || method == "update") return mine(ctx, method, extras)
         val known = japanese.known
         val out = android.os.Bundle()
         runBlocking {
@@ -195,6 +196,29 @@ class WordColours : ContentProvider() {
     /** [text]'s first word as [query] splits it (its dictionary form), or null. */
     private fun pageWord(text: String): String? =
         if (text.isEmpty() || !japanese.model.isReady) null else words(text).firstOrNull()?.base
+
+    /**
+     * Cards Hoshi and chimahon mine (kumapie_plan.md "own Anki", step 5): extras `deck` (the deck they were set to),
+     * `fields` (JSON: the 🐻 note type's fields by name), `tags` (space-separated); "update" also `note`. When the deck
+     * is a Mined deck whose cards kumapie keeps for this person, the card goes into kumapie's store (text only) ->
+     * `note`; "update" -> `updated`. Otherwise an empty answer: the caller adds it to kuma3 as before.
+     */
+    private fun mine(ctx: android.content.Context, method: String, extras: android.os.Bundle?): android.os.Bundle {
+        val out = android.os.Bundle()
+        val lang = io.github.pedrubik2000.kumapie.data.Lang.ALL.firstOrNull { it.deck == extras?.getString("deck") } ?: return out
+        val srs = io.github.pedrubik2000.kumapie.lang.Cards.get(ctx).srs
+        if (!srs.active(lang)) return out
+        val fields = org.json.JSONObject(extras!!.getString("fields") ?: "{}").let { o -> o.keys().asSequence().associateWith { o.getString(it) } }
+        if (method == "update") {
+            out.putBoolean("updated", srs.update(extras.getLong("note"), fields, extras.getString("tags")))
+            return out
+        }
+        val nid = srs.mine(lang, fields, extras.getString("tags").orEmpty())
+        if (lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) runBlocking { japanese.known.addNote(nid) } // blue at once
+        android.util.Log.i("kumapie", "mined from $callingPackage: ${fields["Word"]} into ${lang.deck}")
+        out.putLong("note", nid)
+        return out
+    }
 
     companion object {
         private const val CACHED = 2000

@@ -56,7 +56,7 @@ class Miner(
     /** The PC (kumapie-server), which cuts what this device can't decode ([cutOnPc]); "" = none. */
     private val server: String = "",
 ) {
-    private val anki = AnkiCards(context)
+    private val anki: Cards = Cards.get(context)
     private val dir = File(context.cacheDir, "mining")
     /** One card at a time: mines share [dir]'s files (clip.webm, line.ogg); two at once broke a clip ("Muxer error"). */
     private val lock = Mutex()
@@ -171,6 +171,7 @@ class Miner(
         val fields = HashMap<String, String>()
         val startMs = ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
         val endMs = ((cues.last().end + 0.25) * 1000).toLong()
+        if (pkg != SrsCards.PKG) { // kumapie's own cards are text only: no audio, clip or picture to cut
         progress(tr("Cutting the line's audio…"))
         val lineFile = File(dir, if (opus) "line.ogg" else "line.m4a").apply { delete() }
         cutOnPc(r, startMs, endMs, lineFile) { audioClip(r.episode.video, startMs, endMs, lineFile, r.episode.lang) }
@@ -193,6 +194,7 @@ class Miner(
                 fields["Image"] = "<img src=\"${anki.addMedia(pkg, it, "${slug}_$startMs")}\">"
                 it.delete()
             }
+        }
         }
         progress(tr("Adding to Anki…"))
         val surface = r.word?.surface
@@ -280,7 +282,7 @@ class Miner(
         w.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
         val recorded = w.audio ?: japanese.audio.recording(expression, w.reading.orEmpty())
         val wav = File(dir, "word.wav").apply { delete() }
-        val audio = recorded ?: wav.takeIf { japanese.voice.toFile(expression, it, w.reading) } // as written (箸, not はし): the voice's dictionary gives the accent
+        val audio = if (pkg == SrsCards.PKG) null else recorded ?: wav.takeIf { japanese.voice.toFile(expression, it, w.reading) } // as written (箸, not はし): the voice's dictionary gives the accent
         audio?.let { fields["Word Audio"] = "[audio:${addAudio(pkg, it, "kumapie-ja-${expression}")}]" }
         return expression to reading
     }
@@ -298,6 +300,7 @@ class Miner(
      * that is .ogg already goes as it is; when Opus can't be made, the file itself (a card beats a small file).
      */
     suspend fun addAudio(pkg: String, file: File, name: String): String {
+        if (pkg == SrsCards.PKG) return "" // kumapie's own cards are text only
         if (file.extension == "ogg" || !opus) return anki.addMedia(pkg, file, name)
         val ogg = File(dir.apply { mkdirs() }, "audio.ogg").apply { delete() }
         return try {

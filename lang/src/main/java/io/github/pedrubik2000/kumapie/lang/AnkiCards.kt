@@ -14,16 +14,16 @@ import java.io.File
  * through AnkiDroid's content provider, and adds the cards mined in kumapie ([Miner]). Each AnkiDroid build has its own provider and permission,
  * named after its app id: kuma3 Anki is `io.github.pedrubik2000.kuma3` (its old test build `com.ichi2.anki.debug`).
  */
-class AnkiCards(private val context: Context) {
+class AnkiCards(private val context: Context) : Cards {
 
     /** The AnkiDroid builds installed here, in order of preference. */
-    fun installed(): List<String> = PACKAGES.filter {
+    override fun installed(): List<String> = PACKAGES.filter {
         context.packageManager.resolveContentProvider("$it.flashcards", 0) != null
     }
 
-    fun permission(pkg: String) = "$pkg.permission.READ_WRITE_DATABASE"
+    override fun permission(pkg: String) = "$pkg.permission.READ_WRITE_DATABASE"
 
-    fun hasPermission(pkg: String) = context.checkSelfPermission(permission(pkg)) == PackageManager.PERMISSION_GRANTED
+    override fun hasPermission(pkg: String) = context.checkSelfPermission(permission(pkg)) == PackageManager.PERMISSION_GRANTED
 
     data class Note(val id: Long, val fields: Map<String, String>, val tags: Set<String>)
 
@@ -32,7 +32,7 @@ class AnkiCards(private val context: Context) {
                     val reps: Int = 0, val lapses: Int = 0, val ord: Int = 0, val type: Int = 0)
 
     /** Notes found by an Anki search (`"deck:Deutsch Mined"`), with their fields by name. */
-    fun notes(pkg: String, search: String): List<Note> {
+    override fun notes(pkg: String, search: String): List<Note> {
         val names = HashMap<Long, List<String>>()
         val out = ArrayList<Note>()
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/notes"), arrayOf("_id", "mid", "flds", "tags"),
@@ -48,7 +48,7 @@ class AnkiCards(private val context: Context) {
     }
 
     /** Cards found by an Anki search: reviewed or new, and FSRS stability (days) when it has one. */
-    fun cards(pkg: String, search: String): List<Card> {
+    override fun cards(pkg: String, search: String): List<Card> {
         val out = ArrayList<Card>()
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/cards"), arrayOf("_id", "note_id", "type", "fsrs_stability", "due", "reps", "lapses", "ord"),
             search, null, null)?.use { c ->
@@ -64,14 +64,14 @@ class AnkiCards(private val context: Context) {
      * The cards kuma3 would show today (its provider's `kuma3/due`: the deck list's queue, RWKV-Instant aware): card id ->
      * "new" | "learn" | "review". Null when this Anki doesn't have it (older kuma3, AnkiDroid).
      */
-    fun due(pkg: String): Map<Long, String>? = runCatching {
+    override fun due(pkg: String): Map<Long, String>? = runCatching {
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/kuma3/due"), null, null, null, null)?.use { c ->
             HashMap<Long, String>().apply { while (c.moveToNext()) put(c.getLong(0), c.getString(1)) }
         }
     }.onFailure { android.util.Log.w("kumapie", "kuma3 queue not read: $it") }.getOrNull()
 
     /** Answers a card as kuma3's reviewer does (FSRS-7, RWKV and the review log see it); [ease] 1 Again .. 4 Easy. */
-    fun answer(pkg: String, noteId: Long, ord: Int, ease: Int, ms: Long) {
+    override fun answer(pkg: String, noteId: Long, ord: Int, ease: Int, ms: Long, watch: Srs.Watch?) {
         context.contentResolver.update(Uri.parse("content://$pkg.flashcards/schedule"), ContentValues().apply {
             put("note_id", noteId)
             put("ord", ord)
@@ -81,14 +81,14 @@ class AnkiCards(private val context: Context) {
     }
 
     /** What kuma3's Undo would undo now ("" nothing; its provider's `kuma3/undo`). */
-    fun undoLabel(pkg: String): String = runCatching {
+    override fun undoLabel(pkg: String): String = runCatching {
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/kuma3/undo"), null, null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else ""
         }
     }.getOrNull().orEmpty()
 
     /** kuma3's Undo, once. */
-    fun undo(pkg: String) {
+    override fun undo(pkg: String) {
         context.contentResolver.update(Uri.parse("content://$pkg.flashcards/kuma3/undo"), ContentValues(), null, null)
     }
 
@@ -96,12 +96,12 @@ class AnkiCards(private val context: Context) {
      * Asks kuma3 to sync with AnkiWeb in the background (its provider's `kuma3/sync`, kuma3 after 2026-11-09): false
      * without an AnkiWeb login there, or with an older kuma3.
      */
-    fun sync(pkg: String): Boolean = runCatching {
+    override fun sync(pkg: String): Boolean = runCatching {
         context.contentResolver.update(Uri.parse("content://$pkg.flashcards/kuma3/sync"), ContentValues(), null, null) > 0
     }.getOrDefault(false)
 
     /** When kuma3 last synced (epoch ms); null when it can't say (an older kuma3). */
-    fun lastSync(pkg: String): Long? = runCatching {
+    override fun lastSync(pkg: String): Long? = runCatching {
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/kuma3/sync"), null, null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getLong(0) else null
         }
@@ -110,7 +110,7 @@ class AnkiCards(private val context: Context) {
     // ------------------------------------------------------------------ writing (mining)
 
     /** The id of the first note type found by name (e.g. "🐻 German", then "🇩🇪 MvJ"), and its field names. */
-    fun noteType(pkg: String, names: List<String>): Pair<Long, List<String>>? {
+    override fun noteType(pkg: String, names: List<String>): Pair<Long, List<String>>? {
         val found = HashMap<String, Long>()
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/models"), arrayOf("_id", "name"), null, null, null)?.use { c ->
             while (c.moveToNext()) found[c.getString(1)] = c.getLong(0)
@@ -120,7 +120,7 @@ class AnkiCards(private val context: Context) {
     }
 
     /** The deck's id, made when it doesn't exist ("Deutsch Mined"). */
-    fun deck(pkg: String, name: String): Long {
+    override fun deck(pkg: String, name: String): Long {
         context.contentResolver.query(Uri.parse("content://$pkg.flashcards/decks"), arrayOf("deck_id", "deck_name"), null, null, null)?.use { c ->
             while (c.moveToNext()) if (c.getString(1) == name) return c.getLong(0)
         }
@@ -130,7 +130,7 @@ class AnkiCards(private val context: Context) {
     }
 
     /** Puts a file into Anki's media folder; answers the name Anki gave it (for "[audio:name]"). */
-    fun addMedia(pkg: String, file: File, preferredName: String): String {
+    override fun addMedia(pkg: String, file: File, preferredName: String): String {
         val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
         context.grantUriPermission(pkg, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         try {
@@ -145,7 +145,7 @@ class AnkiCards(private val context: Context) {
     }
 
     /** Adds a note (fields in the note type's order) and puts its cards in [deck]; answers the note id. */
-    fun addNote(pkg: String, mid: Long, fields: List<String>, tags: List<String>, deck: Long): Long {
+    override fun addNote(pkg: String, mid: Long, fields: List<String>, tags: List<String>, deck: Long): Long {
         val uri = context.contentResolver.insert(Uri.parse("content://$pkg.flashcards/notes"), ContentValues().apply {
             put("mid", mid)
             put("flds", fields.joinToString(SEPARATOR))
@@ -172,7 +172,7 @@ class AnkiCards(private val context: Context) {
         ContentValues().apply { put("kuma3_new_due", org.json.JSONObject(dues.mapKeys { it.key.toString() }).toString()) }, null, null)
 
     /** A note's tags, and its fields (in order) when [fields] is given. */
-    fun updateNote(pkg: String, nid: Long, tags: Set<String>, fields: List<String>?) {
+    override fun updateNote(pkg: String, nid: Long, tags: Set<String>, fields: List<String>?) {
         context.contentResolver.update(Uri.parse("content://$pkg.flashcards/notes/$nid"), ContentValues().apply {
             put("tags", tags.joinToString(" "))
             if (fields != null) put("flds", fields.joinToString(SEPARATOR))
@@ -191,7 +191,7 @@ class AnkiCards(private val context: Context) {
      * A fresh collection (the parents' kuma3) gets [lang]'s note type from kumapie's copy of Pedro's
      * (`assets/notetypes/<code>.json`: fields, one template, CSS). Answers (id, fields), or null without a copy.
      */
-    fun addBundledNoteType(pkg: String, lang: io.github.pedrubik2000.kumapie.data.Lang): Pair<Long, List<String>>? {
+    override fun addBundledNoteType(pkg: String, lang: io.github.pedrubik2000.kumapie.data.Lang): Pair<Long, List<String>>? {
         val json = runCatching { context.assets.open("notetypes/${lang.code}.json").use { it.readBytes().toString(Charsets.UTF_8) } }
             .getOrNull() ?: return null
         val nt = org.json.JSONObject(json)
@@ -220,7 +220,7 @@ class AnkiCards(private val context: Context) {
     }
 
     /** Sets a card's flag (2 = orange: changed by kumapie, as the PC's improve-card does). */
-    fun flag(pkg: String, nid: Long, ord: Int, flag: Int) {
+    override fun flag(pkg: String, nid: Long, ord: Int, flag: Int) {
         context.contentResolver.update(Uri.parse("content://$pkg.flashcards/notes/$nid/cards/$ord"),
             ContentValues().apply { put("flags", flag) }, null, null)
     }

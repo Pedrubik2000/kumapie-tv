@@ -69,6 +69,8 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
                scope: CoroutineScope, busy: MutableState<Boolean>,
                /** The player's line ([Rating.at]); null in the dictionary screen. */
                at: Miner.Request? = null,
+               /** Where it was rated (kumapie's own cards keep it); null in the dictionary screen. */
+               watch: io.github.pedrubik2000.kumapie.lang.Srs.Watch? = null,
                /** Called after the index changed (the player recolours its words). */
                repaint: () -> Unit = {}) {
     if (known.cardIndex.due == null) return // an Anki without kuma3/due: no rows
@@ -112,7 +114,7 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
                                 if (!made) return@rating
                                 known.reloadCards()
                             }
-                            val done = known.rate(f.key, i + 1, System.currentTimeMillis() - opened)
+                            val done = known.rate(f.key, i + 1, System.currentTimeMillis() - opened, watch)
                             if (done != null) { ratings[f.key] = Rating(done, tr("Answered: %s", tr(label)), at); count(done.cards); said.remove(f.key) }
                             else said[f.key] = tr("kuma3 didn't take the rating.")
                         }

@@ -12,6 +12,7 @@ import java.io.File
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
+import android.util.Log
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -117,6 +118,24 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         })
     }
 
+    /** A card's text changed here (Improve, a fixed sentence): newest edit wins on sync. */
+    fun updateCard(id: Long, word: String, sentence: String, meaning: String, fields: String, tags: String, now: Long = System.currentTimeMillis()) {
+        db.beginTransaction()
+        try {
+            db.update("cards", ContentValues().apply {
+                put("word", word); put("sentence", sentence); put("meaning", meaning); put("fields", fields); put("tags", tags); put("modified", now)
+            }, "id = ?", arrayOf("$id"))
+            db.insertWithOnConflict("outbox", null, ContentValues().apply { put("kind", "cards"); put("id", id) }, SQLiteDatabase.CONFLICT_IGNORE)
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+
+    /** Card id -> (ratings standing, Agains), as kuma3's reps and lapses. */
+    fun counts(): Map<Long, Pair<Int, Int>> = HashMap<Long, Pair<Int, Int>>().apply {
+        db.rawQuery("SELECT card, SUM(CASE WHEN rating > 0 THEN 1 ELSE -1 END), SUM(rating = 1) FROM revlog GROUP BY card", null)
+            .use { c -> while (c.moveToNext()) put(c.getLong(0), c.getInt(1) to c.getInt(2)) }
+    }
+
     /** The cached state of these cards (null = all) again from their revlog, after a sync brought other devices' rows. */
     fun replayAll(only: Set<Long>? = null) {
         val rows = HashMap<Long, MutableList<Pair<Long, Int>>>()
@@ -140,6 +159,20 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         val body = JSONObject().put("since", meta("sync_seq")?.toLong() ?: 0L)
         for (t in SYNCED) body.put(t, JSONArray(out.filter { it.first == t }.mapNotNull { row(t, it.second) }))
         val got = post(body)
+        // The PC's store was made again (a new kuma3 import, before the switch): start over from it.
+        val imported = got.optJSONObject("meta")?.optString("imported_from")?.takeIf { it.isNotEmpty() }
+        val mine = meta("imported_from")
+        if (imported != null && mine != null && imported != mine) {
+            Log.w("kumapie", "srs ${lang.code}: the PC's store is new ($mine -> $imported): downloading it again")
+            db.beginTransaction()
+            try {
+                for (t in listOf("meta", "cards", "revlog", "exposures", "outbox")) db.execSQL("DROP TABLE $t")
+                SCHEMA.forEach(db::execSQL)
+                db.setTransactionSuccessful()
+            } finally { db.endTransaction() }
+            scheduler = null
+            return@withContext sync(post)
+        }
         val rated = HashSet<Long>()
         var n = 0
         db.beginTransaction()

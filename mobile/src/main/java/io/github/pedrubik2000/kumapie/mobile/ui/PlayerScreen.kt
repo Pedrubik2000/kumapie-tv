@@ -212,6 +212,8 @@ internal fun ScenePlayer(
         }
     }
     val ctl = remember { SceneController(episode, player, settings, backend) }
+    // kumapie's own cards: the carded words heard in each scene played to its end (exposures).
+    remember(ctl) { ctl.onSceneSeen = { s -> library.languages.of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.index, library.settings.subtitles.name.lowercase()) } }
     // A novel's music: its own player, so it goes on while a line waits for the tap; quiet under the voices (0.4 was too loud).
     val bgm = remember { if (!episode.novel) null else ExoPlayer.Builder(context).build().apply { repeatMode = Player.REPEAT_MODE_ONE; volume = 0.25f } }
     val track = if (bgm == null) null else ctl.scene.bgm
@@ -663,7 +665,9 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
     // A word in a definition has no line: its rating doesn't move its card to this scene.
     val at = if (picker.selectedInDef != null) null else io.github.pedrubik2000.kumapie.lang.Miner.Request(ctl.episode, ctl.scene, line,
         io.github.pedrubik2000.kumapie.lang.Miner.Word(segment.text, key, null, ""))
-    RatingRows(language.known, library.settings.prefs, forms, ratings, queueScope, queueBusy, at) { repaintWords(ctl, language.known) }
+    // Rows show after a word was opened: looked up.
+    val watch = io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.index, library.settings.subtitles.name.lowercase(), true, ctl.speed.toDouble())
+    RatingRows(language.known, library.settings.prefs, forms, ratings, queueScope, queueBusy, at, watch) { repaintWords(ctl, language.known) }
 }
 
 /** Mining: a pickaxe (Material has none). Handle up to the right, the curved head across its top. */

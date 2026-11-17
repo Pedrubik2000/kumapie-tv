@@ -118,6 +118,8 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
     val scope = rememberCoroutineScope()
     remember { onPlayer(player) }
     val ctl = remember { SceneController(episode, player, settings, api) }
+    // kumapie's own cards: the carded words heard in each scene played to its end (exposures).
+    remember(ctl) { ctl.onSceneSeen = { s -> sceneHeard(context, settings, ctl, s) } }
     // This TV's kuma3 colours the words it has cards for (a word mined here stays blue the next day, not red).
     val rating = remember { TvRating() }
     // The saved colours at once; then kuma3 syncs (it is never opened on the TV) and its cards are read again.

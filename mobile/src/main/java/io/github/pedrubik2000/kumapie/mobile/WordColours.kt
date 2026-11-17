@@ -158,7 +158,8 @@ class WordColours : ContentProvider() {
             if (method == "mark") known.reloadLists() // the app's marks since, so this one doesn't drop them
             if (method == "rate" || method == "undo") {
                 val pkg = known.ankiApp() ?: return@runBlocking
-                ctx.enforceCallingPermission(known.permission(pkg), "rating kuma3 cards")
+                // kumapie's own cards: READ_WORDS (checked above) lets an app rate too; kuma3's: its own permission.
+                if (pkg != io.github.pedrubik2000.kumapie.lang.SrsCards.PKG) ctx.enforceCallingPermission(known.permission(pkg), "rating kuma3 cards")
             }
             val word = extras?.getString("word").orEmpty()
             val key = CardIndex.japaneseKey(word, extras?.getString("reading").orEmpty())

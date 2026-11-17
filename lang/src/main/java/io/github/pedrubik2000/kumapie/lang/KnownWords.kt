@@ -8,6 +8,7 @@ import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -28,7 +29,8 @@ import java.io.File
  */
 class KnownWords(val context: Context, private val settings: Settings, private val language: Language) {
     val lang: Lang get() = language.lang
-    private val anki = AnkiCards(context)
+    private val anki: Cards = Cards.get(context)
+    private val srs get() = Cards.get(context).srs
     /** This language's parser is downloaded. */
     val modelReady: Boolean get() = language.model.isReady
     private val dir = File(context.filesDir, if (lang == Lang.GERMAN) "known" else "known-${lang.code}").apply { mkdirs() }
@@ -133,7 +135,10 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     val noteTypes = lang.noteTypes
 
     /** The AnkiDroid to read: the first installed one (kuma3 Anki first), or null. */
-    fun ankiApp(): String? = anki.installed().firstOrNull()
+    fun ankiApp(): String? = if (srs.active(lang)) SrsCards.PKG else anki.installed().firstOrNull()
+
+    /** The app the last read came from, or kumapie's store once it is this person's (a saved kuma3 read must not take ratings then). */
+    private fun pkgNow(): String? = if (srs.active(lang)) SrsCards.PKG else lastReading?.pkg
     fun permission(pkg: String) = anki.permission(pkg)
     fun hasPermission(pkg: String) = anki.hasPermission(pkg)
 
@@ -186,14 +191,14 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     /** The word cards again without parsing (a card was just mined here); kuma3's queue as it was (a new card isn't due). */
     suspend fun reloadCards() = withContext(Dispatchers.IO) {
-        val pkg = lastReading?.pkg ?: return@withContext
+        val pkg = pkgNow() ?: return@withContext
         val notes = anki.notes(pkg, search)
         cardIndex.build(notes, anki.cards(pkg, search), cardIndex.due, cardKeys(notes))
     }
 
     /** The note just mined here into the index: on a TV [reloadCards] takes most of a minute, this one note is quick. */
     suspend fun addNote(id: Long) = withContext(Dispatchers.IO) {
-        val pkg = lastReading?.pkg ?: return@withContext
+        val pkg = pkgNow() ?: return@withContext
         cardIndex.add(anki.notes(pkg, "nid:$id"), anki.cards(pkg, "nid:$id"), language::cardKeys)
     }
 
@@ -202,6 +207,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      * [paint] works after it. False without kuma3 or its permission.
      */
     suspend fun readCards(): Boolean = withContext(Dispatchers.IO) {
+        srs.sync(lang) // kumapie's own cards: the other devices' ratings (false, and kuma3 below, for the parents)
         val pkg = ankiApp()?.takeIf { hasPermission(it) } ?: return@withContext false
         val notes = whileAnkiStarts { anki.notes(pkg, search) }
         val cards = anki.cards(pkg, search)
@@ -255,7 +261,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      * [waitMs] it waits that long for the sync to end: true = it synced, so the cards are worth reading again.
      */
     suspend fun syncAnki(waitMs: Long = 0): Boolean = withContext(Dispatchers.IO) {
-        val pkg = lastReading?.pkg ?: return@withContext false
+        val pkg = pkgNow() ?: return@withContext false
         val before = anki.lastSync(pkg)
         val started = anki.sync(pkg)
         Log.i("kumapie", "kuma3 sync: ${if (started) "asked" else "not started (no AnkiWeb login there, or an older kuma3)"}, last synced $before")
@@ -270,7 +276,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
     suspend fun refreshDue(force: Boolean = false) = withContext(Dispatchers.IO) {
-        val pkg = lastReading?.pkg ?: return@withContext
+        val pkg = pkgNow() ?: return@withContext
         if (!force && System.currentTimeMillis() - dueAt < 60_000) return@withContext
         dueAt = System.currentTimeMillis()
         cardIndex.update(emptyList(), anki.due(pkg))
@@ -279,6 +285,23 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** The Anki day of [ms]: days start at 4:00 local time (kuma3's default "next day starts at"). */
     private fun ankiDay(ms: Long) = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).minusHours(4).toLocalDate()
 
+    /** Forms rated since the last [exposed]: their cards weren't just heard. */
+    private val ratedHere = HashSet<String>()
+
+    /**
+     * A scene played to its end (SceneController.onSceneSeen): each card of a word in it that wasn't rated there gets an
+     * exposure in kumapie's own store (kumapie_plan.md "own Anki"; nothing for kuma3 cards). [keys]: the scene's word keys.
+     */
+    fun exposed(keys: Collection<String>, episode: String, scene: Int, subs: String?) {
+        val rated = synchronized(ratedHere) { ratedHere.toSet().also { ratedHere.clear() } }
+        if (!srs.active(lang)) return
+        val store = srs.store(lang) ?: return
+        val cards = (keys.toSet() - rated).flatMap { cardIndex.cards(it) }.map { it.id }.toSet()
+        if (cards.isNotEmpty()) srs.background.launch {
+            runCatching { cards.forEach { store.expose(it, episode, scene, subs) } }.onFailure { Log.w("kumapie", "exposures: $it") }
+        }
+    }
+
     /** A rating from a word card: the notes and how many cards it answered, and kuma3's Undo label right after. */
     class Rated(val notes: List<Long>, val cards: Int, val undoLabel: String)
 
@@ -286,14 +309,15 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      * Rates the form's own cards in kuma3 ([CardIndex.toAnswer]: every due one, else the first) with [ease] (1 Again ..
      * 4 Easy), [ms] since the word card opened (kuma3 caps it as its reviewer does); null when kuma3 took none.
      */
-    suspend fun rate(form: String, ease: Int, ms: Long): Rated? = withContext(Dispatchers.IO) {
-        val pkg = lastReading?.pkg ?: return@withContext null
+    suspend fun rate(form: String, ease: Int, ms: Long, watch: Srs.Watch? = null): Rated? = withContext(Dispatchers.IO) {
+        val pkg = pkgNow() ?: return@withContext null
+        synchronized(ratedHere) { ratedHere += form }
         // kuma3's first queue read on a new day (4:00) clears its Undo (rslib clear_queues_if_day_changed): read it before
         // the first rating of the day, not right after it, or that rating can't be undone.
         if (ankiDay(dueAt) != ankiDay(System.currentTimeMillis())) refreshDue(force = true)
         val answer = cardIndex.toAnswer(form)
         if (answer.isEmpty()) return@withContext null // no card of its own found (a Word field kumapie can't match)
-        for (c in answer) anki.answer(pkg, c.noteId, c.ord, ease, ms)
+        for (c in answer) anki.answer(pkg, c.noteId, c.ord, ease, ms, watch)
         val notes = answer.map { it.noteId }.distinct()
         val fetched = cardsOf(pkg, notes)
         // kuma3's provider only logs an answer it refused: count the cards whose reviews went up.
@@ -303,6 +327,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         cardIndex.update(fetched, cardIndex.due?.minus(answered))
         val label = anki.undoLabel(pkg)
         Log.i("kumapie", "rate: $form ease $ease, ${answered.size} of ${answer.size} cards answered, kuma3 Undo: '$label'")
+        if (pkg == SrsCards.PKG && answered.isNotEmpty()) srs.syncSoon(lang) // to the PC and the other devices now
         if (answered.isEmpty()) null else Rated(notes, answered.size, label)
     }
 
@@ -312,7 +337,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      * (its provider doesn't say: the cards' reviews must go down).
      */
     suspend fun undo(r: Rated): Boolean = withContext(Dispatchers.IO) {
-        val pkg = lastReading?.pkg ?: return@withContext false
+        val pkg = pkgNow() ?: return@withContext false
         val label = anki.undoLabel(pkg)
         Log.i("kumapie", "undo: kuma3 says '$label', the rating said '${r.undoLabel}', ${r.cards} cards")
         if (r.undoLabel.isEmpty() || label != r.undoLabel) return@withContext false
@@ -322,6 +347,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         cardIndex.update(after, cardIndex.due) // the queue comes with the player's next read
         val undone = after.count { it.reps < (before[it.id] ?: 0) }
         Log.i("kumapie", "undo: $undone of ${r.cards} reviews taken back, kuma3 now says '${anki.undoLabel(pkg)}'")
+        if (pkg == SrsCards.PKG && undone > 0) srs.syncSoon(lang)
         undone > 0
     }
 
@@ -379,6 +405,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     suspend fun refresh(): Result<Snapshot> = lock.withLock {
         withContext(Dispatchers.IO) {
             runCatching {
+                srs.sync(lang)
                 val pkg = ankiApp() ?: error(tr("No AnkiDroid found on this device."))
                 if (!hasPermission(pkg)) error(tr("kumapie may not read Anki yet: allow it in Settings."))
                 if (!modelReady) error(if (lang == Lang.JAPANESE) tr("The %s dictionary isn't downloaded yet.", lang.displayName)

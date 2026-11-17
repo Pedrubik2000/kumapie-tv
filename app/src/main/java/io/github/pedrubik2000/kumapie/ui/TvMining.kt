@@ -43,7 +43,6 @@ import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
-import io.github.pedrubik2000.kumapie.lang.AnkiCards
 import io.github.pedrubik2000.kumapie.lang.CardDefinition
 import io.github.pedrubik2000.kumapie.lang.Dictionary
 import io.github.pedrubik2000.kumapie.lang.GlossaryHtml
@@ -383,13 +382,15 @@ fun mineWord(context: Context, api: Api, settings: Settings, ctl: SceneControlle
             return say(tr("Getting the Japanese dictionaries from the PC (once, a few minutes): hold ↑ again after"))
         }
     }
-    val anki = AnkiCards(context)
-    val pkg = anki.installed().firstOrNull() ?: return say(tr("No kuma3 Anki on this device."))
+    val anki = io.github.pedrubik2000.kumapie.lang.Cards.get(context)
+    // kumapie's own cards for a person whose store came from the PC, else kuma3 (the parents)
+    val pkg = TvMining.languages.of(ctl.lang).known.ankiApp() ?: return say(tr("No kuma3 Anki on this device."))
     if (!anki.hasPermission(pkg)) {
         (context as? Activity)?.requestPermissions(arrayOf(anki.permission(pkg)), 1)
         return say(tr("Allow kumapie to use Anki, then hold ↑ again"))
     }
     TvMining.mined[key]?.let { note ->
+        if (pkg == io.github.pedrubik2000.kumapie.lang.SrsCards.PKG) return say(tr("Added to %s", ctl.lang.deck)) // no kuma3 previewer for these
         // kuma3's Kuma3Screens "preview" (kuma3 builds before 2026-10-16 ignore it)
         val preview = android.content.Intent("com.ichi2.anki.kuma3.OPEN_SCREEN").setPackage(pkg)
             .putExtra("screen", "preview").putExtra("note_id", note)
@@ -480,6 +481,10 @@ suspend fun syncAnki(context: Context, settings: Settings, ctl: SceneController,
     val synced = runCatching { language.known.syncAnki(if (wait) 90_000 else 0) }.onFailure { Log.w("kumapie", "kuma3 sync: $it") }.getOrDefault(false)
     if (synced && !busy()) paintCards(context, settings, ctl)
 }
+
+/** A scene played to its end on the TV: its carded words heard, for kumapie's own cards (exposures). */
+fun sceneHeard(context: Context, settings: Settings, ctl: SceneController, s: io.github.pedrubik2000.kumapie.data.Scene) =
+    TvMining.languages(context, settings).of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.index, settings.subtitles.name.lowercase())
 
 /** [syncAnki] when leaving the player: outlives it. */
 fun syncAnkiLater(context: Context, settings: Settings, ctl: SceneController) {
@@ -577,7 +582,7 @@ fun rateWord(context: Context, api: Api, settings: Settings, ctl: SceneControlle
     rating.busy = true
     scope.launch {
         try {
-            val done = language.known.rate(form, ease, ms)
+            val done = language.known.rate(form, ease, ms, io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.index, settings.subtitles.name.lowercase(), null, ctl.speed.toDouble()))
             if (done == null) say(tr("kuma3 didn't take the rating."))
             else {
                 rating.last = form to done

@@ -94,6 +94,14 @@ class SceneController(
 
     /** Seen before (any device) or since the episode opened: a novel's Skip goes through these. */
     fun wasSeen(s: Scene) = s.seen || s.id in seenHere
+
+    /** Called once per scene the first time it plays to its end here (kumapie's own cards log the words heard in it). */
+    var onSceneSeen: ((Scene) -> Unit)? = null
+
+    private fun seen(s: Scene) {
+        seenNew += s.id
+        if (seenHere.add(s.id)) onSceneSeen?.invoke(s)
+    }
     /** The position last sent to the server, so a paused player doesn't send the same one every 20 s. */
     private var reportedPos = episode.resume
     /** Something played since the episode opened (a scene opened from i+1 and left at once didn't). */
@@ -305,6 +313,8 @@ class SceneController(
         if (p != clockPos || !player.isPlaying) { clockPos = p; clockAt = now }
         return clockPos + (now - clockAt) / 1000.0 * player.playbackParameters.speed
     }
+    /** The playback speed now (a rating keeps it: kumapie_plan.md "own Anki"). */
+    val speed: Float get() = player.playbackParameters.speed
     private var clockPos = -1.0
     private var clockAt = 0L
 
@@ -321,14 +331,14 @@ class SceneController(
         lastTick = now
         if (scenes.isEmpty()) return
 
-        if (playing && position >= scene.end) { seenNew += scene.id; seenHere += scene.id }
+        if (playing && position >= scene.end) seen(scene)
         stopAt?.let { stop ->
             if (playing && position >= stop) {
                 player.pause()
                 playing = false
                 atSceneEnd = stopIsSceneEnd
                 stopAt = null
-                if (atSceneEnd) { seenNew += scene.id; seenHere += scene.id }
+                if (atSceneEnd) seen(scene)
             }
         }
         // After the stop: a next scene starting at (or within a tick of) this one's end moved on first and replaced

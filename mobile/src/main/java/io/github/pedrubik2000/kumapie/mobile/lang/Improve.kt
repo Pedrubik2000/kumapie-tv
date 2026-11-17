@@ -21,7 +21,7 @@ import java.io.File
 class Improve(private val library: Library, lang: String) {
     private val language = library.languages.of(lang)
     private val known = language.known
-    private val anki = AnkiCards(known.context)
+    private val anki: io.github.pedrubik2000.kumapie.lang.Cards = io.github.pedrubik2000.kumapie.lang.Cards.get(known.context)
     private val japanese = language as? Japanese
 
     class Struggling(val note: AnkiCards.Note, val cards: List<AnkiCards.Card>, val word: String, val reading: String?,

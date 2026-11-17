@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -133,11 +135,12 @@ private fun EpisodeCard(ep: Episode, blur: Boolean, onClick: () -> Unit, onLongC
                 // The episode's own title only once watched (titles can spoil).
                 Text(if (ep.watched && ep.episodeTitle.isNotBlank()) "${ep.title} · ${ep.episodeTitle}" else ep.title,
                     fontSize = 20.sp, color = Colors.text, style = Arcade.label)
-                Text(((if (ep.easy > 0) tr("%1\$d min · %2\$d scenes · %3\$d easy today", minutes(ep.duration), ep.scenes, ep.easy)
-                    else tr("%1\$d min · %2\$d scenes", minutes(ep.duration), ep.scenes)) +
-                    (if (ep.seen > 0) tr(" · %d seen", ep.seen) else "")).replace(" · ", " · "), // a wrap starts a line with "·", never ends one
-                    fontSize = 14.sp, color = Colors.dim,
-                    modifier = Modifier.padding(vertical = 6.dp))
+                Text(if (ep.easy > 0) tr("%1\$d min · %2\$d scenes · %3\$d easy today", minutes(ep.duration), ep.scenes, ep.easy)
+                    else tr("%1\$d min · %2\$d scenes", minutes(ep.duration), ep.scenes), fontSize = 14.sp, color = Colors.dim,
+                    modifier = Modifier.padding(top = 6.dp))
+                // Seen on its own line: added to the one above it wrapped to a line starting with "·".
+                if (ep.seen > 0) Text(tr(" · %d seen", ep.seen).removePrefix(" · "), fontSize = 14.sp, color = Colors.dim)
+                Spacer(Modifier.height(6.dp))
                 val resume = ep.resume
                 if (resume != null && ep.duration > 0) {
                     ProgressBar((resume / ep.duration).toFloat(), Modifier.fillMaxWidth(0.6f))

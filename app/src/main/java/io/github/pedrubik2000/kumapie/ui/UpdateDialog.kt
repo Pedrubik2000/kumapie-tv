@@ -58,7 +58,7 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
         Column(Modifier.width(640.dp).arcadePanel().padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Title("kumapie ${release.version} ", "is out", fontSize = 26.sp)
+            Title("kumapie ${release.version} ", tr("is out"), fontSize = 26.sp)
             Text(tr("You have %s.", BuildConfig.VERSION_NAME), color = Colors.dim)
             if (release.notes.isNotBlank()) Text(release.notes.take(600), color = Colors.text, fontSize = 15.sp)
             if (progress >= 0f) ProgressBar(progress, Modifier.fillMaxWidth())

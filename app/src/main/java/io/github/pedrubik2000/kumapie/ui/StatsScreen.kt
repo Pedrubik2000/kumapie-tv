@@ -125,7 +125,11 @@ private fun StatsContent(s: Stats) {
                         s.topLookups.forEach { t ->
                             Row {
                                 Text("${t.times}×", color = Colors.learning, fontSize = 16.sp, modifier = Modifier.width(56.dp))
-                                Text(t.meaning.ifBlank { t.word }, color = Colors.text, fontSize = 16.sp)
+                                // The word, then its meaning: the meaning alone ("Este, esta.") hid which word it was.
+                                Text(t.word, color = Colors.text, fontSize = 16.sp, modifier = Modifier.width(200.dp), maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                if (t.meaning.isNotBlank()) Text(t.meaning, color = Colors.dim, fontSize = 16.sp, maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -164,7 +168,7 @@ private fun Heatmap(days: Map<String, Double>, today: LocalDate, modifier: Modif
     val months = remember(start) {
         (0..52).mapNotNull { w ->
             val d = start.plusWeeks(w.toLong())
-            if (d.dayOfMonth <= 7) w to d.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH) else null
+            if (d.dayOfMonth <= 7) w to d.month.getDisplayName(TextStyle.SHORT, menuLocale()) else null
         }
     }
     val cell = 12.dp
@@ -207,7 +211,7 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
     val values = (29 downTo 0).map { (days[today.minusDays(it.toLong()).toString()] ?: 0.0) / 60 }
     val max = values.maxOrNull()?.takeIf { it > 0 } ?: 1.0
     Column(modifier) {
-        Text("most: ${hoursMinutes(max * 60)}", fontSize = 12.sp, color = Colors.dim)
+        Text(tr("most: %s", hoursMinutes(max * 60)), fontSize = 12.sp, color = Colors.dim)
         Canvas(Modifier.width(840.dp).height(120.dp)) {
             val w = size.width / 30
             values.forEachIndexed { i, v ->
@@ -218,10 +222,10 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
             }
         }
         Row(Modifier.width(840.dp)) {
-            Text(today.minusDays(29).let { "${it.dayOfMonth} ${it.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)}" },
+            Text(today.minusDays(29).let { "${it.dayOfMonth} ${it.month.getDisplayName(TextStyle.SHORT, menuLocale())}" },
                 fontSize = 12.sp, color = Colors.dim)
             Box(Modifier.weight(1f))
-            Text("today", fontSize = 12.sp, color = Colors.learning)
+            Text(tr("Today").lowercase(), fontSize = 12.sp, color = Colors.learning)
         }
     }
 }
@@ -234,3 +238,6 @@ internal fun hoursMinutes(seconds: Double): String {
         else -> "${m / 60} h ${m % 60} min"
     }
 }
+
+/** Month names in the menu language (the parents' Spanish Stats showed "Dec Jan Feb"). */
+private fun menuLocale(): Locale = if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) Locale("es") else Locale.ENGLISH

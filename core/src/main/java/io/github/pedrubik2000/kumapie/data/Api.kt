@@ -410,7 +410,13 @@ class Api(private val base: String, private val person: String = "") : Backend {
         }
     }
 
-    private suspend fun get(path: String, readTimeout: Int = 20_000): String = withContext(Dispatchers.IO) {
+    // One more try on a dropped connection (not on an HTTP error): the first call after a cold start sometimes came
+    // back "unexpected end of stream" (TV emulator, 2026-11-16) and Try again always worked.
+    private suspend fun get(path: String, readTimeout: Int = 20_000): String =
+        try { getOnce(path, readTimeout) }
+        catch (e: IOException) { if (e is java.net.SocketTimeoutException || e.message?.startsWith("HTTP ") == true) throw e else getOnce(path, readTimeout) }
+
+    private suspend fun getOnce(path: String, readTimeout: Int): String = withContext(Dispatchers.IO) {
         val started = System.currentTimeMillis()
         val conn = URL(url(path)).openConnection() as HttpURLConnection
         conn.connectTimeout = 8_000

@@ -307,7 +307,7 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
         if ((settings.showHelp || rating.open) && !options && !help)
             PlayerHints(ctl, picker, rating, watchBindings, pickerBindings, Modifier.align(Alignment.BottomStart))
         if (help) HelpOverlay(settings, ctl.lang)
-        if (!picker.isOpen && !options) playError?.let {
+        if (!picker.isOpen && !options && !help) playError?.let {
             Text(tr("This TV can't play this video (%s).", it), color = Colors.text, fontSize = 24.sp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 90.dp).background(Colors.surface, RoundedCornerShape(8.dp)).padding(24.dp))
         }
@@ -421,8 +421,8 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
     BackHandler(onBack = onClose)
     Box(Modifier.fillMaxSize().background(Color(0x99000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.CenterEnd) {
         Column(
-            // Scrolls: seven buttons are taller than the screen at this size (focus brings each into view).
-            Modifier.padding(48.dp).width(520.dp).arcadePanel()
+            // Scrolls if the seven buttons ever outgrow the screen (focus brings each into view); 20 dp margins fit a 540 dp TV.
+            Modifier.padding(horizontal = 48.dp, vertical = 20.dp).width(520.dp).arcadePanel()
                 .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {

@@ -83,11 +83,12 @@ fun ReviewScreen(api: Api, lang: String) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Title(tr("Review"))
             Box(Modifier.weight(1f))
-            cards?.let { Text(tr("%1\$d left · %2\$d done", it.size - i, done).uppercase(), color = Colors.dim, style = Arcade.label) }
+            cards?.let { Text(tr("%1\$d left · %2\$d done", it.size - i, done).uppercase(), color = Colors.dim, style = Arcade.label,
+                modifier = Modifier.padding(end = 56.dp)) } // clear of the accent stripe in the corner
         }
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             when {
-                error != null -> Text(error!!, color = Colors.unknown)
+                error != null -> ErrorBox(error!!, onRetry = { error = null; load() }, onSettings = null)
                 cards == null -> Text(tr("Loading…"), color = Colors.dim)
                 card == null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Title(tr("All done for now"), fontSize = 28.sp)

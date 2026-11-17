@@ -28,7 +28,8 @@ import io.github.pedrubik2000.kumapie.player.KeyContext
 /** Every action that has a button, as set now (Settings > Change buttons), named for the episode's [lang]. Any button closes it. */
 @Composable
 fun HelpOverlay(settings: Settings, lang: Lang) {
-    Box(Modifier.fillMaxSize().background(Color(0xE6101018)), contentAlignment = Alignment.Center) {
+    // Opaque: the subtitles showed through the list.
+    Box(Modifier.fillMaxSize().background(Color(0xFF101018)), contentAlignment = Alignment.Center) {
         Column(Modifier.padding(horizontal = 56.dp, vertical = 36.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Title(tr("Buttons"), fontSize = 30.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(48.dp)) {

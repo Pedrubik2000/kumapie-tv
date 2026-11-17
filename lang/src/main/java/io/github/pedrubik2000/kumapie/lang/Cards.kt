@@ -80,15 +80,16 @@ class SrsCards(private val context: Context) : Cards {
     private val rated = ArrayList<Pair<String, Long>>()
     @Volatile private var synced = 0L
 
-    /** Whose cards: the phone's owner, else the TV's last profile. */
+    /** Whose cards: the phone's owner, else the TV's last profile; without a PC, the device's one person ([LOCAL]). */
     fun person(): String = settings.owner.ifEmpty { settings.prefs.getString("profile", "").orEmpty() }
+        .ifEmpty { if (settings.server.isEmpty()) LOCAL else "" }
 
     fun store(lang: Lang): Srs? = person().takeIf { it.isNotEmpty() }?.let { p ->
         synchronized(stores) { stores.getOrPut("$p/${lang.code}") { Srs(context, p, lang) } }
     }
 
-    /** The person's store came from the PC: their cards are kumapie's. */
-    fun active(lang: Lang): Boolean = store(lang)?.meta("sync_seq") != null
+    /** The person's store came from the PC, or there is no PC (kumapie for other people: its own cards only). */
+    fun active(lang: Lang): Boolean = store(lang)?.let { settings.server.isEmpty() || it.meta("sync_seq") != null } == true
 
     /** One language with the PC; false when the PC has no store for this person (they use kuma3) or is away. */
     suspend fun sync(lang: Lang): Boolean {
@@ -214,6 +215,8 @@ class SrsCards(private val context: Context) : Cards {
     companion object {
         /** The `pkg` of kumapie's own store. */
         const val PKG = "kumapie"
+        /** The one person of a device without a PC (no profiles there). */
+        const val LOCAL = "me"
         private val MEDIA = Regex("""<img[^>]*>|\[(?:sound|audio):[^\]]*\]""", RegexOption.IGNORE_CASE)
         /** "Mined in kumapie: <show> · <episode>, scene N." as Miner writes it (and tools\srs\import_kuma3.py reads it). */
         private val CONTEXT = Regex("""(?:Mined|Rated) in kumapie: (.*?) · (.*), (?:scene (\d+)|at (\d+):(\d\d))\.""")

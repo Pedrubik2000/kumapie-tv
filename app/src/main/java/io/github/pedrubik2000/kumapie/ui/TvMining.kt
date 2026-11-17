@@ -91,6 +91,12 @@ private object TvMining {
 
     private var dictionary: Dictionary? = null
 
+    /** A person's recording of the word (Wikimedia Commons, saved), for [AloneBackend]. */
+    fun recording(context: Context, settings: Settings, surface: String, lang: String): String? {
+        languages(context, settings)
+        return dictionary?.recording(surface, lang)
+    }
+
     fun languages(context: Context, settings: Settings): Languages {
         if (dictionary == null) {
             val app = context.applicationContext
@@ -384,11 +390,11 @@ private suspend fun screenFrame(view: PlayerView?, dir: File): File? {
  * meaning; hold ↑ again on it: the card in kuma3's previewer (Back returns). Ratings: [rateWord]. Japanese meanings
  * come from the phone's dictionaries, fetched from the PC the first time.
  */
-fun mineWord(context: Context, api: Api, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, view: PlayerView?) {
+fun mineWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, view: PlayerView?) {
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
     val segment = picker.selected
     val key = segment?.word ?: return say(tr("Pick a word first"))
-    if (ctl.episode.srs) return mineOnPc(context, api, ctl, picker, scope, key)
+    if (ctl.episode.srs) return mineOnPc(context, api as Api, ctl, picker, scope, key)
     val miner = TvMining.miner(context, settings)
     val japanese = TvMining.languages.of(ctl.lang) is Japanese
     if (japanese) {
@@ -568,7 +574,7 @@ fun pickedCard(ctl: SceneController, picker: WordPicker): Pair<String, String?>?
  * a due (green) word, after its meaning was shown; one rating answers every due card of the word. kuma3 is not opened.
  * Then the card closes and the picker goes to the next word (a line with several due words: rate, rate, rate).
  */
-fun rateWord(context: Context, api: Api, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, rating: TvRating, ease: Int) {
+fun rateWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, rating: TvRating, ease: Int) {
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     rating.open = false
     val (form, state) = pickedCard(ctl, picker) ?: return
@@ -578,7 +584,7 @@ fun rateWord(context: Context, api: Api, settings: Settings, ctl: SceneControlle
         if (rating.busy) return
         rating.busy = true
         scope.launch {
-            runCatching { api.srsRate(form, ease, scene = ctl.scene.source) }.onSuccess { c ->
+            runCatching { (api as Api).srsRate(form, ease, scene = ctl.scene.source) }.onSuccess { c ->
                 setCard(ctl, form, c)
                 rating.last = form to KnownWords.Rated(emptyList(), 1, PC_CARDS)
                 rating.said = tr(RATINGS[ease - 1])
@@ -617,7 +623,7 @@ fun rateWord(context: Context, api: Api, settings: Settings, ctl: SceneControlle
 }
 
 /** Takes the last rating back with kuma3's Undo (while nothing else was done in kuma3 since): the word is due again. */
-fun undoRating(context: Context, api: Api, settings: Settings, ctl: SceneController, scope: CoroutineScope, rating: TvRating) {
+fun undoRating(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend, settings: Settings, ctl: SceneController, scope: CoroutineScope, rating: TvRating) {
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     rating.open = false
     val (form, rated) = rating.last ?: return say(tr("Nothing to undo"))
@@ -625,7 +631,7 @@ fun undoRating(context: Context, api: Api, settings: Settings, ctl: SceneControl
     if (rated.undoLabel == PC_CARDS) {
         rating.busy = true
         scope.launch {
-            runCatching { api.srsUndo(scene = ctl.scene.source) }.onSuccess { (word, c) ->
+            runCatching { (api as Api).srsUndo(scene = ctl.scene.source) }.onSuccess { (word, c) ->
                 setCard(ctl, word, c)
                 rating.last = null
                 rating.fresh = false
@@ -686,3 +692,49 @@ suspend fun joinNames(context: Context, settings: Settings, episode: io.github.p
     val language = TvMining.languages(context, settings).of(episode.lang)
     return withContext(Dispatchers.Default) { language.joinNames(episode) }
 }
+
+/**
+ * The word player's [io.github.pedrubik2000.kumapie.data.Backend] on a TV without a PC (kumapie for other people):
+ * known marks go to this TV's word list, lookups are counted here, a word is read by a person's recording if there is
+ * one, else the TV's own voice. Where it was left: StreamActivity keeps it (prefs `alone_pos_<id>`).
+ */
+class AloneBackend(private val context: Context, private val settings: Settings) : io.github.pedrubik2000.kumapie.data.Backend {
+    private val tts = android.speech.tts.TextToSpeech(context.applicationContext) {}
+
+    override suspend fun progress(episode: String, pos: Double, watched: Double, ranges: List<io.github.pedrubik2000.kumapie.data.Span>, done: Boolean) {}
+
+    override suspend fun lookup(word: String, scene: String): Int {
+        val n = settings.prefs.getInt("alone_lookups_$word", 0) + 1
+        settings.prefs.edit().putInt("alone_lookups_$word", n).apply()
+        return n
+    }
+
+    override suspend fun markKnown(word: String, known: Boolean, scene: String): String = withContext(Dispatchers.IO) {
+        val list = TvMining.languages(context, settings).of(Lang.JAPANESE).known
+        if (list.ready) list.mark(word, known) else if (known) "k" else "u"
+    }
+
+    override fun wordAudio(surface: String, lang: String): String = TvMining.recording(context, settings, surface, lang) ?: "tts:$surface"
+
+    override fun speak(text: String) {
+        tts.language = java.util.Locale.JAPANESE
+        tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "word")
+    }
+
+    override fun definitionAudio(scene: String, line: Int, word: String) = ""
+}
+
+/**
+ * A Jimaku stream's episode made on the TV without a PC ([io.github.pedrubik2000.kumapie.lang.EpisodeBuilder]): its
+ * lines moved by [offset] (the fit or the hand shift), its words split by Sudachi. Null while Sudachi's dictionary
+ * isn't on the TV yet: its download starts here (about 80 MB, once).
+ */
+suspend fun aloneEpisode(context: Context, id: String, show: String, title: String, video: String, duration: Double,
+                         lines: List<Triple<Double, Double, String>>, offset: Double, resume: Double): io.github.pedrubik2000.kumapie.data.EpisodeDetail? =
+    withContext(Dispatchers.IO) {
+        val model = io.github.pedrubik2000.kumapie.lang.JapaneseModel(context)
+        if (!model.isReady) { model.download(); return@withContext null }
+        val cues = lines.map { io.github.pedrubik2000.kumapie.lang.EpisodeBuilder.Cue(it.first + offset, it.second + offset, it.third) }
+        val json = io.github.pedrubik2000.kumapie.lang.EpisodeBuilder.build(id, show, title, duration, video, cues, emptyList(), model.words(cues.map { it.text }))
+        Api("").parseEpisode(json.put("resume", resume).toString())
+    }

@@ -275,6 +275,28 @@ class StreamActivity : ComponentActivity() {
         }
         var showLabel by remember { mutableStateOf(false) }
         LaunchedEffect(label) { showLabel = label != null; delay(5000); showLabel = false }
+        // Jimaku's lines are all there: the episode is made on the TV (words, colours, cards) and the same player goes on
+        // in ScenePlayer, after the fit had its chance (its timing goes into the scenes; a later shift doesn't).
+        val context = androidx.compose.ui.platform.LocalContext.current
+        var shown by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.EpisodeDetail?>(null) }
+        LaunchedEffect(live.lines) {
+            if (live.lines.isEmpty()) return@LaunchedEffect
+            kotlinx.coroutines.withTimeoutOrNull(30_000) { while (live.fitted == null) delay(500) }
+            val show = link.getQueryParameter("show").orEmpty()
+            // Null while Sudachi's dictionary downloads (the first time): the lines go on meanwhile, then it is made.
+            while (shown == null) {
+                shown = runCatching {
+                    io.github.pedrubik2000.kumapie.ui.aloneEpisode(context, "alone:$id", show, link.getQueryParameter("title") ?: show,
+                        link.getQueryParameter("url").orEmpty(), (p.duration.takeIf { it > 0 } ?: 0L) / 1000.0, live.lines, live.offset, p.currentPosition / 1000.0)
+                }.getOrElse { note = it.message; return@LaunchedEffect }
+                if (shown == null) { note = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
+            }
+        }
+        shown?.let { ep ->
+            remember(ep) { live.stop(); alone = null; note = null } // the scenes draw the lines now; UP / DOWN are theirs
+            val backend = remember { io.github.pedrubik2000.kumapie.ui.AloneBackend(context, settings) }
+            return io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p)
+        }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; requestFocus(); aloneView = this } },
                 Modifier.fillMaxSize(), onRelease = { it.player = null })

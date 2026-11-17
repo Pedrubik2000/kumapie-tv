@@ -31,6 +31,10 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         private set
     private var needJimaku = false
     private var starts = emptyList<Double>() // Jimaku's line starts
+
+    /** Jimaku's lines once they came ([start, end, text], its own timing: [offset] not applied). */
+    var lines by mutableStateOf(emptyList<Triple<Double, Double, String>>())
+        private set
     private val refs = ArrayList<Double>() // when the file's other track showed a line (seconds of video)
 
     init {
@@ -67,6 +71,7 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         if (got.isEmpty()) return
         source = "jimaku"
         starts = got.map { it.first }
+        lines = got
         while (true) {
             if (fitted == null && refs.size >= MIN_REFS && refs.size % 2 == 0)
                 fit(refs, starts)?.let { if (offset == 0.0) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }

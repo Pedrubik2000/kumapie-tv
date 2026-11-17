@@ -112,7 +112,7 @@ fun rememberPlayer(video: String, resume: Double?, lang: String? = null): ExoPla
 
 /** [onPlayer]: the player, once made (StreamActivity hands its position back to NuvioTV). */
 @Composable
-fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: () -> Unit, onPlayer: (ExoPlayer) -> Unit = {},
+fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Settings, episode: EpisodeDetail, onClose: () -> Unit, onPlayer: (ExoPlayer) -> Unit = {},
                 player: ExoPlayer = rememberPlayer(episode.video, episode.resume, episode.lang)) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()

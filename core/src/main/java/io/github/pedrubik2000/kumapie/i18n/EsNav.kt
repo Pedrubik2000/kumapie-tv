@@ -6,6 +6,8 @@ internal val esNav: Map<String, String> = mapOf(
     "Continue watching" to "Seguir viendo",
     "Other" to "Otros",
     "Play" to "Reproducir",
+    "Resume" to "Seguir",
+    "Your shows" to "Tus series",
     "Continue: %s" to "Continuar: %s",
     "%1\$d of %2\$d scenes seen" to "%1\$d de %2\$d escenas vistas",
 )

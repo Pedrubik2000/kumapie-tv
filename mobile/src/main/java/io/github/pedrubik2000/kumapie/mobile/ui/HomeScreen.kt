@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.zIndex
@@ -190,19 +192,20 @@ fun HomeScreen(
         Dest(Icons.Default.Settings, tr("Settings"), { onSettings(null) }),
     )
 
+    val all = shows.orEmpty()
+    val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { l -> all.any { it.lang == l.code } }
+    // The chosen language without shows (a parent's phone has only English; the default is German): the first that has some.
+    val lang = if (shows == null || all.any { it.lang == homeLang }) homeLang else langs.firstOrNull()?.code ?: homeLang
+    LaunchedEffect(lang) { if (lang != homeLang) onHomeLang(lang) }
+
     val content = @Composable { padding: PaddingValues ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            val all = shows.orEmpty()
-            val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { l -> all.any { it.lang == l.code } }
-            // The chosen language without shows (a parent's phone has only English; the default is German): the first that has some.
-            val lang = if (shows == null || all.any { it.lang == homeLang }) homeLang else langs.firstOrNull()?.code ?: homeLang
-            LaunchedEffect(lang) { if (lang != homeLang) onHomeLang(lang) }
-            if (langs.size > 1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+            if (langs.size > 1 && !wide) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 langs.forEach { l -> FilterChip(selected = lang == l.code, onClick = { onHomeLang(l.code) }, label = { Text(tr(l.name)) },
                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Colors.accent, selectedLabelColor = Color.Black)) }
             }
-            if (offline) Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (offline) Row(Modifier.fillMaxWidth().then(if (wide) Modifier.statusBarsPadding().padding(start = 112.dp, end = 200.dp) else Modifier.padding(start = 16.dp, end = 8.dp)),verticalAlignment = Alignment.CenterVertically) {
                 Text(tr("Offline: only episodes on this device play."), color = Colors.dim, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 TextButton(onClick = { attempt++ }) { Text(tr("Try again")) }
             }
@@ -222,23 +225,29 @@ fun HomeScreen(
                         Button(onClick = { adding = true }) { Text(tr("Add an episode")) }
                     }
                     else -> Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay,
-                        streaming = { if (lang == "ja") Streaming(library, onDiscovered) }) { LangCard(library, lang, all, onStats) }
+                        streaming = { if (lang == "ja") Streaming(library, onDiscovered) }) { LangCard(library, lang, all, wide, onStats) }
                 }
             }
         }
     }
 
-    if (wide) Row(Modifier.fillMaxSize()) {
-        NavigationRail(header = {
-            FloatingActionButton(onClick = { adding = true }, containerColor = Colors.surface, contentColor = Colors.text, modifier = Modifier.padding(vertical = 8.dp)) { Icon(Icons.Default.Add, tr("Add an episode")) }
-        }) {
-            NavigationRailItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, null) }, label = { Text(tr("Home")) })
-            (main + extra).forEach { d ->
-                NavigationRailItem(selected = false, onClick = d.go, label = { Text(d.short, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    icon = { BadgedBox(badge = { if (d.badge > 0) Badge { Text("${d.badge}") } }) { Icon(d.icon, d.label) } })
+    // Glass (tablet): the page runs under the status bar; the menu is round buttons down the left edge, the rest under More.
+    if (wide) Box(Modifier.fillMaxSize().background(Glass.page)) {
+        content(PaddingValues(0.dp))
+        Column(Modifier.align(Alignment.CenterStart).padding(start = 22.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+            RoundButton(Icons.Default.Home, tr("Home"), selected = true) {}
+            main.forEach { d -> RoundButton(d.icon, d.label, badge = d.badge, onClick = d.go) }
+            RoundButton(Icons.Default.MoreHoriz, tr("More")) { more = true }
+        }
+        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(io.github.pedrubik2000.kumapie.mobile.R.drawable.ic_launcher_foreground),
+            "kumapie", Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 4.dp).size(92.dp))
+        if (langs.size > 1) Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 12.dp, end = 24.dp)) {
+            var open by remember { mutableStateOf(false) }
+            Pill(tr(langs.firstOrNull { it.code == lang }?.name ?: lang) + "  ▾", { open = true })
+            androidx.compose.material3.DropdownMenu(open, { open = false }) {
+                langs.forEach { l -> androidx.compose.material3.DropdownMenuItem(text = { Text(tr(l.name)) }, onClick = { open = false; onHomeLang(l.code) }) }
             }
         }
-        Scaffold(topBar = { HomeBar { attempt++ } }) { content(it) }
     } else Scaffold(
         topBar = { HomeBar(onAdd = { adding = true }) { attempt++ } },
         bottomBar = {
@@ -254,7 +263,9 @@ fun HomeScreen(
     ) { content(it) }
 
     if (more) ModalBottomSheet(onDismissRequest = { more = false }) {
-        extra.forEach { d ->
+        // The tablet's More also holds what the rail's "+" and the top bar's refresh did.
+        val add = if (wide) listOf(Dest(Icons.Default.Add, tr("Add an episode"), { adding = true }), Dest(Icons.Default.Refresh, tr("Refresh"), { attempt++ })) else emptyList()
+        (extra + add).forEach { d ->
             ListItem(headlineContent = { Text(d.label) }, leadingContent = { Icon(d.icon, null) },
                 modifier = Modifier.clickable { more = false; d.go() })
         }
@@ -273,12 +284,17 @@ private val shownProgress = mutableMapOf<String, Library.LangProgress>()
  * One tap opens Stats.
  */
 @Composable
-private fun LangCard(library: Library, lang: String, shows: List<Show>, onStats: () -> Unit) {
+private fun LangCard(library: Library, lang: String, shows: List<Show>, glass: Boolean, onStats: () -> Unit) {
     // This language's last numbers while fresh ones load (~2 s): not the other language's, and the list doesn't jump.
     var p by remember(lang) { mutableStateOf(shownProgress[lang]) }
     LaunchedEffect(lang, shows) { p = runCatching { library.langProgress(lang, shows) }.getOrNull()?.also { shownProgress[lang] = it } }
     val s = p ?: return
-    Surface(onClick = onStats, shape = RoundedCornerShape(12.dp), color = Colors.surface,
+    if (glass) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        StatChip(minutes(s.today), tr("Today"), accent = true, onClick = onStats)
+        StatChip(minutes(s.week), tr("Last 7 days"), onClick = onStats)
+        StatChip(String.format(java.util.Locale.ROOT, "%.1f h", s.total / 3600), tr("In total"), onClick = onStats)
+        StatChip("%,d".format(s.known), tr("Words known"), onClick = onStats)
+    } else Surface(onClick = onStats, shape = RoundedCornerShape(12.dp), color = Colors.surface,
         modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Stat(String.format(java.util.Locale.ROOT, "%.1f h", s.total / 3600), tr("In total"))
@@ -351,7 +367,32 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
         ResumeCard(library.poster(s.id, s.poster), s, e) { onPlay(s, e) }
     }
 
-    if (split && going.isNotEmpty()) Column { header(); Row(Modifier.fillMaxSize()) {
+    if (wide) LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+        if (going.isNotEmpty()) item(key = "hero") { going[0].let { (s, e) -> Hero(library, s, e, { onShow(s) }, { onPlay(s, e) }, header) } }
+        else item(key = "card") { Box(Modifier.statusBarsPadding().padding(start = GUTTER, top = 88.dp)) { header() } }
+        if (going.size > 1) item(key = "going") {
+            Column {
+                Section(tr("Continue watching"))
+                LazyRow(contentPadding = PaddingValues(start = GUTTER, end = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    items(going.drop(1)) { (s, e) -> WideTile(library, s, e) { onPlay(s, e) } }
+                }
+            }
+        }
+        item(key = "streaming") { Box(Modifier.padding(start = GUTTER - 16.dp)) { streaming() } }
+        item(key = "tabs") {
+            Row(Modifier.fillMaxWidth().padding(end = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+                Section(tr("Your shows"))
+                if (kinds.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 28.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    kinds.forEachIndexed { i, (label, _) -> GlassChip(label, i == picked) { tab = i } }
+                }
+            }
+        }
+        item(key = "grid-$picked") {
+            FlowRow(Modifier.padding(start = GUTTER, end = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                kinds.getOrNull(picked)?.second?.forEach { s -> Poster(library.poster(s.id, s.poster), s.title, levelLine(s), 150.dp) { onShow(s) } }
+            }
+        }
+    } else if (split && going.isNotEmpty()) Column { header(); Row(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.weight(0.42f).fillMaxHeight()) {
         // A phone on its side is short: the card narrows until its art and text fit the height (~110 dp under the art).
         val cardWidth = minOf(maxWidth, (maxHeight - 126.dp) * 16f / 9f + 32.dp)
@@ -379,6 +420,61 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
             item(key = "tabs") { Column(Modifier.padding(top = if (going.isEmpty()) 0.dp else 20.dp)) { tabs() } }
             item(key = "grid-$picked") { grid(width) }
         }
+    }
+}
+
+/** Where the tablet's content starts: right of the round menu buttons. */
+private val GUTTER = 112.dp
+
+@Composable
+private fun Section(title: String) =
+    Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = GUTTER, end = 16.dp, top = 28.dp, bottom = 12.dp))
+
+/** An episode's picture, or the show's poster while that setting hides unwatched frames (spoilers). */
+private fun art(library: Library, s: Show, e: Episode): Any? =
+    if (library.settings.blurUnwatched && !e.watched) library.poster(s.id, s.poster) else library.thumb(e.id, e.thumb)
+
+/**
+ * Glass Home's top (tablet): the episode left last, full width, about half the screen: "CONTINUE WATCHING", the
+ * title, where it was left, Resume (plays from there) and Episodes (the show's page); the stats as chips.
+ */
+@Composable
+private fun Hero(library: Library, s: Show, e: Episode, onShow: () -> Unit, onPlay: () -> Unit, stats: @Composable () -> Unit) {
+    val config = androidx.compose.ui.platform.LocalConfiguration.current
+    // Stats beside the title only where both fit (the Tab S7+ on its side, 1317 dp); else under the buttons.
+    val roomy = config.screenWidthDp >= 1100
+    Box(Modifier.fillMaxWidth().height((config.screenHeightDp * 0.62f).dp)) {
+        NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
+        AsyncImage(art(library, s, e), null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
+        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Glass.page.copy(alpha = 0.85f), 0.6f to Color.Transparent)))
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Glass.page.copy(alpha = 0.5f), 0.2f to Color.Transparent, 0.6f to Color.Transparent, 1f to Glass.page)))
+        Column(Modifier.align(Alignment.BottomStart).padding(start = GUTTER, end = 24.dp, bottom = 24.dp).widthIn(max = 600.dp)) {
+            Text(tr("Continue watching").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 3.sp)
+            Text(s.title, color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Color.White.copy(alpha = 0.85f), fontSize = 18.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+            ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(420.dp).padding(top = 14.dp))
+            Row(Modifier.padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Pill(tr("Resume"), onPlay, primary = true, icon = Icons.Default.PlayArrow)
+                Pill(tr("Episodes"), onShow)
+            }
+            if (!roomy) Box(Modifier.padding(top = 16.dp)) { stats() }
+        }
+        if (roomy) Box(Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 24.dp)) { stats() }
+    }
+}
+
+/** Another episode in progress: its picture wide, a progress line, the show and where it was left. */
+@Composable
+private fun WideTile(library: Library, s: Show, e: Episode, onPlay: () -> Unit) {
+    Column(Modifier.width(296.dp).clickable(onClick = onPlay)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp))) {
+            NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
+            AsyncImage(art(library, s, e), null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth())
+        }
+        Text(s.title, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Glass.dim, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

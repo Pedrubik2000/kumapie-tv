@@ -309,9 +309,9 @@ class Library(context: Context, val settings: Settings) {
             .map { io.github.pedrubik2000.kumapie.data.TopLookup(it.key, it.value, m.gloss[it.key] ?: "") }
         return io.github.pedrubik2000.kumapie.data.Stats(
             days = m.watch, today = day(today), week = (0L..6L).sumOf { day(today.minusDays(it)) }, total = m.watch.values.sum(),
-            streak = streak, scenesSeen = m.seen.size, scenesTotal = shows.sumOf { s -> s.episodes.sumOf { it.scenes } },
+            streak = streak, scenesSeen = shows.sumOf { s -> s.episodes.sumOf { it.seen } }, scenesTotal = shows.sumOf { s -> s.episodes.sumOf { it.scenes } },
             lookups = m.lookups.values.sum(), wordsLookedUp = m.lookups.size, topLookups = top, markedKnown = m.marked.size,
-            shows = shows.map { s -> io.github.pedrubik2000.kumapie.data.ShowProgress(s.title, s.episodes.sumOf { m.seenIn(it.id) }, s.episodes.sumOf { it.scenes }) }
+            shows = shows.map { s -> io.github.pedrubik2000.kumapie.data.ShowProgress(s.title, s.episodes.sumOf { it.seen }, s.episodes.sumOf { it.scenes }) } // lines heard of lines: the PC's count
                 .sortedByDescending { it.seen },
         )
     }

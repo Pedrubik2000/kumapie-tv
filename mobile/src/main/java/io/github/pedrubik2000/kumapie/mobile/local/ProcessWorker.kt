@@ -340,7 +340,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         }
 
         // 5. Scenes and words (Japanese words from Jiten's splitter or Sudachi here, German ones from spaCy in Python).
-        report(tr("Finding scenes and words…"), 0.9f)
+        report(tr("Finding the words…"), 0.9f)
         val jaModel = JapaneseModel(applicationContext)
         val jiten = japanese && jaModel.splitterReady
         val parsed = if (!japanese) "" else {

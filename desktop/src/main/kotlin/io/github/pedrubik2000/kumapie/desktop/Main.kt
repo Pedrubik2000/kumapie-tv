@@ -331,7 +331,7 @@ private fun EpisodeRow(ep: Episode, onClick: () -> Unit) {
             // The episode's own title only once watched (titles can spoil).
             Text(if (ep.watched && ep.episodeTitle.isNotBlank()) "${ep.title} · ${ep.episodeTitle}" else ep.title, fontSize = 20.sp, color = Colors.text, style = Arcade.label)
             val min = (ep.duration / 60).toInt().coerceAtLeast(1)
-            Text((if (ep.easy > 0) "$min min · ${ep.scenes} scenes · ${ep.easy} easy today" else "$min min · ${ep.scenes} scenes") +
+            Text((if (ep.easy > 0) "$min min · ${ep.scenes} lines · ${ep.easy} easy today" else "$min min · ${ep.scenes} lines") +
                 if (ep.seen > 0) " · ${ep.seen} seen" else "", fontSize = 14.sp, color = Colors.dim, modifier = Modifier.padding(vertical = 6.dp))
             val resume = ep.resume
             if (resume != null && ep.duration > 0) ProgressBar((resume / ep.duration).toFloat(), Modifier.fillMaxWidth(0.6f))

@@ -259,7 +259,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 noEnglish -> tr("no %s (Settings)", translation)
                 gemma -> tr("%s (Gemma on this device, about 3 s a line)", translation)
                 else -> tr("%s (the device's translator)", translation)
-            } + tr(" → scenes. Show blank: its " +
+            } + tr(" → lines. Show blank: its " +
             "AniList name. MKV files keep their Japanese audio. Jobs run one after another in the background."),
             color = Colors.dim, fontSize = 13.sp)
         else Text(tr("Download → ") + (if (parakeet) tr("Parakeet on this device (free)") else tr("Soniox (paid, about \$0.10 an hour)")) +
@@ -268,7 +268,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
                 gemma -> tr("%s (Gemma on this device, about 3 s a line)", translation)
                 englishNow == "soniox" -> tr("%s (Soniox)", translation)
                 else -> tr("%s (the device's translator)", translation)
-            } + tr(" → scenes. A season (magnet) becomes one episode per file; MKV files keep their %s audio. Jobs run " +
+            } + tr(" → lines. A season (magnet) becomes one episode per file; MKV files keep their %s audio. Jobs run " +
             "one after another in the background; each episode appears on the home screen when done.", spoken), color = Colors.dim, fontSize = 13.sp)
         if (onPc) { if (how) Text(tr("On the PC: it downloads (video files are sent there first), uses the video's own subtitles, else " +
             "Jimaku's for Japanese, else transcribes it with Parakeet (free); the line under it only from subtitles. The " +

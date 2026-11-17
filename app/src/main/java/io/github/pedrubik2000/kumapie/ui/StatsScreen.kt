@@ -98,9 +98,9 @@ private fun StatsContent(s: Stats) {
         }
         item {
             Section {
-                Heading(tr("Scenes and words"))
+                Heading(tr("Lines and words"))
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Tile(tr("Scenes watched to the end"), tr("%1\$d of %2\$d", s.scenesSeen, s.scenesTotal))
+                    Tile(tr("Lines heard"), tr("%1\$d of %2\$d", s.scenesSeen, s.scenesTotal))
                     Tile(tr("Words looked up"), "${s.wordsLookedUp} (${s.lookups}×)")
                     Tile(tr("Marked known"), "${s.markedKnown}")
                 }
@@ -110,7 +110,7 @@ private fun StatsContent(s: Stats) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(sh.title, color = Colors.text, fontSize = 16.sp, modifier = Modifier.width(360.dp))
                                 ProgressBar(if (sh.scenes > 0) sh.seen.toFloat() / sh.scenes else 0f, Modifier.width(300.dp))
-                                Text("  " + tr("%1\$d / %2\$d scenes", sh.seen, sh.scenes), color = Colors.dim, fontSize = 14.sp)
+                                Text("  " + tr("%1\$d / %2\$d lines", sh.seen, sh.scenes), color = Colors.dim, fontSize = 14.sp)
                             }
                         }
                     }

@@ -117,9 +117,9 @@ private fun StatsContent(s: Stats) {
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Heading(tr("Scenes and words"))
+                Heading(tr("Lines and words"))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Tile(tr("Scenes to the end"), "${s.scenesSeen} / ${s.scenesTotal}")
+                    Tile(tr("Lines heard"), "${s.scenesSeen} / ${s.scenesTotal}")
                     Tile(tr("Words looked up"), "${s.wordsLookedUp} (${s.lookups}×)")
                     Tile(tr("Marked known"), "${s.markedKnown}")
                 }

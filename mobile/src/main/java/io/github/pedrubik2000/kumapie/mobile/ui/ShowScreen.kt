@@ -269,7 +269,7 @@ private fun ShowHeader(library: Library, show: Show, meta: org.json.JSONObject?,
             val seen = show.episodes.sumOf { it.seen }
             val scenes = show.episodes.sumOf { it.scenes }
             Text(listOfNotNull(if (n == 1) tr("1 episode") else tr("%d episodes", n), minutes(total).takeIf { total > 0 },
-                tr("%1\$d of %2\$d scenes seen", seen, scenes).takeIf { seen > 0 }).joinToString(" · "),
+                tr("%1\$d of %2\$d lines heard", seen, scenes).takeIf { seen > 0 }).joinToString(" · "),
                 fontSize = 14.sp, color = Colors.dim)
             (meta?.let { io.github.pedrubik2000.kumapie.mobile.local.ShowMeta.description(it, io.github.pedrubik2000.kumapie.data.Lang.speaker) }
                 ?: show.description.ifBlank { null })?.let { text ->
@@ -324,7 +324,7 @@ private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, sta
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(watchedTitle?.let { "${ep.title} · $it" } ?: ep.title, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(if (onDevice) (if (copy) tr("%s · on this device", minutes(ep.duration)) else tr("%s · on the PC", minutes(ep.duration))) else tr("%1\$s · %2\$d of %3\$d scenes easy", minutes(ep.duration), ep.easy, ep.scenes) +
+            Text(if (onDevice) (if (copy) tr("%s · on this device", minutes(ep.duration)) else tr("%s · on the PC", minutes(ep.duration))) else tr("%1\$s · %2\$d of %3\$d lines easy", minutes(ep.duration), ep.easy, ep.scenes) +
                 if (ep.seen > 0) tr(" · %d seen", ep.seen) else "", fontSize = 12.sp, color = Colors.dim)
         }
         // Condensed: only the speech, in the background (screen off), like the PC's condensed audio.

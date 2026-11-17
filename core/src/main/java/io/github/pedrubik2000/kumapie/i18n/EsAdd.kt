@@ -72,14 +72,14 @@ internal val esAdd: Map<String, String> = mapOf(
     "%s (Gemma on this device, about 3 s a line)" to "%s (Gemma en este dispositivo, unos 3 s por línea)",
     "%s (the device's translator)" to "%s (el traductor del dispositivo)",
     "%s (Soniox)" to "%s (Soniox)",
-    " → scenes. Show blank: its AniList name. MKV files keep their Japanese audio. Jobs run one after another in the background." to
-        " → escenas. Serie vacía: su nombre de AniList. Los archivos MKV conservan su audio en japonés. Las tareas se hacen una tras otra en segundo plano.",
+    " → lines. Show blank: its AniList name. MKV files keep their Japanese audio. Jobs run one after another in the background." to
+        " → líneas. Serie vacía: su nombre de AniList. Los archivos MKV conservan su audio en japonés. Las tareas se hacen una tras otra en segundo plano.",
     "Download → " to "Descarga → ",
     "Parakeet on this device (free)" to "Parakeet en este dispositivo (gratis)",
     "Soniox (paid, about \$0.10 an hour)" to "Soniox (de pago, unos \$0.10 por hora)",
     " → %s subtitles → " to " → subtítulos en %s → ",
-    " → scenes. A season (magnet) becomes one episode per file; MKV files keep their %s audio. Jobs run one after another in the background; each episode appears on the home screen when done." to
-        " → escenas. Una temporada (magnet) se vuelve un episodio por archivo; los archivos MKV conservan su audio en %s. Las tareas se hacen una tras otra en segundo plano; cada episodio aparece en la pantalla de inicio al terminar.",
+    " → lines. A season (magnet) becomes one episode per file; MKV files keep their %s audio. Jobs run one after another in the background; each episode appears on the home screen when done." to
+        " → líneas. Una temporada (magnet) se vuelve un episodio por archivo; los archivos MKV conservan su audio en %s. Las tareas se hacen una tras otra en segundo plano; cada episodio aparece en la pantalla de inicio al terminar.",
     // Making an episode (ProcessWorker): Downloads page and notification
     "Starting…" to "Empezando…",
     "Failed: %s" to "Error: %s",
@@ -109,7 +109,7 @@ internal val esAdd: Map<String, String> = mapOf(
     "Translating to English with Gemma: %d%%" to "Traduciendo al inglés con Gemma: %d%%",
     "Translating to English on the device…" to "Traduciendo al inglés en el dispositivo…",
     "Translating to English: %d%%" to "Traduciendo al inglés: %d%%",
-    "Finding scenes and words…" to "Buscando escenas y palabras…",
+    "Finding the words…" to "Buscando las palabras…",
     "Done: %s" to "Listo: %s",
     " (subtitles %s)" to " (subtítulos %s)",
     " (English from the video)" to " (inglés del video)",

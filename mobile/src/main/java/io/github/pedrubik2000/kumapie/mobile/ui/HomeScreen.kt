@@ -237,6 +237,21 @@ fun HomeScreen(
     val lang = if (shows == null || all.any { it.lang == homeLang }) homeLang else langs.firstOrNull()?.code ?: homeLang
     LaunchedEffect(lang) { if (lang != homeLang) onHomeLang(lang) }
 
+    // Glass (tablet): the bear and the language pill sit on the top picture and scroll away with it.
+    val top = @Composable {
+        Box(Modifier.fillMaxWidth().statusBarsPadding()) {
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(io.github.pedrubik2000.kumapie.mobile.R.drawable.ic_launcher_foreground),
+                "kumapie", Modifier.align(Alignment.TopStart).padding(start = 4.dp).size(92.dp))
+            if (langs.size > 1) Box(Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 24.dp)) {
+                var open by remember { mutableStateOf(false) }
+                Pill(tr(langs.firstOrNull { it.code == lang }?.name ?: lang) + "  ▾", { open = true })
+                androidx.compose.material3.DropdownMenu(open, { open = false }) {
+                    langs.forEach { l -> androidx.compose.material3.DropdownMenuItem(text = { Text(tr(l.name)) }, onClick = { open = false; onHomeLang(l.code) }) }
+                }
+            }
+        }
+    }
+
     val content = @Composable { padding: PaddingValues ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (langs.size > 1 && !wide) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
@@ -264,26 +279,17 @@ fun HomeScreen(
                         Button(onClick = { adding = true }) { Text(tr("Add an episode")) }
                     }
                     else -> Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay,
-                        streaming = { if (lang == "ja") Streaming(library, onDiscovered) }) { LangCard(library, lang, all, wide, onStats) }
+                        streaming = { if (lang == "ja") Streaming(library, onDiscovered) }, top = top) { LangCard(library, lang, all, wide, onStats) }
                 }
             }
         }
     }
 
     // Glass (tablet): the page runs under the status bar; the menu is round buttons down the left edge, the rest under More.
-    if (wide) Box(Modifier.fillMaxSize().background(Glass.page)) {
+    if (wide) androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = Glass.page, contentColor = Colors.text) { Box(Modifier.fillMaxSize()) {
         content(PaddingValues(0.dp))
         GlassMenu(main, "", {}, { more = true }, Modifier.align(Alignment.CenterStart))
-        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(io.github.pedrubik2000.kumapie.mobile.R.drawable.ic_launcher_foreground),
-            "kumapie", Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 4.dp).size(92.dp))
-        if (langs.size > 1) Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 12.dp, end = 24.dp)) {
-            var open by remember { mutableStateOf(false) }
-            Pill(tr(langs.firstOrNull { it.code == lang }?.name ?: lang) + "  ▾", { open = true })
-            androidx.compose.material3.DropdownMenu(open, { open = false }) {
-                langs.forEach { l -> androidx.compose.material3.DropdownMenuItem(text = { Text(tr(l.name)) }, onClick = { open = false; onHomeLang(l.code) }) }
-            }
-        }
-    } else Scaffold(
+    } } else Scaffold(
         topBar = { HomeBar(onAdd = { adding = true }) { attempt++ } },
         bottomBar = {
             NavigationBar {
@@ -363,7 +369,7 @@ private fun HomeBar(onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
 private fun Rows(library: Library, shows: List<Show>, states: Map<String, DownloadState>, wide: Boolean,
                  onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit,
                  /** Discover titles kept on Home: after the episodes in progress (Home is for resuming fast). */
-                 streaming: @Composable () -> Unit = {}, header: @Composable () -> Unit) {
+                 streaming: @Composable () -> Unit = {}, top: @Composable () -> Unit = {}, header: @Composable () -> Unit) {
     // Streamed titles too (Japanese, as Discover), merged by when they were played.
     val ja = shows.any { it.lang == "ja" }
     var streams by remember { mutableStateOf(emptyList<Pair<Show, Episode>>()) }
@@ -398,8 +404,8 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
     }
 
     if (wide) LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
-        if (going.isNotEmpty()) item(key = "hero") { going[0].let { (s, e) -> Hero(library, s, e, { onShow(s) }, { onPlay(s, e) }, header) } }
-        else item(key = "card") { Box(Modifier.statusBarsPadding().padding(start = GUTTER, top = 88.dp)) { header() } }
+        if (going.isNotEmpty()) item(key = "hero") { going[0].let { (s, e) -> Hero(library, s, e, { onShow(s) }, { onPlay(s, e) }, top, header) } }
+        else item(key = "card") { Column { top(); Box(Modifier.padding(start = GUTTER, top = 8.dp)) { header() } } }
         if (going.size > 1) item(key = "going") {
             Column {
                 Section(tr("Continue watching"))
@@ -469,7 +475,7 @@ private fun art(library: Library, s: Show, e: Episode): Any? =
  * title, where it was left, Resume (plays from there) and Episodes (the show's page); the stats as chips.
  */
 @Composable
-private fun Hero(library: Library, s: Show, e: Episode, onShow: () -> Unit, onPlay: () -> Unit, stats: @Composable () -> Unit) {
+private fun Hero(library: Library, s: Show, e: Episode, onShow: () -> Unit, onPlay: () -> Unit, top: @Composable () -> Unit, stats: @Composable () -> Unit) {
     val config = androidx.compose.ui.platform.LocalConfiguration.current
     // Stats beside the title only where both fit (the Tab S7+ on its side, 1317 dp); else under the buttons.
     val roomy = config.screenWidthDp >= 1100
@@ -478,6 +484,7 @@ private fun Hero(library: Library, s: Show, e: Episode, onShow: () -> Unit, onPl
         AsyncImage(art(library, s, e), null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Glass.page.copy(alpha = 0.85f), 0.6f to Color.Transparent)))
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Glass.page.copy(alpha = 0.5f), 0.2f to Color.Transparent, 0.6f to Color.Transparent, 1f to Glass.page)))
+        top()
         Column(Modifier.align(Alignment.BottomStart).padding(start = GUTTER, end = 24.dp, bottom = 24.dp).widthIn(max = 600.dp)) {
             Text(tr("Continue watching").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 3.sp)
             Text(s.title, color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)

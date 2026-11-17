@@ -188,7 +188,11 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             Screen.Home -> HomeScreen(
                 library,
                 onShows = { shows = it },
-                onShow = { stack += Screen.ShowEpisodes(it.id) },
+                // A streamed show (Discover) has no library page: its title page, with its episodes.
+                onShow = { s ->
+                    if (s.kind != "stream") stack += Screen.ShowEpisodes(s.id)
+                    else s.episodes.firstOrNull()?.let { e -> stack += Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e)) }
+                },
                 onPlay = { s, e ->
                     stack += when { // a streamed card: its prepared file, else its page to pick one
                         s.kind != "stream" -> Screen.Player(s, e)

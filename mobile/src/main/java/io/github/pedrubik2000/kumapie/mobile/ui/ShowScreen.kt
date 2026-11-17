@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -154,10 +155,7 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     val chips = @Composable {
         if (seasons.size > 1) Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            seasons.forEach { s ->
-                androidx.compose.material3.FilterChip(selected = s == season, onClick = { season = s },
-                    label = { Text(tr("Season %d", s)) })
-            }
+            seasons.forEach { s -> GlassChip(tr("Season %d", s), s == season) { season = s } }
         }
     }
     androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = Colors.background, contentColor = Colors.text) {
@@ -257,11 +255,10 @@ private fun ShowHeader(library: Library, show: Show, meta: org.json.JSONObject?,
             // Dark enough under the title and info: on a white poster (Nicos Weg) they were unreadable.
             0f to Color.Transparent, 0.3f to Colors.background.copy(alpha = 0.55f), 0.6f to Colors.background.copy(alpha = 0.9f), 1f to Colors.background)))
         IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(8.dp)
-            .background(Color.Black.copy(alpha = 0.4f), CircleShape)) {
+            .background(Color.Black.copy(alpha = 0.35f), CircleShape).border(1.dp, Glass.line, CircleShape)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Color.White)
         }
-        if (onFix != null) TextButton(onClick = onFix, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp)
-            .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(20.dp))) { Text(tr("Fix match"), color = Color.White) }
+        if (onFix != null) Pill(tr("Fix match"), onFix, Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp))
         // Top padding: a long title must not run under the back button.
         Column(Modifier.align(Alignment.BottomStart).let { if (wide) it.navigationBarsPadding() else it }.statusBarsPadding()
             .padding(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 16.dp),
@@ -282,11 +279,8 @@ private fun ShowHeader(library: Library, show: Show, meta: org.json.JSONObject?,
             }
             if (next != null) {
                 val partway = (next.resume ?: 0.0).let { it > 20 && it < next.duration * 0.95 }
-                Button(onClick = { onPlay(next) }) {
-                    Icon(Icons.Default.PlayArrow, null)
-                    Text(if (partway || next != show.episodes.first()) tr("Continue: %s", next.title) else tr("Play"),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
-                }
+                Pill(if (partway || next != show.episodes.first()) tr("Continue: %s", next.title) else tr("Play"), { onPlay(next) },
+                    Modifier.padding(top = 6.dp), primary = true, icon = Icons.Default.PlayArrow)
             }
         }
     }
@@ -304,14 +298,16 @@ private fun EpisodeRow(library: Library, ep: Episode, watchedTitle: String?, sta
     val onDevice = io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) // made here
     var menu by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().combinedClickable(enabled = playable, onClick = onPlay, onLongClick = { menu = true })
-            .alpha(if (playable) 1f else 0.4f).padding(horizontal = 16.dp, vertical = 10.dp),
+        // Glass: each episode a card (radius 16, thin border).
+        Modifier.padding(horizontal = 16.dp, vertical = 5.dp).glass(RoundedCornerShape(16.dp))
+            .combinedClickable(enabled = playable, onClick = onPlay, onLongClick = { menu = true })
+            .alpha(if (playable) 1f else 0.4f).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(if (wide) 160.dp else 120.dp)) {
             val hide = library.settings.blurUnwatched && !ep.watched
             AsyncImage(library.thumb(ep.id, ep.thumb), null, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp))
                     .then(if (hide) Modifier.blur(16.dp) else Modifier))
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 if (!ep.watched) DropdownMenuItem(text = { Text(tr("Mark as watched")) }, onClick = { menu = false; onMarkWatched(true, false) })

@@ -34,6 +34,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -121,8 +127,12 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
         TopAppBar(title = { Text(tr("Discover")) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            // Glass: a pill with a search icon.
             OutlinedTextField(query, { query = it }, singleLine = true, placeholder = { Text(tr("Search anime")) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { searched = query.trim() }),
+                shape = RoundedCornerShape(28.dp), leadingIcon = { Icon(Icons.Default.Search, null) },
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Glass.fill, focusedContainerColor = Glass.fill,
+                    unfocusedBorderColor = Glass.line, focusedBorderColor = Color.White.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
             val list = found
             val board = rows
@@ -141,10 +151,10 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
                     if (featured.isNotEmpty()) item(key = "hero") { Hero(featured) { open = it } }
                     board.forEach { (name, titles) ->
                         item(key = "row-$name") {
-                            Text(tr(name), style = MaterialTheme.typography.titleMedium, color = Colors.text,
-                                modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 8.dp))
-                            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                items(titles, key = { it.id }) { f -> PosterCard(f, Modifier.width(112.dp)) { open = f } }
+                            Text(tr(name), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 10.dp))
+                            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                items(titles, key = { it.id }) { f -> PosterCard(f, Modifier.width(if (wide()) 140.dp else 112.dp)) { open = f } }
                             }
                         }
                     }
@@ -158,7 +168,7 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
 @Composable
 private fun PosterCard(f: Found, modifier: Modifier, onClick: () -> Unit) = Column(modifier.clickable(onClick = onClick)) {
     AsyncImage(f.poster, f.name, contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(8.dp)).background(Colors.surface))
+        modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)).background(Colors.surface))
     Text(f.name, color = Colors.text, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
     Text(f.year, color = Colors.dim, fontSize = 12.sp)
 }
@@ -169,7 +179,9 @@ private fun Hero(titles: List<Found>, onOpen: (Found) -> Unit) {
     var i by remember { mutableIntStateOf(0) }
     LaunchedEffect(titles) { while (titles.size > 1) { delay(8_000); i = (i + 1) % titles.size } }
     androidx.compose.animation.Crossfade(titles[i % titles.size], label = "hero") { f ->
-        Box(Modifier.fillMaxWidth().height(240.dp).clickable { onOpen(f) }) {
+        // Glass: inset with round corners and the thin border.
+        Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(if (wide()) 280.dp else 240.dp)
+            .clip(RoundedCornerShape(22.dp)).border(1.dp, Glass.line, RoundedCornerShape(22.dp)).clickable { onOpen(f) }) {
             Backdrop(f.background.ifEmpty { f.poster })
             Column(Modifier.align(Alignment.BottomStart).padding(16.dp).fillMaxWidth(0.85f)) {
                 TitleLogo(f)
@@ -177,7 +189,7 @@ private fun Hero(titles: List<Found>, onOpen: (Found) -> Unit) {
                 Text(f.description, color = Colors.dim, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Row(Modifier.align(Alignment.BottomEnd).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                titles.indices.forEach { n -> Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(if (n == i % titles.size) Colors.accent else Colors.dim)) }
+                titles.indices.forEach { n -> Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(if (n == i % titles.size) Color.White else Color.White.copy(alpha = 0.35f))) }
             }
         }
     }
@@ -228,46 +240,39 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
         val m = meta
         val t = m?.let { library.api.found(it) } ?: title
         val eps = m?.optJSONArray("episodes")?.objects().orEmpty()
-        LazyColumn(Modifier.fillMaxSize()) {
-            item(key = "head") {
-                Box(Modifier.fillMaxWidth().height(300.dp)) {
-                    Backdrop(t.background.ifEmpty { t.poster })
-                    Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-                        TitleLogo(t)
-                        Text(t.line, color = Colors.text, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
-                    }
+        val wide = wide()
+        // The logo, line, ▶ and + Home, the text, then "Episodes". A tablet: left column over the dimmed backdrop.
+        val info = @Composable {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (m != null) {
+                    val first = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
+                    Pill(if (first != null) tr("Episode %1\$d", first.optInt("number")) +
+                        (if (first.optBoolean("ready") && first.optString("source").isNotEmpty()) " · " + first.optString("source") else "") else tr("Watch"),
+                        { if (first != null) play(first) else picking = title.id to title.name }, primary = true, icon = Icons.Default.PlayArrow)
                 }
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (m != null) {
-                        val first = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
-                        Button(onClick = { if (first != null) play(first) else picking = title.id to title.name }) {
-                            Text("▶ " + if (first != null) tr("Episode %1\$d", first.optInt("number")) +
-                                (if (first.optBoolean("ready") && first.optString("source").isNotEmpty()) " · " + first.optString("source") else "") else tr("Watch"))
-                        }
-                    }
-                    kept?.let { on ->
-                        androidx.compose.material3.OutlinedButton(onClick = {
-                            scope.launch { runCatching { library.api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } }
-                        }) { Text(if (on) "✓ " + tr("On Home") else "+ " + tr("Home")) }
-                    }
-                }
-                Text(t.description, color = Colors.text, fontSize = 14.sp, maxLines = if (more) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.clickable { more = !more }.padding(horizontal = 16.dp, vertical = 4.dp))
-                when {
-                    error != null -> Message(error!!)
-                    m == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.accent) }
-                    eps.isNotEmpty() -> Text(tr("Episodes"), style = MaterialTheme.typography.titleMedium, color = Colors.text,
-                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
+                kept?.let { on ->
+                    Pill(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"), {
+                        scope.launch { runCatching { library.api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } }
+                    })
                 }
             }
-            items(eps, key = { it.getString("id") }) { e ->
+            Text(t.description, color = Colors.text, fontSize = 15.sp, maxLines = if (more) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable { more = !more }.padding(horizontal = 16.dp, vertical = 4.dp))
+            when {
+                error != null -> Message(error!!)
+                m == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.accent) }
+                eps.isNotEmpty() && !wide -> Text(tr("Episodes"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
+            }
+        }
+        val episode = @Composable { e: JSONObject ->
                 val ready = e.optBoolean("ready")
                 val watched = e.optBoolean("watched")
-                Box {
-                Row(Modifier.fillMaxWidth().combinedClickable(onLongClick = { menu = e.getString("id") }) { play(e) }.padding(16.dp, 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.padding(horizontal = 16.dp, vertical = 5.dp).glass(RoundedCornerShape(16.dp))) {
+                Row(Modifier.fillMaxWidth().combinedClickable(onLongClick = { menu = e.getString("id") }) { play(e) }.padding(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     AsyncImage(e.optString("thumb"), null, contentScale = ContentScale.Crop,
-                        modifier = Modifier.width(120.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Colors.surface))
+                        modifier = Modifier.width(if (wide) 150.dp else 120.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Colors.surface))
                     Column(Modifier.weight(1f)) {
                         Text((if (watched) "✓ " else if (ready) "▶ " else "") + tr("Episode %1\$d", e.optInt("number")) +
                             (if (ready && e.optString("source").isNotEmpty()) " · " + e.optString("source") else ""), // the ▶ file's quality, Mbps
@@ -284,10 +289,40 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                     })
                 }
                 }
+        }
+        if (wide) {
+            // The backdrop behind everything, dimmed; info left, the episodes right (the mockup's title page).
+            Backdrop(t.background.ifEmpty { t.poster })
+            Box(Modifier.matchParentSize().background(Colors.background.copy(alpha = 0.72f)))
+            Row(Modifier.fillMaxSize().statusBarsPadding()) {
+                Column(Modifier.weight(0.42f).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(top = 72.dp)) {
+                    Box(Modifier.padding(horizontal = 16.dp)) { TitleLogo(t) }
+                    Text(t.line, color = Colors.text, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                    info()
+                }
+                LazyColumn(Modifier.weight(0.58f).fillMaxHeight(), contentPadding = PaddingValues(top = 16.dp, bottom = 72.dp)) {
+                    if (eps.isNotEmpty()) item(key = "title") {
+                        Text(tr("Episodes"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp))
+                    }
+                    items(eps, key = { it.getString("id") }) { episode(it) }
+                }
             }
+        } else LazyColumn(Modifier.fillMaxSize()) {
+            item(key = "head") {
+                Box(Modifier.fillMaxWidth().height(300.dp)) {
+                    Backdrop(t.background.ifEmpty { t.poster })
+                    Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
+                        TitleLogo(t)
+                        Text(t.line, color = Colors.text, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                    }
+                }
+                info()
+            }
+            items(eps, key = { it.getString("id") }) { episode(it) }
         }
         // Over the backdrop, like Stremio's: only the back arrow.
-        IconButton(onClick = onBack, modifier = Modifier.padding(8.dp).statusBarsPadding().background(Color(0x66000000), RoundedCornerShape(50))) {
+        IconButton(onClick = onBack, modifier = Modifier.padding(8.dp).statusBarsPadding().background(Color(0x59000000), CircleShape).border(1.dp, Glass.line, CircleShape)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Color.White)
         }
     }

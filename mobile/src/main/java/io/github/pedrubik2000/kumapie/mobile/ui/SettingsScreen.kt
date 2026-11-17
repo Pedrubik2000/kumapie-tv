@@ -84,6 +84,9 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
             Page(Modifier.padding(padding)) {
                 MenuLanguage(settings)
                 ServerSection(library, onSaved)
+                // No PC: the app alone (kumapie_plan.md "for other people"); a server can still be added later in Settings.
+                Text(tr("No server? kumapie also works on its own."), color = Colors.dim, fontSize = 14.sp)
+                Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server")) }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 TransferSection()
                 Version()
@@ -554,6 +557,7 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
     KeyField(key, { key = it; library.settings.sonioxKey = it }, tr("Soniox API key"), KeyService.SONIOX)
     KeyField(rd, { rd = it; library.settings.rdToken = it }, tr("Real-Debrid token (real-debrid.com/apitoken)"), KeyService.REAL_DEBRID)
     if ("ja" in learning) KeyField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles"), KeyService.JIMAKU)
+    if (library.settings.server.isEmpty()) AddonsField(library.settings)
     // Japanese YouTube without Japanese subtitles: transcribed on the device.
     if ("ja" in learning) when {
         parakeetJaReady -> Text(tr("Japanese YouTube: Parakeet ja ready (free, offline). About 1 character in 6 differs from people's subtitles."),
@@ -905,4 +909,30 @@ private fun HourField(value: Int, range: IntRange, onValid: (Int) -> Unit) {
     OutlinedTextField(text, { v -> text = v.filter(Char::isDigit).take(2); text.toIntOrNull()?.takeIf { it in range }?.let(onValid) },
         singleLine = true, isError = bad, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.width(70.dp))
+}
+
+/**
+ * Without a PC, Discover asks the user's own Stremio addons (kumapie ships with none, kumapie_plan.md "for other
+ * people"): one that lists titles (Cinemeta, Kitsu) and one that gives links (a torrent addon with their debrid key).
+ */
+@Composable
+private fun AddonsField(settings: Settings) {
+    var addons by remember { mutableStateOf(settings.addons) }
+    var typed by remember { mutableStateOf("") }
+    Text(tr("Stremio addons"), fontSize = 15.sp)
+    Text(tr("Paste an addon's address (…/manifest.json). One that lists titles (Cinemeta, Kitsu) and one that gives links: a torrent addon needs your debrid key in it."),
+        fontSize = 13.sp, color = Colors.dim)
+    addons.forEach { a ->
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            // The address can carry a debrid key: only its host shows.
+            Text(runCatching { java.net.URI(a.removePrefix("stremio://").let { if ("://" in it) it else "https://$it" }).host }.getOrNull() ?: a,
+                modifier = Modifier.weight(1f), fontSize = 14.sp)
+            androidx.compose.material3.TextButton(onClick = { addons = addons - a; settings.addons = addons }) { Text(tr("Remove")) }
+        }
+    }
+    OutlinedTextField(typed, { typed = it }, label = { Text("https://…/manifest.json") }, singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
+    OutlinedButton(onClick = {
+        if (typed.isNotBlank()) { addons = (addons + typed.trim()).distinct(); settings.addons = addons; typed = "" }
+    }) { Text(tr("Add")) }
 }

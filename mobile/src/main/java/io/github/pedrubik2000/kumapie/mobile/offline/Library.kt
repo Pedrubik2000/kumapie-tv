@@ -182,13 +182,14 @@ class Library(context: Context, val settings: Settings) {
         val t0 = android.os.SystemClock.uptimeMillis()
         val (pc, offline) = runCatching {
             check(!saved)
+            check(settings.server.isNotEmpty()) { "no server" } // without a PC: the device's own shows only
             val json = api.showsJson()
             pending.flush(api, force = true)
             withContext(Dispatchers.IO) { showsCache.writeText(json) }
             api.parseShows(json) to false
         }.getOrElse { e ->
             val cached = withContext(Dispatchers.IO) { if (showsCache.exists()) showsCache.readText() else null }
-            if (cached == null && mine.isEmpty()) throw e
+            if (cached == null && mine.isEmpty() && settings.server.isNotEmpty()) throw e
             (cached?.let { api.parseShows(it) } ?: emptyList()) to true
         }
         if (!saved) android.util.Log.i("kumapie", "shows: PC ${android.os.SystemClock.uptimeMillis() - t0} ms${if (offline) " (no answer)" else ""}")

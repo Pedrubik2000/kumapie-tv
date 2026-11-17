@@ -130,6 +130,7 @@ class MainActivity : ComponentActivity() {
 fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = false, openImprove: Boolean = false, prepare: Map<String, String>? = null) {
     val settings = library.settings
     var server by remember { mutableStateOf(settings.server) }
+    var standalone by remember { mutableStateOf(settings.standalone) } // no PC server: chosen on the first run, as on the TV
     val stack = remember { mutableStateListOf<Screen>(Screen.Home).apply { if (openSearch) add(Screen.Search); if (openImprove) add(Screen.Improve); if (prepare != null) add(Screen.Prepare(prepare)) } }
     val context = androidx.compose.ui.platform.LocalContext.current
     var update by remember { mutableStateOf<Updater.Release?>(null) }
@@ -175,12 +176,12 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     }
 
     Row(Modifier.fillMaxSize().background(Colors.background)) {
-    if (wide() && server.isNotEmpty() && tab != "-") Box(Modifier.fillMaxHeight().width(98.dp), contentAlignment = Alignment.CenterStart) {
+    if (wide() && (server.isNotEmpty() || standalone) && tab != "-") Box(Modifier.fillMaxHeight().width(98.dp), contentAlignment = Alignment.CenterStart) {
         GlassMenu(main, tab, { top(null) }, { more = true })
     }
     Box(Modifier.weight(1f).fillMaxHeight()) {
-        if (server.isEmpty()) {
-            SettingsScreen(library, firstRun = true, onSaved = { server = settings.server }, onUpdate = { update = it }, onBack = {})
+        if (server.isEmpty() && !standalone) {
+            SettingsScreen(library, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it }, onBack = {})
         } else when (val screen = stack.last()) {
             Screen.Home -> HomeScreen(
                 library,

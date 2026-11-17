@@ -132,7 +132,7 @@ fun ImproveScreen(library: Library, shows: List<Show>, lang: String, onPlay: (Sh
             if (said.isNotEmpty()) item { Text(said, color = Colors.dim) }
             if (c == null) {
                 items(cards.orEmpty(), key = { it.note.id }) { s ->
-                    Column(Modifier.fillMaxWidth().background(Colors.surface, RoundedCornerShape(12.dp))
+                    Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp))
                         .clickable { card = s; candidates = null; fill(s) }.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(s.word, fontSize = 18.sp, color = Colors.accent)
                         Text(s.sentence, fontSize = 15.sp)
@@ -169,8 +169,8 @@ fun ImproveScreen(library: Library, shows: List<Show>, lang: String, onPlay: (Sh
             }
             items(candidates.orEmpty(), key = { it.scene.id }) { k ->
                 val on = chosen === k
-                Row(Modifier.fillMaxWidth().background(Colors.surface, RoundedCornerShape(12.dp))
-                    .border(if (on) 2.dp else 0.dp, if (on) Colors.accent else Colors.surface, RoundedCornerShape(12.dp))
+                Row(Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp))
+                    .border(if (on) 2.dp else 0.dp, if (on) Colors.accent else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(16.dp))
                     .clickable { chosen = k; sentence = k.sentence }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(k.sentence, fontSize = 16.sp)

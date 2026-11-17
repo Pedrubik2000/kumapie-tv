@@ -92,6 +92,21 @@ fun MobileTheme(content: @Composable () -> Unit) {
             surfaceContainerHighest = Glass.solid,
             surfaceContainerLow = Glass.solid,
             onSurfaceVariant = Glass.dim,
+            // Every stock chip, outlined button, text field and card in the Glass vocabulary: a picked chip is white
+            // with black text, outlines are the thin white glass line.
+            secondaryContainer = Color.White,
+            onSecondaryContainer = Color.Black,
+            outline = Glass.line,
+            outlineVariant = Glass.line,
+            surfaceVariant = Glass.solid,
+        ),
+        // Chips radius 18, cards and sheets 16-22 (Material's 8 and 12 read as boxes next to the pills).
+        shapes = androidx.compose.material3.Shapes(
+            extraSmall = RoundedCornerShape(12.dp),
+            small = RoundedCornerShape(18.dp),
+            medium = RoundedCornerShape(16.dp),
+            large = RoundedCornerShape(22.dp),
+            extraLarge = RoundedCornerShape(28.dp),
         ),
         content = content,
     )

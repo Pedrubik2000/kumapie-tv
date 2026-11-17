@@ -457,7 +457,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
                 Modifier.fillMaxSize(), onRelease = { it.player = null })
             LiveLine(library, live, Modifier.align(Alignment.BottomCenter))
             Text(error ?: tr("Words coming: %1\$s", step), color = Color.White, fontSize = 13.sp,
-                modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).background(Color(0x99000000), RoundedCornerShape(6.dp)).padding(8.dp, 4.dp))
+                modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).background(Color(0x99000000), RoundedCornerShape(18.dp)).border(1.dp, Glass.line, RoundedCornerShape(18.dp)).padding(14.dp, 6.dp))
         }
     }
     Column(Modifier.fillMaxSize().background(Colors.background).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally,

@@ -139,7 +139,7 @@ private fun StatsContent(s: Stats) {
                 Heading(tr("Looked up most"))
                 s.topLookups.forEach { t ->
                     Row {
-                        Text("${t.times}×", color = Colors.learning, fontSize = 14.sp, modifier = Modifier.width(44.dp))
+                        Text("${t.times}×", color = Colors.accent, fontSize = 14.sp, modifier = Modifier.width(44.dp))
                         Text(t.meaning.ifBlank { t.word }, fontSize = 14.sp)
                     }
                 }
@@ -153,7 +153,7 @@ private fun Heading(text: String) = Text(text, color = Colors.accent, fontSize =
 
 @Composable
 private fun Tile(label: String, value: String) {
-    Column(Modifier.background(Colors.surface, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 10.dp)) {
+    Column(Modifier.glass(RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 10.dp)) {
         Text(value, fontSize = 20.sp)
         Text(label, fontSize = 12.sp, color = Colors.dim)
     }
@@ -212,7 +212,7 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
             val w = size.width / 30
             values.forEachIndexed { i, v ->
                 val h = (v / max * size.height).toFloat()
-                drawRoundRect(if (i == 29) Colors.learning else Colors.accent,
+                drawRoundRect(if (i == 29) Colors.text else Colors.accent,
                     Offset(i * w + w * 0.15f, size.height - h), Size(w * 0.7f, h.coerceAtLeast(if (v > 0) 2f else 0f)),
                     CornerRadius(3.dp.toPx()))
             }
@@ -221,7 +221,7 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
             Text(today.minusDays(29).let { "${it.dayOfMonth} ${it.month.getDisplayName(TextStyle.SHORT, if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) Locale("es") else Locale.ENGLISH)}" },
                 fontSize = 11.sp, color = Colors.dim)
             Box(Modifier.weight(1f))
-            Text(tr("today"), fontSize = 11.sp, color = Colors.learning)
+            Text(tr("today"), fontSize = 11.sp, color = Colors.text) // Glass: no orange (user 2026-11-17)
         }
     }
 }

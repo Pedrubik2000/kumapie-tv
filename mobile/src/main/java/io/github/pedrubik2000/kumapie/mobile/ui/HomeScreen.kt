@@ -168,7 +168,7 @@ internal fun GlassMenu(main: List<Dest>, selected: String?, onHome: () -> Unit, 
 @Composable
 internal fun MoreSheet(items: List<Dest>, onClose: () -> Unit) = ModalBottomSheet(onDismissRequest = onClose) {
     items.forEach { d ->
-        ListItem(headlineContent = { Text(d.label) }, leadingContent = { Icon(d.icon, null) },
+        ListItem(headlineContent = { Text(d.label) }, leadingContent = { Icon(d.icon, null) }, colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier.clickable { onClose(); d.go() })
     }
 }

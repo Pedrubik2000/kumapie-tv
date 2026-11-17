@@ -92,7 +92,7 @@ fun IPlusOneScreen(library: Library, shows: List<Show>, lang: String, onPlay: (S
             LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
                 items(scenes.orEmpty(), key = { it.scene.id }) { e ->
-                    Column(Modifier.fillMaxWidth().background(Colors.surface, RoundedCornerShape(12.dp))
+                    Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp))
                         .clickable { onPlay(e.show, e.episode, e.scene.start) }.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(buildAnnotatedString {

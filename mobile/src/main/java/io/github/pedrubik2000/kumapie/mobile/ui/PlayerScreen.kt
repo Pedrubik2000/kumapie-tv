@@ -215,8 +215,8 @@ internal fun ScenePlayer(
         }
     }
     val ctl = remember { SceneController(episode, player, settings, backend) }
-    // kumapie's own cards: the carded words heard in each scene played to its end (exposures).
-    remember(ctl) { ctl.onSceneSeen = { s -> library.languages.of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.index, library.settings.subtitles.name.lowercase()) } }
+    // kumapie's own cards: the carded words heard in each line played to its end (exposures).
+    remember(ctl) { ctl.onSceneSeen = { s -> library.languages.of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.ms, library.settings.subtitles.name.lowercase()) } }
     // A novel's music: its own player, so it goes on while a line waits for the tap; quiet under the voices (0.4 was too loud).
     val bgm = remember { if (!episode.novel) null else ExoPlayer.Builder(context).build().apply { repeatMode = Player.REPEAT_MODE_ONE; volume = 0.25f } }
     val track = if (bgm == null) null else ctl.scene.bgm
@@ -517,7 +517,7 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
             modifier = Modifier.padding(horizontal = 8.dp))
         // One scene alone (feed): its place in the episode.
         // Tap: the list of scenes, to jump to one.
-        Text(if (ctl.scenes.size == 1) tr("scene %d", scene.index + 1) else tr("Scene %1\$d of %2\$d", scene.index + 1, ctl.scenes.size),
+        Text(if (ctl.scenes.size == 1) tr("line %d", scene.index + 1) else tr("Line %1\$d of %2\$d", scene.index + 1, ctl.scenes.size),
             color = Colors.text, fontSize = 18.sp, modifier = if (ctl.scenes.size > 1)
                 Modifier.clickable(onClick = onScenes).padding(horizontal = 6.dp, vertical = 8.dp) else Modifier)
         LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 10.dp))
@@ -664,8 +664,8 @@ private fun Options(ctl: SceneController, seekStep: Int, onSeekStep: (Int) -> Un
             }
         }
         Text(
-            tr("Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
-                "right: the scene · ⟲ ⟳ in the middle: back / forward (seconds set here) · Skip intro / ending: shown in a long part without lines · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
+            tr("Tap the line number at the top: all lines, to jump to one · tap the video: play / pause · swipe ← →: next / previous line · double-tap: replay the line" +
+                " · ⟲ ⟳ in the middle: back / forward (seconds set here) · Skip intro / ending: shown in a long part without lines · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
                 "tap a word: its meaning, then tap the words of the German definition too · " +
                 "paused, long-press a subtitle and drag over a word: add it to your personal dictionary."),
             color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
@@ -710,7 +710,7 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
     val at = if (picker.selectedInDef != null) null else io.github.pedrubik2000.kumapie.lang.Miner.Request(ctl.episode, ctl.scene, line,
         io.github.pedrubik2000.kumapie.lang.Miner.Word(segment.text, key, null, ""))
     // Rows show after a word was opened: looked up.
-    val watch = io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.index, library.settings.subtitles.name.lowercase(), true, ctl.speed.toDouble())
+    val watch = io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.ms, library.settings.subtitles.name.lowercase(), true, ctl.speed.toDouble())
     RatingRows(language.known, library.settings.prefs, forms, ratings, queueScope, queueBusy, at, watch) { repaintWords(ctl, language.known) }
 }
 

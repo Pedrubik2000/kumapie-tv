@@ -37,7 +37,12 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         val created: Long, val modified: Long, val stability: Double?, val difficulty: Double?, val lastReview: Long?, val due: Long?,
     )
 
-    /** Where a rating happened: subs = shown|blurred|hidden, heard = times heard since the card's last rating. */
+    /**
+     * Where a rating happened: subs = shown|blurred|hidden, heard = times heard since the card's last rating.
+     * [scene] (the `scene` column of cards, revlog and exposures): where the line starts in the episode, in ms, so a
+     * subtitle fix can't lose it. Rows from before 2026-11-17 hold a scene number there (they are never rewritten);
+     * nothing reads the column back.
+     */
     data class Watch(val episode: String? = null, val scene: Int? = null, val subs: String? = null,
                      val lookedUp: Boolean? = null, val speed: Double? = null, val heard: Int? = null)
 

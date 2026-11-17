@@ -45,7 +45,7 @@ fun HelpOverlay(settings: Settings, lang: Lang) {
                     }
                 }
             }
-            Text(tr("Speed, pause at scene end, subtitles and this list: Options (Menu, or hold ↓).") + "   " +
+            Text(tr("Speed, pause after each line, subtitles and this list: Options (Menu, or hold ↓).") + "   " +
                 tr("Change the buttons in Settings > Change buttons.   Any button closes this."),
                 fontSize = 15.sp, color = Colors.dim)
         }

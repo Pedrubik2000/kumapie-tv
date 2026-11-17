@@ -32,7 +32,7 @@ internal val esOther: Map<String, String> = mapOf(
     "Adding %1\$d of %2\$d…" to "Agregando %1\$d de %2\$d…",
     "Added: %1\$d. %2\$s (%3\$d notes)." to "Agregado: %1\$d. %2\$s (%3\$d notas).",
     "Anki wasn't read." to "Anki no se ha leído.",
-    "Cutting the scene…" to "Cortando la escena…",
+    "Cutting the line…" to "Cortando la línea…",
     "Getting the recording…" to "Obteniendo la grabación…",
     "Saving…" to "Guardando…",
     "Saved \"%s\" and flagged it orange." to "Se guardó \"%s\" y se marcó en naranja.",
@@ -45,7 +45,7 @@ internal val esOther: Map<String, String> = mapOf(
     "Cutting the line's audio…" to "Cortando el audio de la línea…",
     "The Japanese note type has no field %s." to "El tipo de nota de japonés no tiene el campo %s.",
     "Couldn't cut the line's audio: %s" to "No se pudo cortar el audio de la línea: %s",
-    "Couldn't cut the scene: %s" to "No se pudo cortar la escena: %s",
+    "Couldn't cut the line: %s" to "No se pudo cortar la línea: %s",
     // Known words (Settings status line)
     "No AnkiDroid found on this device." to "No se encontró AnkiDroid en este dispositivo.",
     "kumapie may not read Anki yet: allow it in Settings." to "kumapie aún no puede leer Anki: permítelo en Ajustes.",

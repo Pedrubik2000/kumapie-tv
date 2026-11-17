@@ -226,7 +226,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
                 }
             }
         } else {
-            Text(tr("The sentence, a video clip of the whole scene and the %s.", translationName()), color = Colors.dim, fontSize = 14.sp)
+            Text(tr("The sentence, a video clip of the line and the %s.", translationName()), color = Colors.dim, fontSize = 14.sp)
         }
     }
         Button(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), enabled = !busy && !done && (!wordCard || looked), onClick = {

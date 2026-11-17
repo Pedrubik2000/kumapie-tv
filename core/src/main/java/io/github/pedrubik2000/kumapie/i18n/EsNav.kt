@@ -8,7 +8,7 @@ internal val esNav: Map<String, String> = mapOf(
     "Play" to "Reproducir",
     "Resume" to "Seguir",
     "Your shows" to "Tus series",
-    "Scene %1\$d of %2\$d" to "Escena %1\$d de %2\$d",
+    "Line %1\$d of %2\$d" to "Línea %1\$d de %2\$d",
     "Continue: %s" to "Continuar: %s",
     "%1\$d of %2\$d scenes seen" to "%1\$d de %2\$d escenas vistas",
 )

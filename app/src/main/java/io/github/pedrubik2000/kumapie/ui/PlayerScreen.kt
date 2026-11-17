@@ -130,7 +130,7 @@ fun ScenePlayer(api: Api, settings: Settings, episode: EpisodeDetail, onClose: (
     var playerView by remember { mutableStateOf<PlayerView?>(null) } // its frame is a mined Japanese card's picture
     val focus = remember { FocusRequester() }
     fun openPicker() {
-        if (!picker.open()) Toast.makeText(context, tr("No words in this scene"), Toast.LENGTH_SHORT).show()
+        if (!picker.open()) Toast.makeText(context, tr("No words in this line"), Toast.LENGTH_SHORT).show()
     }
     // The list of buttons opens by itself only the first time a person plays something (user, 2026-10-11); then
     // from Options > Help.
@@ -329,12 +329,12 @@ private fun TopBar(ctl: SceneController, title: String) {
         Text(ctl.episode.title.let { if (it.startsWith(title, ignoreCase = true)) it else "$title · $it" }, color = Colors.text, fontSize = 20.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 24.dp))
         val modes = listOfNotNull(
-            if (ctl.pauseAtSceneEnd) tr("pauses at scene end") else tr("no pause at scene end"),
+            if (ctl.pauseAtSceneEnd) tr("pauses after each line") else tr("no pause after each line"),
             if (ctl.pauseAtSceneEnd && ctl.playThroughKnown) tr("i+0 plays through") else null,
             if (ctl.slow) "0.75x" else null,
         ).joinToString(" · ")
         Text(modes, color = Colors.text.copy(alpha = 0.8f), fontSize = 16.sp, modifier = Modifier.padding(end = 24.dp))
-        Text(tr("Scene %1\$d / %2\$d", scene.index + 1, ctl.scenes.size), color = Colors.text, fontSize = 20.sp)
+        Text(tr("Line %1\$d / %2\$d", scene.index + 1, ctl.scenes.size), color = Colors.text, fontSize = 20.sp)
         // No badge where the PC doesn't know the person's words (everything comes as known: a parent's episode).
         val coloured = remember(ctl.episode) { ctl.episode.words.values.any { it.status != "k" } }
         if (coloured) LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 16.dp))

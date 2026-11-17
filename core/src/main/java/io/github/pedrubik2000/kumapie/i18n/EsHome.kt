@@ -47,7 +47,6 @@ internal val esHome: Map<String, String> = mapOf(
     "Add a YouTube link or a video file." to "Agrega un enlace de YouTube o un archivo de video.",
     "Add an episode" to "Agregar un episodio",
     "Feed" to "Feed",
-    "i+1 scenes" to "Escenas i+1",
     "Downloads" to "Descargas",
     "More" to "Más",
     "All" to "Todo",
@@ -112,8 +111,6 @@ internal val esHome: Map<String, String> = mapOf(
     "Japanese text" to "Texto en japonés",
     // i+1 scenes
     "Reading episodes %1\$d of %2\$d…" to "Leyendo episodios %1\$d de %2\$d…",
-    "No i+1 scenes (episodes that can't be reached offline are skipped)." to "No hay escenas i+1 (se omiten los episodios que no se pueden abrir sin conexión).",
-    "No spoilers is on: only scenes you've watched." to "Sin spoilers está activado: solo escenas que ya viste.",
     "Shuffle" to "Mezclar",
     // Feed
     "Mark as watched" to "Marcar como visto",
@@ -122,9 +119,7 @@ internal val esHome: Map<String, String> = mapOf(
     "%1\$s: mark all %2\$d as watched" to "%1\$s: marcar los %2\$d como vistos",
     "%1\$s: mark all %2\$d as not watched" to "%1\$s: marcar los %2\$d como no vistos",
     "Blur pictures of episodes I haven't watched (no spoilers)" to "Difuminar las imágenes de episodios que no he visto (sin spoilers)",
-    "No scenes yet: the feed only shows scenes you've already watched, so nothing is spoiled." to "Aún no hay escenas: el feed solo muestra escenas que ya viste, para no arruinarte nada.",
     "Feed levels" to "Niveles del feed",
-    "Scenes in the feed" to "Escenas en el feed",
     "i+2 and up" to "i+2 y más",
     "i+1 = one new word. Changing this reshuffles the feed." to "i+1 = una palabra nueva. Cambiar esto mezcla el feed de nuevo.",
     // Update
@@ -137,10 +132,6 @@ internal val esHome: Map<String, String> = mapOf(
     "Update" to "Actualizar",
     "Later" to "Después",
     // Unlock
-    "Unlock scenes" to "Escenas al desbloquear",
-    "Keeps kumapie listening for unlocks to show an i+1 scene" to "Mantiene kumapie atento a cada desbloqueo para mostrar una escena i+1",
-    "kumapie: a scene on every unlock" to "kumapie: una escena en cada desbloqueo",
-    "No i+1 scene to show" to "No hay escena i+1 para mostrar",
     "Close" to "Cerrar",
     "Delete here: only this device's copy goes; the episode stays and plays from the PC." to "Borrar aquí: solo se borra la copia de este dispositivo; el episodio sigue y se reproduce desde la PC.",
     "Delete everywhere: off the PC and all your devices." to "Borrar en todas partes: se quita de la PC y de todos tus dispositivos.",

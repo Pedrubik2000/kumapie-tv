@@ -484,7 +484,7 @@ suspend fun syncAnki(context: Context, settings: Settings, ctl: SceneController,
 
 /** A scene played to its end on the TV: its carded words heard, for kumapie's own cards (exposures). */
 fun sceneHeard(context: Context, settings: Settings, ctl: SceneController, s: io.github.pedrubik2000.kumapie.data.Scene) =
-    TvMining.languages(context, settings).of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.index, settings.subtitles.name.lowercase())
+    TvMining.languages(context, settings).of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.ms, settings.subtitles.name.lowercase())
 
 /** [syncAnki] when leaving the player: outlives it. */
 fun syncAnkiLater(context: Context, settings: Settings, ctl: SceneController) {
@@ -582,7 +582,7 @@ fun rateWord(context: Context, api: Api, settings: Settings, ctl: SceneControlle
     rating.busy = true
     scope.launch {
         try {
-            val done = language.known.rate(form, ease, ms, io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.index, settings.subtitles.name.lowercase(), null, ctl.speed.toDouble()))
+            val done = language.known.rate(form, ease, ms, io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.ms, settings.subtitles.name.lowercase(), null, ctl.speed.toDouble()))
             if (done == null) say(tr("kuma3 didn't take the rating."))
             else {
                 rating.last = form to done

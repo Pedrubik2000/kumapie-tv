@@ -14,7 +14,7 @@ import java.io.File
 /**
  * The PC's /improve-card without Claude, for the Home language ([lang]: German, Japanese, English): finds the word cards
  * of its Mined deck that don't stick (lapses, or low stability after several reviews), or any one card asked for
- * ([forNote], [forWord]), and offers other scenes with the word from every episode (i+0 first, then shorter), a
+ * ([forNote], [forWord]), and offers other lines with the word from every episode (i+0 first, then shorter), a
  * person's recording of it, and the current definitions to edit. Applying changes the note in place (scheduling
  * untouched) and flags its cards orange, as the PC's skill does.
  */

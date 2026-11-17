@@ -150,7 +150,8 @@ class StreamActivity : ComponentActivity() {
                 "ready" -> {
                     val d = api.episode(r.getString("id"))
                     val at = withContext(Dispatchers.Main) { player?.currentPosition ?: 0L } / 1000.0
-                    return d.copy(video = r.getString("url"), show = query["title"].orEmpty(), resume = if (at > 1) at else d.resume)
+                    // Where it was left when that is further in than the plain video got while its words loaded (it starts at 0:00).
+                    return d.copy(video = r.getString("url"), show = query["title"].orEmpty(), resume = if (at > 1 && at >= (d.resume ?: 0.0)) at else d.resume)
                 }
                 "none" -> error(tr("No file is ready for this episode yet: pick one in its files"))
                 "failed" -> error(tr("The PC couldn't get it: %1\$s", r.optString("error")))

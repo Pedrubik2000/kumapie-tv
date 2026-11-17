@@ -8,12 +8,11 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Try again" to "Reintentar",
     "Back" to "Volver",
     "↺ line" to "↺ línea",
-    "↺ scene" to "↺ escena",
     "skip nothing" to "sin saltar",
     "primed" to "preparado",
-    "no pause at scene end" to "sin pausa al final de la escena",
+    "no pause after each line" to "sin pausa después de cada línea",
     "plays on" to "sigue",
-    "scene %d" to "escena %d",
+    "line %d" to "línea %d",
     "Options" to "Opciones",
     "Seen" to "Vista",
     "Hear the word" to "Escuchar la palabra",
@@ -22,30 +21,23 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Add to Anki" to "Añadir a Anki",
     "Known" to "Conocida",
     "Mark known" to "Marcar conocida",
-    "Primed Listening: pause at the start of each scene (read, then play)" to
-        "Escucha preparada: pausa al empezar cada escena (lee y luego reproduce)",
-    "Pause at the end of each scene" to "Pausa al final de cada escena",
-    "Skip nothing: play the gaps between scenes too" to
-        "No saltar nada: también los huecos entre escenas",
-    "Don't stop on i+0 scenes (no new words)" to "No parar en escenas i+0 (sin palabras nuevas)",
     "Slow (0.75x)" to "Lento (0.75x)",
     "Back %d s" to "Atrás %d s",
     "Forward %d s" to "Adelante %d s",
     "Back / forward buttons" to "Botones atrás / adelante",
     "Skip intro" to "Saltar intro",
     "Skip ending" to "Saltar final",
-    "Upright: scene by scene, swipe left" to "Vertical: escena por escena, desliza a la izquierda",
     "Subtitle timing" to "Sincronía de subtítulos",
     " (moved %+.1f s so far)" to " (movidos %+.1f s hasta ahora)",
     "− shows the subtitles earlier, + later. Every line of the episode moves." to
         "− muestra los subtítulos antes, + después. Se mueven todas las líneas del episodio.",
     "Subtitles" to "Subtítulos",
-    "Tap the scene number at the top: all scenes, to jump to one · tap the video: play / pause · swipe ← →: next / previous scene · double-tap left: replay the line, " +
-        "right: the scene · ⟲ ⟳ in the middle: back / forward (seconds set here) · Skip intro / ending: shown in a long part without lines · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
+    "Tap the line number at the top: all lines, to jump to one · tap the video: play / pause · swipe ← →: next / previous line · double-tap: replay the line" +
+        " · ⟲ ⟳ in the middle: back / forward (seconds set here) · Skip intro / ending: shown in a long part without lines · tap the subtitles: play / pause (the mode is set here; blurred ones are readable while paused) · " +
         "tap a word: its meaning, then tap the words of the German definition too · " +
         "paused, long-press a subtitle and drag over a word: add it to your personal dictionary." to
-        "Toca el número de escena arriba: todas las escenas, para saltar a una · toca el video: reproducir / pausa · " +
-        "desliza ← →: escena siguiente / anterior · doble toque a la izquierda: repetir la línea, a la derecha: la escena · " +
+        "Toca el número de línea arriba: todas las líneas, para saltar a una · toca el video: reproducir / pausa · " +
+        "desliza ← →: línea siguiente / anterior · doble toque: repetir la línea · " +
         "⟲ ⟳ en el centro: atrás / adelante (los segundos se eligen aquí) · Saltar intro / final: aparece en una parte larga sin diálogo · " +
         "toca los subtítulos: reproducir / pausa (el modo se elige aquí; los borrosos se leen en pausa) · " +
         "toca una palabra: su significado, y luego toca también las palabras de la definición en alemán.",
@@ -55,8 +47,8 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Sentence card" to "Tarjeta de frase",
     "Word card: %s" to "Tarjeta de palabra: %s",
     "Looking up meanings…" to "Buscando significados…",
-    "The sentence, a video clip of the whole scene and the %s." to
-        "La frase, un clip de video de toda la escena y el %s.",
+    "The sentence, a video clip of the line and the %s." to
+        "La frase, un clip de video de la línea y el %s.",
     "Added" to "Añadida",
     "Add" to "Añadir",
     "Definition: the whole %s entry" to "Definición: la entrada completa de %s",
@@ -109,10 +101,10 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Definition (monolingual)" to "Definición (monolingüe)",
     "Use a person's recording of \"%s\" (Wiktionary)" to "Usar la grabación de una persona de \"%s\" (Wiktionary)",
     "Save and flag orange" to "Guardar y marcar en naranja",
-    "Looking for scenes with \"%s\"…" to "Buscando escenas con \"%s\"…",
-    "%1\$d other scenes with \"%2\$s\" (easiest first). Tap one to use it, ▶ to watch it." to
-        "%1\$d escenas más con \"%2\$s\" (las más fáciles primero). Toca una para usarla, ▶ para verla.",
-    "Watch the scene" to "Ver la escena",
+    "Looking for lines with \"%s\"…" to "Buscando líneas con \"%s\"…",
+    "%1\$d other lines with \"%2\$s\" (easiest first). Tap one to use it, ▶ to watch it." to
+        "%1\$d líneas más con \"%2\$s\" (las más fáciles primero). Toca una para usarla, ▶ para verla.",
+    "Watch the line" to "Ver la línea",
     "No kuma3 Anki on this device." to "No hay kuma3 Anki en este dispositivo.",
     // Condensed audio
     "Couldn't open the episode: %s" to "No se pudo abrir el episodio: %s",

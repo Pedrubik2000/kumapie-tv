@@ -435,7 +435,8 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
                     val d = library.episode(r.getString("id"))
                     live.stop() // the scenes draw the lines now
                     val at = player.currentPosition / 1000.0
-                    detail = d.copy(video = r.getString("url"), resume = if (at > 1) at else d.resume)
+                    // Where it was left when that is further in than the plain video got while its words loaded (it starts at 0:00).
+                    detail = d.copy(video = r.getString("url"), resume = if (at > 1 && at >= (d.resume ?: 0.0)) at else d.resume)
                     return@runCatching
                 }
                 step = r.optString("step")

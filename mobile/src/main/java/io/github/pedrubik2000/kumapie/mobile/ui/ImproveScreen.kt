@@ -162,8 +162,8 @@ fun ImproveScreen(library: Library, shows: List<Show>, lang: String, onPlay: (Sh
                             card = null; candidates = null
                         }
                     }) { Text(tr("Save and flag orange")) }
-                    Text(if (candidates == null) tr("Looking for scenes with \"%s\"…", c.key ?: c.word)
-                        else tr("%1\$d other scenes with \"%2\$s\" (easiest first). Tap one to use it, ▶ to watch it.", candidates?.size ?: 0, c.key ?: c.word),
+                    Text(if (candidates == null) tr("Looking for lines with \"%s\"…", c.key ?: c.word)
+                        else tr("%1\$d other lines with \"%2\$s\" (easiest first). Tap one to use it, ▶ to watch it.", candidates?.size ?: 0, c.key ?: c.word),
                         fontSize = 13.sp, color = Colors.dim)
                 }
             }
@@ -177,7 +177,7 @@ fun ImproveScreen(library: Library, shows: List<Show>, lang: String, onPlay: (Sh
                         Text(k.english, fontSize = 13.sp, color = Colors.dim)
                         Text("${k.show.title} · ${k.episode.title}" + " · i+${k.unknown}", fontSize = 12.sp, color = Colors.accent)
                     }
-                    IconButton(onClick = { keep(); onPlay(k.show, k.episode, k.scene.start) }) { Icon(Icons.Default.PlayArrow, tr("Watch the scene")) }
+                    IconButton(onClick = { keep(); onPlay(k.show, k.episode, k.scene.start) }) { Icon(Icons.Default.PlayArrow, tr("Watch the line")) }
                 }
             }
         }

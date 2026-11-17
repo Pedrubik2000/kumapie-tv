@@ -143,12 +143,7 @@ internal val esSettings: Map<String, String> = mapOf(
 
     // Unlock
     "Unlock" to "Desbloqueo",
-    "Show an i+1 scene every time I unlock" to "Mostrar una escena i+1 cada vez que desbloqueo",
-    "Allow \"Display over other apps\" so the scene can open when you unlock." to
-        "Permite \"Mostrar sobre otras apps\" para que la escena se abra al desbloquear.",
     "Allow display over other apps" to "Permitir mostrar sobre otras apps",
-    "%d i+1 scenes to pick from (refreshed when kumapie opens)." to "%d escenas i+1 para elegir (se actualizan al abrir kumapie).",
-    "Reading the episodes for i+1 scenes…" to "Leyendo los episodios para escenas i+1…",
     "If the separate Unlock Cards app is still on, turn it off so only one opens." to
         "Si la app Unlock Cards sigue activada, desactívala para que solo se abra una.",
 

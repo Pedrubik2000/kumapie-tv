@@ -45,7 +45,7 @@ import kotlin.coroutines.resumeWithException
 
 /**
  * Mines a card from kumapie into kuma3 Anki (the language's Mined deck), on the device: a new note of the language's note type with
- * the line, a video clip of the whole scene (cut here with Media3 Transformer, WebM like the PC's), the English and, for a word
+ * the line, a video clip of the line (cut here with Media3 Transformer, WebM like the PC's), the English and, for a word
  * card, the word, its audio and the meaning picked, in the same layout as the Core 1000 cards. Mined cards count
  * as known only once reviewed (their words are new until then).
  */
@@ -179,7 +179,7 @@ class Miner(
         lineFile.delete()
         if ("Video" in fieldNames) {
             // The front plays word audio -> sentence audio -> video.
-            progress(tr("Cutting the scene…"))
+            progress(tr("Cutting the line…"))
             val clipFile = File(dir, "clip.webm").apply { delete() }
             val start = (r.scene.start * 1000).toLong()
             val end = (r.scene.end * 1000).toLong()
@@ -202,7 +202,7 @@ class Miner(
         fields["Sentence"] = if (at < 0) esc(sentence) else esc(sentence.substring(0, at)) + "<b>" + esc(surface!!) +
             (reading?.let { "[${esc(it)}]" } ?: "") + "</b>" + esc(sentence.substring(at + surface.length))
         fields["Notes"] = esc(english(r.scene, cues))
-        fields["Context"] = esc("$how in kumapie: ${r.episode.show} · ${r.episode.title}, scene ${r.scene.index + 1}.")
+        fields["Context"] = esc("$how in kumapie: ${r.episode.show} · ${r.episode.title}, at ${r.scene.ms / 60_000}:${"%02d".format(r.scene.ms / 1000 % 60)}.")
         fields
     }
 
@@ -438,7 +438,7 @@ class Miner(
 
                     override fun onError(composition: Composition, result: ExportResult, e: ExportException) {
                         Log.w("kumapie", "clip: $e")
-                        if (cont.isActive) cont.resumeWithException(IllegalStateException(tr("Couldn't cut the scene: %s", e.errorCodeName), e))
+                        if (cont.isActive) cont.resumeWithException(IllegalStateException(tr("Couldn't cut the line: %s", e.errorCodeName), e))
                     }
                 })
                 .build()

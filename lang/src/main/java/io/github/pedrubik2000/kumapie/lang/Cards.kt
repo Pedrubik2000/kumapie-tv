@@ -178,7 +178,7 @@ class SrsCards(private val context: Context) : Cards {
         // One card per word: the same word mined again made 37 duplicates (まひ three times; user, 2026-11-17).
         check(s.cards().none { it.word == text(f["Word"]) }) { io.github.pedrubik2000.kumapie.i18n.tr("Already in your reviews") }
         return s.addCard(text(f["Word"]), text(f["Sentence"]), text(f[KnownWords.DEF_BI]), ctx?.groupValues?.get(1)?.unescape(),
-            ctx?.groupValues?.get(2)?.unescape(), ctx?.groupValues?.get(3)?.toIntOrNull(), rest(f), tags).id.also { syncSoon(lang) }
+            ctx?.groupValues?.get(2)?.unescape(), ctx?.let(::place), rest(f), tags).id.also { syncSoon(lang) }
     }
 
     override fun updateNote(pkg: String, nid: Long, tags: Set<String>, fields: List<String>?) {
@@ -216,7 +216,13 @@ class SrsCards(private val context: Context) : Cards {
         const val PKG = "kumapie"
         private val MEDIA = Regex("""<img[^>]*>|\[(?:sound|audio):[^\]]*\]""", RegexOption.IGNORE_CASE)
         /** "Mined in kumapie: <show> · <episode>, scene N." as Miner writes it (and tools\srs\import_kuma3.py reads it). */
-        private val CONTEXT = Regex("""(?:Mined|Rated) in kumapie: (.*?) · (.*), scene (\d+)\.""")
+        private val CONTEXT = Regex("""(?:Mined|Rated) in kumapie: (.*?) · (.*), (?:scene (\d+)|at (\d+):(\d\d))\.""")
+
+        /** The place in the episode a Context gives: ", at 13:07." as ms; ", scene 12." (until 2026-11-17) as it was. */
+        fun placeOf(context: String): Int? = CONTEXT.find(context)?.let(::place)
+
+        internal fun place(ctx: MatchResult): Int? = ctx.groupValues[3].toIntOrNull()
+            ?: ctx.groupValues[4].toIntOrNull()?.let { m -> (m * 60 + ctx.groupValues[5].toInt()) * 1000 }
 
         private fun text(v: String?) = MEDIA.replace(v.orEmpty(), "").trim()
         private fun String.unescape() = replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")

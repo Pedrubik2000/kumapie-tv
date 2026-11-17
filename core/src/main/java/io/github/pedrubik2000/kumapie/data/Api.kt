@@ -593,6 +593,9 @@ data class Scene(
 ) {
     fun def(line: Int, word: String): LineDef? = defs["$line|$word"]
 
+    /** Where it starts (ms): what kumapie's own cards, ratings and exposures keep as the place (Srs `scene` column). */
+    val ms: Int get() = (start * 1000).toInt()
+
     /** Its middle (ms): the line counts as watched when a watched range has it. */
     val middle: Long get() = ((start + end) * 500).toLong()
 

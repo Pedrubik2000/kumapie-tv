@@ -306,7 +306,7 @@ private fun TopRow(ctl: SceneController, transcript: Boolean, onTranscript: () -
         androidx.compose.foundation.text.BasicText("${io.github.pedrubik2000.kumapie.data.shortTitle(ctl.episode.show)} · ${ctl.episode.title}".uppercase(),
             Modifier.weight(1f), TextStyle(color = Colors.text, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-        Text("Scene ${ctl.index + 1} / ${ctl.scenes.size}", color = Colors.dim, fontSize = 16.sp)
+        Text("Line ${ctl.index + 1} / ${ctl.scenes.size}", color = Colors.dim, fontSize = 16.sp)
         LevelBadge(lv)
         ArcadeButton("Options", key = "O", onClick = onOptions)
         ArcadeButton("⛶") { toggleFullscreen() }
@@ -386,7 +386,7 @@ private fun MineForm(ctl: SceneController, picker: WordPicker, senses: List<Stri
 @Composable
 private fun EpisodeDone(ctl: SceneController, looked: Int, onNext: (() -> Unit)?) {
     Title("Episode done", fontSize = 28.sp)
-    Text("${ctl.scenes.count { ctl.wasSeen(it) }} of ${ctl.scenes.size} scenes watched · $looked words looked up", color = Colors.dim, fontSize = 14.sp)
+    Text("${ctl.scenes.count { ctl.wasSeen(it) }} of ${ctl.scenes.size} lines watched · $looked words looked up", color = Colors.dim, fontSize = 14.sp)
     onNext?.let { ArcadeButton("Next episode", onClick = it) }
 }
 
@@ -413,7 +413,7 @@ private fun Transcript(ctl: SceneController, modifier: Modifier) {
             val here = i == ctl.index
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 val lv = ctl.levelOf(sc)
-                Text("Scene ${i + 1} · ${lv?.let { "i+$it" } ?: "no words"}".uppercase(), color = if (here) Arcade.accent else Colors.dim, fontSize = 12.sp,
+                Text("Line ${i + 1} · ${lv?.let { "i+$it" } ?: "no words"}".uppercase(), color = if (here) Arcade.accent else Colors.dim, fontSize = 12.sp,
                     style = Arcade.label, modifier = Modifier.clickable { ctl.playScene(i) })
                 if (seen || here) sc.cues.forEachIndexed { line, cue ->
                     Text(colored(cue, ctl.words), fontSize = 15.sp,

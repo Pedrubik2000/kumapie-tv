@@ -24,6 +24,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.composed
+import dev.chrisbanes.haze.blur.hazeBlur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -47,8 +49,26 @@ object Glass {
     val solid = Color(0xFF1B1D22)
 }
 
-// ponytail: translucent fill + border, no backdrop blur (Compose's blur can't see behind; needs Haze or RenderEffect, API 31+).
-fun Modifier.glass(shape: Shape = RoundedCornerShape(18.dp)) = clip(shape).background(Glass.fill).border(1.dp, Glass.line, shape)
+/**
+ * The picture glass blurs (Haze, user 2026-11-17): a screen marks its picture `Modifier.hazeSource(state)` and provides
+ * the state here around the glass drawn over it. None provided = plain translucent fill. Android 11 and older (the
+ * Boox) get Haze's tinted fallback without blur. A video (SurfaceView) can't be captured: the player's glass stays plain.
+ */
+val LocalHaze = androidx.compose.runtime.staticCompositionLocalOf<dev.chrisbanes.haze.HazeState?> { null }
+
+private val GlassBlur = dev.chrisbanes.haze.blur.HazeBlurStyle {
+    blurRadius(24.dp)
+    noiseFactor(0f)
+    backgroundColor(Glass.page)
+    colorEffects(listOf(dev.chrisbanes.haze.blur.HazeColorEffect.tint(Glass.fill)))
+}
+
+fun Modifier.glass(shape: Shape = RoundedCornerShape(18.dp)) = composed {
+    val haze = LocalHaze.current
+    clip(shape).then(if (haze == null) Modifier.background(Glass.fill)
+        else Modifier.hazeBlur(dev.chrisbanes.haze.HazeInput.Sources(haze), GlassBlur))
+        .border(1.dp, Glass.line, shape)
+}
 
 @Composable
 fun MobileTheme(content: @Composable () -> Unit) {

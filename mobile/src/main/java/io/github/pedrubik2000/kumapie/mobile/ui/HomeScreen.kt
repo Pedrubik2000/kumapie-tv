@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.zIndex
+import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilledIconButton
@@ -287,8 +288,12 @@ fun HomeScreen(
 
     // Glass (tablet): the page runs under the status bar; the menu is round buttons down the left edge, the rest under More.
     if (wide) androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = Glass.page, contentColor = Colors.text) { Box(Modifier.fillMaxSize()) {
-        content(PaddingValues(0.dp))
-        GlassMenu(main, "", {}, { more = true }, Modifier.align(Alignment.CenterStart))
+        // The round buttons blur the page scrolling under them.
+        val haze = dev.chrisbanes.haze.rememberHazeState()
+        Box(Modifier.fillMaxSize().hazeSource(haze)) { content(PaddingValues(0.dp)) }
+        androidx.compose.runtime.CompositionLocalProvider(LocalHaze provides haze) {
+            GlassMenu(main, "", {}, { more = true }, Modifier.align(Alignment.CenterStart))
+        }
     } } else Scaffold(
         topBar = { HomeBar(onAdd = { adding = true }) { attempt++ } },
         bottomBar = {
@@ -480,24 +485,29 @@ private fun Hero(library: Library, s: Show, e: Episode, onShow: () -> Unit, onPl
     // Stats beside the title only where both fit (the Tab S7+ on its side, 1317 dp); else under the buttons.
     val roomy = config.screenWidthDp >= 1100
     Box(Modifier.fillMaxWidth().height((config.screenHeightDp * 0.62f).dp)) {
-        NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
-        AsyncImage(art(library, s, e), null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
-        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Glass.page.copy(alpha = 0.85f), 0.6f to Color.Transparent)))
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Glass.page.copy(alpha = 0.5f), 0.2f to Color.Transparent, 0.6f to Color.Transparent, 1f to Glass.page)))
-        top()
-        Column(Modifier.align(Alignment.BottomStart).padding(start = GUTTER, end = 24.dp, bottom = 24.dp).widthIn(max = 600.dp)) {
-            Text(tr("Continue watching").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 3.sp)
-            Text(s.title, color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Color.White.copy(alpha = 0.85f), fontSize = 18.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-            ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(420.dp).padding(top = 14.dp))
-            Row(Modifier.padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Pill(tr("Resume"), onPlay, primary = true, icon = Icons.Default.PlayArrow)
-                Pill(tr("Episodes"), onShow)
-            }
-            if (!roomy) Box(Modifier.padding(top = 16.dp)) { stats() }
+        val haze = dev.chrisbanes.haze.rememberHazeState() // the picture the pills, chips and language pill blur
+        Box(Modifier.matchParentSize().hazeSource(haze)) {
+            NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
+            AsyncImage(art(library, s, e), null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
+            Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Glass.page.copy(alpha = 0.85f), 0.6f to Color.Transparent)))
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Glass.page.copy(alpha = 0.5f), 0.2f to Color.Transparent, 0.6f to Color.Transparent, 1f to Glass.page)))
         }
-        if (roomy) Box(Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 24.dp)) { stats() }
+        androidx.compose.runtime.CompositionLocalProvider(LocalHaze provides haze) {
+            top()
+            Column(Modifier.align(Alignment.BottomStart).padding(start = GUTTER, end = 24.dp, bottom = 24.dp).widthIn(max = 600.dp)) {
+                Text(tr("Continue watching").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 3.sp)
+                Text(s.title, color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Color.White.copy(alpha = 0.85f), fontSize = 18.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(420.dp).padding(top = 14.dp))
+                Row(Modifier.padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Pill(tr("Resume"), onPlay, primary = true, icon = Icons.Default.PlayArrow)
+                    Pill(tr("Episodes"), onShow)
+                }
+                if (!roomy) Box(Modifier.padding(top = 16.dp)) { stats() }
+            }
+            if (roomy) Box(Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 24.dp)) { stats() }
+        }
     }
 }
 

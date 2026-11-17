@@ -154,6 +154,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.11.0")
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
+    implementation("dev.chrisbanes.haze:haze-blur:2.1.0") // Glass: frosted blur behind glass surfaces (user 2026-11-17)
 }
 
 // The release lint check (lintVital, ~22 s) is for what gets published; dev builds skip it.

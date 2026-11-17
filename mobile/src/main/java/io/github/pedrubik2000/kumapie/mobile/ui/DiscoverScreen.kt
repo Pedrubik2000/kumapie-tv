@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.border
+import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -292,20 +293,25 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
         }
         if (wide) {
             // The backdrop behind everything, dimmed; info left, the episodes right (the mockup's title page).
-            Backdrop(t.background.ifEmpty { t.poster })
-            Box(Modifier.matchParentSize().background(Colors.background.copy(alpha = 0.72f)))
-            Row(Modifier.fillMaxSize().statusBarsPadding()) {
-                Column(Modifier.weight(0.42f).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(top = 72.dp)) {
-                    Box(Modifier.padding(horizontal = 16.dp)) { TitleLogo(t) }
-                    Text(t.line, color = Colors.text, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-                    info()
-                }
-                LazyColumn(Modifier.weight(0.58f).fillMaxHeight(), contentPadding = PaddingValues(top = 16.dp, bottom = 72.dp)) {
-                    if (eps.isNotEmpty()) item(key = "title") {
-                        Text(tr("Episodes"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp))
+            val haze = dev.chrisbanes.haze.rememberHazeState() // the episode cards and pills blur it
+            Box(Modifier.matchParentSize().hazeSource(haze)) {
+                Backdrop(t.background.ifEmpty { t.poster })
+                Box(Modifier.matchParentSize().background(Colors.background.copy(alpha = 0.72f)))
+            }
+            androidx.compose.runtime.CompositionLocalProvider(LocalHaze provides haze) {
+                Row(Modifier.fillMaxSize().statusBarsPadding()) {
+                    Column(Modifier.weight(0.42f).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(top = 72.dp)) {
+                        Box(Modifier.padding(horizontal = 16.dp)) { TitleLogo(t) }
+                        Text(t.line, color = Colors.text, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                        info()
                     }
-                    items(eps, key = { it.getString("id") }) { episode(it) }
+                    LazyColumn(Modifier.weight(0.58f).fillMaxHeight(), contentPadding = PaddingValues(top = 16.dp, bottom = 72.dp)) {
+                        if (eps.isNotEmpty()) item(key = "title") {
+                            Text(tr("Episodes"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp))
+                        }
+                        items(eps, key = { it.getString("id") }) { episode(it) }
+                    }
                 }
             }
         } else LazyColumn(Modifier.fillMaxSize()) {

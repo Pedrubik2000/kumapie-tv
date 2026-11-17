@@ -175,6 +175,8 @@ class SrsCards(private val context: Context) : Cards {
     fun mine(lang: Lang, f: Map<String, String>, tags: String): Long {
         val ctx = CONTEXT.find(f["Context"].orEmpty())
         val s = requireNotNull(store(lang)) { "no person on this device" }
+        // One card per word: the same word mined again made 37 duplicates (まひ three times; user, 2026-11-17).
+        check(s.cards().none { it.word == text(f["Word"]) }) { io.github.pedrubik2000.kumapie.i18n.tr("Already in your reviews") }
         return s.addCard(text(f["Word"]), text(f["Sentence"]), text(f[KnownWords.DEF_BI]), ctx?.groupValues?.get(1)?.unescape(),
             ctx?.groupValues?.get(2)?.unescape(), ctx?.groupValues?.get(3)?.toIntOrNull(), rest(f), tags).id.also { syncSoon(lang) }
     }

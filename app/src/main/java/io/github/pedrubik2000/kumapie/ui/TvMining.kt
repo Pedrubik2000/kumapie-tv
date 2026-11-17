@@ -115,6 +115,16 @@ private object TvMining {
      */
     fun fetchJapanese(context: Context, settings: Settings) {
         if (fetching != null) return
+        // No PC: JMdict and JMnedict from GitHub (~27 MB), once; Yomitan's updates keep them current.
+        if (settings.server.isEmpty()) {
+            fetching = tr("Downloading the Japanese dictionaries…")
+            work.launch {
+                runCatching { yomitan.installRecommended(Lang.JAPANESE) { fetching = it }.forEach { Log.i("kumapie", "ja dictionary: $it") } }
+                    .onFailure { Log.w("kumapie", "Japanese dictionaries: $it") }
+                fetching = null
+            }
+            return
+        }
         fetching = tr("Getting the Japanese dictionaries from the PC…")
         val app = context.applicationContext
         val prefs = settings.prefs
@@ -137,6 +147,12 @@ private object TvMining {
     }
 
     private const val FETCHED = "ja_dicts_fetched"
+}
+
+/** Without a PC, the first run starts the Japanese dictionaries' download (JMdict, JMnedict) in the background. */
+fun startJapaneseDictionaries(context: Context, settings: Settings) {
+    TvMining.languages(context, settings)
+    if (TvMining.yomitan.of(Lang.JAPANESE).isEmpty()) TvMining.fetchJapanese(context, settings)
 }
 
 /**

@@ -401,6 +401,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
          * Starter sets per language (index.json URLs; updatable): German = wty-de-en (Wiktionary, the source of the old
          * de-en.sqlite) + its IPA. Japanese comes with step 3 (Jitendex, JMnedict, a frequency and a pitch dictionary).
          */
+        private const val JMDICT = "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download"
         private const val WTY = "https://huggingface.co/datasets/daxida/wty-release/resolve/main/latest/index"
         val RECOMMENDED = mapOf(
             // German-German last: the monolingual definition for mining and the fallback when wty-de-en has nothing.
@@ -411,6 +412,10 @@ class YomitanDictionaries private constructor(private val context: Context) {
             "en-es" to listOf("$WTY/wty-en-es-gloss-index.json?download=true", "$WTY/wty-en-es-index.json?download=true",
                 "$WTY/wty-en-es-ipa-index.json?download=true", "$WTY/wty-en-en-index.json?download=true"),
             "en" to listOf("$WTY/wty-en-en-index.json?download=true", "$WTY/wty-en-en-ipa-index.json?download=true"),
+            // Japanese without a PC (kumapie for other people): JMdict and JMnedict, Yomitan's own builds (EDRDG licence,
+            // CC BY-SA 4.0: the attribution comes in each index). Spanish JMdict is small: English behind it.
+            "ja" to listOf("$JMDICT/JMdict_english.json", "$JMDICT/JMnedict.json"),
+            "ja-es" to listOf("$JMDICT/JMdict_spanish.json", "$JMDICT/JMdict_english.json", "$JMDICT/JMnedict.json"),
         )
 
         fun parseTerms(a: JSONArray): List<Term> = (0 until a.length()).map { i ->

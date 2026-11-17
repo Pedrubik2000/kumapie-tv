@@ -92,6 +92,8 @@ fun App(settings: Settings) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
     var standalone by remember { mutableStateOf(settings.standalone) } // no PC server: chosen on the first run
+    // Without a PC: JMdict and JMnedict download in the background, on the first run (and again if it didn't finish).
+    LaunchedEffect(standalone, server) { if (standalone && server.isEmpty()) io.github.pedrubik2000.kumapie.ui.startJapaneseDictionaries(context, settings) }
     var profile by remember { mutableStateOf<Profile?>(null) } // asked at every start, like Netflix
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var update by remember { mutableStateOf<Updater.Release?>(null) }

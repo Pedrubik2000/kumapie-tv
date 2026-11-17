@@ -242,7 +242,12 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
                 }
             }
             pick != null -> {
-                val list = files
+                // Files this device can't decode (by their names: HEVC 10 bit, AV1…) go last, saying why. A name never says the level: "may".
+                val list = remember(files) {
+                    files?.map { f -> f to io.github.pedrubik2000.kumapie.data.Playable.missing(f.optString("label") + " " + f.optString("about") + " " + f.optString("file")) }
+                        ?.sortedBy { it.second.isNotEmpty() }
+                        ?.map { (f, no) -> if (no.isEmpty()) f else JSONObject(f.toString()).put("label", "✗ " + tr("May not play here: %1\$s", no.joinToString(", ")) + " · " + f.optString("label")) }
+                }
                 Column {
                     Heading(pick.second)
                     when {

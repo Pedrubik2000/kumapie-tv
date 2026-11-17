@@ -189,6 +189,7 @@ internal val esTv: Map<String, String> = mapOf(
     "Japanese subtitles for a stream that has none of its own: your free API key from jimaku.cc." to
         "Subtítulos en japonés para un stream que no trae los suyos: tu clave gratuita de jimaku.cc.",
     "Asking your addons…" to "Preguntando a tus addons…",
+    "May not play here: %1\$s" to "Puede que no se reproduzca aquí: %1\$s",
     "No Japanese subtitles: none in this file, none on Jimaku" to "Sin subtítulos en japonés: ni en este archivo ni en Jimaku",
     "Jimaku's subtitles" to "Subtítulos de Jimaku",
     "That didn't work" to "No ha funcionado",

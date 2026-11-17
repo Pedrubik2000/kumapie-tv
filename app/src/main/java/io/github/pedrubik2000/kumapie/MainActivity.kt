@@ -60,13 +60,25 @@ class MainActivity : ComponentActivity() {
         Updater.version = BuildConfig.VERSION_NAME
         Updater.asset = "kumapie-tv-"
         val settings = Settings(this)
-        // The server address can be sent from the PC instead of typed with the remote:
-        //   adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.MainActivity --es server https://...
-        intent?.getStringExtra("server")?.let { settings.server = it }
-        // Without a PC, the same way (long to type with a remote): --es addon <address> adds one, --es jimaku <key>.
-        intent?.getStringExtra("addon")?.let { a -> if (a.isBlank()) settings.addons = emptyList() else settings.addons = (settings.addons + a.trim()).distinct() }
-        intent?.getStringExtra("jimaku")?.let { settings.prefs.edit().putString("jimaku_key", it.trim()).apply() }
+        fromAdb(intent, settings)
         setContent { KumapieTheme { App(settings) } }
+    }
+
+    // kumapie already open: adb's intent comes here, not to onCreate. Saved, then the screens start again with it.
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        if (fromAdb(intent, Settings(this))) recreate()
+    }
+
+    /** The server address can be sent from the PC instead of typed with the remote:
+     *    adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.MainActivity --es server https://...
+     *  Without a PC, the same way (long to type with a remote): --es addon <address> adds one ('' clears), --es jimaku <key>. */
+    private fun fromAdb(intent: android.content.Intent?, settings: Settings): Boolean {
+        var any = false
+        intent?.getStringExtra("server")?.let { settings.server = it; any = true }
+        intent?.getStringExtra("addon")?.let { a -> settings.addons = if (a.isBlank()) emptyList() else (settings.addons + a.trim()).distinct(); any = true }
+        intent?.getStringExtra("jimaku")?.let { settings.prefs.edit().putString("jimaku_key", it.trim()).apply(); any = true }
+        return any
     }
 
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {

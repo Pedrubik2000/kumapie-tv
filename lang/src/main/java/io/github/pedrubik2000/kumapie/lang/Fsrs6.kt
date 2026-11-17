@@ -36,7 +36,7 @@ class Fsrs6(val w: DoubleArray = DEFAULT, val retention: Double = 0.9, val maxIn
         val d = prev.difficulty
         val newS = if (elapsedDays < 1) {
             val inc = exp(w[17] * (rating - 3 + w[18])) * s.pow(-w[19])
-            s * if (rating >= 3) max(inc, 1.0) else inc
+            s * if (rating >= 2) max(inc, 1.0) else inc // py-fsrs 6.3: only Again lowers S on the same day
         } else {
             val r = retrievability(elapsedDays.toDouble(), s)
             if (rating == 1) {

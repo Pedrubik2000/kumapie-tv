@@ -39,9 +39,7 @@ class Pending(context: Context) {
             val o = JSONObject(line)
             val ok = runCatching {
                 when (o.getString("t")) {
-                    "progress" -> api.progress(o.getString("episode"), o.getDouble("pos"),
-                        o.getJSONArray("seen").let { a -> (0 until a.length()).map { a.getString(it) } },
-                        o.getDouble("watched"))
+                    "progress" -> api.progress(o.getString("episode"), o.getDouble("pos"), o.getDouble("watched"))
                     "lookup" -> api.lookup(o.getString("word"), o.getString("scene"))
                     "known" -> api.markKnown(o.getString("word"), o.getBoolean("known"))
                 }
@@ -71,9 +69,8 @@ class Pending(context: Context) {
     companion object {
         private const val BACKOFF_MS = 30_000L
 
-        fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double): JSONObject =
-            JSONObject().put("t", "progress").put("episode", episode).put("pos", pos)
-                .put("seen", JSONArray(seen)).put("watched", watched)
+        fun progress(episode: String, pos: Double, watched: Double): JSONObject =
+            JSONObject().put("t", "progress").put("episode", episode).put("pos", pos).put("watched", watched)
 
         fun lookup(word: String, scene: String): JSONObject =
             JSONObject().put("t", "lookup").put("word", word).put("scene", scene)

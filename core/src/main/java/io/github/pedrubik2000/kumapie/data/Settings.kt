@@ -43,11 +43,6 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("pause_at_scene_end", true)
         set(value) = prefs.edit().putBoolean("pause_at_scene_end", value).apply()
 
-    /** Skip nothing: the gaps between scenes play too and scenes don't wait on their start; pause at scene end still applies. */
-    var newStraight: Boolean
-        get() = prefs.getBoolean("new_straight", false)
-        set(value) = prefs.edit().putBoolean("new_straight", value).apply()
-
     /** i+0 scenes play through: no pause at their start or end. */
     var playThroughKnown: Boolean
         get() = prefs.getBoolean("play_through_known", false)
@@ -78,10 +73,6 @@ class Settings(context: Context) {
     var blurUnwatched: Boolean
         get() = prefs.getBoolean("blur_unwatched", true)
         set(value) = prefs.edit().putBoolean("blur_unwatched", value).apply()
-
-    var feedLevels: Set<Int>
-        get() = prefs.getString("feed_levels", "1")!!.split(',').mapNotNull { it.toIntOrNull() }.toSet()
-        set(value) = prefs.edit().putString("feed_levels", value.sorted().joinToString(",")).apply()
 
     /** The help screen when an episode opens, and the key hints at the top. Options > Help works either way. */
     var showHelp: Boolean

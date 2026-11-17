@@ -65,7 +65,7 @@ class Library(context: Context, val settings: Settings) {
     val progress = Progress.of(context).also { p ->
         // Once: positions of episodes made here, from before progress was kept in Anki.
         if (!settings.prefs.getBoolean("progress_migrated", false)) {
-            settings.prefs.all.filterKeys { it.startsWith("resume_") }.forEach { (k, v) -> p.record(k.removePrefix("resume_"), (v as Float).toDouble(), emptyList(), 0.0) }
+            settings.prefs.all.filterKeys { it.startsWith("resume_") }.forEach { (k, v) -> p.record(k.removePrefix("resume_"), (v as Float).toDouble(), 0.0) }
             languages.all.forEach { l -> l.known.markedWords.forEach { p.mark(l.markKey(it), true) } }
             settings.prefs.edit().putBoolean("progress_migrated", true).apply()
         }
@@ -98,7 +98,6 @@ class Library(context: Context, val settings: Settings) {
         val marked = progress.merged.marked
         languages.all.forEach { l -> l.known.useMarked(marked.mapNotNull(l::wordOfMark).toSet()) }
         sendKnownWords()
-        convertSeen()
         sendWatch()
     }
 
@@ -136,10 +135,10 @@ class Library(context: Context, val settings: Settings) {
             .onFailure { android.util.Log.w("kumapie", "watch time not sent: $it") }
     }
 
-    /** Scene -> the language of its show. */
+    /** Episode watched (any of it) -> the language of its show. */
     private fun sceneLang(v: Progress.View, shows: List<Show>): Map<String, String> {
         val epLang = shows.flatMap { s -> s.episodes.map { it.id to s.lang } }.toMap()
-        return v.seen.mapNotNull { (scene, ep) -> epLang[ep]?.let { scene to it } }.toMap()
+        return v.ranges.keys.mapNotNull { ep -> epLang[ep]?.let { ep to it } }.toMap()
     }
 
     /** The last list [shows] gave (for [sendWatch]). */
@@ -207,7 +206,8 @@ class Library(context: Context, val settings: Settings) {
         return (mineShown + pcOwn).also { lastShows = it }.map { s ->
             // A "not watched" mark: the PC's own count is from before it, only the merged scenes count.
             s.copy(episodes = s.episodes.map { e -> e.copy(resume = m.pos[e.id] ?: e.resume, resumedAt = maxOf(e.resumedAt, m.posAt[e.id] ?: 0),
-                seen = if (e.id in m.unwatched) m.seenIn(e.id) else maxOf(e.seen, m.seenIn(e.id)),
+                // Lines heard: the PC's count; after a "not watched" here it may still be the old one until the PC knows.
+                seen = if (e.id in m.unwatched && m.ranges[e.id].isNullOrEmpty()) 0 else e.seen,
                 watchedFlag = (e.watchedFlag && e.id !in m.unwatched) || e.id in m.done) })
         } to offline
     }
@@ -261,37 +261,8 @@ class Library(context: Context, val settings: Settings) {
         val unwatched = d.id in m.unwatched // the PC's own count is from before the mark
         val ranges = io.github.pedrubik2000.kumapie.data.Ranges.union((if (unwatched) emptyList() else d.ranges) + m.ranges[d.id].orEmpty())
         return d.copy(ranges = ranges, scenes = d.scenes.map { s ->
-            s.copy(seen = (s.seen && !unwatched) || s.source in m.seen || ranges.any { s.middle in it.start..it.end })
+            s.copy(seen = (s.seen && !unwatched) || ranges.any { s.middle in it.start..it.end })
         })
-    }
-
-    /**
-     * Once per device: the scenes seen (on any device, so a phone that updates late loses nothing) become watched
-     * time ranges, before scenes go (kumapie_plan.md "no more scenes"). An episode that can't be read now (the PC
-     * off): tried again at the next sync. One that is gone: nothing to keep.
-     */
-    private suspend fun convertSeen() = withContext(Dispatchers.IO) {
-        if (progress.converted) return@withContext
-        val listed = lastShows.flatMap { s -> s.episodes.map { it.id } }.toSet()
-        if (listed.isEmpty()) return@withContext
-        val spans = HashMap<String, List<io.github.pedrubik2000.kumapie.data.Span>>()
-        val done = HashSet<String>()
-        for ((id, seen) in progress.merged.seen.entries.groupBy({ it.value }, { it.key })) {
-            if (id !in listed) continue
-            val json = runCatching {
-                if (LocalEpisodes.isLocal(id)) local.json(id).readText()
-                else if (downloads.isComplete(id)) downloads.episodeJson(id).readText() else api.episodeJson(id)
-            }.getOrElse { android.util.Log.w("kumapie", "seen scenes not converted yet ($id): $it"); return@withContext }
-            val scenes = api.parseEpisode(json).scenes
-            val got = io.github.pedrubik2000.kumapie.data.Ranges.union(scenes.filter { it.source in seen }
-                .map { io.github.pedrubik2000.kumapie.data.Span((it.start * 1000).toLong(), (it.end * 1000).toLong()) })
-            spans[id] = got
-            if (io.github.pedrubik2000.kumapie.data.Ranges.watched(
-                    io.github.pedrubik2000.kumapie.data.Ranges.spoken(scenes.filterNot { it.song }.flatMap { it.cues }), got)) done += id
-        }
-        progress.convert(spans, done)
-        android.util.Log.i("kumapie", "seen scenes as time ranges: ${spans.size} episodes, ${done.size} watched")
-        syncLater()
     }
 
     /**
@@ -348,11 +319,11 @@ class Library(context: Context, val settings: Settings) {
         }.awaitAll().filterNotNull()
     }
 
-    /** Counts an episode as watched (seen before kumapie, or elsewhere): all its scenes become seen, on every device. */
+    /** Counts an episode as watched (seen before kumapie, or elsewhere), on every device. */
     suspend fun markWatched(id: String) {
         val detail = episodeCache[id] ?: episode(id)
         val end = maxOf(detail.duration, detail.scenes.maxOfOrNull { it.end } ?: 0.0)
-        progress.record(id, null, detail.scenes.map { it.source }.distinct(), 0.0, // scene ids: for a device on an older build
+        progress.record(id, null, 0.0,
             ranges = listOf(io.github.pedrubik2000.kumapie.data.Span(0, (end * 1000).toLong())), done = true)
         syncLater()
     }
@@ -360,7 +331,7 @@ class Library(context: Context, val settings: Settings) {
     /** Undoes [markWatched] or a real watch: no scene of it counts as seen any more, and it starts from the beginning. */
     suspend fun markUnwatched(id: String) {
         progress.unwatch(id)
-        pending.add(Pending.progress(id, 0.0, emptyList(), 0.0)) // the TV starts it from the beginning too
+        pending.add(Pending.progress(id, 0.0, 0.0)) // the TV starts it from the beginning too
         syncLater()
     }
 
@@ -396,11 +367,10 @@ private class OfflineBackend(
      * Kept in [Progress] (Anki). The PC gets only the position (its own episodes and synced ones made on a device), so
      * the TV resumes there; scenes and time would count twice (the PC's history is part of Progress as the "pc" note).
      */
-    override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double,
-                                  ranges: List<io.github.pedrubik2000.kumapie.data.Span>, done: Boolean) {
-        progress.record(episode, pos, seen, watched, lang, ranges, done)
+    override suspend fun progress(episode: String, pos: Double, watched: Double, ranges: List<io.github.pedrubik2000.kumapie.data.Span>, done: Boolean) {
+        progress.record(episode, pos, watched, lang, ranges, done)
         syncLater()
-        pending.add(Pending.progress(episode, pos, emptyList(), 0.0))
+        pending.add(Pending.progress(episode, pos, 0.0))
         pending.flush(api)
     }
 

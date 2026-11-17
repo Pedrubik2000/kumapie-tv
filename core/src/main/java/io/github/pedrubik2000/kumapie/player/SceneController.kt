@@ -63,9 +63,6 @@ class SceneController(
     /** Primed Listening: a new scene waits on its start (all its lines shown while paused) until play. */
     var pauseAtSceneStart by mutableStateOf(settings.pauseAtSceneStart)
         private set
-    /** Skip nothing: the gaps between scenes play too and scenes don't wait on their start; Pause at scene end still pauses (user, 2026-10-14). */
-    var newStraight by mutableStateOf(settings.newStraight)
-        private set
     /** i+0 scenes (no red words) don't pause at their start or end (user, 2026-10-14). */
     var playThroughKnown by mutableStateOf(settings.playThroughKnown)
         private set
@@ -88,8 +85,7 @@ class SceneController(
 
     private var stopAt: Double? = null
     private var stopIsSceneEnd = false
-    private val seenNew = mutableSetOf<String>()
-    /** Scenes played to their end since the episode opened (seenNew is emptied by each report). */
+    /** Lines played to their end since the episode opened. */
     private val seenHere = mutableSetOf<String>()
 
     /** Seen before (any device) or since the episode opened: a novel's Skip goes through these. */
@@ -286,13 +282,6 @@ class SceneController(
         showBanner()
     }
 
-    fun toggleNewStraight() {
-        newStraight = !newStraight
-        settings.newStraight = newStraight
-        if (player.isPlaying) stopAtSceneEnd()
-        showBanner()
-    }
-
     fun togglePlayThroughKnown() {
         playThroughKnown = !playThroughKnown
         settings.playThroughKnown = playThroughKnown
@@ -383,12 +372,11 @@ class SceneController(
     }
 
     /**
-     * Sends where the episode is, new scenes seen and time watched. Also called when the player closes. Nothing until
+     * Sends where the episode is, what played and time watched. Also called when the player closes. Nothing until
      * something played: opening a scene from i+1 or Improve and leaving must not put the episode in "Continue watching".
      */
     fun report() {
         lastReport = SystemClock.uptimeMillis()
-        val seen = seenNew.toList()
         val watched = watchedMs / 1000.0
         val pos = position
         closeRange(rangeTo.takeIf { rangeFrom >= 0 } ?: -1)
@@ -396,12 +384,11 @@ class SceneController(
         rangesNew.clear()
         have = io.github.pedrubik2000.kumapie.data.Ranges.union(have + ranges)
         val done = ranges.isNotEmpty() && io.github.pedrubik2000.kumapie.data.Ranges.watched(need, have)
-        if (watched >= 1 || seen.isNotEmpty()) played = true
-        if (!played || (seen.isEmpty() && watched < 1 && reportedPos == pos)) return
+        if (watched >= 1) played = true
+        if (!played || (watched < 1 && reportedPos == pos)) return
         reportedPos = pos
-        seenNew.clear()
         watchedMs = 0
-        AppScope.launch { runCatching { api.progress(episode.id, pos, seen, watched, ranges, done) } }
+        AppScope.launch { runCatching { api.progress(episode.id, pos, watched, ranges, done) } }
     }
 
     // ------------------------------------------------------------ helpers

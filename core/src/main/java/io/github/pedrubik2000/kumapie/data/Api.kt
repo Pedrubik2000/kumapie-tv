@@ -138,9 +138,9 @@ class Api(private val base: String, private val person: String = "") : Backend {
         )
     }
 
-    /** Where the episode was left, scenes watched to their end, and seconds watched since the last report. */
-    override suspend fun progress(episode: String, pos: Double, seen: Collection<String>, watched: Double, ranges: List<Span>, done: Boolean) {
-        val body = who(JSONObject().put("episode", episode).put("pos", pos).put("seen", JSONArray(seen)).put("watched", watched)
+    /** Where the episode was left, what played and seconds watched since the last report (the PC works out [done] itself). */
+    override suspend fun progress(episode: String, pos: Double, watched: Double, ranges: List<Span>, done: Boolean) {
+        val body = who(JSONObject().put("episode", episode).put("pos", pos).put("watched", watched)
             .put("ranges", Ranges.json(ranges)))
         post("/api/tv/progress", body.toString())
     }
@@ -240,10 +240,9 @@ class Api(private val base: String, private val person: String = "") : Backend {
     suspend fun personalDictionary(entries: String): String =
         post("/api/tv/personal", JSONObject().put("person", person).put("entries", org.json.JSONArray(entries)).toString())
 
-    /** What this person's devices count as seen ({scene: episode}) and their "Mark as not watched" times ({episode:
-     *  epoch s}): the TV blurs and counts by them too. */
-    suspend fun deviceSeen(seen: Map<String, String>, unwatched: Map<String, Long>, ranges: Map<String, List<Span>>) {
-        post("/api/tv/device_seen", JSONObject().put("person", person).put("seen", JSONObject(seen))
+    /** What this person's devices watched ({episode: ranges}) and their "Mark as not watched" times ({episode: epoch s}), for the TVs. */
+    suspend fun deviceSeen(unwatched: Map<String, Long>, ranges: Map<String, List<Span>>) {
+        post("/api/tv/device_seen", JSONObject().put("person", person)
             .put("ranges", JSONObject().also { o -> ranges.forEach { (e, r) -> o.put(e, Ranges.json(r)) } })
             .put("unwatched", JSONObject(unwatched)).toString())
     }
@@ -488,8 +487,8 @@ data class Episode(
     /** Its spoken lines all played, by watched time ranges ([Ranges.watched]; the PC or the device's progress says so). */
     val watchedFlag: Boolean = false,
 ) {
-    /** Watched (on any device) or marked watched: no spoilers left in it. Still also: every scene seen (older builds). */
-    val watched: Boolean get() = watchedFlag || (scenes > 0 && seen >= scenes)
+    /** Watched (on any device) or marked watched: no spoilers left in it. */
+    val watched: Boolean get() = watchedFlag
 }
 
 /** Watch time (seconds) per study day ("2026-10-04", days start at 4 am) and what was done. */

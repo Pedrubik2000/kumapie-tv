@@ -228,6 +228,10 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         for ((_, e) in going) {
             val n = e.id.substringAfterLast(':').toIntOrNull()
             if (nextId("series", e.id) != null && n != null) for (i in 1 until n) seen(e.id.substringBeforeLast(':') + ":$i", true)
+            // Played here after the PC last saw it: this device's place stays (Frieren 3 on the no-PC Chromecast went
+            // back from 15 to 19 min left at the second import, 2026-11-18).
+            val here = store.getString("alone_last_${titleOf(e.id)}", null)?.let { runCatching { JSONObject(it).getLong("at") }.getOrNull() }
+            if (here != null && here >= e.resumedAt) continue
             e.resume?.let { store.edit().putFloat("alone_pos_${e.id}", it.toFloat()).apply() } // StreamActivity's Alone
             store.edit().putFloat("alone_len_${e.id}", e.duration.toFloat())
                 .putString("alone_last_${titleOf(e.id)}", JSONObject().put("id", e.id).put("at", e.resumedAt).toString()).apply()

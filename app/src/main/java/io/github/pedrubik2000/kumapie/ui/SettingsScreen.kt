@@ -179,7 +179,7 @@ fun AloneHome(settings: Settings, onDiscover: (io.github.pedrubik2000.kumapie.da
     // Review: this TV's own cards (Japanese at launch), "· N" when some are due or new.
     val lang = "ja"
     var due by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(Unit) { due = runCatching { ownReview(context, lang).due().size }.getOrNull() }
+    LaunchedEffect(Unit) { due = runCatching { io.github.pedrubik2000.kumapie.lang.ownReview(context, lang).due().size }.getOrNull() }
     var kept by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.data.Found>>(emptyList()) }
     LaunchedEffect(Unit) { kept = runCatching { io.github.pedrubik2000.kumapie.data.Addons(addons, settings.prefs).saved() }.getOrDefault(emptyList()) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {

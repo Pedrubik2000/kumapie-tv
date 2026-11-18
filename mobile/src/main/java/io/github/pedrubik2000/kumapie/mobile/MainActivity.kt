@@ -62,6 +62,8 @@ sealed interface Screen {
     data object Stats : Screen
     data object Search : Screen
     data object Downloads : Screen
+    /** Review of kumapie's own cards (no PC). */
+    data object Review : Screen
     /** A kumapie://prepare link's query: the PC makes the episode, then it plays. */
     data class Prepare(val query: Map<String, String>) : Screen
 }
@@ -187,11 +189,12 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     fun top(s: Screen?) { while (stack.size > 1) stack.removeAt(stack.lastIndex); if (s != null) stack += s }
     var more by remember { mutableStateOf(false) }
     val (main, extra) = destinations(homeLang, { top(Screen.Discover()) }, { top(Screen.Feed) }, { top(Screen.Downloads) },
-        { top(Screen.Stats) }, { top(Screen.Improve) }, { top(Screen.Search) }) { top(Screen.Settings(null)) }
+        { top(Screen.Stats) }, { top(Screen.Improve) }, { top(Screen.Search) }, if (server.isEmpty()) ({ top(Screen.Review) }) else null) { top(Screen.Settings(null)) }
     val tab: String? = when (stack.last()) { // the button shown selected: "" = Home, null = More, "-" = no menu
         is Screen.Discover -> tr("Discover")
         // Feed: upright and fullscreen like the player, so no menu beside it (it squeezed the video).
         Screen.Downloads -> tr("Downloads")
+        Screen.Review -> tr("Review")
         Screen.Stats, Screen.Improve, Screen.Search, is Screen.Settings -> null
         is Screen.ShowEpisodes -> ""
         else -> "-"
@@ -229,6 +232,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                 onDiscover = { stack += Screen.Discover() },
                 onDiscovered = { stack += Screen.Discover(it) },
                 onDownloads = { stack += Screen.Downloads },
+                onReview = if (server.isEmpty()) ({ stack += Screen.Review }) else null,
                 homeLang = homeLang,
                 onHomeLang = { homeLang = it; settings.prefs.edit().putString("home_lang", it).apply() },
                 sharedLink = sharedLink,
@@ -251,6 +255,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             Screen.Stats -> StatsScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Search -> io.github.pedrubik2000.kumapie.mobile.ui.SearchScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Downloads -> io.github.pedrubik2000.kumapie.mobile.ui.DownloadsScreen(onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.Review -> io.github.pedrubik2000.kumapie.mobile.ui.ReviewScreen(remember(homeLang) { io.github.pedrubik2000.kumapie.lang.ownReview(context, homeLang) }, onBack = { stack.removeAt(stack.lastIndex) })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
     }

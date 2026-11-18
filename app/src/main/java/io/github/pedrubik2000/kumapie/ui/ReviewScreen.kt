@@ -36,36 +36,12 @@ import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.SrsCard
 import io.github.pedrubik2000.kumapie.i18n.tr
+import io.github.pedrubik2000.kumapie.lang.ReviewSource
+import io.github.pedrubik2000.kumapie.lang.wordRanges
 import kotlinx.coroutines.launch
 
-/** Where Review's cards come from and where its ratings go: the PC ([pcReview]) or this TV's own store ([ownReview]). */
-class ReviewSource(val due: suspend () -> List<SrsCard>, val rate: suspend (SrsCard, Int) -> Unit, val audioUrl: (String) -> String = { it })
-
-/** A person whose cards are on the PC (Jackson, user 2026-11-13): FSRS on the PC. */
+/** A person whose cards are on the PC (Jackson, user 2026-11-13): FSRS on the PC. Without a PC: [ownReview]. */
 fun pcReview(api: Api, lang: String) = ReviewSource({ api.srsDue(lang).cards }, { c, r -> api.srsRate(c.word, r, lang = lang) }, api::url)
-
-/**
- * No PC (kumapie for other people): the device's own cards ([io.github.pedrubik2000.kumapie.lang.SrsCards]), due now
- * first (oldest due first), then the new ones (oldest mined first); FSRS on the TV. Own cards are text only: no audio.
- */
-fun ownReview(context: android.content.Context, lang: String): ReviewSource {
-    val srs by lazy { io.github.pedrubik2000.kumapie.lang.SrsCards(context).store(io.github.pedrubik2000.kumapie.data.Lang.of(lang)) }
-    return ReviewSource(
-        due = {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                val now = System.currentTimeMillis()
-                srs?.cards().orEmpty().filter { (it.due ?: 0L) <= now }
-                    .sortedWith(compareBy({ it.due == null }, { it.due ?: it.created }))
-                    .map { c ->
-                        val reading = FURIGANA.find(c.word)?.groupValues?.get(2).orEmpty()
-                        SrsCard(plain(c.word), plain(c.sentence), "", listOf(reading, plain(c.meaning)).filter { it.isNotBlank() }.joinToString(" · "),
-                            if (c.due == null) "new" else "review", "", c.id)
-                    }
-            }
-        },
-        rate = { c, r -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { requireNotNull(srs).rate(c.id, r) } },
-    )
-}
 
 /**
  * "Review" (Home): the due cards, then the new ones. Front: the line with the word marked, its audio plays (cards from
@@ -160,21 +136,13 @@ private fun Front(card: SrsCard, shown: Boolean, onShow: () -> Unit, onListen: (
     LaunchedEffect(card.word, shown) { first.focusSoon() }
 }
 
-/** Anki's furigana: " 支配[しはい]" (the space starts the word). */
-private val FURIGANA = Regex(""" ?(\S+?)\[([^\]]*)\]""")
-
-/** A field of an own card as text: furigana and HTML tags dropped (<b> marks the word in the sentence). */
-private fun plain(s: String) = s.replace(Regex("""<br\s*/?>"""), " ").replace(Regex("<[^>]+>"), "").replace(FURIGANA, "$1").trim()
-
-/** The line with every use of [word] marked as the player marks the picked word: whole words in spaced scripts. */
+/** The line with every use of [word] marked as the player marks the picked word ([wordRanges]). */
 private fun marked(sentence: String, word: String) = buildAnnotatedString {
-    val spaced = word.any { it.isLetter() && it.code < 0x3000 }
-    val hits = Regex(if (spaced) "(?i)(?<![\\p{L}'])" + Regex.escape(word) + "(?![\\p{L}])" else Regex.escape(word)).findAll(sentence).toList()
     var at = 0
-    for (h in hits) {
-        append(sentence.substring(at, h.range.first))
-        withStyle(SpanStyle(color = Color.Black, background = Arcade.accent)) { append(h.value) }
-        at = h.range.last + 1
+    for (r in wordRanges(sentence, word)) {
+        append(sentence.substring(at, r.first))
+        withStyle(SpanStyle(color = Color.Black, background = Arcade.accent)) { append(sentence.substring(r)) }
+        at = r.last + 1
     }
     append(sentence.substring(at))
 }

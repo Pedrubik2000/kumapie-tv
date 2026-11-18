@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.Swipe
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Badge
@@ -135,9 +136,16 @@ internal fun activeJobs(): Int {
 /** The menu's destinations: the main ones (round buttons / bottom bar), then More's. */
 @Composable
 internal fun destinations(homeLang: String, onDiscover: () -> Unit, onFeed: () -> Unit, onDownloads: () -> Unit,
-                          onStats: () -> Unit, onImprove: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit): Pair<List<Dest>, List<Dest>> {
+                          onStats: () -> Unit, onImprove: () -> Unit, onSearch: () -> Unit, onReview: (() -> Unit)? = null,
+                          onSettings: () -> Unit): Pair<List<Dest>, List<Dest>> {
+    // Review (no PC: kumapie's own cards; with a PC they are reviewed in kuma3): its count of due and new cards.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val due by androidx.compose.runtime.produceState(0, homeLang, onReview != null) {
+        value = if (onReview == null) 0 else runCatching { io.github.pedrubik2000.kumapie.lang.ownReview(context, homeLang).due().size }.getOrDefault(0)
+    }
     val main = listOfNotNull(
         Dest(Icons.Default.Explore, tr("Discover"), onDiscover).takeIf { homeLang == "ja" },
+        onReview?.let { Dest(Icons.Default.Style, tr("Review"), it, badge = due) },
         Dest(Icons.Default.Swipe, tr("Reels"), onFeed),
         Dest(Icons.Default.Download, tr("Downloads"), onDownloads, badge = activeJobs()),
     )
@@ -191,6 +199,8 @@ fun HomeScreen(
     onSettings: (section: String?) -> Unit,
     onSearch: () -> Unit = {},
     onDownloads: () -> Unit = {},
+    /** Review: kumapie's own cards (no PC); null: no Review (with a PC, kuma3 reviews). */
+    onReview: (() -> Unit)? = null,
     /** Discover (Japanese): Stremio-like catalog, streamed from Real-Debrid. */
     onDiscover: () -> Unit = {},
     /** A Discover title kept on Home ("Streaming" row): its page. */
@@ -230,7 +240,7 @@ fun HomeScreen(
     }
 
     val wide = wide()
-    val (main, extra) = destinations(homeLang, onDiscover, onFeed, onDownloads, onStats, onImprove, onSearch) { onSettings(null) }
+    val (main, extra) = destinations(homeLang, onDiscover, onFeed, onDownloads, onStats, onImprove, onSearch, onReview) { onSettings(null) }
 
     val all = shows.orEmpty()
     val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { l -> all.any { it.lang == l.code } }

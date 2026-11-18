@@ -129,7 +129,7 @@ private fun TvDownloads(settings: Settings) {
 }
 
 /** [text] as a QR code, black on white, [size] pixels. */
-private fun qr(text: String, size: Int): Bitmap {
+internal fun qr(text: String, size: Int): Bitmap {
     val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size)
     return Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565).apply {
         for (x in 0 until size) for (y in 0 until size) setPixel(x, y, if (m[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)

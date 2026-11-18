@@ -17,6 +17,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -145,6 +148,17 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                 }) { Text(tr("Check for updates").uppercase()) }
             }
             if (updateStatus.isNotEmpty()) Text(updateStatus, color = Colors.dim)
+            // Ideas and bugs: GitHub issues (no browser on a TV: the phone opens it from the QR code).
+            Heading(tr("Ideas and bugs"), Modifier.padding(top = 24.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
+                val code = remember { qr(ISSUES, 320) }
+                androidx.compose.foundation.Image(code.asImageBitmap(), null,
+                    Modifier.size(140.dp).background(androidx.compose.ui.graphics.Color.White).padding(6.dp))
+                Column {
+                    Text(tr("Report a bug or share an idea: scan this with your phone, or open"), color = Colors.text)
+                    Text(ISSUES, color = Colors.accent)
+                }
+            }
             Text(tr("Version %s", BuildConfig.VERSION_NAME), color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
         }
     }
@@ -179,3 +193,6 @@ fun AloneHome(settings: Settings, onDiscover: (io.github.pedrubik2000.kumapie.da
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }
+
+/** Where people report bugs and ideas (GitHub issues of the public repo). */
+const val ISSUES = "https://github.com/Pedrubik2000/kumapie-tv/issues"

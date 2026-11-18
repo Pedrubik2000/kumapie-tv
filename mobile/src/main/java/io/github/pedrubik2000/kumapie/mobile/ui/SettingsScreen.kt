@@ -276,8 +276,16 @@ private fun StorageSection(library: Library, onUpdate: (Updater.Release) -> Unit
         }
     }) { Text(tr("Check for a new kumapie version")) }
     if (message.isNotEmpty()) Text(message, color = Colors.dim, fontSize = 14.sp)
+    // Ideas and bugs go to GitHub issues (kumapie_plan.md "for other people": no Discord).
+    val context = androidx.compose.ui.platform.LocalContext.current
+    OutlinedButton(onClick = {
+        runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(ISSUES))) }
+    }) { Text(tr("Report a bug or share an idea")) }
     Version()
 }
+
+/** Where people report bugs and ideas (GitHub issues of the public repo). */
+const val ISSUES = "https://github.com/Pedrubik2000/kumapie-tv/issues"
 
 /**
  * Word colours from the device's own Anki: permission to read AnkiDroid and the stability that makes a word known

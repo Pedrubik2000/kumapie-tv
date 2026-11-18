@@ -364,7 +364,7 @@ internal fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, 
     val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
     val scope = rememberCoroutineScope()
     var top by remember { mutableStateOf("10000") }
-    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to (it != "kaishi-15") }.toTypedArray()) }
+    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to true }.toTypedArray()) }
     var busy by remember { mutableStateOf(false) }
     var said by remember { mutableStateOf(known.importedWords.size.takeIf { it > 0 }?.let { tr("%d words imported as known.", it) } ?: "") }
 

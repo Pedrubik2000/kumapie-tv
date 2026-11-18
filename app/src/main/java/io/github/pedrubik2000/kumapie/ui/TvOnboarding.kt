@@ -101,7 +101,7 @@ private fun TvJitenImport(settings: Settings) {
     val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var top by remember { mutableIntStateOf(10000) }
-    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to (it != "kaishi-15") }.toTypedArray()) }
+    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to true }.toTypedArray()) }
     var busy by remember { mutableStateOf(false) }
     var said by remember { mutableStateOf(known.importedWords.size.takeIf { it > 0 }?.let { tr("%d words imported as known.", it) } ?: "") }
     Heading(tr("Words you know"))

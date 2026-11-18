@@ -79,10 +79,13 @@ class SrsCards(private val context: Context) : Cards {
     /** This run's ratings, newest last: (language, card). */
     private val rated = ArrayList<Pair<String, Long>>()
     @Volatile private var synced = 0L
-
-    /** Whose cards: the phone's owner, else the TV's last profile; without a PC, the device's one person ([LOCAL]). */
-    fun person(): String = settings.owner.ifEmpty { settings.prefs.getString("profile", "").orEmpty() }
-        .ifEmpty { if (settings.server.isEmpty()) LOCAL else "" }
+    /**
+     * Whose cards: without a PC always the device's one person ([LOCAL]), even when a profile or owner is left from
+     * when it had one (a TV switched to no PC reviewed Pedro's real cards, 2026-11-17); else the phone's owner, else the
+     * TV's last profile.
+     */
+    fun person(): String = if (settings.server.isEmpty()) LOCAL
+        else settings.owner.ifEmpty { settings.prefs.getString("profile", "").orEmpty() }
 
     fun store(lang: Lang): Srs? = person().takeIf { it.isNotEmpty() }?.let { p ->
         synchronized(stores) { stores.getOrPut("$p/${lang.code}") { Srs(context, p, lang) } }

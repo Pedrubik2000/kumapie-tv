@@ -74,22 +74,29 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
         settings.addons = (settings.addons + listOfNotNull(Addons.KITSU.takeIf { kitsu }, Addons.OPENSUBTITLES.takeIf { english }, rd.takeIf { it.isNotBlank() }?.let(Addons::torrentio))).distinct()
         settings.prefs.edit().putString(Addons.ANILIST, anilist.trim()).apply()
     }
-    val steps = 4
+    // Jiten's known words (item 6) right after Languages, when this device learns Japanese.
+    val keys = listOfNotNull("languages", "jiten".takeIf { "ja" in settings.learning() }, "jimaku", "sources", "downloads")
+    val steps = keys.size
     Scaffold(topBar = { TopAppBar(title = { Text(tr("Set up kumapie")) }) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(tr("Step %1\$d of %2\$d", step + 1, steps), color = Colors.dim, fontSize = 14.sp)
-            when (step) {
-                0 -> {
+            when (keys[step]) {
+                "languages" -> {
                     Text(tr("Languages"), fontSize = 22.sp)
                     MenuLanguage(settings)
                 }
-                1 -> {
+                "jiten" -> {
+                    Text(tr("Words you know"), fontSize = 22.sp)
+                    Text(tr("Already know some Japanese? Import the most frequent words as known, so the subtitles colour only what's new. Skip it if you're starting out."))
+                    JitenImport(library.languages.japanese.known, library::syncKnownLists)
+                }
+                "jimaku" -> {
                     Text(tr("Japanese subtitles"), fontSize = 22.sp)
                     Text(tr("kumapie shows each line in Japanese while you watch. They come from Jimaku, a free site of anime subtitles: make an account there, then copy your API key from Account."))
                     OutlinedButton(onClick = { open("https://jimaku.cc/login") }) { Text(tr("Open jimaku.cc")) }
                     KeyField(jimaku, { jimaku = it; settings.jimakuKey = it }, tr("Jimaku API key"), KeyService.JIMAKU)
                 }
-                2 -> {
+                "sources" -> {
                     Text(tr("What to watch"), fontSize = 22.sp)
                     Text(tr("Videos: Torrentio finds an episode's files and Real-Debrid streams them (a paid account). Copy your token from real-debrid.com/apitoken."))
                     OutlinedButton(onClick = { open("https://real-debrid.com/apitoken") }) { Text(tr("Open real-debrid.com")) }
@@ -120,7 +127,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                 if (step > 0) OutlinedButton(onClick = { step-- }) { Text(tr("Back")) }
                 Spacer(Modifier.weight(1f))
                 Button(onClick = {
-                    if (step == 2) saveSources()
+                    if (keys[step] == "sources") saveSources()
                     if (step < steps - 1) step++ else { settings.prefs.edit().putBoolean(ONBOARDED, true).apply(); onDone() }
                 }) { Text(if (step < steps - 1) tr("Next") else tr("Start watching")) }
             }

@@ -36,6 +36,7 @@ import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.Tr
 import io.github.pedrubik2000.kumapie.i18n.tr
+import kotlinx.coroutines.launch
 
 /** Set once the TV's onboarding was finished: it doesn't come back. */
 const val TV_ONBOARDED = "onboarded"
@@ -54,7 +55,7 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
     remember(lang) { Tr.use(lang) }
     val first = remember { FocusRequester() }
     Column(Modifier.fillMaxSize().padding(48.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(tr("Step %1\$d of %2\$d", step + 1, 3), color = Colors.dim, fontSize = 16.sp)
+        Text(tr("Step %1\$d of %2\$d", step + 1, STEPS), color = Colors.dim, fontSize = 16.sp)
         when (step) {
             0 -> {
                 Heading(tr("Languages"))
@@ -70,20 +71,70 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
                     }
                 }
             }
-            1 -> PhonePage(settings)
+            1 -> TvJitenImport(settings)
+            2 -> PhonePage(settings)
             else -> TvDownloads(settings)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (step > 0) Button(onClick = { step-- }) { Text(tr("Back")) }
-            Button(onClick = { if (step < 2) step++ else { settings.prefs.edit().putBoolean(TV_ONBOARDED, true).apply(); onDone() } },
+            Button(onClick = { if (step < STEPS - 1) step++ else { settings.prefs.edit().putBoolean(TV_ONBOARDED, true).apply(); onDone() } },
                 modifier = if (step > 0) Modifier.focusRequester(first) else Modifier) {
-                Text((if (step < 2) tr("Next") else tr("Start watching")))
+                Text((if (step < STEPS - 1) tr("Next") else tr("Start watching")))
             }
         }
     }
     LaunchedEffect(step) { runCatching { first.requestFocus() } }
     // Back goes to the step before (it closed the app, and the next launch began again at step 1).
     androidx.activity.compose.BackHandler(enabled = step > 0) { step-- }
+}
+
+private const val STEPS = 4
+
+/**
+ * Japanese words imported as known from jiten.moe (kumapie_plan.md item 6), like the phone's Settings: the top words
+ * (a few sizes, no typing with the remote) and Jiten's word sets. Known while the word has no Mined card.
+ */
+@Composable
+private fun TvJitenImport(settings: Settings) {
+    val context = LocalContext.current
+    val known = remember { TvMining.languages(context, settings).japanese.known }
+    val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var top by remember { mutableIntStateOf(10000) }
+    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to (it != "kaishi-15") }.toTypedArray()) }
+    var busy by remember { mutableStateOf(false) }
+    var said by remember { mutableStateOf(known.importedWords.size.takeIf { it > 0 }?.let { tr("%d words imported as known.", it) } ?: "") }
+    Heading(tr("Words you know"))
+    Text(tr("Already know some Japanese? Import the most frequent words as known, so the subtitles colour only what's new. Skip it if you're starting out."),
+        color = Colors.text, fontSize = 18.sp)
+    Text(tr("Most frequent words"), color = Colors.dim, fontSize = 16.sp)
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        listOf(0, 1000, 5000, 10000, 20000).forEach { n ->
+            Button(onClick = { top = n }) { Text((if (top == n) "✓ " else "") + if (n == 0) tr("None") else "%,d".format(n)) }
+        }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        jiten.SETS.forEach { (slug, name) ->
+            Button(onClick = { sets[slug] = sets[slug] != true }) { Text((if (sets[slug] == true) "✓ " else "") + tr(name)) }
+        }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Button(onClick = {
+            if (busy) return@Button
+            busy = true
+            said = tr("Downloading from jiten.moe…")
+            scope.launch {
+                said = runCatching {
+                    val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { jiten.words(top, sets.filterValues { it }.keys) }
+                    known.setImported(words)
+                    tr("%d words imported as known.", words.size)
+                }.getOrElse { it.message ?: it.toString() }
+                busy = false
+            }
+        }) { Text(tr("Import")) }
+        if (known.importedWords.isNotEmpty()) Button(onClick = { if (!busy) { known.setImported(emptySet()); said = "" } }) { Text(tr("Remove imported")) }
+    }
+    if (said.isNotEmpty()) Text(said, color = Colors.text, fontSize = 18.sp)
 }
 
 /** The QR code to the TV's setup page and what has come from it so far. */

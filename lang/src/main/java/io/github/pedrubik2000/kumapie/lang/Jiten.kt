@@ -20,9 +20,13 @@ object Jiten {
         "kaishi-15" to "Kaishi 1.5k",
     )
 
+    /** What the import panels (Settings, onboarding, TV) import: the top [n] words and the [sets]. Network: off the main thread. */
+    fun words(n: Int, sets: Collection<String>): Set<String> = top(n) + sets.flatMap(::set)
+
     /** The words ranked 1..[n] in the global frequency list (CSV "Word,Form,Rank", ordered by rank). */
     fun top(n: Int): Set<String> {
         val out = HashSet<String>()
+        if (n <= 0) return out
         open("$API/frequency-list/download?downloadType=csv").inputStream.bufferedReader().useLines { lines ->
             for (line in lines.drop(1)) {
                 val cols = line.split(',')

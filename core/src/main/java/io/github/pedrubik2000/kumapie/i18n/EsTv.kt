@@ -57,6 +57,9 @@ internal val esTv: Map<String, String> = mapOf(
     "Set up kumapie" to "Configurar kumapie",
     "Step %1\$d of %2\$d" to "Paso %1\$d de %2\$d",
     "Languages" to "Idiomas",
+    "Words you know" to "Palabras que ya sabes",
+    "Already know some Japanese? Import the most frequent words as known, so the subtitles colour only what's new. Skip it if you're starting out." to
+        "¿Ya sabes algo de japonés? Importa las palabras más frecuentes como conocidas, así los subtítulos colorean solo lo nuevo. Sáltalo si estás empezando.",
     "kumapie shows each line in Japanese while you watch. They come from Jimaku, a free site of anime subtitles: make an account there, then copy your API key from Account." to
         "kumapie muestra cada línea en japonés mientras ves. Vienen de Jimaku, un sitio gratuito de subtítulos de anime: crea una cuenta allí y copia tu clave API desde Account.",
     "Open jimaku.cc" to "Abrir jimaku.cc",

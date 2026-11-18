@@ -360,7 +360,7 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
  * picked word sets. They count as known while the word has no Mined card; names and fillers are known anyway.
  */
 @Composable
-private fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, onImported: () -> Unit) {
+internal fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, onImported: () -> Unit) {
     val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
     val scope = rememberCoroutineScope()
     var top by remember { mutableStateOf("10000") }
@@ -384,7 +384,7 @@ private fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, o
             scope.launch {
                 said = runCatching {
                     val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        jiten.top(top.toIntOrNull() ?: 0) + sets.filterValues { it }.keys.flatMap(jiten::set)
+                        jiten.words(top.toIntOrNull() ?: 0, sets.filterValues { it }.keys)
                     }
                     known.setImported(words); onImported()
                     tr("%d words imported as known.", words.size)

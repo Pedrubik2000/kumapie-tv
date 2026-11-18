@@ -38,6 +38,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -190,13 +192,13 @@ private fun LangCard(api: Api, lang: String) {
     LaunchedEffect(lang) { t = runCatching { api.stats().langs[lang] }.getOrNull(); loaded = true }
     val s = t ?: return Spacer(Modifier.height(if (loaded) 0.dp else 66.dp)) // its height while loading: Home jumped down when it came
     // As the tablet's chips: today first (in the accent colour), dark glass with a thin white edge.
-    Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(hoursMinutes(s.today) to tr("Today"), hoursMinutes(s.week) to tr("Last 7 days"),
             (if (s.total < 36000) hoursMinutes(s.total) else "${"%.1f".format(s.total / 3600)} h") to tr("In total"), "%,d".format(s.known) to tr("Words known"))
             .forEachIndexed { i, (v, l) ->
                 Column(Modifier.background(Colors.background.copy(alpha = 0.55f), RoundedCornerShape(18.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(18.dp)).padding(horizontal = 20.dp, vertical = 10.dp)) {
-                    Text(v, fontSize = 22.sp, color = if (i == 0) Colors.accent else Color.White, style = Arcade.label)
+                    .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 8.dp)) {
+                    Text(v, fontSize = 20.sp, color = if (i == 0) Colors.accent else Color.White, style = Arcade.label)
                     Text(l, fontSize = 12.sp, color = Colors.dim, style = Arcade.label)
                 }
             }
@@ -231,11 +233,11 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
         if (more.isNotEmpty()) item(key = "going") {
             // A new state when the streamed cards arrive: else the row stays scrolled to the old first card.
             Column {
-                Heading(tr("Continue watching"), Modifier.padding(start = RAIL))
+                Heading(tr("Continue watching"), Modifier.padding(start = RAIL, top = 20.dp))
                 LazyRow(state = remember(streams) { androidx.compose.foundation.lazy.LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp),
                     contentPadding = PaddingValues(start = RAIL, end = 32.dp, top = 12.dp, bottom = 24.dp)) { // room for the focused card to grow 10%
                     itemsIndexed(more, key = { _, p -> p.second.id }) { i, (s, e) ->
-                        ResumeCard(s, e, if (i == 0) Modifier.focusRequester(below) else Modifier, width = 300.dp) { onPlay(s, e) }
+                        ResumeCard(s, e, if (i == 0) Modifier.focusRequester(below) else Modifier, width = 220.dp) { onPlay(s, e) }
                     }
                 }
             }
@@ -278,14 +280,21 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
 @Composable
 private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Composable () -> Unit, modifier: Modifier, onTop: () -> Unit,
                  onShow: () -> Unit, onPlay: () -> Unit) {
-    val height = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.66f).dp
+    val height = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.54f).dp
     Box(Modifier.fillMaxWidth().height(height)) {
-        NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
-        AsyncImage(model = e.thumb.ifEmpty { s.poster }, contentDescription = null, contentScale = ContentScale.Crop,
-            alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
-        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Colors.background.copy(alpha = 0.9f), 0.65f to Color.Transparent)))
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Colors.background.copy(alpha = 0.6f), 0.25f to Color.Transparent,
-            0.6f to Color.Transparent, 1f to Colors.background)))
+        // The picture fades out to nothing at its bottom (to the page's backdrop, a gradient: fading to one colour left
+        // a hard edge across the screen, Chromecast 2026-11-17).
+        Box(Modifier.matchParentSize().graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen)
+            .drawWithContent {
+                drawContent()
+                drawRect(Brush.verticalGradient(0.55f to Color.Black, 1f to Color.Transparent), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+            }) {
+            NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
+            AsyncImage(model = e.thumb.ifEmpty { s.poster }, contentDescription = null, contentScale = ContentScale.Crop,
+                alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
+            Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Colors.background.copy(alpha = 0.9f), 0.65f to Color.Transparent)))
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Colors.background.copy(alpha = 0.6f), 0.25f to Color.Transparent)))
+        }
         header()
         Column(Modifier.align(Alignment.BottomStart).padding(start = RAIL, end = 24.dp, bottom = 24.dp).width(600.dp)) {
             Text(tr("Continue watching").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)

@@ -273,6 +273,16 @@ fun HomeScreen(
                         Button(onClick = { attempt++ }) { Text(tr("Try again")) }
                     }
                     shows == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    // Without a PC there are no episodes: what was kept from Discover, and Discover to find more.
+                    all.isEmpty() && library.settings.server.isEmpty() -> Column(Modifier.fillMaxSize()) {
+                        Streaming(library, onDiscovered)
+                        Column(Modifier.fillMaxWidth().weight(1f).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
+                            Text(tr("Find something to watch in Discover."), color = Colors.dim, style = MaterialTheme.typography.bodyMedium)
+                            Button(onClick = onDiscover) { Text(tr("Discover")) }
+                            TextButton(onClick = { adding = true }) { Text(tr("Add an episode")) }
+                        }
+                    }
                     all.isEmpty() -> Column(Modifier.align(Alignment.Center).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(tr("No episodes yet"), style = MaterialTheme.typography.titleLarge)

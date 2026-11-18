@@ -251,7 +251,7 @@ class StreamActivity : ComponentActivity() {
                 p.removeListener(listener)
                 // Left near the end: from the start next time.
                 val at = if (p.duration > 0 && p.currentPosition > p.duration - 120_000) 0f else p.currentPosition / 1000f
-                settings.prefs.edit().putFloat("alone_pos_$id", at).putFloat("alone_off_$id", alone?.offset?.toFloat() ?: 0f).apply()
+                settings.prefs.edit().putFloat("alone_pos_$id", at).also { e -> alone?.let { e.putFloat("alone_off_$id", it.offset.toFloat()) } }.apply() // after the switch: kept at it
                 alone = null; aloneView = null
             }
         }
@@ -293,7 +293,7 @@ class StreamActivity : ComponentActivity() {
             }
         }
         shown?.let { ep ->
-            remember(ep) { live.stop(); alone = null; note = null } // the scenes draw the lines now; UP / DOWN are theirs
+            remember(ep) { settings.prefs.edit().putFloat("alone_off_$id", live.offset.toFloat()).apply(); live.stop(); alone = null; note = null } // the scenes draw the lines now; UP / DOWN are theirs
             val backend = remember { io.github.pedrubik2000.kumapie.ui.AloneBackend(context, settings) }
             return io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p)
         }

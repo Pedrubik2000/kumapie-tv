@@ -196,7 +196,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
     // itself on opening, before the meanings load, and doesn't grow after (Add went under the screen).
     Column(Modifier.fillMaxWidth().fillMaxHeight(0.8f).padding(horizontal = 24.dp).navigationBarsPadding().padding(bottom = 16.dp)) {
     Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(tr("Add to Anki · %s", ctl.lang.deck), color = Colors.accent, fontSize = 18.sp)
+        Text(addTitle(library, ctl.lang), color = Colors.accent, fontSize = 18.sp)
         Text(Miner.sentence(scene, line).first, color = Colors.text, fontSize = 18.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text(tr("Sentence card")) })
@@ -311,7 +311,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
     // itself on opening, before the meanings load, and doesn't grow after (Add went under the screen).
     Column(Modifier.fillMaxWidth().fillMaxHeight(0.8f).padding(horizontal = 24.dp).navigationBarsPadding().padding(bottom = 16.dp)) {
     Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(tr("Add to Anki · %s", ja.deck), color = Colors.accent, fontSize = 18.sp)
+        Text(addTitle(library, ja), color = Colors.accent, fontSize = 18.sp)
         Text(cue.text, color = Colors.text, fontSize = 20.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = !wordCard, onClick = { wordCard = false }, label = { Text(tr("Sentence card")) })
@@ -397,3 +397,10 @@ private fun translationName(): String = io.github.pedrubik2000.kumapie.data.Lang
 
 /** Mining outlives the sheet: closing it before "Added" still adds the card and colours the word. */
 private val mining = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+
+/** The sheet's title: "Add to Anki" while kuma3 holds this language's cards, else kumapie's own store (no PC, or moved there). */
+@Composable
+private fun addTitle(library: Library, lang: io.github.pedrubik2000.kumapie.data.Lang): String {
+    val own = remember(lang) { library.languages.of(lang).known.ankiApp() == io.github.pedrubik2000.kumapie.lang.SrsCards.PKG }
+    return if (own) tr("New card · %s", lang.deck) else tr("Add to Anki · %s", lang.deck)
+}

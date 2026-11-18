@@ -46,6 +46,8 @@ internal val esHome: Map<String, String> = mapOf(
     "No episodes yet" to "Todavía no hay episodios",
     "Add a YouTube link or a video file." to "Agrega un enlace de YouTube o un archivo de video.",
     "Add an episode" to "Agregar un episodio",
+    "Find something to watch in Discover." to "Busca algo para ver en Descubrir.",
+    "Discover" to "Descubrir",
     "Feed" to "Feed",
     "Downloads" to "Descargas",
     "More" to "Más",

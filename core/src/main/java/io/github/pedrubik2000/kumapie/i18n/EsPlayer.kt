@@ -44,6 +44,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     // Add to Anki (MineSheet)
     "  · fits this line" to "  · encaja en esta línea",
     "Add to Anki · %s" to "Añadir a Anki · %s",
+    "New card · %s" to "Tarjeta nueva · %s",
     "Sentence card" to "Tarjeta de frase",
     "Word card: %s" to "Tarjeta de palabra: %s",
     "Looking up meanings…" to "Buscando significados…",

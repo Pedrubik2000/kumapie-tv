@@ -300,7 +300,7 @@ class Api(private val base: String, private val person: String = "") : Backend, 
             val n = if (g.isNull("number")) null else g.getInt("number")
             val e = Episode(g.getString("id"), n?.let { tr("Episode %d", it) } ?: t.getString("name"), 1, n, g.optDouble("duration", 0.0), "",
                 0, 0, 0, if (g.isNull("resume")) null else g.getDouble("resume"), resumedAt = g.optLong("resumed_at"), ready = g.optBoolean("ready"))
-            Show(t.getString("id"), t.getString("name"), "stream", t.optString("poster"), listOf(e), "ja") to e
+            Show(t.getString("id"), t.getString("name"), "stream", t.optString("poster"), listOf(e), "ja", titleJa = t.optString("name_ja")) to e
         }
 
     /** Keeps [title] on Home ([on]) or drops it; answers the new list. */
@@ -460,7 +460,9 @@ data class Show(val id: String, val title: String, val kind: String, val poster:
                 /** [Lang.code] its episodes are in; the PC's shows are German. */
                 val lang: String = "de",
                 /** From its metadata (items 20-23), in the person's language; "" / null without a match. */
-                val description: String = "", val year: Int? = null)
+                val description: String = "", val year: Int? = null,
+                /** A streamed show's Japanese title (AniList), for display only: [title] is what Stremio calls it. */
+                val titleJa: String = "")
 
 data class Episode(
     val id: String,

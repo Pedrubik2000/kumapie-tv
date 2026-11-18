@@ -19,7 +19,7 @@ object AniList {
     /** "AniList · Watching" and "AniList · Planning" for [user]; titles Kitsu doesn't know are left out. */
     suspend fun rows(user: String, store: SharedPreferences): List<Pair<String, List<Found>>> = withContext(Dispatchers.IO) {
         val q = "query(\$u:String){MediaListCollection(userName:\$u,type:ANIME,status_in:[CURRENT,PLANNING]){lists{status entries{media{" +
-            "id title{romaji english} coverImage{extraLarge} bannerImage startDate{year} averageScore description(asHtml:false)}}}}}"
+            "id title{romaji english native} coverImage{extraLarge} bannerImage startDate{year} averageScore description(asHtml:false)}}}}}"
         val body = JSONObject().put("query", q).put("variables", JSONObject().put("u", user)).toString()
         val answer = JSONObject(post("https://graphql.anilist.co", body))
         answer.optJSONArray("errors")?.optJSONObject(0)?.optString("message")?.let { error("AniList: $it") }
@@ -32,7 +32,9 @@ object AniList {
             val found = byStatus[status].orEmpty().mapNotNull { m ->
                 val k = kitsu[m.getInt("id")] ?: return@mapNotNull null
                 val t = m.getJSONObject("title")
-                Found("kitsu:$k", "anime", t.optString("english").takeIf { it.isNotEmpty() && it != "null" } ?: t.optString("romaji"),
+                // The Japanese title first (user, 2026-11-17), else English, else romaji.
+                fun name(field: String) = t.optString(field).takeIf { it.isNotEmpty() && it != "null" }
+                Found("kitsu:$k", "anime", name("native") ?: name("english") ?: t.optString("romaji"),
                     m.optJSONObject("coverImage")?.optString("extraLarge").orEmpty(), m.optJSONObject("startDate")?.optInt("year")?.takeIf { it > 0 }?.toString().orEmpty(),
                     m.optString("bannerImage").takeIf { it != "null" }.orEmpty(), "",
                     m.optString("description").takeIf { it != "null" }.orEmpty().replace(Regex("<[^>]+>"), ""), "",

@@ -51,6 +51,9 @@ fun streamQuery(s: Show, e: Episode) = mapOf("lang" to "ja", "type" to streamFou
 /** A title cut at its subtitle for one-line places (the TV): "BOFURI: I Don't Want to Get Hurt…" -> "BOFURI". */
 fun shortTitle(title: String): String = title.substringBefore(": ").ifBlank { title }
 
+/** The title to show: the Japanese one where known (user, 2026-11-17). */
+val Show.shown: String get() = titleJa.ifEmpty { title }
+
 /** Home's resume card: "14 min left · 61% easy" (the episode's share of i+0 / i+1 scenes, when the PC counted it). */
 fun resumeLine(e: Episode): String {
     val left = if (e.resume == null) tr("Next episode") else tr("%d min left", ((e.duration - e.resume) / 60).toInt().coerceAtLeast(1))

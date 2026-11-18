@@ -28,6 +28,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import io.github.pedrubik2000.kumapie.data.shown
 import io.github.pedrubik2000.kumapie.data.resumeLine
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -516,7 +517,7 @@ private fun Hero(library: Library, s: Show, e: Episode, onShow: () -> Unit, onPl
             top()
             Column(Modifier.align(Alignment.BottomStart).padding(start = GUTTER, end = 24.dp, bottom = 24.dp).widthIn(max = 600.dp)) {
                 Text(tr("Continue watching").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 3.sp)
-                Text(s.title, color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(s.shown, color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Color.White.copy(alpha = 0.85f), fontSize = 18.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                 ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(420.dp).padding(top = 14.dp))
@@ -540,7 +541,7 @@ private fun WideTile(library: Library, s: Show, e: Episode, onPlay: () -> Unit) 
             AsyncImage(art(library, s, e), null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         }
-        Text(s.title, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(s.shown, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Glass.dim, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -575,7 +576,7 @@ private fun ResumeCard(image: Any?, s: Show, e: Episode, onPlay: () -> Unit) {
                 }
             }
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                Text(s.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 72.dp))
+                Text(s.shown, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 72.dp))
                 // Two lines, so a narrow card never cuts off how easy it is.
                 Text(e.title, style = MaterialTheme.typography.bodyMedium, color = Colors.dim, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
@@ -596,7 +597,7 @@ private fun Tile(image: Any?, s: Show, e: Episode, modifier: Modifier, onPlay: (
                 AsyncImage(image, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             }
             Column(Modifier.weight(1f)) {
-                Text(s.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(s.shown, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(e.title, style = MaterialTheme.typography.bodySmall, color = Colors.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(resumeLine(e), style = MaterialTheme.typography.bodySmall, color = Colors.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.fillMaxWidth().padding(top = 6.dp))

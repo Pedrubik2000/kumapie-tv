@@ -67,6 +67,7 @@ import io.github.pedrubik2000.kumapie.data.ahead
 import io.github.pedrubik2000.kumapie.data.easyPercent
 import io.github.pedrubik2000.kumapie.data.levelLine
 import io.github.pedrubik2000.kumapie.data.shortTitle
+import io.github.pedrubik2000.kumapie.data.shown
 
 /** Home's rows, in this order (the phone's); reels are feed-only, so the TV never lists them. */
 private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "visual_novels" to "Visual novels")
@@ -116,9 +117,9 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
     // As the tablet's Glass Home (user, 2026-11-17): the bear top left, the language pill top right, round buttons
     // down the left edge over everything, the last episode as a picture across the top.
     val header = @Composable {
-        Box(Modifier.fillMaxWidth().padding(start = 28.dp, end = 32.dp, top = 20.dp)) {
+        Box(Modifier.fillMaxWidth().padding(start = 20.dp, end = 32.dp, top = 20.dp)) {
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(io.github.pedrubik2000.kumapie.R.drawable.bear), "kumapie",
-                Modifier.align(Alignment.TopStart).size(76.dp))
+                Modifier.align(Alignment.TopStart).size(64.dp)) // centred over the round buttons ([Rail]: 24 dp in, 56 dp wide)
             if (langs.size > 1) Button(padding = TAB, modifier = Modifier.align(Alignment.TopEnd).padding(top = 12.dp), onClick = {
                 val next = langs[(langs.indexOf(lang) + 1) % langs.size] // one button: OK goes to the next language
                 picked = next; settings.prefs.edit().putString("home_lang_$profile", next).apply()
@@ -256,7 +257,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
                 val top = going.isEmpty() && kept.isEmpty() && rows.take(r).all { it.second.isEmpty() }
                 Box(Modifier.padding(start = RAIL - 16.dp)) { Shelf(label) {
                     itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
-                        Poster(s.poster, shortTitle(s.title), levelLine(s), null,
+                        Poster(s.poster, shortTitle(s.shown), levelLine(s), null,
                             when {
                                 i != 0 -> Modifier
                                 top -> Modifier.focusRequester(first)
@@ -298,7 +299,7 @@ private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Co
         header()
         Column(Modifier.align(Alignment.BottomStart).padding(start = RAIL, end = 24.dp, bottom = 24.dp).width(600.dp)) {
             Text(tr("Continue watching").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)
-            Text(shortTitle(s.title), color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(shortTitle(s.shown), color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Color.White.copy(alpha = 0.85f), fontSize = 18.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
             ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(380.dp).padding(top = 12.dp))
@@ -351,7 +352,7 @@ private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, onCli
                 ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp))
             }
         }
-        Text(shortTitle(s.title), color = Colors.text, style = (if (width > 300.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium).merge(Arcade.label), maxLines = 1,
+        Text(shortTitle(s.shown), color = Colors.text, style = (if (width > 300.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium).merge(Arcade.label), maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 18.dp))
         Text("${e.title} · ${resumeLine(e)}", color = Colors.dim, style = if (width > 300.dp) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

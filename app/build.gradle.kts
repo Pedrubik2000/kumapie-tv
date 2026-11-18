@@ -63,6 +63,9 @@ android {
         buildConfig = true
     }
 
+    // The TV focus tests (src/test) run the screens in Robolectric: they need the app's resources.
+    testOptions.unitTests.isIncludeAndroidResources = true
+
     // No analytics/metadata blobs in the APK.
     dependenciesInfo {
         includeInApk = false
@@ -85,4 +88,11 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("com.google.zxing:core:3.5.3") // the onboarding's QR code (the phone opens the TV's setup page)
+
+    // TV focus tests: the remote's keys on the real screens, on the PC (TvHomeFocusTest).
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.18.1")
+    testImplementation(composeBom)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest") // the empty activity the test rule opens
 }

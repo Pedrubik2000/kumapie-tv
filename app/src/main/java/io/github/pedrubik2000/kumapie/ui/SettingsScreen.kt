@@ -183,6 +183,8 @@ fun AloneHome(settings: Settings, onDiscover: (io.github.pedrubik2000.kumapie.da
     LaunchedEffect(Unit) { due = runCatching { io.github.pedrubik2000.kumapie.lang.ownReview(context, lang).due().size }.getOrNull() }
     var kept by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.data.Found>>(emptyList()) }
     LaunchedEffect(Unit) { kept = runCatching { io.github.pedrubik2000.kumapie.data.Addons(addons, settings.prefs).saved() }.getOrDefault(emptyList()) }
+    var rows by remember { mutableStateOf<List<Pair<String, List<io.github.pedrubik2000.kumapie.data.Found>>>>(emptyList()) }
+    LaunchedEffect(Unit) { if (addons.isNotEmpty()) rows = runCatching { io.github.pedrubik2000.kumapie.data.Addons(addons, settings.prefs).board() }.getOrDefault(emptyList()) }
     // As the PC's Home: the logo and the buttons on top, then the titles as posters (newest kept first).
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -202,6 +204,10 @@ fun AloneHome(settings: Settings, onDiscover: (io.github.pedrubik2000.kumapie.da
             else -> Shelf(tr("My shows")) {
                 items(kept.reversed().size) { i -> kept.reversed()[i].let { f -> Poster(f.poster, f.name, f.year, null, Modifier) { onDiscover(f) } } }
             }
+        }
+        // Discover's rows under it (the user's AniList lists, then the addons' catalogs): something to pick from the start.
+        rows.forEach { (name, titles) ->
+            Shelf(name) { items(titles.size) { i -> titles[i].let { f -> Poster(f.poster, f.name, f.year, null, Modifier) { onDiscover(f) } } } }
         }
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }

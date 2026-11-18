@@ -58,7 +58,7 @@ class SetupPage(private val settings: Settings, private val onSaved: () -> Unit)
 
     private fun save(f: Map<String, String>) {
         f["jimaku"]?.takeIf { it.isNotEmpty() }?.let { settings.prefs.edit().putString("jimaku_key", it).apply() }
-        val add = listOfNotNull(Addons.KITSU.takeIf { f["kitsu"] == "on" }, f["rd"]?.takeIf { it.isNotEmpty() }?.let(Addons::torrentio))
+        val add = listOfNotNull(Addons.KITSU.takeIf { f["kitsu"] == "on" }, Addons.OPENSUBTITLES.takeIf { f["english"] == "on" }, f["rd"]?.takeIf { it.isNotEmpty() }?.let(Addons::torrentio))
         // A new Real-Debrid token replaces the old Torrentio link.
         val kept = if (f["rd"].isNullOrEmpty()) settings.addons else settings.addons.filterNot { "torrentio.strem.fun" in it }
         settings.addons = (kept + add).distinct()
@@ -81,6 +81,7 @@ class SetupPage(private val settings: Settings, private val onSaved: () -> Unit)
             <a href="https://real-debrid.com/apitoken" target="_blank">real-debrid.com/apitoken</a></p>
             <input name="rd" placeholder="${tr("Real-Debrid token")}" autocomplete="off">
             <label><input type="checkbox" name="kitsu" checked> ${tr("Kitsu: anime titles, posters and episodes to pick from")}</label>
+            <label><input type="checkbox" name="english" checked> ${tr("English under the lines: OpenSubtitles (free, no account)")}</label>
             <p>${tr("Your AniList lists (optional): what you're watching and plan to watch, at the top of Discover. Your profile must be public.")}</p>
             <input name="anilist" placeholder="${tr("AniList username")}" value="${p.getString(Addons.ANILIST, "").orEmpty().replace("\"", "")}" autocomplete="off">
             <button>${tr("Save")}</button>

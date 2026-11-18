@@ -65,6 +65,8 @@ internal val esTv: Map<String, String> = mapOf(
     "Open real-debrid.com" to "Abrir real-debrid.com",
     "Real-Debrid token" to "Token de Real-Debrid",
     "Kitsu: anime titles, posters and episodes to pick from" to "Kitsu: títulos, pósters y episodios de anime para elegir",
+    "English under the lines: OpenSubtitles (free, no account)" to "Inglés debajo de las líneas: OpenSubtitles (gratis, sin cuenta)",
+    "English subtitles (OpenSubtitles)" to "Subtítulos en inglés (OpenSubtitles)",
     "Your AniList lists (optional): what you're watching and plan to watch, at the top of Discover. Your profile must be public." to
         "Tus listas de AniList (opcional): lo que estás viendo y planeas ver, arriba en Descubrir. Tu perfil debe ser público.",
     "AniList username" to "Usuario de AniList",

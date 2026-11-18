@@ -66,11 +66,12 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     var jimaku by remember { mutableStateOf(settings.jimakuKey) }
     var rd by remember { mutableStateOf(settings.rdToken) }
     var kitsu by remember { mutableStateOf(true) }
+    var english by remember { mutableStateOf(true) }
     var anilist by remember { mutableStateOf(settings.prefs.getString(Addons.ANILIST, "").orEmpty()) }
     var anilistSaid by remember { mutableStateOf<String?>(null) }
     fun open(url: String) = runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     fun saveSources() {
-        settings.addons = (settings.addons + listOfNotNull(Addons.KITSU.takeIf { kitsu }, rd.takeIf { it.isNotBlank() }?.let(Addons::torrentio))).distinct()
+        settings.addons = (settings.addons + listOfNotNull(Addons.KITSU.takeIf { kitsu }, Addons.OPENSUBTITLES.takeIf { english }, rd.takeIf { it.isNotBlank() }?.let(Addons::torrentio))).distinct()
         settings.prefs.edit().putString(Addons.ANILIST, anilist.trim()).apply()
     }
     val steps = 4
@@ -96,6 +97,10 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(kitsu, { kitsu = it })
                         Text(tr("Kitsu: anime titles, posters and episodes to pick from"))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(english, { english = it })
+                        Text(tr("English under the lines: OpenSubtitles (free, no account)"))
                     }
                     Text(tr("Your AniList lists (optional): what you're watching and plan to watch, at the top of Discover. Your profile must be public."), color = Colors.dim, fontSize = 14.sp)
                     OutlinedTextField(anilist, { anilist = it; anilistSaid = null }, label = { Text(tr("AniList username")) }, singleLine = true,

@@ -123,8 +123,9 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
      */
     suspend fun english(type: String, id: String, japanese: List<Double>): List<Jimaku.Line> {
         val asked = imdb(type, id) ?: return emptyList()
-        val files = manifests().filter { (_, m) -> gives(m, "subtitles", type, asked) }.flatMap { (b, _) ->
-            runCatching { JSONObject(get("$b/subtitles/$type/${enc(asked)}.json")).optJSONArray("subtitles").objects() }.getOrDefault(emptyList())
+        val kind = if (type == "movie") "movie" else "series" // IMDb has movies and series; Kitsu also says "anime"
+        val files = manifests().filter { (_, m) -> gives(m, "subtitles", kind, asked) }.flatMap { (b, _) ->
+            runCatching { JSONObject(get("$b/subtitles/$kind/${enc(asked)}.json")).optJSONArray("subtitles").objects() }.getOrDefault(emptyList())
         }.filter { it.optString("lang") in setOf("eng", "en") }.take(MAX_ENGLISH)
         return files.mapNotNull { f ->
             val lines = runCatching { Jimaku.cues("en.srt", get(f.getString("url")).toByteArray(), Jimaku::plain) }.getOrNull()
@@ -137,11 +138,12 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
     /** [id] as subtitle addons know it (IMDb: tt…, an episode tt…:season:episode); a Kitsu id through its meta's imdb_id, imdbSeason, imdbEpisode. */
     private suspend fun imdb(type: String, id: String): String? {
         if (id.startsWith("tt")) return id
-        val title = if (type == "series") id.substringBeforeLast(':') else id
+        val episode = type != "movie" && id.count { it == ':' } >= 2 // kitsu:48269:1, not kitsu:48269
+        val title = if (episode) id.substringBeforeLast(':') else id
         for ((b, m) in manifests()) {
             if (!gives(m, "meta", type, title)) continue
             val meta = runCatching { JSONObject(get("$b/meta/$type/${enc(title)}.json")).optJSONObject("meta") }.getOrNull() ?: continue
-            if (type != "series") return meta.optString("imdb_id").takeIf { it.startsWith("tt") }
+            if (!episode) return meta.optString("imdb_id").takeIf { it.startsWith("tt") }
             val v = meta.optJSONArray("videos").objects().firstOrNull { it.optString("id") == id } ?: return null
             val tt = v.optString("imdb_id", meta.optString("imdb_id")).takeIf { it.startsWith("tt") } ?: return null
             return "$tt:${v.optInt("imdbSeason", v.optInt("season", 1))}:${v.optInt("imdbEpisode", v.optInt("episode"))}"
@@ -184,6 +186,8 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         const val ANILIST = "anilist_user"
         /** The addons the onboarding names (user 2026-11-17): Kitsu (titles), Torrentio with the user's Real-Debrid token (links). */
         const val KITSU = "https://anime-kitsu.strem.fun/manifest.json"
+        /** English subtitles by IMDb episode ([english]): offered in the setup with Kitsu (user 2026-11-17). */
+        const val OPENSUBTITLES = "https://opensubtitles-v3.strem.io/manifest.json"
         fun torrentio(rdToken: String) = "https://torrentio.strem.fun/realdebrid=${rdToken.trim()}/manifest.json"
         private const val MAX_ROWS = 8
         private const val MAX_ENGLISH = 5

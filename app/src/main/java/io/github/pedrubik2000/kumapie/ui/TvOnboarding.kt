@@ -106,6 +106,7 @@ private fun PhonePage(settings: Settings) {
             row(!p.getString("jimaku_key", "").isNullOrEmpty(), tr("Japanese subtitles (Jimaku)"))
             row(settings.addons.any { "torrentio.strem.fun" in it }, tr("Videos (Torrentio with Real-Debrid)"))
             row(Addons.KITSU in settings.addons, "Kitsu")
+            row(Addons.OPENSUBTITLES in settings.addons, tr("English subtitles (OpenSubtitles)"))
             row(!p.getString(Addons.ANILIST, "").isNullOrEmpty(), "AniList" + p.getString(Addons.ANILIST, "").orEmpty().let { if (it.isEmpty()) "" else ": $it" })
         }
     }

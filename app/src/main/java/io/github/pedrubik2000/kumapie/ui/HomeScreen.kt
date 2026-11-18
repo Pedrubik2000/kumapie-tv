@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import io.github.pedrubik2000.kumapie.data.Found
 import androidx.compose.foundation.lazy.LazyRow
@@ -148,6 +149,9 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
         }
         // From the top, under the bear: centred, six buttons reached the bear on a 540 dp Chromecast, and the column
         // jumped when Review came.
+        // The rows scroll under the round buttons: a dark edge behind them, so cards don't show through the glass.
+        Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).fadeTop(0.1f).background(androidx.compose.ui.graphics.Brush.horizontalGradient( // from under the bear
+            0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
         Rail(rail, Modifier.align(Alignment.TopStart).padding(top = 100.dp))
     }
 }
@@ -229,7 +233,9 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
     // The banner stays whole while its buttons have the focus (the TV list scrolled Resume to the middle and cut its top).
     val list = androidx.compose.foundation.lazy.rememberLazyListState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    LazyColumn(state = list) {
+    // Back down in the rows: up to Resume first (it closed the app).
+    val scrolled = list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 0
+    LazyColumn(Modifier.onBackKey(scrolled) { scope.launch { list.scrollToItem(0); first.focusSoon() } }, state = list) {
         // As the tablet's Glass Home: the last episode across the top (Resume focused first, OK plays it), the
         // buttons and the stats on its picture (user, 2026-11-17; Home is for resuming fast). Novels count too.
         item(key = "top") {
@@ -251,7 +257,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
             }
         }
         if (kept.isNotEmpty()) item(key = "streaming") {
-            Box(Modifier.padding(start = RAIL - 16.dp)) { Shelf(tr("Streaming")) {
+            Box { Shelf(tr("Streaming"), inset = RAIL) { // edge to edge: a padded box cut the posters with a straight line
                 itemsIndexed(kept, key = { _, f -> f.id }) { i, f ->
                     Poster(f.poster, f.name, f.year, null, when { i != 0 -> Modifier; going.isEmpty() -> Modifier.focusRequester(first); more.isEmpty() -> Modifier.focusRequester(below); else -> Modifier }) { onDiscovered(f) }
                 }
@@ -262,7 +268,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
             val list = list.sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
             if (list.isNotEmpty()) item(key = "kind-$r") {
                 val top = going.isEmpty() && kept.isEmpty() && rows.take(r).all { it.second.isEmpty() }
-                Box(Modifier.padding(start = RAIL - 16.dp)) { Shelf(label) {
+                Box { Shelf(label, inset = RAIL) {
                     itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
                         Poster(s.poster, shortTitle(s.shown), levelLine(s), null,
                             when {

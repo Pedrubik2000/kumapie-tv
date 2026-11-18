@@ -91,4 +91,57 @@ internal val esOther: Map<String, String> = mapOf(
     "Reading episodes %1\$d of %2\$d…" to "Leyendo episodios %1\$d de %2\$d…",
     "kuma3 Anki is too old to keep kumapie's progress (update it)" to
         "kuma3 Anki es demasiado antiguo para guardar el progreso de kumapie (actualízalo)",
+
+    // Found missing by WordCheckTest (2026-11-18): TV streams, Discover, onboarding, voices, sync, AI meaning.
+    "Open kumapie once and set the PC's address first" to "Abre kumapie una vez y pon primero la dirección del PC",
+    "NuvioTV sent no Japanese, German or English subtitles: pick an add-on that has them" to
+        "NuvioTV no envió subtítulos en japonés, alemán ni inglés: elige un addon que los tenga",
+    "Words coming: %1\$s" to "Palabras en camino: %1\$s",
+    "The PC is making the episode: %1\$s" to "El PC está haciendo el episodio: %1\$s",
+    "%1\$s: getting its words from the PC (a new subtitle file: about a minute)…" to
+        "%1\$s: trayendo sus palabras del PC (un archivo de subtítulos nuevo: un minuto más o menos)…",
+    "The PC couldn't make it: %1\$s" to "El PC no pudo hacerlo: %1\$s",
+    "waiting for the job before it" to "esperando al trabajo anterior",
+    "No file is ready for this episode yet: pick one in its files" to
+        "Todavía no hay un archivo listo para este episodio: elige uno en sus archivos",
+    "The PC couldn't get it: %1\$s" to "El PC no pudo conseguirlo: %1\$s",
+    "The video stopped: %1\$s" to "El video se detuvo: %1\$s",
+    "Other files" to "Otros archivos",
+    "Mark not watched" to "Marcar como no visto",
+    "Mark watched" to "Marcar como visto",
+    "Jimaku" to "Jimaku",
+    "%d words imported as known." to "%d palabras importadas como conocidas.",
+    "Most frequent words" to "Palabras más frecuentes",
+    "Downloading from jiten.moe…" to "Descargando de jiten.moe…",
+    "Import" to "Importar",
+    "Remove imported" to "Quitar las importadas",
+    "the %s voice" to "la voz en %s",
+    "Downloading the %s voice" to "Descargando la voz en %s",
+    "Unpacking the %s voice" to "Descomprimiendo la voz en %s",
+    " · in sync" to " · sincronizado",
+    " · check the timing: try %s in the player's Subtitle timing" to
+        " · revisa la sincronía: prueba %s en Sincronía de subtítulos del reproductor",
+    " · check the timing at %s" to " · revisa la sincronía en %s",
+    "subtitle timing" to "sincronía de subtítulos",
+    "AniWorld and TikTok links need the PC: Settings > server and whose device it is." to
+        "Los enlaces de AniWorld y TikTok necesitan el PC: Ajustes > servidor y de quién es el dispositivo.",
+    "Search anime" to "Buscar anime",
+    "Asking the PC…" to "Preguntando al PC…",
+    "Not now" to "Ahora no",
+    "Jimaku %1\$s s" to "Jimaku %1\$s s",
+    "That card isn't in %s." to "Esa tarjeta no está en %s.",
+    "Use a person's recording of \"%s\"" to "Usar la grabación de una persona de «%s»",
+    "The PC made it, but it isn't in the show list yet" to "El PC lo hizo, pero todavía no está en la lista de series",
+    "Known words from jiten.moe" to "Palabras conocidas de jiten.moe",
+    "Known while the word has no card in Japanese Mined. Names and fillers (えっと) count as known anyway." to
+        "Conocida mientras la palabra no tenga tarjeta en Japanese Mined. Los nombres y las muletillas (えっと) cuentan como conocidas igual.",
+    "%1\$s words without a recording: %2\$s's voice, on this device." to
+        "Palabras en %1\$s sin grabación: la voz de %2\$s, en este dispositivo.",
+    "%1\$s voice: %2\$s" to "Voz en %1\$s: %2\$s",
+    "Download %1\$s's %2\$s voice (about %3\$d MB, on Wi-Fi)" to
+        "Descargar la voz de %1\$s en %2\$s (unos %3\$d MB, con Wi-Fi)",
+    "AI: picking the meaning in this line…" to "IA: eligiendo el significado en esta línea…",
+    "AI: couldn't ask the PC." to "IA: no se pudo preguntar al PC.",
+    "AI: no clear meaning in this line." to "IA: no hay un significado claro en esta línea.",
+    "%d imported as known." to "%d importadas como conocidas.",
 )

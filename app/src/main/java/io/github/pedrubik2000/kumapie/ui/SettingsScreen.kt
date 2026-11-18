@@ -40,10 +40,28 @@ import kotlinx.coroutines.launch
  * The server address and updates. Also the first-run screen (firstRun = true): the address can be typed here,
  * or sent from the PC: adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.MainActivity --es server <url>
  */
+/**
+ * The words marked known on the person's devices and the PC, newest mark of each word winning, as the phone merges
+ * them (offline/Progress.kt). The TV posts an empty progress under its own name: the PC answers only to a device.
+ */
+private suspend fun pcMarks(pc: Api): Set<String> {
+    val latest = HashMap<String, Pair<Boolean, Long>>()
+    val devices = pc.devicesProgress("tv-" + android.os.Build.MODEL, org.json.JSONObject())
+    val parts = devices.keys().asSequence().map { devices.getJSONObject(it) }.toList() + org.json.JSONObject(pc.history())
+    for (d in parts) d.optJSONObject("marked")?.let { m ->
+        m.keys().forEach { k ->
+            val a = m.optJSONArray(k) ?: return@forEach
+            if ((latest[k]?.second ?: -1) <= a.optLong(1)) latest[k] = a.getBoolean(0) to a.optLong(1)
+        }
+    }
+    return latest.filterValues { it.first }.keys
+}
+
 @Composable
 fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
                    onButtons: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
     var status by remember { mutableStateOf("") }
     var updateStatus by remember { mutableStateOf("") }
@@ -85,17 +103,23 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server")) }
         }
         if (!firstRun && settings.server.isNotEmpty()) {
-            // Leaving the PC: the anime streamed through it (kept titles, episodes watched, where each was left) come along.
+            // Leaving the PC, as on the phone: the profile's cards and reviews, imported word lists and marks, and the
+            // anime streamed through it (kept titles, episodes watched, where each was left) come along.
             Button(onClick = {
-                status = tr("Copying your progress…")
+                status = tr("Copying your words, cards and progress…")
                 scope.launch {
                     runCatching {
                         val pc = Api(settings.server, settings.profile)
+                        val languages = tvLanguages(context, settings).all
+                        val cards = io.github.pedrubik2000.kumapie.lang.Cards.get(context).srs.takeFromPc(settings.server, settings.profile, languages)
+                        val marked = pcMarks(pc)
+                        languages.forEach { l -> l.known.useMarked(marked.mapNotNull(l::wordOfMark).toSet()) }
                         io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).keepFromPc(pc.saved(), pc.going())
+                        android.util.Log.i("kumapie", "left the PC: $cards cards, ${marked.size} marks")
                     }.onSuccess { settings.server = ""; settings.standalone = true; onSaved() }
                         .onFailure { status = tr("Can't reach %1\$s (%2\$s)", settings.server, it.message) }
                 }
-            }) { Text(tr("Use without the PC (keeps your progress)")) }
+            }) { Text(tr("Use without the PC (keeps your words, cards and progress)")) }
         }
 
         if (!firstRun) {
@@ -143,6 +167,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                 TvTextField(key, { key = it }, onDone = ::keep, modifier = Modifier.width(640.dp))
                 Button(onClick = ::keep) { Text(tr("Save")) }
             }
+            TvJitenImport(settings) // as in the onboarding, opening on what was imported last
         }
 
         if (!firstRun) {

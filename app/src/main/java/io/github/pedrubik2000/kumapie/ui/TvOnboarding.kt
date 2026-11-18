@@ -95,13 +95,15 @@ private const val STEPS = 4
  * (a few sizes, no typing with the remote) and Jiten's word sets. Known while the word has no Mined card.
  */
 @Composable
-private fun TvJitenImport(settings: Settings) {
+internal fun TvJitenImport(settings: Settings) {
     val context = LocalContext.current
     val known = remember { japaneseKnown(context, settings) }
     val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var top by remember { mutableIntStateOf(10000) }
-    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to true }.toTypedArray()) }
+    // What was imported last time, to change it in Settings (the words marked known are kept apart: never touched).
+    val last = remember { known.jitenChoice }
+    var top by remember { mutableIntStateOf(last?.first ?: 10000) }
+    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to (last?.second?.contains(it) ?: true) }.toTypedArray()) }
     var busy by remember { mutableStateOf(false) }
     var said by remember { mutableStateOf(known.importedWords.size.takeIf { it > 0 }?.let { tr("%d words imported as known.", it) } ?: "") }
     Heading(tr("Words you know"))
@@ -128,13 +130,13 @@ private fun TvJitenImport(settings: Settings) {
             scope.launch {
                 said = runCatching {
                     val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { jiten.words(top, sets.filterValues { it }.keys) }
-                    known.setImported(words)
+                    known.setImported(words); known.jitenChoice = top to sets.filterValues { it }.keys.toSet()
                     tr("%d words imported as known.", words.size)
                 }.getOrElse { it.message ?: it.toString() }
                 busy = false
             }
         }) { Text(tr("Import")) }
-        if (known.importedWords.isNotEmpty()) Button(onClick = { if (!busy) { known.setImported(emptySet()); said = "" } }) { Text(tr("Remove imported")) }
+        if (known.importedWords.isNotEmpty()) Button(onClick = { if (!busy) { known.setImported(emptySet()); known.jitenChoice = null; said = "" } }) { Text(tr("Remove imported")) }
     }
     if (said.isNotEmpty()) Text(said, color = Colors.text, fontSize = 18.sp)
 }

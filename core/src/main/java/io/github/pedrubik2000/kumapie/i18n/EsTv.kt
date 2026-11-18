@@ -237,8 +237,6 @@ internal val esTv: Map<String, String> = mapOf(
     // Without a PC server
     "No server? kumapie also works on its own." to "¿Sin servidor? kumapie también funciona solo.",
     "Use without a server" to "Usar sin servidor",
-    "Use without the PC (keeps your progress)" to "Usar sin el PC (conserva tu progreso)",
-    "Copying your progress…" to "Copiando tu progreso…",
     "Set up from your phone (QR code)" to "Configurar desde tu celular (código QR)",
     "Hide the QR code" to "Ocultar el código QR",
     "Nothing to watch yet." to "Aún no hay nada que ver.",

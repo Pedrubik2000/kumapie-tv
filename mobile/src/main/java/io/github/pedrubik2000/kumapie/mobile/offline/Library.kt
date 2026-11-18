@@ -108,15 +108,13 @@ class Library(context: Context, val settings: Settings) {
      */
     suspend fun leavePc() {
         val api = api
-        api.info() // the PC answers, or nothing changes
-        if (settings.owner.isNotEmpty()) for ((lang, s) in srs) s.sync { api.srsSync(lang, it) }
-        for (l in languages.all) l.known.useLists(api.knownLists(l.lang.code, l.known.listsBody()))
+        val cards = io.github.pedrubik2000.kumapie.lang.Cards.get(appContext).srs.takeFromPc(settings.server, settings.owner, languages.all)
         progress.sync(api)
         val marked = progress.merged.marked
         languages.all.forEach { l -> l.known.useMarked(marked.mapNotNull(l::wordOfMark).toSet()) }
         yomitan.personal.sync(api::personalDictionary)
         io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).keepFromPc(api.saved(), api.going())
-        android.util.Log.i("kumapie", "left the PC: ${srs.mapValues { withContext(Dispatchers.IO) { it.value.cards().size } }} cards, ${marked.size} marks")
+        android.util.Log.i("kumapie", "left the PC: $cards cards, ${marked.size} marks")
         settings.server = ""
         settings.standalone = true
     }

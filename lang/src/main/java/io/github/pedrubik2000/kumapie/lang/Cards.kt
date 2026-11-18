@@ -104,6 +104,23 @@ class SrsCards(private val context: Context) : Cards {
             .onFailure { Log.w("kumapie", "srs ${lang.code}: not synced: $it") }.isSuccess
     }
 
+    /**
+     * Leaving the PC (Settings > Use without the PC, phone/tablet and TV): [person]'s cards and reviews from it into
+     * this device's own store ([LOCAL], the only one read without a PC: the tablet's first try filled Pedro's store,
+     * which no-PC mode doesn't read, 2026-11-18), and each language's imported word lists. Throws at the first thing
+     * the PC doesn't answer, so the caller switches nothing. Cards per language, after.
+     */
+    suspend fun takeFromPc(server: String, person: String, languages: List<Language>): Map<String, Int> {
+        val api = Api(server, person)
+        api.info()
+        return languages.associate { l ->
+            val s = synchronized(stores) { stores.getOrPut("$LOCAL/${l.lang.code}") { Srs(context, LOCAL, l.lang) } }
+            s.sync { api.srsSync(l.lang.code, it) }
+            l.known.useLists(api.knownLists(l.lang.code, l.known.listsBody()))
+            l.lang.code to kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { s.cards().size }
+        }
+    }
+
     private fun stores(): List<Pair<Lang, Srs>> = Lang.ALL.filter(::active).mapNotNull { l -> store(l)?.let { l to it } }
 
     override fun installed() = listOf(PKG)

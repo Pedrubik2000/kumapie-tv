@@ -76,6 +76,7 @@ import kotlin.coroutines.resume
  */
 /** Japanese known words, for the onboarding's Jiten import (TvOnboarding). */
 internal fun japaneseKnown(context: Context, settings: Settings) = TvMining.languages(context, settings).japanese.known
+internal fun tvLanguages(context: Context, settings: Settings) = TvMining.languages(context, settings)
 
 private object TvMining {
     private var miner: Miner? = null

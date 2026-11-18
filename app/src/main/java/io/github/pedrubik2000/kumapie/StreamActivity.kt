@@ -231,6 +231,7 @@ class StreamActivity : ComponentActivity() {
      */
     @Composable
     private fun Alone(settings: Settings, link: Uri) {
+        val t0 = remember { android.os.SystemClock.elapsedRealtime() }
         val id = link.getQueryParameter("id").orEmpty()
         val resume = remember { settings.prefs.getFloat("alone_pos_$id", 0f).toDouble() }
         val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -284,13 +285,16 @@ class StreamActivity : ComponentActivity() {
         var shown by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.EpisodeDetail?>(null) }
         LaunchedEffect(live.lines) {
             if (live.lines.isEmpty()) return@LaunchedEffect
+            val tLines = android.os.SystemClock.elapsedRealtime() // "words ready" below: how long each stage took (tvbench)
             kotlinx.coroutines.withTimeoutOrNull(30_000) { while (live.fitted == null) delay(500) }
+            val tFit = android.os.SystemClock.elapsedRealtime()
             val show = link.getQueryParameter("show").orEmpty()
             // English under the lines, from the user's subtitle addon if they added one (OpenSubtitles v3).
             val english = runCatching {
                 io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)
                     .english(link.getQueryParameter("type") ?: "series", id, live.lines.map { it.first + live.offset })
             }.getOrDefault(emptyList())
+            val tEnglish = android.os.SystemClock.elapsedRealtime()
             // Null while Sudachi's dictionary downloads (the first time): the lines go on meanwhile, then it is made.
             while (shown == null) {
                 shown = runCatching {
@@ -299,6 +303,8 @@ class StreamActivity : ComponentActivity() {
                 }.getOrElse { note = it.message; return@LaunchedEffect }
                 if (shown == null) { note = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
             }
+            val now = android.os.SystemClock.elapsedRealtime()
+            android.util.Log.i("kumapie", "words ready: lines ${tLines - t0} ms after open, fit ${tFit - tLines}, english ${tEnglish - tFit}, build ${now - tEnglish} (${live.source}, ${live.lines.size} lines)")
         }
         shown?.let { ep ->
             remember(ep) { settings.prefs.edit().putFloat("alone_off_$id", live.offset.toFloat()).apply(); live.stop(); alone = null; note = null } // the scenes draw the lines now; UP / DOWN are theirs

@@ -116,6 +116,39 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         return f?.let { next to it }
     }
 
+    /**
+     * English lines for [id] from the user's subtitle addons (OpenSubtitles v3…), placed on the [japanese] line starts
+     * ([io.github.pedrubik2000.kumapie.player.LiveLines.place]): of the first [MAX_ENGLISH] files, the one that puts
+     * most of its lines on a Japanese one. Empty when no addon has one that fits.
+     */
+    suspend fun english(type: String, id: String, japanese: List<Double>): List<Jimaku.Line> {
+        val asked = imdb(type, id) ?: return emptyList()
+        val files = manifests().filter { (_, m) -> gives(m, "subtitles", type, asked) }.flatMap { (b, _) ->
+            runCatching { JSONObject(get("$b/subtitles/$type/${enc(asked)}.json")).optJSONArray("subtitles").objects() }.getOrDefault(emptyList())
+        }.filter { it.optString("lang") in setOf("eng", "en") }.take(MAX_ENGLISH)
+        return files.mapNotNull { f ->
+            val lines = runCatching { Jimaku.cues("en.srt", get(f.getString("url")).toByteArray(), Jimaku::plain) }.getOrNull()
+                ?.takeIf { it.size * 2 >= japanese.size } ?: return@mapNotNull null // signs-only files
+            val at = io.github.pedrubik2000.kumapie.player.LiveLines.place(japanese, lines.map { it.start }) ?: return@mapNotNull null
+            lines.mapIndexed { i, l -> Jimaku.Line(at[i], at[i] + l.end - l.start, l.text) }
+        }.maxByOrNull { ls -> ls.count { l -> japanese.any { kotlin.math.abs(it - l.start) <= 0.3 } } }.orEmpty()
+    }
+
+    /** [id] as subtitle addons know it (IMDb: tt…, an episode tt…:season:episode); a Kitsu id through its meta's imdb_id, imdbSeason, imdbEpisode. */
+    private suspend fun imdb(type: String, id: String): String? {
+        if (id.startsWith("tt")) return id
+        val title = if (type == "series") id.substringBeforeLast(':') else id
+        for ((b, m) in manifests()) {
+            if (!gives(m, "meta", type, title)) continue
+            val meta = runCatching { JSONObject(get("$b/meta/$type/${enc(title)}.json")).optJSONObject("meta") }.getOrNull() ?: continue
+            if (type != "series") return meta.optString("imdb_id").takeIf { it.startsWith("tt") }
+            val v = meta.optJSONArray("videos").objects().firstOrNull { it.optString("id") == id } ?: return null
+            val tt = v.optString("imdb_id", meta.optString("imdb_id")).takeIf { it.startsWith("tt") } ?: return null
+            return "$tt:${v.optInt("imdbSeason", v.optInt("season", 1))}:${v.optInt("imdbEpisode", v.optInt("episode"))}"
+        }
+        return null
+    }
+
     override suspend fun saved(): List<Found> = JSONArray(store.getString(SAVED, "[]")).objects().map { found(it) }
 
     override suspend fun save(title: Found, on: Boolean): List<Found> {
@@ -153,6 +186,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         const val KITSU = "https://anime-kitsu.strem.fun/manifest.json"
         fun torrentio(rdToken: String) = "https://torrentio.strem.fun/realdebrid=${rdToken.trim()}/manifest.json"
         private const val MAX_ROWS = 8
+        private const val MAX_ENGLISH = 5
         private const val SAVED = "alone_saved"
         private const val SEEN = "alone_seen"
 

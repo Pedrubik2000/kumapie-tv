@@ -931,7 +931,7 @@ private fun AddonsField(settings: Settings) {
     var addons by remember { mutableStateOf(settings.addons) }
     var typed by remember { mutableStateOf("") }
     Text(tr("Stremio addons"), fontSize = 15.sp)
-    Text(tr("Paste an addon's address (…/manifest.json). One that lists titles (Cinemeta, Kitsu) and one that gives links: a torrent addon needs your debrid key in it."),
+    Text(tr("Paste an addon's address (…/manifest.json). One that lists titles (Cinemeta, Kitsu) and one that gives links: a torrent addon needs your debrid key in it. A subtitle addon (OpenSubtitles v3) adds English under the lines."),
         fontSize = 13.sp, color = Colors.dim)
     addons.forEach { a ->
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

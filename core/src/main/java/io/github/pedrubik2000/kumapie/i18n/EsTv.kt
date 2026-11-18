@@ -231,8 +231,8 @@ internal val esTv: Map<String, String> = mapOf(
     "kumapie plays what your own Stremio addons give it. Add one in Settings, or the address of a kumapie server on a PC." to
         "kumapie reproduce lo que le dan tus propios addons de Stremio. Añade uno en Ajustes, o la dirección de un servidor kumapie en un PC.",
     "Stremio addons" to "Addons de Stremio",
-    "Paste an addon's address (…/manifest.json). One that lists titles (Cinemeta, Kitsu) and one that gives links: a torrent addon needs your debrid key in it." to
-        "Pega la dirección de un addon (…/manifest.json). Uno que liste títulos (Cinemeta, Kitsu) y uno que dé enlaces: un addon de torrents necesita tu clave de debrid.",
+    "Paste an addon's address (…/manifest.json). One that lists titles (Cinemeta, Kitsu) and one that gives links: a torrent addon needs your debrid key in it. A subtitle addon (OpenSubtitles v3) adds English under the lines." to
+        "Pega la dirección de un addon (…/manifest.json). Uno que liste títulos (Cinemeta, Kitsu) y uno que dé enlaces: un addon de torrents necesita tu clave de debrid. Un addon de subtítulos (OpenSubtitles v3) agrega el inglés debajo de las líneas.",
     "(no answer)" to "(sin respuesta)",
     "Remove" to "Quitar",
     "Add" to "Añadir",

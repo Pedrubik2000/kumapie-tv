@@ -83,6 +83,25 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
 
     companion object {
         private const val MIN_REFS = 8
+        private const val CHUNK = 180.0
+
+        /**
+         * Another file's line starts ([other], seconds) moved onto the [japanese] ones: [fit] per [CHUNK] s, as two
+         * releases' files often differ by one amount before the opening and another after it (AoT 1: -0.8 s, then
+         * -2.8 s). A chunk that doesn't fit takes the nearest one's. Null when under half the chunks fit (another
+         * episode, another cut).
+         */
+        fun place(japanese: List<Double>, other: List<Double>): List<Double>? {
+            if (other.isEmpty()) return null
+            val chunks = (0..(other.max() / CHUNK).toInt()).mapNotNull { c ->
+                val t0 = c * CHUNK
+                val part = other.filter { it >= t0 && it < t0 + CHUNK }.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                c to fit(part, japanese.filter { it >= t0 - 60 && it < t0 + CHUNK + 60 })
+            }
+            val fitted = chunks.filter { it.second != null }
+            if (fitted.size * 2 < chunks.size) return null
+            return other.map { t -> val c = (t / CHUNK).toInt(); t - fitted.minBy { kotlin.math.abs(it.first - c) }.second!! }
+        }
 
         /**
          * One offset for Jimaku's line [starts] (seconds) that puts the most of them on the other track's line starts

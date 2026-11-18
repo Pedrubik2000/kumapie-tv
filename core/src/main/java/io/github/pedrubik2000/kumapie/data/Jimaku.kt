@@ -81,8 +81,9 @@ object Jimaku {
      * A subtitle file (.srt / .vtt / .ass / .ssa) -> the lines that are said, in time order: styling dropped, ASS signs,
      * songs and karaoke left out, a bilingual file's Chinese half too, readings and sounds in brackets dropped.
      * ponytail: sung lines are left out (the phone keeps them as "♪ …" for Skip intro); add them when the TV builds episodes.
+     * [said]: what of a line is kept ("" drops it); Japanese by default, [plain] for another language.
      */
-    fun cues(name: String, data: ByteArray): List<Line> {
+    fun cues(name: String, data: ByteArray, said: (String) -> String = ::spoken): List<Line> {
         val text = decode(data).replace("\r", "")
         val out = ArrayList<Line>()
         if (name.lowercase().let { it.endsWith(".ass") || it.endsWith(".ssa") }) {
@@ -112,7 +113,7 @@ object Jimaku {
         val seen = HashSet<Line>()
         return out.sortedBy { it.start }.mapNotNull { l ->
             if ("♪" in l.text) return@mapNotNull null
-            val t = spoken(l.text)
+            val t = said(l.text)
             Line(Math.round(l.start * 1000) / 1000.0, Math.round(l.end * 1000) / 1000.0, t).takeIf { t.isNotEmpty() && seen.add(it) }
         }
     }
@@ -129,6 +130,9 @@ object Jimaku {
         val t = text.replace(Regex("""\([^)]*\)"""), "").replace(Regex("""（[^）]*）|［[^］]*］|\[[^\]]*\]|[♪♬～〜]"""), "").trim()
         return if (JAPANESE.containsMatchIn(t) && (KANA.containsMatchIn(t) || t.length <= 12)) t.replace(Regex("""\s+"""), " ") else ""
     }
+
+    /** A line in another language as it is, spaces made single. */
+    fun plain(text: String): String = text.replace(Regex("""\s+"""), " ").trim()
 
     private fun time(s: String): Double? = Regex("""\s*(\d+):(\d+):(\d+)\.(\d+)""").find(s)?.groupValues?.let { secs(it[1], it[2], it[3], it[4]) }
     private fun secs(h: String, m: String, s: String, frac: String) = h.toInt() * 3600 + m.toInt() * 60 + s.toInt() + frac.toInt() / Math.pow(10.0, frac.length.toDouble())

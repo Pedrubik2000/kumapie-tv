@@ -283,11 +283,16 @@ class StreamActivity : ComponentActivity() {
             if (live.lines.isEmpty()) return@LaunchedEffect
             kotlinx.coroutines.withTimeoutOrNull(30_000) { while (live.fitted == null) delay(500) }
             val show = link.getQueryParameter("show").orEmpty()
+            // English under the lines, from the user's subtitle addon if they added one (OpenSubtitles v3).
+            val english = runCatching {
+                io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)
+                    .english(link.getQueryParameter("type") ?: "series", id, live.lines.map { it.first + live.offset })
+            }.getOrDefault(emptyList())
             // Null while Sudachi's dictionary downloads (the first time): the lines go on meanwhile, then it is made.
             while (shown == null) {
                 shown = runCatching {
                     io.github.pedrubik2000.kumapie.lang.EpisodeBuilder.fromLines(context, "alone:$id", show, link.getQueryParameter("title") ?: show,
-                        link.getQueryParameter("url").orEmpty(), (p.duration.takeIf { it > 0 } ?: 0L) / 1000.0, live.lines, live.offset, p.currentPosition / 1000.0)
+                        link.getQueryParameter("url").orEmpty(), (p.duration.takeIf { it > 0 } ?: 0L) / 1000.0, live.lines, live.offset, p.currentPosition / 1000.0, english)
                 }.getOrElse { note = it.message; return@LaunchedEffect }
                 if (shown == null) { note = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
             }

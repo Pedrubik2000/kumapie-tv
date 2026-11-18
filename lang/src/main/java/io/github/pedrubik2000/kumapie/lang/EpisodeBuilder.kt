@@ -87,16 +87,17 @@ object EpisodeBuilder {
 
     /**
      * A Jimaku stream's episode made on the device without a PC (TV and phone): its lines moved by [offset] (the fit
-     * or the hand shift), its words split by Sudachi. Null while Sudachi's dictionary isn't on the device yet: its
-     * download starts here (about 80 MB, once).
+     * or the hand shift), its words split by Sudachi, the [english] lines (already on the video's clock) under them.
+     * Null while Sudachi's dictionary isn't on the device yet: its download starts here (about 80 MB, once).
      */
     suspend fun fromLines(context: android.content.Context, id: String, show: String, title: String, video: String, duration: Double,
-                          lines: List<Triple<Double, Double, String>>, offset: Double, resume: Double): io.github.pedrubik2000.kumapie.data.EpisodeDetail? =
+                          lines: List<Triple<Double, Double, String>>, offset: Double, resume: Double,
+                          english: List<io.github.pedrubik2000.kumapie.data.Jimaku.Line> = emptyList()): io.github.pedrubik2000.kumapie.data.EpisodeDetail? =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val model = JapaneseModel(context)
             if (!model.isReady) { model.download(); return@withContext null }
             val cues = lines.map { Cue(it.first + offset, it.second + offset, it.third) }
-            val json = build(id, show, title, duration, video, cues, emptyList(), model.words(cues.map { it.text }))
+            val json = build(id, show, title, duration, video, cues, english.map { Cue(it.start, it.end, it.text) }, model.words(cues.map { it.text }))
             io.github.pedrubik2000.kumapie.data.Api("").parseEpisode(json.put("resume", resume).toString())
         }
 

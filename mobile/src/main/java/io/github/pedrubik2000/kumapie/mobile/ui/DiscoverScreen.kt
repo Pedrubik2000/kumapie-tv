@@ -461,11 +461,16 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         LaunchedEffect(live.lines) {
             if (live.lines.isEmpty()) return@LaunchedEffect
             kotlinx.coroutines.withTimeoutOrNull(30_000) { while (live.fitted == null) delay(500) }
+            // English under the lines, from the user's subtitle addon if they added one (OpenSubtitles v3).
+            val english = runCatching {
+                (library.discovery as? io.github.pedrubik2000.kumapie.data.Addons)
+                    ?.english(query["type"] ?: "series", query["id"].orEmpty(), live.lines.map { it.first + live.offset })
+            }.getOrNull().orEmpty()
             var d: EpisodeDetail? = null
             while (d == null) {
                 d = runCatching {
                     io.github.pedrubik2000.kumapie.lang.EpisodeBuilder.fromLines(context, "alone:" + query["id"].orEmpty(), query["show"].orEmpty(),
-                        query["title"].orEmpty(), alone, (player.duration.takeIf { it > 0 } ?: 0L) / 1000.0, live.lines, live.offset, player.currentPosition / 1000.0)
+                        query["title"].orEmpty(), alone, (player.duration.takeIf { it > 0 } ?: 0L) / 1000.0, live.lines, live.offset, player.currentPosition / 1000.0, english)
                 }.getOrElse { error = it.message; return@LaunchedEffect }
                 if (d == null) { step = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
             }

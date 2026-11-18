@@ -449,6 +449,8 @@ data class Found(
     val id: String, val type: String, val name: String, val poster: String, val year: String,
     val background: String = "", val logo: String = "", val description: String = "", val genres: String = "",
     val rating: String = "", val runtime: String = "",
+    /** Its Japanese name (ダンダダン), "" when not known: Home shows it (no PC: [Addons.saved]). */
+    val nameJa: String = "",
 ) {
     /** "2023-2024 · ★ 8.9 · 24 min · Adventure, Comedy" */
     val line get() = listOf(year, rating.takeIf { it.isNotEmpty() }?.let { "★ $it" }.orEmpty(), runtime, genres).filter { it.isNotEmpty() }.joinToString(" · ")

@@ -18,10 +18,11 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class KeepFromPcTest {
     @Test fun progressComesAlong() = runBlocking {
-        val prefs = Settings(RuntimeEnvironment.getApplication()).prefs.also { it.edit().clear().commit() }
+        val prefs = Settings(RuntimeEnvironment.getApplication()).prefs.also { p ->
+            p.edit().clear().putString("alone_ja_kitsu:1", "").putString("alone_ja_kitsu:3", "").commit() } // no Kitsu asked
         fun going(title: String, ep: Int, resume: Double?): Pair<Show, Episode> {
             val e = Episode("$title:$ep", "Episode $ep", 1, ep, 1400.0, "", 0, 0, 0, resume)
-            return Show(title, title, "stream", "", listOf(e), "ja") to e
+            return Show(title, title, "stream", "", listOf(e), "ja", titleJa = if (title == "kitsu:2") "ダンダダン" else "") to e
         }
         val addons = Addons(emptyList(), prefs)
         addons.keepFromPc(listOf(Found("kitsu:1", "series", "Kept", "", ""), Found("kitsu:2", "series", "Dandadan", "", "")),
@@ -34,5 +35,7 @@ class KeepFromPcTest {
         assertEquals(listOf("kitsu:2:3" to 28.5, "kitsu:3:2" to null), addons.going().map { it.second.id to it.second.resume }.sortedBy { it.first })
         addons.played("kitsu:2:3", 0.0, 1400.0) // left near its end: the next one
         assertEquals("kitsu:2:4", addons.going().first().second.id)
+        assertEquals("ダンダダン", addons.saved().first { it.id == "kitsu:2" }.nameJa) // the PC's Japanese name came along
+        assertEquals("ダンダダン", addons.going().first().first.titleJa) // Home's card shows it
     }
 }

@@ -165,10 +165,10 @@ fun HomeScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, settings: Set
 }
 
 /** Where the page starts right of the round buttons ([Rail]). */
-private val RAIL = 124.dp
+internal val RAIL = 124.dp
 
 /** A round button of the Home's left edge: [badge] > 0 shows a count on it (Review). */
-private class RailItem(val icon: androidx.compose.ui.graphics.vector.ImageVector, val label: String, val badge: Int = 0,
+internal class RailItem(val icon: androidx.compose.ui.graphics.vector.ImageVector, val label: String, val badge: Int = 0,
                        val selected: Boolean = false, val back: Boolean = true, val onClick: () -> Unit)
 
 /** The round button OK went through last: focused again when Home comes back. */
@@ -179,7 +179,7 @@ private var railLast: String? = null
  * beside it (on a phone you see the icon and tap; with a remote you need to know where OK goes).
  */
 @Composable
-private fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequester>, toRows: FocusRequester?, modifier: Modifier) {
+internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequester>, toRows: FocusRequester?, modifier: Modifier) {
     Column(modifier.padding(start = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         items.forEach { item -> androidx.compose.runtime.key(item.label) {
             var focused by remember { mutableStateOf(false) }
@@ -256,7 +256,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
             going.firstOrNull()?.let { (s, e) ->
                 // The rows' characters, drawn once behind the picture (GlyphWarm).
                 val warm = remember(kept, rows) {
-                    val titles = kept.map { it.name } + rows.flatMap { (_, l) -> l.map { shortTitle(it.shown) } }
+                    val titles = kept.map { it.nameJa.ifEmpty { it.name } } + rows.flatMap { (_, l) -> l.map { shortTitle(it.shown) } }
                     val lines = kept.map { it.year } + rows.flatMap { (_, l) -> l.map(::levelLine) }
                     titles.joinToString("").toSet().joinToString("") to lines.joinToString("").toSet().joinToString("")
                 }
@@ -279,7 +279,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
         if (kept.isNotEmpty()) item(key = "streaming") {
             Box { Shelf(tr("Streaming"), inset = RAIL) { // edge to edge: a padded box cut the posters with a straight line
                 itemsIndexed(kept, key = { _, f -> f.id }) { i, f ->
-                    Poster(f.poster, f.name, f.year, null, when { i != 0 -> Modifier; going.isEmpty() -> Modifier.focusRequester(first); more.isEmpty() -> Modifier.focusRequester(below); else -> Modifier }) { onDiscovered(f) }
+                    Poster(f.poster, f.nameJa.ifEmpty { f.name }, f.year, null, when { i != 0 -> Modifier; going.isEmpty() -> Modifier.focusRequester(first); more.isEmpty() -> Modifier.focusRequester(below); else -> Modifier }) { onDiscovered(f) }
                 }
             } }
         }

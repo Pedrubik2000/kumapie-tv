@@ -118,6 +118,15 @@ class TvDiscoverFocusTest {
         rule.waitUntil(2_000) { rule.focusedTitle()?.let { it == "Delta" || it == "Echo" } == true }
     }
 
+    @Test fun downFromATitlesPlayGoesToItsNextEpisode() {
+        val meta = JSONObject("""{"episodes":[{"id":"alpha:1","number":1,"watched":true},{"id":"alpha:2","number":2}]}""")
+        val withEpisodes = object : Discovery by discovery { override suspend fun discoverMeta(type: String, id: String) = meta }
+        rule.setContent { DiscoverScreen(withEpisodes, start = title("Alpha")) }
+        rule.waitUntil(5_000) { rule.focusedTitle()?.startsWith("▶") == true }
+        rule.press(Key.DirectionDown)
+        rule.waitUntil(2_000) { rule.focusedTitle() == "Episode 2" } // the round buttons took it (Chromecast, 2026-11-18)
+    }
+
     @Test fun backClearsASearchAndStaysInDiscover() {
         open()
         rule.onNode(hasImeAction(androidx.compose.ui.text.input.ImeAction.Done)).requestFocus() // read-only until OK: no SetText yet

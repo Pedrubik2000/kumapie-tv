@@ -37,7 +37,7 @@ interface Discovery {
 
     /** A title object (also a meta answer). */
     fun found(o: JSONObject) = Found(o.optString("id"), o.optString("type", "series"), o.optString("name"), o.optString("poster"), o.optString("year"),
-        o.optString("background"), o.optString("logo"), o.optString("description"), o.optString("genres"), o.optString("rating"), o.optString("runtime"))
+        o.optString("background"), o.optString("logo"), o.optString("description"), o.optString("genres"), o.optString("rating"), o.optString("runtime"), o.optString("name_ja"))
 }
 
 /**
@@ -156,11 +156,25 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
     }
 
     override suspend fun saved(): List<Found> = JSONArray(store.getString(SAVED, "[]")).objects().map { found(it) }
+        .map { f -> if (f.nameJa.isNotEmpty()) f else f.copy(nameJa = nameJa(f.id)) }
+
+    /**
+     * A Kitsu title's Japanese name (kitsu:48269 -> ダンダダン, Kitsu's ja_jp), asked once and kept (prefs); "" for
+     * other ids, or offline (asked again next time). The PC finds it on AniList (discover.py going()'s name_ja).
+     */
+    private suspend fun nameJa(id: String): String {
+        val n = id.removePrefix("kitsu:").takeIf { id.startsWith("kitsu:") && it.isNotEmpty() && it.all(Char::isDigit) } ?: return ""
+        store.getString("alone_ja_$id", null)?.let { return it }
+        val ja = runCatching { JSONObject(get("https://kitsu.app/api/edge/anime/$n", 15_000)).getJSONObject("data").getJSONObject("attributes")
+            .optJSONObject("titles")?.optString("ja_jp").orEmpty() }.getOrNull() ?: return ""
+        store.edit().putString("alone_ja_$id", ja).apply()
+        return ja
+    }
 
     override suspend fun save(title: Found, on: Boolean): List<Found> {
         val kept = saved().filter { it.id != title.id } + if (on) listOf(title) else emptyList()
         store.edit().putString(SAVED, JSONArray().also { a ->
-            kept.forEach { a.put(JSONObject().put("id", it.id).put("type", it.type).put("name", it.name).put("poster", it.poster).put("year", it.year)) }
+            kept.forEach { a.put(JSONObject().put("id", it.id).put("type", it.type).put("name", it.name).put("poster", it.poster).put("year", it.year).put("name_ja", it.nameJa)) }
         }.toString()).apply()
         return kept
     }
@@ -194,7 +208,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
             val number = if (id == t.id) null else n(id)
             val e = Episode(id, number?.let { tr("Episode %d", it) } ?: t.name, 1, number, store.getFloat("alone_len_$id", 0f).toDouble(), "",
                 0, 0, 0, resume, resumedAt = last?.optLong("at") ?: 0L)
-            Show(t.id, t.name, "stream", t.poster, listOf(e), "ja") to e
+            Show(t.id, t.name, "stream", t.poster, listOf(e), "ja", titleJa = t.nameJa) to e
         }.sortedByDescending { it.second.resumedAt }
     }
 
@@ -209,7 +223,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
      * [going]'s titles kept on Home, every episode before a going one watched, and where that one was left.
      */
     suspend fun keepFromPc(saved: List<Found>, going: List<Pair<Show, Episode>>) {
-        (going.map { (s, e) -> Found(s.id, if (e.id == s.id) "movie" else "series", s.title, s.poster, "") } + saved)
+        (going.map { (s, e) -> Found(s.id, if (e.id == s.id) "movie" else "series", s.title, s.poster, "", nameJa = s.titleJa) } + saved)
             .distinctBy { it.id }.reversed().forEach { save(it, true) } // save() appends: oldest first
         for ((_, e) in going) {
             val n = e.id.substringAfterLast(':').toIntOrNull()

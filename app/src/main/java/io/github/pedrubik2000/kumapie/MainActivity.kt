@@ -122,7 +122,8 @@ fun App(settings: Settings) {
                 is Screen.Review -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(io.github.pedrubik2000.kumapie.lang.ownReview(context, (stack.last() as Screen.Review).lang), server = false)
                 is Screen.Discover -> {
                     val addons = remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }
-                    io.github.pedrubik2000.kumapie.ui.DiscoverScreen(addons, (stack.last() as Screen.Discover).open)
+                    io.github.pedrubik2000.kumapie.ui.DiscoverScreen(addons, (stack.last() as Screen.Discover).open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
+                        onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) })
                 }
                 // The PC's Home with this TV's own data: the streamed titles kept, where each was left, its own cards.
                 else -> HomeScreen(remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }, settings, "", "",
@@ -156,7 +157,8 @@ fun App(settings: Settings) {
                     onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
                     onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.add(Screen.Discover()) },
                     onDiscovered = { stack.add(Screen.Discover(it)) })
-                is Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api, screen.open)
+                is Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api, screen.open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
+                    onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) })
                 is Screen.Review -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(io.github.pedrubik2000.kumapie.ui.pcReview(api, screen.lang))
                 Screen.Stats -> StatsScreen(api, onSettings = { stack.add(Screen.Settings) })
                 is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })

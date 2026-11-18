@@ -26,6 +26,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -69,7 +76,9 @@ import org.json.JSONObject
  * makes the words, the TV streams Real-Debrid's link.
  */
 @Composable
-fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Found? = null) {
+fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Found? = null,
+                   onHome: () -> Unit = {}, onReview: () -> Unit = {}, onSettings: () -> Unit = {}) {
+    val rail: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = { DiscoverRail(onHome, onReview, onSettings) }
     var query by rememberSaveable { mutableStateOf("") }
     var searched by rememberSaveable { mutableStateOf("") }
     var found by remember { mutableStateOf<List<Found>?>(null) }
@@ -91,28 +100,27 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
     }
     open?.let { title ->
         if (start == null) BackHandler { open = null }
-        return TitleScreen(api, title)
+        return TitleScreen(api, title, rail)
     }
     val board = rows
+    var kept by remember { mutableStateOf<Set<String>?>(null) } // the titles on Home, for the hero's + Home
+    LaunchedEffect(Unit) { kept = runCatching { api.saved().map { it.id }.toSet() }.getOrNull() }
+    var row by remember { mutableIntStateOf(0) } // the focused poster's row: its name over the hero
+    val scope = rememberCoroutineScope()
     // onBackKey, not BackHandler: the first Back left Discover (Chromecast, 2026-11-17).
     Box(Modifier.fillMaxSize().onBackKey(searched.isNotEmpty()) { searched = ""; query = "" }) {
         val shown = focused ?: board?.firstOrNull()?.second?.firstOrNull()
         if (searched.isEmpty() && shown != null) Backdrop(shown.background.ifEmpty { shown.poster })
-        // No side padding on the page: it cut the rows' posters with a straight line at both edges.
+        // No side padding on the rows: it cut the posters with a straight line at both edges.
         Column(Modifier.fillMaxSize().padding(top = 24.dp, bottom = 4.dp)) {
-            Row(Modifier.padding(horizontal = 32.dp), verticalAlignment = Alignment.CenterVertically) {
-                Title(tr("Discover"))
-                Spacer(Modifier.width(32.dp))
-                TvTextField(query, { query = it }, onDone = { searched = query.trim() }, Modifier.width(420.dp), placeholder = tr("Search"))
-            }
             val list = found
-            Column(Modifier.padding(horizontal = 32.dp)) { when {
+            Column(Modifier.padding(start = RAIL, end = 32.dp)) { when {
                 error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = null, server = api is Api)
                 searched.isNotEmpty() && list == null || searched.isEmpty() && board == null -> Text(tr("Loading…"), color = Colors.dim)
-                searched.isNotEmpty() && list!!.isEmpty() -> Text(tr("Nothing found"), color = Colors.dim, fontSize = 20.sp, modifier = Modifier.padding(top = 32.dp, start = 16.dp))
+                searched.isNotEmpty() && list!!.isEmpty() -> Text(tr("Nothing found"), color = Colors.dim, fontSize = 20.sp, modifier = Modifier.padding(top = 64.dp))
                 searched.isNotEmpty() -> {
-                    Heading(searched, Modifier.padding(top = 16.dp, start = 16.dp))
-                    LazyVerticalGrid(GridCells.Adaptive(130.dp), contentPadding = PaddingValues(16.dp),
+                    Heading(searched, Modifier.padding(top = 56.dp))
+                    LazyVerticalGrid(GridCells.Adaptive(130.dp), contentPadding = PaddingValues(vertical = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         itemsIndexed(list!!.distinctBy { it.id }, key = { _, f -> f.id }) { i, f ->
                             Poster(f.poster, f.name, f.year, null, if (i == 0) Modifier.focusRequester(first) else Modifier) { open = f }
@@ -122,38 +130,66 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
                 else -> {}
             } }
             if (error == null && searched.isEmpty() && board != null) {
-                    // The focused title, Stremio's way: its logo (else name), rating, genres and the start of its text.
-                    Column(Modifier.padding(start = 32.dp).fillMaxWidth(0.5f).height(140.dp).padding(top = 8.dp), verticalArrangement = Arrangement.Bottom) { // 200 dp cut the row's years off on a 540 dp tall TV
-                        shown?.let { f ->
-                            TitleLogo(f)
-                            Text(f.line, color = Colors.text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-                            Text(f.description.replace(Regex("""\s+"""), " "), color = Colors.dim, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    // The top edge fades out: a row scrolled up peeked its years out under the text (Chromecast).
-                    // The focused row goes to the top of the list: left where the D-pad put it, the row above showed its
-                    // titles and years under the text, and the focused row's years were cut at the bottom.
-                    val rowsState = androidx.compose.foundation.lazy.rememberLazyListState()
-                    var row by remember { mutableIntStateOf(0) }
-                    LaunchedEffect(row) { rowsState.animateScrollToItem(row) }
-                    LazyColumn(Modifier.fillMaxSize().fadeTop(0.06f), state = rowsState) { // the fade ends above the first heading (it hid "ANILIST · PLANNING")
-                        board!!.forEachIndexed { r, (name, titles) ->
-                            item(key = "row-$r") {
-                                // 24 dp above: the fade sits there, not on the heading, and the row above is out of sight.
-                                Heading(tr(name), Modifier.padding(start = 48.dp, top = 24.dp))
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(horizontal = 48.dp, vertical = 8.dp)) {
-                                    itemsIndexed(titles.distinctBy { it.id }, key = { _, f -> f.id }) { i, f ->
-                                        Poster(f.poster, f.name, f.year, null, (if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier)
-                                            .onFocusChanged { if (it.isFocused) { focused = f; row = r } }) { open = f }
-                                    }
+                // As Home's picture (mockups 2026-11-18): the focused title's row, name, rating and genres, the start of
+                // its text, then ▶ (its page) and + Home.
+                Column(Modifier.padding(start = RAIL, top = 16.dp).fillMaxWidth(0.55f)) {
+                    shown?.let { f ->
+                        Text(tr(board!!.getOrNull(row)?.first.orEmpty()).uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)
+                        TitleLogo(f)
+                        Text(f.line, color = Colors.text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                        Text(f.description.replace(Regex("""\s+"""), " "), color = Colors.dim, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Button(onClick = { open = f }) { Text("▶  " + tr("Watch")) }
+                            kept?.let { k ->
+                                val on = f.id in k
+                                Button(onClick = { scope.launch { runCatching { api.save(f, !on) }.onSuccess { l -> kept = l.map { it.id }.toSet() } } }) {
+                                    Text(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"))
                                 }
                             }
                         }
                     }
+                }
+                // The top edge fades out: a row scrolled up peeked its years out under the text (Chromecast).
+                // The focused row goes to the top of the list: left where the D-pad put it, the row above showed its
+                // titles and years under the text, and the focused row's years were cut at the bottom.
+                val rowsState = androidx.compose.foundation.lazy.rememberLazyListState()
+                LaunchedEffect(row) { rowsState.animateScrollToItem(row) }
+                LazyColumn(Modifier.fillMaxSize().fadeTop(0.06f), state = rowsState) {
+                    board!!.forEachIndexed { r, (name, titles) ->
+                        item(key = "row-$r") {
+                            Heading(tr(name), Modifier.padding(start = RAIL, top = 16.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(start = RAIL, end = 48.dp, top = 8.dp, bottom = 8.dp)) {
+                                itemsIndexed(titles.distinctBy { it.id }, key = { _, f -> f.id }) { i, f ->
+                                    Poster(f.poster, f.name, f.year, null, (if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier)
+                                        .onFocusChanged { if (it.isFocused) { focused = f; row = r } }) { open = f }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
+        // Search, top right, as the mockup's pill.
+        TvTextField(query, { query = it }, onDone = { searched = query.trim() }, Modifier.align(Alignment.TopEnd).padding(top = 24.dp, end = 32.dp).width(360.dp), placeholder = tr("Search"))
+        rail()
     }
     LaunchedEffect(found, rows) { if (!found.isNullOrEmpty() || !rows.isNullOrEmpty()) first.focusSoon() }
+}
+
+/** Home's left edge on Discover's pages: the bear, a dark strip and the round buttons, Discover selected. */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.DiscoverRail(onHome: () -> Unit, onReview: () -> Unit, onSettings: () -> Unit) {
+    val focus = remember { mutableMapOf<String, FocusRequester>() }
+    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(io.github.pedrubik2000.kumapie.R.drawable.bear), "kumapie",
+        Modifier.padding(start = 20.dp, top = 20.dp).size(64.dp))
+    Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).background(Brush.horizontalGradient(
+        0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
+    Rail(listOf(
+        RailItem(androidx.compose.material.icons.Icons.Default.Home, tr("Home"), back = false, onClick = onHome),
+        RailItem(androidx.compose.material.icons.Icons.Default.Explore, tr("Discover"), selected = true) {},
+        RailItem(androidx.compose.material.icons.Icons.Default.Style, tr("Review"), back = false, onClick = onReview),
+        RailItem(androidx.compose.material.icons.Icons.Default.Settings, tr("Settings"), back = false, onClick = onSettings),
+    ), focus, null, Modifier.align(Alignment.TopStart).padding(top = 100.dp))
 }
 
 /** A backdrop over the whole screen, dark where the text and rows are (left and bottom). */
@@ -168,8 +204,8 @@ private fun androidx.compose.foundation.layout.BoxScope.Backdrop(image: String) 
 @Composable
 private fun TitleLogo(f: Found) {
     if (f.logo.isNotEmpty()) AsyncImage(f.logo, f.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
-        modifier = Modifier.height(80.dp).widthIn(max = 360.dp))
-    else Text(f.name, color = Colors.text, fontSize = 28.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        modifier = Modifier.padding(top = 4.dp).height(64.dp).widthIn(max = 420.dp))
+    else Text(f.name, color = Color.White, fontSize = 38.sp, lineHeight = 44.sp, style = Arcade.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
 
 /**
@@ -178,7 +214,8 @@ private fun TitleLogo(f: Found) {
  * one's files) on the right. Holding OK on an episode offers other files and watched / not watched (✓).
  */
 @Composable
-private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, title: Found) {
+private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, title: Found,
+                        rail: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {}) {
     val context = LocalContext.current
     var meta by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -187,6 +224,7 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
     var kept by remember { mutableStateOf<Boolean?>(null) } // on Home (null: not known yet)
     var menu by remember { mutableStateOf<JSONObject?>(null) } // the episode OK was held on
     val main = remember { FocusRequester() } // the ▶ button
+    val toEps = remember { FocusRequester() } // Down from the hero: the next episode's card (it went to the round buttons)
     var reload by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(title.id) { kept = runCatching { api.saved().any { it.id == title.id } }.getOrNull() }
@@ -210,32 +248,37 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
             .appendQueryParameter("title", name).appendQueryParameter("show", title.name).build()))
         else picking = e.getString("id") to name
     }
+    // The files or an episode's menu on the right; else the episodes as a row of wide cards at the bottom (mockups 2026-11-18).
+    val side = error != null || meta == null || picking != null || menu != null
+    LaunchedEffect(meta != null, side) { if (meta != null && !side) main.focusSoon() }
     Box(Modifier.fillMaxSize()) {
     Backdrop(t.background.ifEmpty { t.poster })
-    Row(Modifier.fillMaxSize().padding(32.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-        Column(Modifier.width(420.dp).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+    Row(Modifier.fillMaxSize().padding(start = RAIL, top = 40.dp, end = 32.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+        Column(Modifier.width(520.dp)) {
+            Text(tr("Discover").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)
             TitleLogo(t)
-            Text(t.line, color = Colors.text, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
+            Text(t.line, color = Colors.text, fontSize = 16.sp, modifier = Modifier.padding(top = 6.dp))
             Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (meta != null) {
                     val next = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
-                    Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }, modifier = Modifier.focusRequester(main)) {
+                    Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }, modifier = Modifier.focusRequester(main).focusProperties { if (!side) down = toEps }) {
                         Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) +
                             (if (next.optBoolean("ready") && next.optString("source").isNotEmpty()) " · " + next.optString("source") else "") else tr("Watch")))
                     }
                 }
                 kept?.let { on ->
-                    Button(onClick = { scope.launch { runCatching { api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } } }) {
+                    Button(onClick = { scope.launch { runCatching { api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } } },
+                        modifier = Modifier.focusProperties { if (!side) down = toEps }) {
                         Text(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"))
                     }
                 }
             }
-            Text(t.description.replace(Regex("""\s+"""), " "), color = Colors.dim, fontSize = 14.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
+            Text(t.description.replace(Regex("""\s+"""), " "), color = Colors.dim, fontSize = 14.sp, maxLines = if (side) 8 else 3, overflow = TextOverflow.Ellipsis)
         }
         val m = meta
         val pick = picking
         // Left from the list: the ▶ button (the D-pad picked "+ Home", nearer the top of the list).
-        Box(Modifier.focusProperties {
+        if (side) Box(Modifier.weight(1f).focusProperties {
             onExit = { if (requestedFocusDirection == androidx.compose.ui.focus.FocusDirection.Left && meta != null) { cancelFocusChange(); main.requestFocus() } }
         }.focusGroup()) { when {
             error != null -> ErrorBox(error!!, onRetry = { error = null; reload++ }, onSettings = null, server = api is Api)
@@ -291,21 +334,48 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
                     }
                 }
             }
-            else -> {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(12.dp)) {
-                    if (eps.isEmpty()) item { Line(0, tr("Watch"), m.optString("year"), null) { picking = title.id to title.name } }
-                    itemsIndexed(eps, key = { _, e -> e.getString("id") }) { i, e ->
-                        val ready = e.optBoolean("ready") // the PC got a file ready for it: no file list, it starts at once
-                        val mark = if (e.optBoolean("watched")) "✓ " else if (ready) "▶ " else ""
-                        // The ▶ file's quality goes under the title: on its line it wrapped ("Episode 1 · 1080p ·" / "15.7 Mbps").
-                        val source = if (ready) e.optString("source") else ""
-                        Line(i, mark + tr("Episode %1\$d", e.optInt("number")), listOf(source, e.optString("title")).filter { it.isNotEmpty() }.joinToString(" · "), e.optString("thumb"),
-                            onLongClick = { menu = e }) { play(e) }
-                    }
-                }
-            }
+            else -> {}
         } }
     }
+    meta?.let { m ->
+        if (!side) Column(Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp)) {
+            Heading(tr("Episodes"), Modifier.padding(start = RAIL))
+            // The row starts at the next episode (▶'s), which Down from the hero focuses.
+            val at = remember(m) { eps.indexOf(io.github.pedrubik2000.kumapie.data.nextEpisode(eps)).coerceAtLeast(0) }
+            LazyRow(state = androidx.compose.foundation.lazy.rememberLazyListState(at), horizontalArrangement = Arrangement.spacedBy(20.dp),
+                contentPadding = PaddingValues(start = RAIL, end = 32.dp, top = 8.dp, bottom = 8.dp)) {
+                if (eps.isEmpty()) item { EpisodeCard(tr("Watch"), m.optString("year"), null, "", Modifier.focusRequester(toEps)) { picking = title.id to title.name } }
+                itemsIndexed(eps, key = { _, e -> e.getString("id") }) { i, e ->
+                    val ready = e.optBoolean("ready") // the PC got a file ready for it: no file list, it starts at once
+                    val mark = if (e.optBoolean("watched")) "✓" else if (ready) "▶" else ""
+                    val source = if (ready) e.optString("source") else ""
+                    EpisodeCard(tr("Episode %1\$d", e.optInt("number")), listOf(source, e.optString("title")).filter { it.isNotEmpty() }.joinToString(" · "),
+                        e.optString("thumb"), mark, if (i == at) Modifier.focusRequester(toEps) else Modifier, onLongClick = { menu = e }) { play(e) }
+                }
+            }
+        }
+    }
+    rail()
+    }
+}
+
+/** An episode as a wide card (Home's Continue watching look): its picture with ✓ / ▶ on it, its number and title under it. */
+@Composable
+private fun EpisodeCard(name: String, line: String, thumb: String?, mark: String, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+    Column(Modifier.width(200.dp)) {
+        Card(onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab),
+            colors = arcadeCardColors(), modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                .semantics { contentDescription = name }) { // its name is under the card: TalkBack (and the tests) read it here
+            Box(Modifier.fillMaxSize().background(Colors.background.copy(alpha = 0.6f))) {
+                // A picture that doesn't load (metahub has none for some seasons: 404) leaves the dark card.
+                var failed by remember(thumb) { mutableStateOf(false) }
+                if (!thumb.isNullOrEmpty() && !failed) AsyncImage(thumb, null, contentScale = ContentScale.Crop, onError = { failed = true }, modifier = Modifier.fillMaxSize())
+                if (mark.isNotEmpty()) Text(mark, color = Color.White, fontSize = 16.sp, modifier = Modifier.padding(8.dp)
+                    .background(Colors.background.copy(alpha = 0.75f), androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp))
+            }
+        }
+        Text(name, color = Colors.text, fontSize = 16.sp, maxLines = 1, modifier = Modifier.padding(top = 8.dp))
+        Text(line, color = Colors.dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

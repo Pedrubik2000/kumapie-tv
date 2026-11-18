@@ -29,6 +29,10 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
     /** The offset [fit] found from the file's other subtitle track (null: not yet / no track); a hand nudge after it wins. */
     var fitted by mutableStateOf<Double?>(null)
         private set
+
+    /** No Japanese lines at all: none in the file, none on Jimaku. */
+    var noLines by mutableStateOf(false)
+        private set
     private var needJimaku = false
     private var starts = emptyList<Double>() // Jimaku's line starts
 
@@ -54,29 +58,34 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
     }
 
     override fun onCues(cueGroup: CueGroup) {
-        if (needJimaku) {
-            if (cueGroup.cues.isNotEmpty() && fitted == null) refs += player.currentPosition / 1000.0
-            return
-        }
+        // Either track's line starts are the video's own clock: Jimaku's file is fitted to them ([fit]).
+        if (cueGroup.cues.isNotEmpty() && fitted == null) refs += player.currentPosition / 1000.0
+        if (needJimaku) return
         // Netflix's Japanese track is closed captions: （モモ）, （男子生徒の話し声）, ♪ go, as in a Jimaku file. Line by line,
         // so a two-line cue keeps its break.
         if (source == "file") line = cueGroup.cues.flatMap { it.text?.toString().orEmpty().lines() }
             .map(io.github.pedrubik2000.kumapie.data.Jimaku::spoken).filter { it.isNotEmpty() }.joinToString("\n").ifBlank { null }
     }
 
-    /** Jimaku's lines by the clock, once the file turned out to have no Japanese track; runs until cancelled. */
+    /**
+     * Jimaku's lines, once the tracks are known; runs until cancelled. Without a Japanese track they are the lines
+     * shown, by the clock. With one (Netflix-style) the file's own lines stay on screen and Jimaku's only make the
+     * episode ([lines]): a track's lines only come as it plays, the words need them all.
+     */
     suspend fun run() {
-        while (!needJimaku) delay(200)
+        while (source.isEmpty() && !needJimaku) delay(200)
         val got = runCatching { jimaku() }.getOrDefault(emptyList())
-        if (got.isEmpty()) return
-        source = "jimaku"
+        if (got.isEmpty()) { noLines = needJimaku; return }
+        if (needJimaku) source = "jimaku"
         starts = got.map { it.first }
         lines = got
         while (true) {
             if (fitted == null && refs.size >= MIN_REFS && refs.size % 2 == 0)
                 fit(refs, starts)?.let { if (offset == 0.0) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
-            val t = player.currentPosition / 1000.0 - offset
-            line = got.lastOrNull { it.first <= t }?.takeIf { t < it.second }?.third
+            if (source == "jimaku") {
+                val t = player.currentPosition / 1000.0 - offset
+                line = got.lastOrNull { it.first <= t }?.takeIf { t < it.second }?.third
+            }
             delay(100)
         }
     }

@@ -408,10 +408,11 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
             if (alone.isEmpty()) library.api.discoverSubs(query["type"].orEmpty(), query["id"].orEmpty(), file)
             else io.github.pedrubik2000.kumapie.data.Jimaku.lines(library.settings.prefs.getString("jimaku_key", "").orEmpty(), query["show"].orEmpty(),
                 null, query["id"].orEmpty().substringAfterLast(':').toIntOrNull(), file).map { Triple(it.start, it.end, it.text) }
-                .also { if (it.isEmpty()) error = tr("No Japanese subtitles: none in this file, none on Jimaku") }
+                // (empty: [LiveLines.noLines] says so once the file turned out to have no Japanese track either)
         }
     }
     LaunchedEffect(live) { live.run() }
+    LaunchedEffect(live.noLines) { if (live.noLines) error = tr("No Japanese subtitles: none in this file, none on Jimaku") }
     DisposableEffect(Unit) {
         val ended = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {

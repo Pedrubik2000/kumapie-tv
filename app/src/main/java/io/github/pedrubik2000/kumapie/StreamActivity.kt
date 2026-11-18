@@ -262,11 +262,12 @@ class StreamActivity : ComponentActivity() {
                     io.github.pedrubik2000.kumapie.data.Jimaku.lines(settings.prefs.getString("jimaku_key", "").orEmpty(),
                         link.getQueryParameter("show").orEmpty(), null, number, link.getQueryParameter("file").orEmpty())
                 }.onFailure { note = it.message }.getOrDefault(emptyList()).map { Triple(it.start, it.end, it.text) }
-                    .also { if (it.isEmpty() && note == null) note = tr("No Japanese subtitles: none in this file, none on Jimaku") }
+                    // (empty: [LiveLines.noLines] says so once the file turned out to have no Japanese track either)
             }
         }
         remember(live) { alone = live; live.offset = settings.prefs.getFloat("alone_off_$id", 0f).toDouble() }
         LaunchedEffect(live) { live.run() }
+        LaunchedEffect(live.noLines) { if (live.noLines && note == null) note = tr("No Japanese subtitles: none in this file, none on Jimaku") }
         // Which lines and how far moved, for a few seconds after it changes (it used to stay on the whole time).
         val label = when {
             live.source != "jimaku" -> null

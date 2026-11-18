@@ -133,6 +133,7 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
         }
     }
     val railFocus = remember { mutableMapOf<String, FocusRequester>() }
+    val toRows = remember { FocusRequester() } // Right from a round button: the rows scroll under them, so the beam search found nothing
     val rail = listOfNotNull(
         RailItem(androidx.compose.material.icons.Icons.Default.Home, tr("Home"), selected = true) {},
         RailItem(androidx.compose.material.icons.Icons.Default.Explore, tr("Discover"), onClick = onDiscover).takeIf { lang == "ja" },
@@ -146,14 +147,14 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
             error != null -> Column { header(); Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings) } }
             shows == null || streams == null -> Column { header(); Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
             lang == null -> Column { header(); Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
-            else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header, railFocus) { LangCard(api, lang) }
+            else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header, railFocus, toRows) { LangCard(api, lang) }
         }
         // From the top, under the bear: centred, six buttons reached the bear on a 540 dp Chromecast, and the column
         // jumped when Review came.
         // The rows scroll under the round buttons: a dark edge behind them, so cards don't show through the glass.
         Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).fadeTop(0.1f).background(androidx.compose.ui.graphics.Brush.horizontalGradient( // from under the bear
             0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
-        Rail(rail, railFocus, Modifier.align(Alignment.TopStart).padding(top = 100.dp))
+        Rail(rail, railFocus, toRows.takeIf { error == null && shows != null && streams != null && lang != null }, Modifier.align(Alignment.TopStart).padding(top = 100.dp))
     }
 }
 
@@ -172,17 +173,16 @@ private var railLast: String? = null
  * beside it (on a phone you see the icon and tap; with a remote you need to know where OK goes).
  */
 @Composable
-private fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequester>, modifier: Modifier) {
+private fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequester>, toRows: FocusRequester?, modifier: Modifier) {
     Column(modifier.padding(start = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         items.forEach { item -> androidx.compose.runtime.key(item.label) {
             var focused by remember { mutableStateOf(false) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box {
                     androidx.tv.material3.IconButton(onClick = { if (item.back && !item.selected) railLast = item.label; item.onClick() },
-                        modifier = Modifier.size(56.dp).focusRequester(focus.getOrPut(item.label) { FocusRequester() }).onFocusChanged { focused = it.isFocused },
+                        modifier = Modifier.size(56.dp).focusRequester(focus.getOrPut(item.label) { FocusRequester() }).onFocusChanged { focused = it.isFocused }.focusProperties { toRows?.let { right = it } },
                         colors = androidx.tv.material3.IconButtonDefaults.colors(
-                            containerColor = if (item.selected) Color.White else Colors.background.copy(alpha = 0.55f),
-                            contentColor = if (item.selected) Color.Black else Color.White,
+                            containerColor = Colors.background.copy(alpha = 0.55f), contentColor = Color.White, // Home too: white only when focused
                             focusedContainerColor = Color.White, focusedContentColor = Color.Black),
                         border = androidx.tv.material3.IconButtonDefaults.border(border = androidx.tv.material3.Border(
                             androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))))) {
@@ -226,12 +226,11 @@ private fun LangCard(api: Api, lang: String) {
 @Composable
 private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit,
                  kept: List<Found> = emptyList(), onDiscovered: (Found) -> Unit = {}, streams: List<Pair<Show, Episode>> = emptyList(),
-                 header: @Composable () -> Unit = {}, railFocus: Map<String, FocusRequester> = emptyMap(), stats: @Composable () -> Unit = {}) {
+                 header: @Composable () -> Unit = {}, railFocus: Map<String, FocusRequester> = emptyMap(), first: FocusRequester = remember { FocusRequester() }, stats: @Composable () -> Unit = {}) {
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows, streams)
     val more = going.drop(1) // the first is the picture at the top
     val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
     val rows = KINDS.map { (k, label) -> tr(label) to shows.filter { it.kind == k } } + listOf(tr("Other") to other)
-    val first = remember { FocusRequester() }
     // Down from Resume goes to the row under it: the beam search could take a far card instead.
     val below = remember { FocusRequester() }
     val firstShelf = rows.indexOfFirst { it.second.isNotEmpty() }

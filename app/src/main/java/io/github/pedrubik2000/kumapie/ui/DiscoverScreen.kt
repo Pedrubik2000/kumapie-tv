@@ -98,7 +98,7 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
         if (searched.isEmpty() && shown != null) Backdrop(shown.background.ifEmpty { shown.poster })
         Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Title(tr("Discover").uppercase())
+                Title(tr("Discover"))
                 Spacer(Modifier.width(32.dp))
                 TvTextField(query, { query = it }, onDone = { searched = query.trim() }, Modifier.width(420.dp), placeholder = tr("Search"))
             }
@@ -129,7 +129,7 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
                     LazyColumn(Modifier.fillMaxSize().fadeTop(0.06f), contentPadding = PaddingValues(top = 14.dp)) { // the fade ends above the first heading (it hid "ANILIST · PLANNING")
                         board!!.forEachIndexed { r, (name, titles) ->
                             item(key = "row-$name") {
-                                Heading(tr(name).uppercase(), Modifier.padding(start = 16.dp, top = 12.dp))
+                                Heading(tr(name), Modifier.padding(start = 16.dp, top = 12.dp))
                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
                                     itemsIndexed(titles, key = { _, f -> f.id }) { i, f ->
                                         Poster(f.poster, f.name, f.year, null, (if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier)
@@ -159,7 +159,7 @@ private fun androidx.compose.foundation.layout.BoxScope.Backdrop(image: String) 
 private fun TitleLogo(f: Found) {
     if (f.logo.isNotEmpty()) AsyncImage(f.logo, f.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
         modifier = Modifier.height(80.dp).widthIn(max = 360.dp))
-    else Text(f.name.uppercase(), color = Colors.text, fontSize = 28.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    else Text(f.name, color = Colors.text, fontSize = 28.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
 }
 
 /**
@@ -210,12 +210,12 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
                     val next = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
                     Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }) {
                         Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) +
-                            (if (next.optBoolean("ready") && next.optString("source").isNotEmpty()) " · " + next.optString("source") else "") else tr("Watch")).uppercase())
+                            (if (next.optBoolean("ready") && next.optString("source").isNotEmpty()) " · " + next.optString("source") else "") else tr("Watch")))
                     }
                 }
                 kept?.let { on ->
                     Button(onClick = { scope.launch { runCatching { api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } } }) {
-                        Text(if (on) "✓ " + tr("On Home").uppercase() else "+ " + tr("Home").uppercase())
+                        Text(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"))
                     }
                 }
             }

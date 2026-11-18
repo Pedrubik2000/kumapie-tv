@@ -228,7 +228,7 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
             val (state, color) = statusLine(word.formCard(segment.text)?.let { word.copy(card = it) } ?: word)
             val shown = word.formCard(segment.text) ?: word.card.takeUnless { word.marked }
             // A due card is the one thing to act on here: a green slab, not a line of small text.
-            if (shown == "d") Text(state.uppercase(), color = Arcade.background, fontSize = 12.sp, style = Arcade.label,
+            if (shown == "d") Text(state, color = Arcade.background, fontSize = 12.sp, style = Arcade.label,
                 modifier = Modifier.padding(top = 4.dp).background(Colors.due, Slab).padding(horizontal = 12.dp, vertical = 1.dp))
             val looked = if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else ""
             Text(if (shown == "d") looked.trimStart(' ', '·') else state + looked, color = color, fontSize = 15.sp)
@@ -329,23 +329,23 @@ fun scrollTvDictionaries(dir: Int): Boolean {
     return true
 }
 
-/** Colours from the TV's (Arcade): card #0B0A10, text #F2F0F7, dim #A9A4B8, accent #FFD23F; the tabs are slabs. */
+/** Colours from the TV's Glass look (Arcade.kt): card #14171D, text #F2F0F7, dim #A8A8A8, accent ice blue #9CC9FF; the tabs are glass chips. */
 private const val PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <style>
 body { margin: 0; background: transparent; color: #F2F0F7; font: 19px/1.6 sans-serif; }
-#tabs { position: sticky; top: 0; z-index: 1; background: #0B0A10; padding: 2px 4px 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-#tabs span { font-size: 13px; font-style: italic; color: #A9A4B8; border: 1px solid rgba(169,164,184,0.35); padding: 1px 12px; transform: skewX(-12deg); }
-#tabs span.on { color: #0B0A10; font-weight: 700; background: #FFD23F; border-color: #FFD23F; }
+#tabs { position: sticky; top: 0; z-index: 1; background: #14171D; padding: 2px 4px 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+#tabs span { font-size: 13px; color: #A8A8A8; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); padding: 2px 12px; border-radius: 18px; }
+#tabs span.on { color: #000; font-weight: 600; background: #fff; border-color: #fff; }
 section { padding: 2px 0 14px; margin-bottom: 12px; border-bottom: 1px solid rgba(169,164,184,0.15); }
 section:last-of-type { border-bottom: 0; padding-bottom: 40px; }
-h3 { margin: 0 0 4px; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #FFD23F; }
+h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #9CC9FF; }
 ol, ul { margin: 2px 0; padding-left: 1.4em; }
 hr { border: 0; border-top: 1px dashed rgba(169,164,184,0.2); margin: 8px 0; }
 img { max-width: 100%; }
 a { color: #8ab4f8; text-decoration: none; }
 table { border-collapse: collapse; } td, th { border: 1px solid rgba(169,164,184,0.25); padding: 2px 6px; }
 #fade { position: fixed; left: 0; right: 0; bottom: 0; height: 36px; pointer-events: none;
-  background: linear-gradient(rgba(11,10,16,0), #0B0A10); transition: opacity .2s; }
+  background: linear-gradient(rgba(20,23,29,0), #14171D); transition: opacity .2s; }
 </style></head><body><!--BODY--><div id="fade"></div>
 <script>
 const secs = [...document.querySelectorAll('section')], tabs = [...document.querySelectorAll('#tabs span')];

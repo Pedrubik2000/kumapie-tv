@@ -71,13 +71,13 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TvTextField(server, { server = it }, onDone = ::save,
                 modifier = Modifier.width(640.dp).let { if (firstRun) it.focusRequester(focus) else it })
-            Button(onClick = ::save) { Text(tr("Save").uppercase()) }
+            Button(onClick = ::save) { Text(tr("Save")) }
         }
         if (status.isNotEmpty()) Text(status, color = Colors.dim)
         if (firstRun) {
             // No PC: the app alone (kumapie_plan.md "for other people"). A server can still be added later, here.
             Text(tr("No server? kumapie also works on its own."), color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
-            Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server").uppercase()) }
+            Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server")) }
         }
 
         if (!firstRun && settings.server.isEmpty()) {
@@ -93,13 +93,13 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(names.getOrNull(i).orEmpty().ifEmpty { tr("(no answer)") } + " · " + java.net.URI(io.github.pedrubik2000.kumapie.data.Addons.base(a)).host.orEmpty(),
                         color = Colors.text, modifier = Modifier.width(640.dp))
-                    Button(onClick = { addons = addons - a; settings.addons = addons }) { Text(tr("Remove").uppercase()) }
+                    Button(onClick = { addons = addons - a; settings.addons = addons }) { Text(tr("Remove")) }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 fun add() { if (adding.isNotBlank()) { addons = (addons + adding.trim()).distinct(); settings.addons = addons; adding = "" } }
                 TvTextField(adding, { adding = it }, onDone = ::add, modifier = Modifier.width(640.dp))
-                Button(onClick = ::add) { Text(tr("Add").uppercase()) }
+                Button(onClick = ::add) { Text(tr("Add")) }
             }
             Heading(tr("Jimaku"), Modifier.padding(top = 24.dp))
             Text(tr("Japanese subtitles for a stream that has none of its own: your free API key from jimaku.cc."), color = Colors.dim)
@@ -107,7 +107,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 fun keep() = settings.prefs.edit().putString("jimaku_key", key.trim()).apply()
                 TvTextField(key, { key = it }, onDone = ::keep, modifier = Modifier.width(640.dp))
-                Button(onClick = ::keep) { Text(tr("Save").uppercase()) }
+                Button(onClick = ::keep) { Text(tr("Save")) }
             }
         }
 
@@ -116,15 +116,15 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             var showHelp by remember { mutableStateOf(settings.showHelp) }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Focus starts here, not in the server field: focusing a text field opens the TV's keyboard.
-                Button(onClick = onButtons, modifier = Modifier.focusRequester(focus)) { Text(tr("Change buttons").uppercase()) }
+                Button(onClick = onButtons, modifier = Modifier.focusRequester(focus)) { Text(tr("Change buttons")) }
                 Button(onClick = { showHelp = !showHelp; settings.showHelp = showHelp }) {
-                    Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")).uppercase())
+                    Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")))
                 }
             }
             Heading(tr("No spoilers"), Modifier.padding(top = 24.dp))
             var blur by remember { mutableStateOf(settings.blurUnwatched) }
             Button(onClick = { blur = !blur; settings.blurUnwatched = blur }) {
-                Text(tr("Blur episodes I haven't watched: %s", if (blur) tr("on") else tr("off")).uppercase())
+                Text(tr("Blur episodes I haven't watched: %s", if (blur) tr("on") else tr("off")))
             }
             // OK steps through the fonts; the sample line shows the one picked (fetched the first time it's drawn).
             Heading(tr("Japanese subtitles"), Modifier.padding(top = 24.dp))
@@ -133,7 +133,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                 Button(onClick = {
                     font = JapaneseFonts.NAMES[(JapaneseFonts.NAMES.indexOf(font) + 1) % JapaneseFonts.NAMES.size]
                     settings.japaneseFont = font
-                }) { Text(tr("Font: %s", JapaneseFonts.label(font)).uppercase()) }
+                }) { Text(tr("Font: %s", JapaneseFonts.label(font))) }
                 Text(JapaneseFonts.SAMPLE, fontSize = 26.sp, color = Colors.text, fontFamily = JapaneseFonts.family(font))
             }
             Heading(tr("Updates"), Modifier.padding(top = 24.dp))
@@ -145,7 +145,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                             .onSuccess { r -> if (r == null) updateStatus = tr("Up to date") else { updateStatus = ""; onUpdate(r) } }
                             .onFailure { updateStatus = tr("Couldn't check: %s", it.message) }
                     }
-                }) { Text(tr("Check for updates").uppercase()) }
+                }) { Text(tr("Check for updates")) }
             }
             if (updateStatus.isNotEmpty()) Text(updateStatus, color = Colors.dim)
             // Ideas and bugs: GitHub issues (no browser on a TV: the phone opens it from the QR code).
@@ -183,8 +183,8 @@ fun AloneHome(settings: Settings, onDiscover: (io.github.pedrubik2000.kumapie.da
             Text(tr("kumapie plays what your own Stremio addons give it. Add one in Settings, or the address of a kumapie server on a PC."), color = Colors.dim)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (addons.isNotEmpty()) Button(onClick = { onDiscover(null) }, modifier = Modifier.focusRequester(focus)) { Text(tr("Discover").uppercase()) }
-            Button(onClick = onSettings, modifier = if (addons.isEmpty()) Modifier.focusRequester(focus) else Modifier) { Text(tr("Settings").uppercase()) }
+            if (addons.isNotEmpty()) Button(onClick = { onDiscover(null) }, modifier = Modifier.focusRequester(focus)) { Text(tr("Discover")) }
+            Button(onClick = onSettings, modifier = if (addons.isEmpty()) Modifier.focusRequester(focus) else Modifier) { Text(tr("Settings")) }
         }
         if (kept.isNotEmpty()) {
             Heading(tr("On Home"), Modifier.padding(top = 16.dp))

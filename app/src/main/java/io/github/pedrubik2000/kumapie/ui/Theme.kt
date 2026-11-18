@@ -37,19 +37,21 @@ import androidx.tv.material3.darkColorScheme
 
 @Composable
 fun KumapieTheme(content: @Composable () -> Unit) {
-    // The TV's Arcade look (Arcade.kt); core's Colors is shared with the phone, which keeps its own.
+    // The TV's Glass look (Arcade.kt); core's Colors is shared with the phone, which keeps its own.
     Colors.accent = Arcade.accent
     Colors.background = Arcade.background
     Colors.surface = Arcade.slab
-    Colors.picked = Arcade.accent
+    Colors.picked = androidx.compose.ui.graphics.Color.White // the picked word: black on white
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = Colors.accent,
             background = Colors.background,
             surface = Colors.surface,
+            surfaceVariant = Arcade.slab, // tv-material cards (rows, episodes, files): glass, not grey
+            onSurfaceVariant = Colors.text,
             onSurface = Colors.text,
             onBackground = Colors.text,
-            border = Colors.accent,
+            border = androidx.compose.ui.graphics.Color.White,
         ),
         content = content,
     )

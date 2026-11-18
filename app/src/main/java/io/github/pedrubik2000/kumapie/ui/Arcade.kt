@@ -62,38 +62,41 @@ import io.github.pedrubik2000.kumapie.player.keyLabel
 import kotlin.math.tan
 
 /**
- * The TV's look (user, 2026-11-09: mockup B1 "Arcade", yellow): slanted slabs, bold italic capitals, a hint bar of
- * PS5 glyphs or remote names along the bottom. The colours are set in [KumapieTheme]; the subtitle word colours stay.
+ * The TV's look: the phone's "Glass" (user 2026-11-17: "the phone style and look in the TV version"; tokens from
+ * `mobile/ui/MobileTheme.kt` `Glass`): the #07090D page, white text, ice-blue accent, white-glass surfaces with a thin
+ * white line, pill buttons (focused: filled white, black text), rounded pictures. The names stay from the old "Arcade"
+ * look (yellow slabs, 2026-11-09) so the screens didn't change. A hint bar of PS5 glyphs or remote names along the bottom.
  */
 object Arcade {
-    val accent = Color(0xFFFFD23F)
-    val background = Color(0xFF0B0A10)
-    val band = Color(0xFF14121C)
-    val slab = Color(0xFF1D1A28)
-    val label = TextStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
+    val accent = Color(0xFF9CC9FF)   // ice blue: ticks, numbers, the selected choice
+    val background = Color(0xFF07090D) // the page
+    val band = Color(0xFF14171D)     // panels and dialogs: opaque glass over the page
+    // Glass fill. The phone's is white 12 % over a blurred, dimmed picture; a TV has no blur and its backdrops are bright,
+    // where white glass left white text unreadable (the title page, 2026-11-17): dark glass, the page at 55 %.
+    val slab = Color(0xFF07090D).copy(alpha = 0.55f)
+    val line = Color.White.copy(alpha = 0.18f) // glass edge
+    val label = TextStyle(fontWeight = FontWeight.SemiBold)
 }
 
-/** A parallelogram leaning right by [degrees]. */
-fun slab(degrees: Float) = GenericShape { size, _ ->
-    val d = size.height * tan(Math.toRadians(degrees.toDouble())).toFloat()
-    moveTo(d, 0f); lineTo(size.width, 0f); lineTo(size.width - d, size.height); lineTo(0f, size.height); close()
-}
-val Slab = slab(12f)      // buttons, hints
-val RowSlab = slab(8f)    // list rows, tiles
-val PosterSlab = slab(4f) // posters: tall, so a small lean
-val EpisodeSlab = slab(3f) // an episode's row: its picture sits 16 dp from the edge
+/** Rounded corners of [radius] dp (the old slanted slabs' names, kept for the screens). */
+fun slab(radius: Float) = RoundedCornerShape(radius.dp)
+val Slab = RoundedCornerShape(24.dp)       // buttons: pills
+val RowSlab = RoundedCornerShape(16.dp)    // list rows, tiles
+val PosterSlab = RoundedCornerShape(14.dp) // posters
+val EpisodeSlab = RoundedCornerShape(16.dp) // an episode's row
 
-/** A menu or dialog over the screen: the band colour under an accent line. */
-fun Modifier.arcadePanel(): Modifier = background(Arcade.band).drawBehind { drawRect(Arcade.accent, size = Size(size.width, 3.dp.toPx())) }
+/** A menu or dialog over the screen: opaque glass with its thin white edge. */
+fun Modifier.arcadePanel(): Modifier = background(Arcade.band, RoundedCornerShape(22.dp)).border(1.dp, Arcade.line, RoundedCornerShape(22.dp))
 
 @Composable fun arcadeCardShape(shape: Shape) = CardDefaults.shape(shape)
-@Composable fun arcadeCardBorder(shape: Shape) = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, Arcade.accent), shape = shape))
+/** Cards: a thin glass edge, white when focused. */
+@Composable fun arcadeCardBorder(shape: Shape) = CardDefaults.border(
+    border = Border(BorderStroke(1.dp, Arcade.line), shape = shape),
+    focusedBorder = Border(BorderStroke(3.dp, Color.White), shape = shape))
 
-/** The word card: dark, an accent bar on the left, the right edge slanted. */
-fun Modifier.arcadeCard(): Modifier = clip(GenericShape { size, _ ->
-    moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width - size.height * 0.09f, size.height); lineTo(0f, size.height); close()
-}).background(Arcade.background).drawBehind { drawRect(Arcade.accent, size = Size(7.dp.toPx(), size.height)) } // opaque: the top bar showed through
-    .padding(start = 7.dp, end = 30.dp)
+/** The word card: opaque glass, rounded as the phone's popup. */
+fun Modifier.arcadeCard(): Modifier = clip(RoundedCornerShape(22.dp)).background(Arcade.band)
+    .border(1.dp, Arcade.line, RoundedCornerShape(22.dp)).padding(start = 16.dp, end = 24.dp)
 
 /** A list's top edge fades out: rows scrolled up under a fixed header showed cut flat in half. */
 fun Modifier.fadeTop(until: Float = 0.08f): Modifier = graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
@@ -103,43 +106,41 @@ fun Modifier.fadeTop(until: Float = 0.08f): Modifier = graphicsLayer { compositi
             blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
     }
 
-/** The diagonal band and accent stripe behind the menus. */
+/** Behind the menus: the page with a faint light from the top left (the old diagonal band is gone). */
 fun Modifier.arcadeBackdrop(): Modifier = drawBehind {
-    val w = size.width; val h = size.height
-    drawPath(Path().apply { moveTo(w * 0.78f, 0f); lineTo(w, 0f); lineTo(w, h); lineTo(w * 0.60f, h); close() }, Arcade.band)
-    // Dimmed: full yellow fought the text drawn over it ("23 min left") and showed as chopped bits between list rows.
-    drawPath(Path().apply { moveTo(w * 0.965f, 0f); lineTo(w * 0.985f, 0f); lineTo(w * 0.745f, h); lineTo(w * 0.725f, h); close() }, Arcade.accent, alpha = 0.3f)
+    drawRect(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0xFF1A2333), Color.Transparent),
+        center = Offset(size.width * 0.15f, 0f), radius = size.width * 0.7f))
 }
 
 @Composable
 fun arcadeButtonColors(selected: Boolean = false): ButtonColors = ButtonDefaults.colors(
-    // Selected = accent text: an accent slab looked just like a focused one (Chromecast, 2026-11-17).
+    // Glass; the selected choice in ice blue; focused = filled white with black text (the phone's current menu button).
     containerColor = Arcade.slab, contentColor = if (selected) Arcade.accent else Colors.text,
-    focusedContainerColor = if (selected) Color.White else Arcade.accent, focusedContentColor = Arcade.background)
+    focusedContainerColor = Color.White, focusedContentColor = Color.Black)
 
-/** The TV's button: a slab, accent with dark bold italic text when focused. Screens use it in place of tv-material's. */
+/** The TV's button: a glass pill with a thin edge; filled white with black text when focused. Screens use it in place of tv-material's. */
 @Composable
 fun Button(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
-           scale: ButtonScale = ButtonDefaults.scale(focusedScale = 1.06f), colors: ButtonColors = arcadeButtonColors(),
+           scale: ButtonScale = ButtonDefaults.scale(focusedScale = 1.05f), colors: ButtonColors = arcadeButtonColors(),
            padding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
            content: @Composable RowScope.() -> Unit) =
     androidx.tv.material3.Button(onClick = onClick, modifier = modifier, enabled = enabled, scale = scale, colors = colors,
-        shape = ButtonDefaults.shape(Slab), contentPadding = padding) {
+        shape = ButtonDefaults.shape(Slab), contentPadding = padding,
+        border = ButtonDefaults.border(border = Border(BorderStroke(1.dp, Arcade.line), shape = Slab),
+            focusedBorder = Border(BorderStroke(1.dp, Color.White), shape = Slab))) {
         ProvideTextStyle(Arcade.label) { content() }
     }
 
-/** A screen's title in two tones: KUMA + PIE. */
+/** A screen's title in two tones: kumapie's name white, a second part ice blue. */
 @Composable
 fun Title(white: String, yellow: String = "", fontSize: TextUnit = 34.sp, modifier: Modifier = Modifier) =
-    Text(buildAnnotatedString { append(white.uppercase()); withStyle(SpanStyle(Arcade.accent)) { append(yellow.uppercase()) } },
-        color = Colors.text, fontSize = fontSize, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, modifier = modifier)
+    Text(buildAnnotatedString { append(white); withStyle(SpanStyle(Arcade.accent)) { append(yellow) } },
+        color = Colors.text, fontSize = fontSize, fontWeight = FontWeight.Bold, modifier = modifier)
 
-/** A section heading: a dash, then accent capitals. */
+/** A section heading: white, semibold (the phone's row titles). */
 @Composable
-fun Heading(text: String, modifier: Modifier = Modifier) = Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-    Box(Modifier.width(20.dp).height(4.dp).background(Arcade.accent))
-    Text(text.uppercase(), color = Arcade.accent, fontSize = 18.sp, style = Arcade.label, modifier = Modifier.padding(start = 9.dp))
-}
+fun Heading(text: String, modifier: Modifier = Modifier) =
+    Text(text, color = Colors.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = modifier)
 
 // ------------------------------------------------------------ remote or gamepad: the last one used
 
@@ -259,7 +260,7 @@ fun HintBar(hints: List<Hint>, modifier: Modifier = Modifier) {
             Row(Modifier.height(30.dp).background(if (h.on) Arcade.accent else Arcade.slab, Slab).padding(horizontal = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                 h.key?.invoke()
-                Text(h.label.uppercase(), color = if (h.on) Arcade.background else Colors.text, fontSize = 13.sp, style = Arcade.label, maxLines = 1)
+                Text(h.label, color = if (h.on) Arcade.background else Colors.text, fontSize = 13.sp, style = Arcade.label, maxLines = 1)
             }
         }
     }

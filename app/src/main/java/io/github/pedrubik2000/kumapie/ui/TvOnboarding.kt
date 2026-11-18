@@ -65,7 +65,7 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
                             settings.prefs.edit().putString(ALONE_LANG, code).apply()
                             if (code.isNotEmpty()) settings.speaks = code // meanings and the second line in it too
                         }, modifier = if (i == 0) Modifier.focusRequester(first) else Modifier) {
-                            Text((if (lang == code) "✓ " else "") + label.uppercase())
+                            Text((if (lang == code) "✓ " else "") + label)
                         }
                     }
                 }
@@ -74,10 +74,10 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
             else -> TvDownloads(settings)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (step > 0) Button(onClick = { step-- }) { Text(tr("Back").uppercase()) }
+            if (step > 0) Button(onClick = { step-- }) { Text(tr("Back")) }
             Button(onClick = { if (step < 2) step++ else { settings.prefs.edit().putBoolean(TV_ONBOARDED, true).apply(); onDone() } },
                 modifier = if (step > 0) Modifier.focusRequester(first) else Modifier) {
-                Text((if (step < 2) tr("Next") else tr("Start watching")).uppercase())
+                Text((if (step < 2) tr("Next") else tr("Start watching")))
             }
         }
     }

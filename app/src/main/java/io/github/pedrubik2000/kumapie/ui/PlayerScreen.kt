@@ -376,13 +376,13 @@ private fun PlayerHints(ctl: SceneController, picker: WordPicker, rating: TvRati
 @Composable
 private fun RateRow() {
     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(tr("Did you know it before looking?").uppercase(), color = Arcade.accent, fontSize = 13.sp, style = Arcade.label)
+        Text(tr("Did you know it before looking?"), color = Arcade.accent, fontSize = 13.sp, style = Arcade.label)
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             listOf(Colors.unknown, Color(0xFFB9B5C6), Colors.due, Colors.mined).forEachIndexed { i, color ->
                 Row(Modifier.width(160.dp).background(Arcade.slab, Slab).padding(vertical = 9.dp),
                     horizontalArrangement = Arrangement.spacedBy(9.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
                     DpadArm(i, color)
-                    Text(tr(RATINGS[i]).uppercase(), color = color, fontSize = 17.sp, style = Arcade.label)
+                    Text(tr(RATINGS[i]), color = color, fontSize = 17.sp, style = Arcade.label)
                 }
             }
         }
@@ -394,10 +394,10 @@ private fun RateRow() {
 private fun RatedToast(rating: TvRating, pick: Map<Binding, Action>, modifier: Modifier) {
     Row(modifier.background(Color(0xF50B0A10), Slab).padding(horizontal = 24.dp, vertical = 7.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(rating.said.uppercase(), color = Colors.due, fontSize = 15.sp, style = Arcade.label)
+        Text(rating.said, color = Colors.due, fontSize = 15.sp, style = Arcade.label)
         Text(rating.last?.first.orEmpty(), color = Colors.text, fontSize = 15.sp)
         forInput(pick.filterValues { it == Action.PICK_MINE || it == Action.PICK_UNDO }.keys).firstOrNull()?.let { KeyHint(it) }
-        Text(tr("Undo").uppercase(), color = Colors.text, fontSize = 13.sp, style = Arcade.label)
+        Text(tr("Undo"), color = Colors.text, fontSize = 13.sp, style = Arcade.label)
         if (rating.today > 0) Text(tr("Reviewed from episodes today: %d", rating.today), color = Colors.dim, fontSize = 13.sp)
     }
 }
@@ -428,19 +428,19 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
         ) {
             Title(tr("Options"), fontSize = 26.sp)
             Button(onClick = ctl::togglePauseAtSceneEnd, modifier = Modifier.fillMaxWidth().focusRequester(first)) {
-                Text(tr("After each line: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")).uppercase())
+                Text(tr("After each line: %s", if (ctl.pauseAtSceneEnd) tr("pause") else tr("play on")))
             }
             Button(onClick = ctl::togglePlayThroughKnown, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("i+0 lines (no new or due word): %s", if (ctl.playThroughKnown) tr("play through") else tr("pause")).uppercase().replace("I+0", "i+0"))
+                Text(tr("i+0 lines (no new or due word): %s", if (ctl.playThroughKnown) tr("play through") else tr("pause")).replace("I+0", "i+0"))
             }
             Button(onClick = ctl::toggleSlow, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("Speed: %s", if (ctl.slow) "0.75x" else tr("normal")).uppercase())
+                Text(tr("Speed: %s", if (ctl.slow) "0.75x" else tr("normal")))
             }
             Button(onClick = { ctl.changeSubtitles(ctl.subtitles.next()) }, modifier = Modifier.fillMaxWidth()) {
-                Text(tr("Subtitles: %s", ctl.subtitles.label(ctl.lang)).uppercase())
+                Text(tr("Subtitles: %s", ctl.subtitles.label(ctl.lang)))
             }
-            Button(onClick = onHelp, modifier = Modifier.fillMaxWidth()) { Text(tr("Help: the buttons").uppercase()) }
-            Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text(tr("Close").uppercase()) }
+            Button(onClick = onHelp, modifier = Modifier.fillMaxWidth()) { Text(tr("Help: the buttons")) }
+            Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text(tr("Close")) }
         }
     }
     LaunchedEffect(Unit) { first.requestFocus() }

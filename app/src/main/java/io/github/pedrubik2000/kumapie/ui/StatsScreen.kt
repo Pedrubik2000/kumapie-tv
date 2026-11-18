@@ -157,7 +157,7 @@ private fun Section(modifier: Modifier = Modifier, content: @Composable () -> Un
 private fun Tile(label: String, value: String) {
     Column(Modifier.background(Arcade.slab, RowSlab).padding(horizontal = 26.dp, vertical = 12.dp)) {
         Text(value, fontSize = 26.sp, color = Colors.accent, style = Arcade.label)
-        Text(label.uppercase(), fontSize = 13.sp, color = Colors.dim, style = Arcade.label)
+        Text(label, fontSize = 13.sp, color = Colors.dim, style = Arcade.label)
     }
 }
 

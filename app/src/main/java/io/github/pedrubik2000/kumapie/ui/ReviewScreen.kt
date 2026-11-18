@@ -83,7 +83,7 @@ fun ReviewScreen(api: Api, lang: String) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Title(tr("Review"))
             Box(Modifier.weight(1f))
-            cards?.let { Text(tr("%1\$d left · %2\$d done", it.size - i, done).uppercase(), color = Colors.dim, style = Arcade.label,
+            cards?.let { Text(tr("%1\$d left · %2\$d done", it.size - i, done), color = Colors.dim, style = Arcade.label,
                 modifier = Modifier.padding(end = 56.dp)) } // clear of the accent stripe in the corner
         }
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -116,15 +116,15 @@ private fun Front(card: SrsCard, shown: Boolean, onShow: () -> Unit, onListen: (
         }
         Row(Modifier.padding(top = 36.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (!shown) {
-                Button(onClick = onShow, modifier = Modifier.focusRequester(first)) { Text(tr("Show").uppercase()) }
-                Button(onClick = onListen) { Text(tr("Listen").uppercase()) }
+                Button(onClick = onShow, modifier = Modifier.focusRequester(first)) { Text(tr("Show")) }
+                Button(onClick = onListen) { Text(tr("Listen")) }
             } else {
                 RATINGS.forEachIndexed { n, label ->
                     Button(onClick = { onRate(n + 1) }, modifier = if (n == 2) Modifier.focusRequester(first) else Modifier) {
-                        Text(tr(label).uppercase())
+                        Text(tr(label))
                     }
                 }
-                Button(onClick = onListen) { Text(tr("Listen").uppercase()) }
+                Button(onClick = onListen) { Text(tr("Listen")) }
             }
         }
     }

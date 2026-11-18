@@ -70,7 +70,7 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
                 AsyncImage(model = show.poster, contentDescription = show.title, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize())
             }
-            Text(show.title.uppercase(), fontSize = 22.sp, color = Colors.text, style = Arcade.label, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+            Text(show.title, fontSize = 22.sp, color = Colors.text, style = Arcade.label, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
             if (show.description.isNotBlank()) Text(show.description, fontSize = 14.sp, color = Colors.dim, maxLines = 8,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         }
@@ -107,14 +107,14 @@ private fun MarkMenu(ep: Episode, count: Int, onClose: () -> Unit, onMark: (whol
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Title(ep.title, fontSize = 24.sp)
             Button(onClick = { onMark(false, !ep.watched) }, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
-                Text((if (ep.watched) tr("Mark as not watched") else tr("Mark as watched")).uppercase())
+                Text((if (ep.watched) tr("Mark as not watched") else tr("Mark as watched")))
             }
             if (count > 1) {
                 Button(onClick = { onMark(true, true) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(tr("%1\$s: mark all %2\$d as watched", season, count).uppercase())
+                    Text(tr("%1\$s: mark all %2\$d as watched", season, count))
                 }
                 Button(onClick = { onMark(true, false) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(tr("%1\$s: mark all %2\$d as not watched", season, count).uppercase())
+                    Text(tr("%1\$s: mark all %2\$d as not watched", season, count))
                 }
             }
         }

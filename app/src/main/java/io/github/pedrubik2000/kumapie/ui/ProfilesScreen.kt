@@ -53,7 +53,7 @@ fun ProfilesScreen(api: Api, last: String, onPick: (Profile) -> Unit, onSettings
                                 Text(p.name.take(1), fontSize = 72.sp, color = Color.White, style = Arcade.label)
                             }
                         }
-                        Text(p.name.uppercase(), fontSize = 20.sp, color = Colors.text, style = Arcade.label, modifier = Modifier.padding(top = 16.dp))
+                        Text(p.name, fontSize = 20.sp, color = Colors.text, style = Arcade.label, modifier = Modifier.padding(top = 16.dp))
                     }
                 }
             }

@@ -109,19 +109,19 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
             if (langs.size > 1) langs.forEach { c ->
                 Button(padding = TAB, onClick = { picked = c; settings.prefs.edit().putString("home_lang_$profile", c).apply() },
                     colors = arcadeButtonColors(selected = c == lang),
-                    modifier = Modifier.padding(end = 8.dp)) { Text(Lang.of(c).displayName.uppercase()) }
+                    modifier = Modifier.padding(end = 8.dp)) { Text(Lang.of(c).displayName) }
             }
             Spacer(Modifier.width(16.dp))
             if (lang == "ja") { // Discover: Japanese only for now
-                Button(padding = TAB, onClick = onDiscover) { Text(tr("Discover").uppercase()) }
+                Button(padding = TAB, onClick = onDiscover) { Text(tr("Discover")) }
                 Spacer(Modifier.width(8.dp))
             }
             if (lang != null) ReviewButton(api, lang, onReview)
-            Button(padding = TAB, onClick = onProfiles) { Text(who.uppercase()) } // back to "Who's watching?"
+            Button(padding = TAB, onClick = onProfiles) { Text(who) } // back to "Who's watching?"
             Spacer(Modifier.width(8.dp))
-            Button(padding = TAB, onClick = onStats) { Text(tr("Stats").uppercase()) }
+            Button(padding = TAB, onClick = onStats) { Text(tr("Stats")) }
             Spacer(Modifier.width(8.dp))
-            Button(padding = TAB, onClick = onSettings) { Text(tr("Settings").uppercase()) }
+            Button(padding = TAB, onClick = onSettings) { Text(tr("Settings")) }
             Spacer(Modifier.width(12.dp)) // room for the focused button's 6% growth
           }
         }
@@ -148,7 +148,7 @@ private fun ReviewButton(api: Api, lang: String, onReview: (String) -> Unit) {
     LaunchedEffect(lang) { n = runCatching { api.srsDue(lang).let { it.due + it.new } }.getOrNull() }
     val count = n ?: return
     Button(padding = TAB, onClick = { onReview(lang) }, colors = arcadeButtonColors(selected = count > 0)) {
-        Text((tr("Review") + if (count > 0) " · $count" else "").uppercase())
+        Text((tr("Review") + if (count > 0) " · $count" else ""))
     }
     Spacer(Modifier.width(8.dp))
 }
@@ -165,7 +165,7 @@ private fun LangCard(api: Api, lang: String) {
             hoursMinutes(s.today) to tr("Today"), "${s.known}" to tr("Words known")).forEach { (v, l) ->
             Column(Modifier.background(Arcade.slab, RowSlab).padding(horizontal = 26.dp, vertical = 8.dp)) {
                 Text(v, fontSize = 22.sp, color = Colors.accent, style = Arcade.label)
-                Text(l.uppercase(), fontSize = 12.sp, color = Colors.dim, style = Arcade.label)
+                Text(l, fontSize = 12.sp, color = Colors.dim, style = Arcade.label)
             }
         }
     }
@@ -245,7 +245,7 @@ internal fun Poster(image: String, title: String, line: String, progress: Float?
             }
         }
         // Two lines: seasons were all "SOUSOU NO FRIEREN …"; 16 dp: the focused card's frame ran into it (Chromecast).
-        Text(title.uppercase(), color = Colors.text, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label), maxLines = 2, overflow = TextOverflow.Ellipsis,
+        Text(title, color = Colors.text, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label), maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 16.dp))
         Text(line, color = Colors.dim, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) // one line cut it to "quedan …"
         if (progress != null) ProgressBar(progress, Modifier.fillMaxWidth().padding(top = 4.dp))
@@ -265,7 +265,7 @@ private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, onCli
                 ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp))
             }
         }
-        Text(shortTitle(s.title).uppercase(), color = Colors.text, style = (if (width > 300.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium).merge(Arcade.label), maxLines = 1,
+        Text(shortTitle(s.title), color = Colors.text, style = (if (width > 300.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium).merge(Arcade.label), maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 18.dp))
         Text("${e.title} · ${resumeLine(e)}", color = Colors.dim, style = if (width > 300.dp) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -280,8 +280,8 @@ fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: (() -> Unit)?, se
             Text(plainError(message), color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
             if (server) Text(tr("Is the PC on, and Tailscale connected on the TV?"), color = Colors.dim)
             Row(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again").uppercase()) }
-                if (onSettings != null) Button(onClick = onSettings) { Text(tr("Settings").uppercase()) }
+                Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again")) }
+                if (onSettings != null) Button(onClick = onSettings) { Text(tr("Settings")) }
             }
         }
     }

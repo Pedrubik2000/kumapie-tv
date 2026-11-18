@@ -160,7 +160,7 @@ fun App(settings: Settings) {
                     onClose = { stack.removeAt(stack.lastIndex) })
                 Screen.Buttons -> ButtonsScreen(settings)
                 Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
-                    onSaved = { server = settings.server }, onUpdate = { update = it })
+                    onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it }) // standalone: "Use without the PC"
             }
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }

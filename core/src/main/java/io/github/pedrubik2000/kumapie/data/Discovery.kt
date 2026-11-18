@@ -167,6 +167,20 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         store.edit().putStringSet(SEEN, if (on) now + id else now - id).apply()
     }
 
+    /**
+     * Leaving the PC (Settings): its Discover progress becomes this device's own. [saved] (the PC's, newest first) and
+     * [going]'s titles kept on Home, every episode before a going one watched, and where that one was left.
+     */
+    suspend fun keepFromPc(saved: List<Found>, going: List<Pair<Show, Episode>>) {
+        (going.map { (s, e) -> Found(s.id, if (e.id == s.id) "movie" else "series", s.title, s.poster, "") } + saved)
+            .distinctBy { it.id }.reversed().forEach { save(it, true) } // save() appends: oldest first
+        for ((_, e) in going) {
+            val n = e.id.substringAfterLast(':').toIntOrNull()
+            if (nextId("series", e.id) != null && n != null) for (i in 1 until n) seen(e.id.substringBeforeLast(':') + ":$i", true)
+            e.resume?.let { store.edit().putFloat("alone_pos_${e.id}", it.toFloat()).apply() } // StreamActivity's Alone
+        }
+    }
+
     private fun metas(json: String): List<Found> = JSONObject(json).optJSONArray("metas").objects().map { found(title(it, emptySet())) }
 
     private suspend fun get(url: String, readTimeout: Int = 30_000): String = String(bytes(url, readTimeout), Charsets.UTF_8)

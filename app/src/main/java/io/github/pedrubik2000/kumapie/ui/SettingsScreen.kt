@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.BuildConfig
 import io.github.pedrubik2000.kumapie.data.Api
+import io.github.pedrubik2000.kumapie.profile
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.update.Updater
 import kotlinx.coroutines.launch
@@ -81,6 +82,19 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             // No PC: the app alone (kumapie_plan.md "for other people"). A server can still be added later, here.
             Text(tr("No server? kumapie also works on its own."), color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
             Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server")) }
+        }
+        if (!firstRun && settings.server.isNotEmpty()) {
+            // Leaving the PC: the anime streamed through it (kept titles, episodes watched, where each was left) come along.
+            Button(onClick = {
+                status = tr("Copying your progress…")
+                scope.launch {
+                    runCatching {
+                        val pc = Api(settings.server, settings.profile)
+                        io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).keepFromPc(pc.saved(), pc.going())
+                    }.onSuccess { settings.server = ""; settings.standalone = true; onSaved() }
+                        .onFailure { status = tr("Can't reach %1\$s (%2\$s)", settings.server, it.message) }
+                }
+            }) { Text(tr("Use without the PC (keeps your progress)")) }
         }
 
         if (!firstRun) {

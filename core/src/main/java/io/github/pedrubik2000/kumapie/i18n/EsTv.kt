@@ -51,6 +51,32 @@ internal val esTv: Map<String, String> = mapOf(
     "Words: downloading the Japanese dictionary (once)…" to "Palabras: descargando el diccionario de japonés (una vez)…",
     "Japanese lines from Jimaku…" to "Líneas en japonés de Jimaku…",
     "Delete it from this device?" to "¿Borrarlo de este dispositivo?",
+    // Onboarding without a PC
+    "Set up kumapie" to "Configurar kumapie",
+    "Step %1\$d of %2\$d" to "Paso %1\$d de %2\$d",
+    "Languages" to "Idiomas",
+    "kumapie shows each line in Japanese while you watch. They come from Jimaku, a free site of anime subtitles: make an account there, then copy your API key from Account." to
+        "kumapie muestra cada línea en japonés mientras ves. Vienen de Jimaku, un sitio gratuito de subtítulos de anime: crea una cuenta allí y copia tu clave API desde Account.",
+    "Open jimaku.cc" to "Abrir jimaku.cc",
+    "Jimaku API key" to "Clave API de Jimaku",
+    "What to watch" to "Qué ver",
+    "Videos: Torrentio finds an episode's files and Real-Debrid streams them (a paid account). Copy your token from real-debrid.com/apitoken." to
+        "Videos: Torrentio encuentra los archivos de un episodio y Real-Debrid los transmite (una cuenta de pago). Copia tu token desde real-debrid.com/apitoken.",
+    "Open real-debrid.com" to "Abrir real-debrid.com",
+    "Real-Debrid token" to "Token de Real-Debrid",
+    "Kitsu: anime titles, posters and episodes to pick from" to "Kitsu: títulos, pósters y episodios de anime para elegir",
+    "Your AniList lists (optional): what you're watching and plan to watch, at the top of Discover. Your profile must be public." to
+        "Tus listas de AniList (opcional): lo que estás viendo y planeas ver, arriba en Descubrir. Tu perfil debe ser público.",
+    "AniList username" to "Usuario de AniList",
+    "✓ %d titles in your lists" to "✓ %d títulos en tus listas",
+    "Check" to "Comprobar",
+    "Next" to "Siguiente",
+    "Start watching" to "Empezar a ver",
+    "Two downloads, once: the Japanese dictionaries (meanings, about 27 MB) and the word splitter (about 80 MB). You can start watching while they finish." to
+        "Dos descargas, una sola vez: los diccionarios de japonés (significados, unos 27 MB) y el separador de palabras (unos 80 MB). Puedes empezar a ver mientras terminan.",
+    "✓ ready" to "✓ listo",
+    "Dictionaries: %s" to "Diccionarios: %s",
+    "Word splitter: %s" to "Separador de palabras: %s",
     "No server" to "Sin servidor",
     "Getting the Japanese dictionaries from the PC (%1\$d/%2\$d)…" to "Descargando los diccionarios de japonés del PC (%1\$d/%2\$d)…",
     "Getting the Japanese dictionaries from the PC (once, a few minutes): hold ↑ again after" to

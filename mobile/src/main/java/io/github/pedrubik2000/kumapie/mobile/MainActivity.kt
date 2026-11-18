@@ -142,6 +142,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     val settings = library.settings
     var server by remember { mutableStateOf(settings.server) }
     var standalone by remember { mutableStateOf(settings.standalone) } // no PC server: chosen on the first run, as on the TV
+    var onboarded by remember { mutableStateOf(settings.prefs.getBoolean(io.github.pedrubik2000.kumapie.mobile.ui.ONBOARDED, false)) }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home).apply { if (openSearch) add(Screen.Search); if (openImprove) add(Screen.Improve); if (prepare != null) add(Screen.Prepare(prepare)) } }
     val context = androidx.compose.ui.platform.LocalContext.current
     var update by remember { mutableStateOf<Updater.Release?>(null) }
@@ -203,6 +204,8 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     Box(Modifier.weight(1f).fillMaxHeight()) {
         if (server.isEmpty() && !standalone) {
             SettingsScreen(library, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it }, onBack = {})
+        } else if (server.isEmpty() && !onboarded) { // without a PC: the setup (languages, Jimaku, sources, downloads), once
+            io.github.pedrubik2000.kumapie.mobile.ui.OnboardingScreen(library, onDone = { onboarded = true })
         } else when (val screen = stack.last()) {
             Screen.Home -> HomeScreen(
                 library,

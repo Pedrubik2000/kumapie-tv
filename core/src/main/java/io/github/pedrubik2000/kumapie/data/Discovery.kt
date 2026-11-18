@@ -56,6 +56,10 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
 
     override suspend fun board(): List<Pair<String, List<Found>>> {
         val rows = ArrayList<Pair<String, List<Found>>>()
+        // The user's AniList lists first (Watching, Planning), when they gave their username in the onboarding.
+        store.getString(ANILIST, "").orEmpty().takeIf { it.isNotBlank() }?.let { user ->
+            rows += runCatching { AniList.rows(user, store) }.onFailure { android.util.Log.w("kumapie", "AniList rows: $it") }.getOrDefault(emptyList())
+        }
         for ((b, m) in manifests()) for (c in m.optJSONArray("catalogs").objects()) {
             if (rows.size >= MAX_ROWS || needs(c).isNotEmpty()) continue
             val titles = runCatching { metas(get("$b/catalog/${c.getString("type")}/${c.getString("id")}.json")) }.getOrDefault(emptyList())
@@ -143,6 +147,11 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
 
     companion object {
         const val NO_ADDON = "Add a Stremio addon in Settings first"
+        /** The user's AniList username (prefs): their lists as the first rows ([AniList]). */
+        const val ANILIST = "anilist_user"
+        /** The addons the onboarding names (user 2026-11-17): Kitsu (titles), Torrentio with the user's Real-Debrid token (links). */
+        const val KITSU = "https://anime-kitsu.strem.fun/manifest.json"
+        fun torrentio(rdToken: String) = "https://torrentio.strem.fun/realdebrid=${rdToken.trim()}/manifest.json"
         private const val MAX_ROWS = 8
         private const val SAVED = "alone_saved"
         private const val SEEN = "alone_seen"

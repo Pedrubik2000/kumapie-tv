@@ -656,7 +656,7 @@ private fun JapaneseFont(settings: Settings) {
 
 /** The menus' language: the phone's, English or Spanish. The screen restarts so every text redraws. */
 @Composable
-private fun MenuLanguage(settings: Settings) {
+internal fun MenuLanguage(settings: Settings) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Text(tr("Menu language"), color = Colors.accent)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -856,7 +856,7 @@ private fun PopupSize(settings: Settings) {
 }
 
 /** The services whose keys Settings checks, with an endpoint that needs the key and answers 401/403 to a wrong one. */
-private enum class KeyService(val label: String, val url: String, val bearer: Boolean, val where: String) {
+internal enum class KeyService(val label: String, val url: String, val bearer: Boolean, val where: String) {
     SONIOX("Soniox", "https://api.soniox.com/v1/files?limit=1", true, "soniox.com > API keys"),
     REAL_DEBRID("Real-Debrid", "https://api.real-debrid.com/rest/1.0/user", true, "real-debrid.com/apitoken"),
     JIMAKU("Jimaku", "https://jimaku.cc/api/entries/search?query=a", false, "jimaku.cc > Account"),
@@ -878,7 +878,7 @@ private suspend fun checkKey(service: KeyService, key: String): String = withCon
  * against its service when the field is left, so a wrong key shows up here and not as a failed episode later.
  */
 @Composable
-private fun KeyField(value: String, onChange: (String) -> Unit, label: String, service: KeyService) {
+internal fun KeyField(value: String, onChange: (String) -> Unit, label: String, service: KeyService) {
     val scope = rememberCoroutineScope()
     var shown by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) } // null: not checked; "checking"; checkKey's answers

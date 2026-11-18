@@ -250,6 +250,19 @@ class SceneController(
         added.forEach { if (it !in words) words[it] = Word("u", "", marked = it in episode.marked) }
     }
 
+    /**
+     * Every line [by] seconds later (earlier when negative), English too, while it plays: a no-PC episode's Jimaku
+     * lines timed for another release. The line on stays on.
+     */
+    fun shift(by: Double) {
+        fun t(x: Double) = (x + by).coerceAtLeast(0.0)
+        scenes = scenes.map { s ->
+            s.copy(start = t(s.start), end = t(s.end), cues = s.cues.map { it.copy(start = t(it.start), end = t(it.end)) },
+                english = s.english.map { it.copy(start = t(it.start), end = t(it.end)) })
+        }
+        stopAt = stopAt?.let(::t)
+    }
+
     /** The scene's level, live: a rating or marking a word known lowers it ([io.github.pedrubik2000.kumapie.data.levelOf]). */
     fun levelOf(scene: Scene): Int? = io.github.pedrubik2000.kumapie.data.levelOf(scene, words)
 

@@ -450,11 +450,16 @@ internal fun ScenePlayer(
         }
     }
 
+    // A no-PC episode (made from Jimaku's lines as it streamed) moves where it plays; nothing on disk to reload.
+    // ponytail: the phone doesn't keep this shift for next time (the TV does, alone_off_<id>).
+    val shiftsHere = onShift == null && episode.id.startsWith("alone:")
+    var shiftedHere by remember { androidx.compose.runtime.mutableDoubleStateOf(0.0) }
     if (options) {
         ModalBottomSheet(properties = DarkSheet, onDismissRequest = { options = false }) {
             Options(ctl, seekStep, { seekStep = it; settings.seekStep = it }, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow,
-                onShift?.let { f -> { secs: Double -> options = false; ctl.report(); f(secs, ctl.position) } },
-                onShift?.let { library.local.shifted(episode.id) })
+                onShift?.let { f -> { secs: Double -> options = false; ctl.report(); f(secs, ctl.position) } }
+                    ?: if (shiftsHere) ({ secs: Double -> ctl.shift(secs); shiftedHere += secs }) else null,
+                onShift?.let { library.local.shifted(episode.id) } ?: shiftedHere.takeIf { shiftsHere })
         }
     }
     if (backlog) {

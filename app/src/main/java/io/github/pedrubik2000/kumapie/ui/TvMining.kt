@@ -452,7 +452,8 @@ fun mineWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
                 val gloss = def?.english?.takeIf { it.isNotBlank() } ?: (scene.meanings[key] ?: word?.meaning)?.substringAfter(" = ").orEmpty()
                 Miner.Word(segment.text, key, lemma, gloss, null, def)
             }
-            val picture = if (japanese) runCatching { screenFrame(view, context.cacheDir) }.getOrNull() else null
+            // kumapie's own cards are text only (Miner.cutScene): no full-screen copy for them
+            val picture = if (japanese && pkg != io.github.pedrubik2000.kumapie.lang.SrsCards.PKG) runCatching { screenFrame(view, context.cacheDir) }.getOrNull() else null
             miner.mine(Miner.Request(ctl.episode, scene, line, w, picture)) {}
         }
             .onSuccess {

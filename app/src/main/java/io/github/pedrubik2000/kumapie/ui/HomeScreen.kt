@@ -40,6 +40,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
@@ -235,7 +236,11 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
     val below = remember { FocusRequester() }
     val firstShelf = rows.indexOfFirst { it.second.isNotEmpty() }
     // The banner stays whole while its buttons have the focus (the TV list scrolled Resume to the middle and cut its top).
-    val list = androidx.compose.foundation.lazy.rememberLazyListState()
+    // Rows built a screen ahead in idle frames and kept a screen behind: building one as it scrolled in took ~57 ms
+    // of a frame on the Chromecast (Continue watching -> the row below skipped 2-3 frames, 2026-11-18).
+    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+    val list = androidx.compose.foundation.lazy.rememberLazyListState(
+        cacheWindow = androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow(ahead = 600.dp, behind = 600.dp))
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // Back down in the rows: up to Resume first (it closed the app).
     val scrolled = list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 0
@@ -244,7 +249,13 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
         // buttons and the stats on its picture (user, 2026-11-17; Home is for resuming fast). Novels count too.
         item(key = "top") {
             going.firstOrNull()?.let { (s, e) ->
-                Hero(s, e, header, stats, Modifier.focusRequester(first).onFocusChanged { if (it.isFocused) scope.launch { list.animateScrollToItem(0) } }.focusProperties { if (more.isNotEmpty() || kept.isNotEmpty() || firstShelf >= 0) down = below },
+                // The rows' characters, drawn once behind the picture (GlyphWarm).
+                val warm = remember(kept, rows) {
+                    val titles = kept.map { it.name } + rows.flatMap { (_, l) -> l.map { shortTitle(it.shown) } }
+                    val lines = kept.map { it.year } + rows.flatMap { (_, l) -> l.map(::levelLine) }
+                    titles.joinToString("").toSet().joinToString("") to lines.joinToString("").toSet().joinToString("")
+                }
+                Hero(s, e, header, stats, warm = warm, Modifier.focusRequester(first).onFocusChanged { if (it.isFocused) scope.launch { list.animateScrollToItem(0) } }.focusProperties { if (more.isNotEmpty() || kept.isNotEmpty() || firstShelf >= 0) down = below },
                     onTop = { scope.launch { list.animateScrollToItem(0) } }, onShow = { onShow(s) }) { onPlay(s, e) }
             } ?: Column { header(); Box(Modifier.padding(horizontal = 32.dp)) { stats() } }
         }
@@ -297,10 +308,11 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
  * dark gradients keep the text readable.
  */
 @Composable
-private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Composable () -> Unit, modifier: Modifier, onTop: () -> Unit,
-                 onShow: () -> Unit, onPlay: () -> Unit) {
+private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Composable () -> Unit, warm: Pair<String, String>,
+                 modifier: Modifier, onTop: () -> Unit, onShow: () -> Unit, onPlay: () -> Unit) {
     val height = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.54f).dp
     Box(Modifier.fillMaxWidth().height(height)) {
+        GlyphWarm(warm.first, warm.second, Modifier.matchParentSize())
         // The picture fades out to nothing at its bottom (to the page's backdrop, a gradient: fading to one colour left
         // a hard edge across the screen, Chromecast 2026-11-17).
         Box(Modifier.matchParentSize().graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen)
@@ -351,6 +363,21 @@ internal fun Poster(image: String, title: String, line: String, progress: Float?
             modifier = Modifier.padding(top = 16.dp))
         Text(line, color = Colors.dim, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) // one line cut it to "quedan …"
         if (progress != null) ProgressBar(progress, Modifier.fillMaxWidth().padding(top = 4.dp))
+    }
+}
+
+/**
+ * The rows' characters in the posters' text styles, drawn behind the hero picture (1/255 opaque: invisible, but
+ * drawn). The first time a character is drawn in a style its glyph is made (FreeType, fake bold for Japanese in
+ * SemiBold): the rows' Japanese titles took two frames of 83-100 ms when they first scrolled in on the Chromecast
+ * (2026-11-18); here they're made while Home opens. Clipped to the hero: what doesn't fit isn't drawn.
+ */
+@Composable
+private fun GlyphWarm(titles: String, lines: String, modifier: Modifier) {
+    val ink = Color.White.copy(alpha = 1f / 255)
+    Column(modifier.clipToBounds()) {
+        Text(titles, color = ink, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label))
+        Text(lines, color = ink, style = MaterialTheme.typography.bodySmall)
     }
 }
 

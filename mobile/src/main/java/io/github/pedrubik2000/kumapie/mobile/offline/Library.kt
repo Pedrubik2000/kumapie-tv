@@ -101,6 +101,26 @@ class Library(context: Context, val settings: Settings) {
         sendWatch()
     }
 
+    /**
+     * Leaving the PC (Settings > Use without the PC, as on the TV): once more from it, each step's error stopping it so
+     * nothing changes: the cards and their reviews, the imported word lists, the marks and positions, the personal
+     * dictionary, and the anime streamed through it (kept titles, episodes watched, where each was left). Then no server.
+     */
+    suspend fun leavePc() {
+        val api = api
+        api.info() // the PC answers, or nothing changes
+        if (settings.owner.isNotEmpty()) for ((lang, s) in srs) s.sync { api.srsSync(lang, it) }
+        for (l in languages.all) l.known.useLists(api.knownLists(l.lang.code, l.known.listsBody()))
+        progress.sync(api)
+        val marked = progress.merged.marked
+        languages.all.forEach { l -> l.known.useMarked(marked.mapNotNull(l::wordOfMark).toSet()) }
+        yomitan.personal.sync(api::personalDictionary)
+        io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).keepFromPc(api.saved(), api.going())
+        android.util.Log.i("kumapie", "left the PC: ${srs.mapValues { withContext(Dispatchers.IO) { it.value.cards().size } }} cards, ${marked.size} marks")
+        settings.server = ""
+        settings.standalone = true
+    }
+
     /** Your personal dictionary to the PC, and what your other devices added; never held up by the Anki sync above. */
     private suspend fun sendPersonal() {
         val api = runCatching { api }.getOrNull() ?: return

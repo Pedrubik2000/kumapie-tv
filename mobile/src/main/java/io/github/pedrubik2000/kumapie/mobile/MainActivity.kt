@@ -249,7 +249,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             }
             is Screen.Prepare -> PrepareScreen(library, screen.query, onPlay = { s, e -> stack[stack.lastIndex] = Screen.Player(s, e) }, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Feed -> FeedScreen(library, langShows, homeLang, onBack = { stack.removeAt(stack.lastIndex) })
-            is Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server },
+            is Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server; standalone = settings.standalone },
                 onUpdate = { update = it }, onBack = { stack.removeAt(stack.lastIndex) }, section = screen.section)
             Screen.Improve -> ImproveScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })

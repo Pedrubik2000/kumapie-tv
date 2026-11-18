@@ -88,6 +88,11 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         _status.value = describe()
     }
 
+    /** The Jiten import's last choice on this device (top words, list slugs), so Settings can change it; null: none. */
+    var jitenChoice: Pair<Int, Set<String>>?
+        get() = settings.prefs.getString("jiten_choice_${lang.code}", null)?.split('|')?.let { (n, s) -> n.toInt() to s.split(',').filter(String::isNotEmpty).toSet() }
+        set(v) = settings.prefs.edit().putString("jiten_choice_${lang.code}", v?.let { "${it.first}|${it.second.joinToString(",")}" }).apply()
+
     /**
      * The imported words for POST /api/tv/known_lists, which keeps the newest import of all the person's devices:
      * the words go only while the PC may not have them (marks sync through Anki, [useMarked]).

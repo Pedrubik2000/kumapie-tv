@@ -207,6 +207,7 @@ private fun SectionContent(library: Library, key: String, onSaved: () -> Unit, o
         "device" -> {
             MenuLanguage(settings)
             ServerSection(library, onSaved)
+            LeavePcSection(library, onSaved)
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             TransferSection()
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -214,6 +215,26 @@ private fun SectionContent(library: Library, key: String, onSaved: () -> Unit, o
         }
         "storage" -> StorageSection(library, onUpdate)
     }
+}
+
+/** Use without the PC, keeping what came from it ([Library.leavePc]); the address can be set again above later. */
+@Composable
+private fun LeavePcSection(library: Library, onSaved: () -> Unit) {
+    if (library.settings.server.isEmpty()) return
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
+    OutlinedButton(enabled = !busy, onClick = {
+        busy = true
+        message = tr("Copying your words, cards and progress…")
+        scope.launch {
+            runCatching { library.leavePc() }
+                .onSuccess { message = ""; onSaved() }
+                .onFailure { message = tr("Can't reach %1\$s (%2\$s)", library.settings.server, it.message) }
+            busy = false
+        }
+    }) { Text(tr("Use without the PC (keeps your words, cards and progress)")) }
+    if (message.isNotEmpty()) Text(message, color = Colors.dim, fontSize = 14.sp)
 }
 
 /** The PC's address: saved only once the PC answers. */
@@ -367,8 +388,10 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
 internal fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, onImported: () -> Unit) {
     val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
     val scope = rememberCoroutineScope()
-    var top by remember { mutableStateOf("10000") }
-    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to true }.toTypedArray()) }
+    // What was imported last time, to change it (the words you marked yourself are kept apart: an import never touches them).
+    val last = remember { known.jitenChoice }
+    var top by remember { mutableStateOf((last?.first ?: 10000).toString()) }
+    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to (last?.second?.contains(it) ?: true) }.toTypedArray()) }
     var busy by remember { mutableStateOf(false) }
     var said by remember { mutableStateOf(known.importedWords.size.takeIf { it > 0 }?.let { tr("%d words imported as known.", it) } ?: "") }
 
@@ -390,18 +413,18 @@ internal fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, 
                     val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         jiten.words(top.toIntOrNull() ?: 0, sets.filterValues { it }.keys)
                     }
-                    known.setImported(words); onImported()
+                    known.setImported(words); known.jitenChoice = (top.toIntOrNull() ?: 0) to sets.filterValues { it }.keys.toSet(); onImported()
                     tr("%d words imported as known.", words.size)
                 }.getOrElse { it.message ?: it.toString() }
                 busy = false
             }
         }) { Text(tr("Import")) }
         if (known.importedWords.isNotEmpty()) OutlinedButton(enabled = !busy, onClick = {
-            known.setImported(emptySet()); said = ""; onImported()
+            known.setImported(emptySet()); known.jitenChoice = null; said = ""; onImported()
         }) { Text(tr("Remove imported")) }
     }
     if (said.isNotEmpty()) Text(said, fontSize = 14.sp, color = Colors.dim)
-    Text(tr("Known while the word has no card in Japanese Mined. Names and fillers (えっと) count as known anyway."),
+    Text(tr("Known while the word has no card in Japanese Mined. Names and fillers (えっと) count as known anyway. Changing this keeps the words you marked yourself."),
         fontSize = 13.sp, color = Colors.dim)
 }
 

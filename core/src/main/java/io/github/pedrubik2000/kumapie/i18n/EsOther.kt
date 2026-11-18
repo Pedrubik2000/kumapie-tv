@@ -133,8 +133,10 @@ internal val esOther: Map<String, String> = mapOf(
     "Use a person's recording of \"%s\"" to "Usar la grabación de una persona de «%s»",
     "The PC made it, but it isn't in the show list yet" to "El PC lo hizo, pero todavía no está en la lista de series",
     "Known words from jiten.moe" to "Palabras conocidas de jiten.moe",
-    "Known while the word has no card in Japanese Mined. Names and fillers (えっと) count as known anyway." to
-        "Conocida mientras la palabra no tenga tarjeta en Japanese Mined. Los nombres y las muletillas (えっと) cuentan como conocidas igual.",
+    "Known while the word has no card in Japanese Mined. Names and fillers (えっと) count as known anyway. Changing this keeps the words you marked yourself." to
+        "Conocida mientras la palabra no tenga tarjeta en Japanese Mined. Los nombres y las muletillas (えっと) cuentan como conocidas igual. Cambiar esto conserva las palabras que marcaste tú.",
+    "Use without the PC (keeps your words, cards and progress)" to "Usar sin el PC (conserva tus palabras, tarjetas y progreso)",
+    "Copying your words, cards and progress…" to "Copiando tus palabras, tarjetas y progreso…",
     "%1\$s words without a recording: %2\$s's voice, on this device." to
         "Palabras en %1\$s sin grabación: la voz de %2\$s, en este dispositivo.",
     "%1\$s voice: %2\$s" to "Voz en %1\$s: %2\$s",

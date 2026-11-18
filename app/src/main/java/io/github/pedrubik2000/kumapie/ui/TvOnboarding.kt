@@ -139,11 +139,11 @@ private fun TvJitenImport(settings: Settings) {
     if (said.isNotEmpty()) Text(said, color = Colors.text, fontSize = 18.sp)
 }
 
-/** The QR code to the TV's setup page and what has come from it so far. */
+/** The QR code to the TV's setup page and what has come from it so far (also in Settings: [onSaved] there). */
 @Composable
-private fun PhonePage(settings: Settings) {
+internal fun PhonePage(settings: Settings, onSaved: () -> Unit = {}) {
     var saved by remember { mutableIntStateOf(0) } // bumped when the phone saves: the rows below read the prefs again
-    val page = remember { SetupPage(settings) { saved++ } }
+    val page = remember { SetupPage(settings) { saved++; onSaved() } }
     val url = remember { page.start() }
     DisposableEffect(Unit) { onDispose { page.stop() } }
     Heading(tr("Set up kumapie from your phone"))

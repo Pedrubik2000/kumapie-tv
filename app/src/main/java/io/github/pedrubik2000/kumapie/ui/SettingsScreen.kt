@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -110,8 +111,13 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
 
         if (!firstRun && settings.server.isEmpty()) {
             // Without a PC: the user's own Stremio addons (kumapie has none of its own) and their Jimaku key.
+            // The keys from the phone as in the setup (a QR code): the fields below read again when it saves.
+            var phone by remember { mutableStateOf(false) }
+            var fromPhone by remember { mutableIntStateOf(0) }
+            Button(onClick = { phone = !phone }, modifier = Modifier.padding(top = 24.dp)) { Text(if (phone) tr("Hide the QR code") else tr("Set up from your phone (QR code)")) }
+            if (phone) PhonePage(settings, onSaved = { fromPhone++ })
             Heading(tr("Stremio addons"), Modifier.padding(top = 24.dp))
-            var addons by remember { mutableStateOf(settings.addons) }
+            var addons by remember(fromPhone) { mutableStateOf(settings.addons) }
             var names by remember { mutableStateOf<List<String>>(emptyList()) }
             var adding by remember { mutableStateOf("") }
             LaunchedEffect(addons) { names = runCatching { io.github.pedrubik2000.kumapie.data.Addons(addons, settings.prefs).names() }.getOrDefault(emptyList()) }
@@ -131,7 +137,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             }
             Heading(tr("Jimaku"), Modifier.padding(top = 24.dp))
             Text(tr("Japanese subtitles for a stream that has none of its own: your free API key from jimaku.cc."), color = Colors.dim)
-            var key by remember { mutableStateOf(settings.prefs.getString("jimaku_key", "").orEmpty()) }
+            var key by remember(fromPhone) { mutableStateOf(settings.prefs.getString("jimaku_key", "").orEmpty()) }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 fun keep() = settings.prefs.edit().putString("jimaku_key", key.trim()).apply()
                 TvTextField(key, { key = it }, onDone = ::keep, modifier = Modifier.width(640.dp))

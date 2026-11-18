@@ -239,6 +239,8 @@ internal val esTv: Map<String, String> = mapOf(
     "Use without a server" to "Usar sin servidor",
     "Use without the PC (keeps your progress)" to "Usar sin el PC (conserva tu progreso)",
     "Copying your progress…" to "Copiando tu progreso…",
+    "Set up from your phone (QR code)" to "Configurar desde tu celular (código QR)",
+    "Hide the QR code" to "Ocultar el código QR",
     "Nothing to watch yet." to "Aún no hay nada que ver.",
     "kumapie plays what your own Stremio addons give it. Add one in Settings, or the address of a kumapie server on a PC." to
         "kumapie reproduce lo que le dan tus propios addons de Stremio. Añade uno en Ajustes, o la dirección de un servidor kumapie en un PC.",

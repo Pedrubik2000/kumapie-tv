@@ -1,19 +1,71 @@
 # kumapie
 
-An immersion app for Android phones and tablets, with a companion Android TV app. You watch your own shows, anime,
-movies and YouTube videos in the language you're learning **scene by scene**, Lingopie-style. Every word is coloured
-by your Anki cards. Tap a word to look it up, mine it as a card (with the scene's video clip) or rate its card
-without leaving the player.
+Learn Japanese from the anime you watch. kumapie streams an episode with its Japanese lines on screen, every word
+coloured by what you know. Pick a word to see its meaning, keep it as a card, and review your cards while you watch.
+For Android phones and tablets, and Android TV.
 
-It works offline first. Episodes, dictionaries, the word splitter and your known words all live on the device. A
-small server on your own PC is optional: it syncs episodes and progress between devices and feeds the TV app.
-kumapie is part of **kuma3**, a personal language-learning setup (see
-[kuma3-anki](https://github.com/Pedrubik2000/kuma3-anki-app), the AnkiDroid build it reads cards from).
+> Status: public test, Japanese only. The apps also have a second mode for the author's family, with a small server
+> on a PC (German and English too); see [With a PC server](#with-a-pc-server) below. The UI is in English or Spanish.
 
-> Status: personal project, built for one family's use. Languages: German and English (spaCy), Japanese (a Kotlin
-> port of [Jiten](https://github.com/Sirush/Jiten)'s parser over Sudachi). The UI is in English or Spanish.
+## Get it
 
-## Phone and tablet (`:mobile`)
+Both apps are on the [Releases page](https://github.com/Pedrubik2000/kumapie-tv/releases) (no Play Store):
+
+- **Phone or tablet**: `kumapie-vX.Y.Z-mobile.apk`. [Obtainium](https://github.com/ImranR98/Obtainium) keeps it
+  up to date: add `https://github.com/Pedrubik2000/kumapie-tv`.
+- **Android TV / Google TV**: `kumapie-tv-vX.Y.Z.apk`, for example with the Downloader app and the release's link.
+
+Both apps look for a newer release when they start and offer to update.
+
+## What you need
+
+- A **[Real-Debrid](https://real-debrid.com)** account (paid). Videos are streamed through it, found by Torrentio.
+- A free **[Jimaku](https://jimaku.cc)** account. Japanese subtitles come from it when a file has none of its own.
+- Optional: an **[AniList](https://anilist.co)** account with a public profile, for your lists in Discover.
+- About 110 MB for two downloads on the first run: the Japanese dictionaries (27 MB) and the word splitter (80 MB).
+
+## First steps
+
+1. Open kumapie and choose **Use without a server**.
+2. The setup asks for your languages, your Jimaku key, your Real-Debrid token and your AniList username, and starts
+   the downloads. kumapie builds your own Torrentio link from your token and adds Kitsu for anime titles. **On a TV**,
+   scan the QR code with your phone and fill in the page it opens (same Wi-Fi), so nothing is typed with the remote.
+3. **Discover**: your AniList lists, then Kitsu's rows and search. Pick a show, an episode, then a file. Files your
+   device probably can't play (HEVC 10-bit, AV1, 4K, by their names) are at the bottom of the list.
+4. It plays with Japanese lines, the file's own or Jimaku's. If the lines are early or late: the ±0.5 s buttons on
+   the phone, ↑ / ↓ on the TV (kumapie also tries to fit them by itself). Once the lines are in, the episode becomes
+   kumapie's word player: tap a word on the phone, hold OK on the TV. **Mine** keeps it as a card; due cards are
+   rated right there.
+5. At the end of an episode the next one starts, from the same release when there is one.
+
+Settings has all of this later (addons, keys), plus **Report a bug or share an idea**.
+
+## Ideas and bugs
+
+[GitHub issues](https://github.com/Pedrubik2000/kumapie-tv/issues). Say which app (phone or TV), its version
+(at the bottom of Settings), the device, and what you did.
+
+## Credits
+
+- Dictionaries: [JMdict and JMnedict](https://www.edrdg.org/), © the Electronic Dictionary Research and Development
+  Group, used under [CC BY-SA 4.0](https://www.edrdg.org/edrdg/licence.html), in the Yomitan builds of
+  [yomidevs/jmdict-yomitan](https://github.com/yomidevs/jmdict-yomitan), downloaded on the first run.
+- Word splitter: [Sudachi](https://github.com/WorksApplications/Sudachi) and SudachiDict (Apache-2.0), with a port of
+  [Jiten](https://github.com/Sirush/Jiten)'s parser (Apache-2.0); dictionary lookups through
+  [hoshidicts](https://github.com/bee-san/hoshidicts) (GPL-3.0).
+- Subtitles from [Jimaku](https://jimaku.cc); titles from [Kitsu](https://kitsu.app) and [AniList](https://anilist.co).
+- Videos come from your own Real-Debrid account through [Torrentio](https://torrentio.strem.fun). kumapie hosts no
+  video and is not affiliated with any of these services.
+
+## With a PC server
+
+The apps were first built for one family, with an optional server on a PC (`kumapie-server`, not needed above): it
+syncs episodes and progress between devices, makes episodes from your own files (German and English too), and feeds
+the TV app. kumapie is part of **kuma3**, a personal language-learning setup (see
+[kuma3-anki](https://github.com/Pedrubik2000/kuma3-anki-app), the AnkiDroid build it can read cards from). The
+sections below describe the apps with all of that.
+
+### Phone and tablet (`:mobile`)
 
 - **Home**: one language at a time (a switch when you learn several), rows by media type (anime, shows, movies,
   YouTube), Continue watching. Posters and descriptions come from AniList / Jikan / Kitsu for anime and TMDB (with
@@ -45,9 +97,9 @@ kumapie is part of **kuma3**, a personal language-learning setup (see
 - **Offline**: everything a device does (progress, lookups, marks) waits on it and syncs when the PC answers.
   Progress lives in the Anki collection, so it follows the collection.
 
-## TV (`:app`)
+### TV (`:app`)
 
-The same scenes and colours on Android TV, driven by the remote or a Bluetooth gamepad. It needs the PC server.
+The same scenes and colours on Android TV, driven by the remote or a Bluetooth gamepad (on its own, as in First steps, or with the PC server).
 You pick a profile, a language and an episode; a help screen lists the buttons (Settings > Change buttons remaps
 them).
 

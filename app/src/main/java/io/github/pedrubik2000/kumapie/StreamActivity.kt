@@ -286,7 +286,9 @@ class StreamActivity : ComponentActivity() {
         LaunchedEffect(live.lines) {
             if (live.lines.isEmpty()) return@LaunchedEffect
             val tLines = android.os.SystemClock.elapsedRealtime() // "words ready" below: how long each stage took (tvbench)
-            kotlinx.coroutines.withTimeoutOrNull(30_000) { while (live.fitted == null) delay(500) }
+            // The fit needs the file's own subtitle track (its line starts); a file without one waited the whole 30 s for
+            // nothing (Frieren 3 4K, 2026-11-18: words 37 s after OK, 30 of them here). Lines are known after the tracks.
+            if (live.canFit) kotlinx.coroutines.withTimeoutOrNull(30_000) { while (live.fitted == null) delay(500) }
             val tFit = android.os.SystemClock.elapsedRealtime()
             val show = link.getQueryParameter("show").orEmpty()
             // English under the lines, from the user's subtitle addon if they added one (OpenSubtitles v3).
@@ -304,7 +306,7 @@ class StreamActivity : ComponentActivity() {
                 if (shown == null) { note = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
             }
             val now = android.os.SystemClock.elapsedRealtime()
-            android.util.Log.i("kumapie", "words ready: lines ${tLines - t0} ms after open, fit ${tFit - tLines}, english ${tEnglish - tFit}, build ${now - tEnglish} (${live.source}, ${live.lines.size} lines)")
+            android.util.Log.i("kumapie", "words ready: lines ${tLines - t0} ms after open, fit ${tFit - tLines}, english ${tEnglish - tFit}, build ${now - tEnglish} (${live.source}, ${live.lines.size} lines, fit ${if (live.canFit) "${live.fitted} from ${live.refCount} refs" else "no track"})")
         }
         shown?.let { ep ->
             remember(ep) { settings.prefs.edit().putFloat("alone_off_$id", live.offset.toFloat()).apply(); live.stop(); alone = null; note = null } // the scenes draw the lines now; UP / DOWN are theirs

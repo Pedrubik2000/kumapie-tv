@@ -39,7 +39,11 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
     /** Jimaku's lines once they came ([start, end, text], its own timing: [offset] not applied). */
     var lines by mutableStateOf(emptyList<Triple<Double, Double, String>>())
         private set
+    /** The file has a subtitle track whose line starts [fit] can use; without one, waiting for a fit is pointless. */
+    var canFit by mutableStateOf(false)
+        private set
     private val refs = ArrayList<Double>() // when the file's other track showed a line (seconds of video)
+    val refCount get() = refs.size
     private var shown = emptyList<androidx.media3.common.text.Cue>() // the last group: a line ending under another isn't a new one
     private var tried = 0 // refs.size [fit] last ran on
 
@@ -57,6 +61,7 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         // No Japanese track: Jimaku's lines, and the file's other text track (English…) stays on, never shown (players hide
         // ExoPlayer's subtitle view): its cue times are the video's own clock, to fit Jimaku's file to ([fit]).
         if (ja) source = "file" else needJimaku = true
+        canFit = tracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.length > 0 }
     }
 
     override fun onCues(cueGroup: CueGroup) {

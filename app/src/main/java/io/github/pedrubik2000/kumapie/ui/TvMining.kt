@@ -568,6 +568,10 @@ class TvRating {
  * The picked word's own card: the form that has it (the dictionary form's, else the written form's, as the subtitle
  * colours it) and its state ("d" = due today).
  */
+/** Mined words of [lang] go to kumapie's own cards (no PC, or a person moved there), not kuma3 ([mineWord]). */
+fun ownCards(context: Context, settings: Settings, lang: Lang): Boolean =
+    TvMining.languages(context, settings).of(lang).known.ankiApp() == io.github.pedrubik2000.kumapie.lang.SrsCards.PKG
+
 fun pickedCard(ctl: SceneController, picker: WordPicker): Pair<String, String?>? {
     val segment = picker.selected ?: return null
     val key = segment.word ?: return null

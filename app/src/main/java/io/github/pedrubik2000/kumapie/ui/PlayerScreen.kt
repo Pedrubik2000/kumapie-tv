@@ -353,6 +353,8 @@ private fun PlayerHints(ctl: SceneController, picker: WordPicker, rating: TvRati
     fun move(label: String, arrows: String) = Hint(tr(label)) { if (Pad.on) Glyph(DPAD) else KeyCap(arrows) }
     fun back(label: String) = Hint(tr(label)) { if (Pad.on) Glyph(android.view.KeyEvent.KEYCODE_BUTTON_B) else KeyCap(tr("Back")) }
     val card = pickedCard(ctl, picker)
+    val context = LocalContext.current
+    val own = remember(ctl.lang) { runCatching { ownCards(context, ctl.settings, ctl.lang) }.getOrDefault(false) }
     val hints: List<Hint?> = when {
         rating.open -> listOf(move("Rate", "← ↓ → ↑"), back("Cancel"))
         picker.isOpen && picker.inDef -> listOf(move("Word", "←→"), hint(pick, Action.PICK_DOWN, "Back to the line"),
@@ -361,7 +363,7 @@ private fun PlayerHints(ctl: SceneController, picker: WordPicker, rating: TvRati
         picker.isOpen && picker.cardOpen && card?.second in RATEABLE -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, "Rate card", on = true),
             hint(pick, Action.PICK_HEAR, "Hear"), hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         picker.isOpen -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, if (picker.cardOpen) "Hear" else "Meaning"),
-            hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MINE, if (rating.fresh) "Undo" else if (ctl.episode.srs) "Add to reviews" else "Add to Anki"),
+            hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MINE, if (rating.fresh) "Undo" else if (ctl.episode.srs || own) "Add to reviews" else "Add to Anki"),
             hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         ctl.atSceneEnd -> listOf(hint(watch, Action.PLAY_PAUSE, "Play"), hint(watch, Action.REPLAY_LINE, "Line"),
             hint(watch, Action.CYCLE_SUBTITLES, "Pick a word"), hint(watch, Action.PREVIOUS_SCENE, "Previous"))

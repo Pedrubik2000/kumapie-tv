@@ -83,6 +83,17 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server")) }
         }
 
+        if (!firstRun) {
+            // Every part tried once, each problem with its fix (as HolyArrs' doctor).
+            Heading(tr("Check setup"), Modifier.padding(top = 24.dp))
+            var lines by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.data.SetupCheck.Line>?>(null) }
+            var checking by remember { mutableStateOf(false) }
+            Button(onClick = { if (!checking) { checking = true; scope.launch { lines = io.github.pedrubik2000.kumapie.data.SetupCheck.run(settings); checking = false } } }) {
+                Text(if (checking) tr("Checking…") else tr("Check setup"))
+            }
+            lines?.forEach { SetupLine(it) }
+        }
+
         if (!firstRun && settings.server.isEmpty()) {
             // Without a PC: the user's own Stremio addons (kumapie has none of its own) and their Jimaku key.
             Heading(tr("Stremio addons"), Modifier.padding(top = 24.dp))
@@ -233,3 +244,18 @@ private var aloneTab = 0
 
 /** Where people report bugs and ideas (GitHub issues of the public repo). */
 const val ISSUES = "https://github.com/Pedrubik2000/kumapie-tv/issues"
+
+/** One line of Check setup: ✓ / ! / ✗, what, and what to do. */
+@Composable
+internal fun SetupLine(l: io.github.pedrubik2000.kumapie.data.SetupCheck.Line) {
+    val (mark, colour) = when (l.verdict) {
+        io.github.pedrubik2000.kumapie.data.SetupCheck.Verdict.OK -> "✓" to Colors.due
+        io.github.pedrubik2000.kumapie.data.SetupCheck.Verdict.WARN -> "!" to Colors.levelOne
+        io.github.pedrubik2000.kumapie.data.SetupCheck.Verdict.FAIL -> "✗" to Colors.unknown
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(mark, color = colour, modifier = Modifier.width(24.dp))
+        Text(l.what, color = Colors.text, modifier = Modifier.width(220.dp))
+        Text(l.say, color = if (l.verdict == io.github.pedrubik2000.kumapie.data.SetupCheck.Verdict.OK) Colors.dim else colour)
+    }
+}

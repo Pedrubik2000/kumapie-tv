@@ -144,4 +144,26 @@ internal val esOther: Map<String, String> = mapOf(
     "AI: couldn't ask the PC." to "IA: no se pudo preguntar al PC.",
     "AI: no clear meaning in this line." to "IA: no hay un significado claro en esta línea.",
     "%d imported as known." to "%d importadas como conocidas.",
+
+    // Settings > Check setup (SetupCheck).
+    "Check setup" to "Revisar la configuración",
+    "No key: streams get no Japanese subtitles. Your free key: jimaku.cc > Account." to
+        "Sin clave: los streams no tienen subtítulos en japonés. Tu clave gratis: jimaku.cc > Account.",
+    "Videos to stream" to "Videos para ver",
+    "Answers: %d episodes." to "Responde: %d episodios.",
+    "Doesn't answer (%s). Is the PC on, and Tailscale connected on this device?" to
+        "No responde (%s). ¿Está encendido el PC, y Tailscale conectado en este dispositivo?",
+    "None: kumapie works on this device alone." to "Ninguno: kumapie funciona solo en este dispositivo.",
+    "Not set: type its address in Settings > Server, or use kumapie without one." to
+        "Sin configurar: escribe su dirección en Ajustes > Servidor, o usa kumapie sin él.",
+    "%1\$s accepted the key (%2\$s)." to "%1\$s aceptó la clave (%2\$s).",
+    "Couldn't reach %s. Is this device online?" to "No se pudo conectar con %s. ¿Tiene internet este dispositivo?",
+    "%1\$s answered %2\$s. Try again later." to "%1\$s respondió %2\$s. Inténtalo más tarde.",
+    "None: add one that lists titles (Kitsu) and one that gives links (Torrentio) in Settings." to
+        "Ninguno: agrega en Ajustes uno que liste títulos (Kitsu) y uno que dé enlaces (Torrentio).",
+    "Answers (%s)." to "Responde (%s).",
+    "Doesn't answer: check its address, or remove it in Settings." to "No responde: revisa su dirección, o quítalo en Ajustes.",
+    "%1\$s: %2\$d lists for Discover." to "%1\$s: %2\$d listas para Descubrir.",
+    "Couldn't read %s's lists: check the username, and that the profile is public." to
+        "No se pudieron leer las listas de %s: revisa el usuario, y que el perfil sea público.",
 )

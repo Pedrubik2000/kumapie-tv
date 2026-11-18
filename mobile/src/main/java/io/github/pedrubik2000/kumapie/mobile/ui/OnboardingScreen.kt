@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
+import io.github.pedrubik2000.kumapie.data.KeyService
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement

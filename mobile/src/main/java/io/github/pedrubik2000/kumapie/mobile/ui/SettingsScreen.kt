@@ -1,6 +1,8 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import io.github.pedrubik2000.kumapie.data.KeyService
+import io.github.pedrubik2000.kumapie.data.checkKey
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -207,6 +209,8 @@ private fun SectionContent(library: Library, key: String, onSaved: () -> Unit, o
             ServerSection(library, onSaved)
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             TransferSection()
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            CheckSetupSection(settings)
         }
         "storage" -> StorageSection(library, onUpdate)
     }
@@ -863,24 +867,6 @@ private fun PopupSize(settings: Settings) {
             fontSize = 13.sp, color = Colors.unknown)
 }
 
-/** The services whose keys Settings checks, with an endpoint that needs the key and answers 401/403 to a wrong one. */
-internal enum class KeyService(val label: String, val url: String, val bearer: Boolean, val where: String) {
-    SONIOX("Soniox", "https://api.soniox.com/v1/files?limit=1", true, "soniox.com > API keys"),
-    REAL_DEBRID("Real-Debrid", "https://api.real-debrid.com/rest/1.0/user", true, "real-debrid.com/apitoken"),
-    JIMAKU("Jimaku", "https://jimaku.cc/api/entries/search?query=a", false, "jimaku.cc > Account"),
-}
-
-/** "ok", "rejected", "offline" or "http <code>": the key tried once against [service]. */
-private suspend fun checkKey(service: KeyService, key: String): String = withContext(Dispatchers.IO) {
-    runCatching {
-        val c = java.net.URL(service.url).openConnection() as java.net.HttpURLConnection
-        c.setRequestProperty("Authorization", if (service.bearer) "Bearer $key" else key)
-        c.setRequestProperty("User-Agent", "kumapie")
-        c.connectTimeout = 8000; c.readTimeout = 8000
-        try { c.responseCode } finally { c.disconnect() }
-    }.fold({ code -> when (code) { in 200..299 -> "ok"; 401, 403 -> "rejected"; else -> "http $code" } }, { "offline" })
-}
-
 /**
  * A key or token: saved as typed (spaces and line breaks from a paste trimmed), hidden unless shown, and checked
  * against its service when the field is left, so a wrong key shows up here and not as a failed episode later.
@@ -946,4 +932,30 @@ private fun AddonsField(settings: Settings) {
     OutlinedButton(onClick = {
         if (typed.isNotBlank()) { addons = (addons + typed.trim()).distinct(); settings.addons = addons; typed = "" }
     }) { Text(tr("Add")) }
+}
+
+/** Every part tried once, each problem with its fix (as HolyArrs' doctor): the PC, keys, addons, AniList. */
+@Composable
+private fun CheckSetupSection(settings: Settings) {
+    val scope = rememberCoroutineScope()
+    var lines by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.data.SetupCheck.Line>?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    Text(tr("Check setup"), color = Colors.accent)
+    OutlinedButton(onClick = { if (!checking) { checking = true; scope.launch { lines = io.github.pedrubik2000.kumapie.data.SetupCheck.run(settings); checking = false } } }) {
+        Text(if (checking) tr("Checking…") else tr("Check setup"))
+    }
+    lines?.forEach { l ->
+        val (mark, colour) = when (l.verdict) {
+            io.github.pedrubik2000.kumapie.data.SetupCheck.Verdict.OK -> "✓" to Colors.due
+            io.github.pedrubik2000.kumapie.data.SetupCheck.Verdict.WARN -> "!" to Colors.levelOne
+            io.github.pedrubik2000.kumapie.data.SetupCheck.Verdict.FAIL -> "✗" to Colors.unknown
+        }
+        androidx.compose.foundation.layout.Row {
+            Text(mark, color = colour, fontSize = 15.sp, modifier = Modifier.width(22.dp))
+            Column {
+                Text(l.what, fontSize = 15.sp)
+                Text(l.say, fontSize = 13.sp, color = if (l.verdict == io.github.pedrubik2000.kumapie.data.SetupCheck.Verdict.OK) Colors.dim else colour)
+            }
+        }
+    }
 }

@@ -95,8 +95,9 @@ object Jimaku {
             for (line in text.lines()) when {
                 line.startsWith("[") -> events = line.trim().lowercase() == "[events]"
                 line.startsWith("Format:") && events -> fields = line.substring(7).split(",").map { it.trim().lowercase() }
-                line.startsWith("Dialogue:") && fields != null -> {
-                    val row = fields!!.zip(line.substring(9).split(",", limit = fields!!.size)).toMap()
+                line.startsWith("Dialogue:") -> {
+                    val f = fields ?: continue
+                    val row = f.zip(line.substring(9).split(",", limit = f.size)).toMap()
                     val style = row["style"].orEmpty()
                     val body = row["text"].orEmpty()
                     if (CHINESE_STYLE.containsMatchIn(style) || !dialogue(style, body)) continue

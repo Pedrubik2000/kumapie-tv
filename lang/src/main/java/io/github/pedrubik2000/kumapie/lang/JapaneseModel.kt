@@ -10,7 +10,6 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.worksap.nlp.sudachi.Config
 import com.worksap.nlp.sudachi.Dictionary
-import com.worksap.nlp.sudachi.DictionaryFactory
 import com.worksap.nlp.sudachi.Tokenizer
 import kotlinx.coroutines.flow.Flow
 import java.io.File
@@ -73,8 +72,8 @@ class JapaneseModel(private val context: Context) : Model {
     private fun tokenizer(): Tokenizer = synchronized(Companion) {
         loaded?.takeIf { it.first == dic.path }?.second ?: run {
             check(isReady) { tr("The Japanese dictionary isn't downloaded yet.") }
-            val d: Dictionary = DictionaryFactory().create(Config.defaultConfig().systemDictionary(dic.toPath()))
-            d.create().also { loaded = dic.path to it }
+            val d: Dictionary = Dictionary.load(Config.defaultConfig().systemDictionary(dic.toPath()))
+            d.tokenizer().also { loaded = dic.path to it }
         }
     }
 

@@ -83,4 +83,5 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
+    implementation("com.google.zxing:core:3.5.3") // the onboarding's QR code (the phone opens the TV's setup page)
 }

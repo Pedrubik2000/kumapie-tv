@@ -92,6 +92,7 @@ fun App(settings: Settings) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
     var standalone by remember { mutableStateOf(settings.standalone) } // no PC server: chosen on the first run
+    var onboarded by remember { mutableStateOf(settings.prefs.getBoolean(io.github.pedrubik2000.kumapie.ui.TV_ONBOARDED, false)) }
     // Without a PC: JMdict and JMnedict download in the background, on the first run (and again if it didn't finish).
     LaunchedEffect(standalone, server) { if (standalone && server.isEmpty()) io.github.pedrubik2000.kumapie.ui.startJapaneseDictionaries(context, settings) }
     var profile by remember { mutableStateOf<Profile?>(null) } // asked at every start, like Netflix
@@ -108,9 +109,11 @@ fun App(settings: Settings) {
         if (server.isEmpty() && !standalone) {
             SettingsScreen(settings, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone },
                 onUpdate = { update = it })
+        } else if (server.isEmpty() && !onboarded) { // without a PC: the setup (language, keys from the phone, downloads), once
+            io.github.pedrubik2000.kumapie.ui.TvOnboarding(settings, onDone = { onboarded = true })
         } else if (server.isEmpty()) {
-            // No server: no profiles to ask for (one person, the device's language) and nothing to list yet.
-            LaunchedEffect(Unit) { Tr.use("") } // the device's language
+            // No server: no profiles to ask for (one person) and nothing to list yet; the language picked in the onboarding.
+            LaunchedEffect(Unit) { Tr.use(settings.prefs.getString(io.github.pedrubik2000.kumapie.ui.ALONE_LANG, "").orEmpty()) }
             when (stack.last()) {
                 Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
                     onSaved = { server = settings.server }, onUpdate = { update = it })

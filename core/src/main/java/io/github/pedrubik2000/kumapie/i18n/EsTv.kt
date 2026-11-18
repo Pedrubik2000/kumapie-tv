@@ -77,6 +77,18 @@ internal val esTv: Map<String, String> = mapOf(
     "✓ ready" to "✓ listo",
     "Dictionaries: %s" to "Diccionarios: %s",
     "Word splitter: %s" to "Separador de palabras: %s",
+    "The TV's language" to "El idioma de la tele",
+    "Set up kumapie from your phone" to "Configura kumapie desde tu teléfono",
+    "This TV isn't on a home network: connect it, or add the keys in Settings later." to
+        "Esta tele no está en una red de casa: conéctala, o agrega las claves en Ajustes después.",
+    "Scan this with your phone's camera (on the same Wi-Fi), or open:" to "Escanéalo con la cámara de tu teléfono (en el mismo Wi-Fi), o abre:",
+    "There: your Jimaku key, your Real-Debrid token, Kitsu and your AniList username." to
+        "Allí: tu clave de Jimaku, tu token de Real-Debrid, Kitsu y tu usuario de AniList.",
+    "Japanese subtitles (Jimaku)" to "Subtítulos en japonés (Jimaku)",
+    "Videos (Torrentio with Real-Debrid)" to "Videos (Torrentio con Real-Debrid)",
+    "Saved" to "Guardado",
+    "Look at your TV: kumapie has it." to "Mira la tele: kumapie ya lo tiene.",
+    "set" to "listo",
     "No server" to "Sin servidor",
     "Getting the Japanese dictionaries from the PC (%1\$d/%2\$d)…" to "Descargando los diccionarios de japonés del PC (%1\$d/%2\$d)…",
     "Getting the Japanese dictionaries from the PC (once, a few minutes): hold ↑ again after" to

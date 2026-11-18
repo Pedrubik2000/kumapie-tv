@@ -155,6 +155,12 @@ private object TvMining {
     private const val FETCHED = "ja_dicts_fetched"
 }
 
+/** The Japanese dictionaries' download as a line for the onboarding: what it is doing, else ready / starting. */
+fun dictionariesState(context: Context, settings: Settings): String {
+    TvMining.languages(context, settings)
+    return TvMining.fetching ?: if (TvMining.yomitan.of(Lang.JAPANESE).isNotEmpty()) tr("✓ ready") else tr("Starting…")
+}
+
 /** Without a PC, the first run starts the Japanese dictionaries' download (JMdict, JMnedict) in the background. */
 fun startJapaneseDictionaries(context: Context, settings: Settings) {
     TvMining.languages(context, settings)

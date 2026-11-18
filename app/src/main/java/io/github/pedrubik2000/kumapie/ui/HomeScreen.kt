@@ -37,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -98,11 +100,11 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
     var streams by remember { mutableStateOf<List<Pair<Show, Episode>>?>(null) }
     LaunchedEffect(lang) { streams = if (lang == "ja") runCatching { api.going() }.getOrDefault(emptyList()) else emptyList() }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 32.dp)) {
-        // Scrolls sideways when the buttons don't fit (a squeezed SETTINGS wrapped letter by letter, 353 px tall, and
-        // pushed everything down: bedroom TV, 2026-11-15); focus brings the far ones into view.
-        // The logo stays put; only the buttons scroll (Pedro's nine cut SETTINGS and pushed the logo off, 2026-11-16).
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    // Scrolls sideways when the buttons don't fit (a squeezed SETTINGS wrapped letter by letter, 353 px tall, and
+    // pushed everything down: bedroom TV, 2026-11-15); focus brings the far ones into view.
+    // The logo stays put; only the buttons scroll (Pedro's nine cut SETTINGS and pushed the logo off, 2026-11-16).
+    val header = @Composable {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 28.dp), verticalAlignment = Alignment.CenterVertically) {
           Title("kuma", "pie")
           Spacer(Modifier.width(20.dp))
           Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
@@ -125,16 +127,13 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
             Spacer(Modifier.width(12.dp)) // room for the focused button's 6% growth
           }
         }
-        Spacer(Modifier.padding(8.dp))
-        when {
-            error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings)
-            shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim)
-            lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim)
-            else -> {
-                LangCard(api, lang)
-                Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!)
-            }
-        }
+    }
+    // As the tablet's Glass Home (user, 2026-11-17): the last episode as a picture across the top, the buttons on it.
+    when {
+        error != null -> Column { header(); Box(Modifier.padding(horizontal = 32.dp)) { ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings) } }
+        shows == null || streams == null -> Column { header(); Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(horizontal = 48.dp)) }
+        lang == null -> Column { header(); Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(horizontal = 48.dp)) }
+        else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header) { LangCard(api, lang) }
     }
 }
 
@@ -174,55 +173,100 @@ private fun LangCard(api: Api, lang: String) {
 /** "Continue watching" (episodes left partway, as on the phone), then a row per media type. */
 @Composable
 private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit,
-                 kept: List<Found> = emptyList(), onDiscovered: (Found) -> Unit = {}, streams: List<Pair<Show, Episode>> = emptyList()) {
+                 kept: List<Found> = emptyList(), onDiscovered: (Found) -> Unit = {}, streams: List<Pair<Show, Episode>> = emptyList(),
+                 header: @Composable () -> Unit = {}, stats: @Composable () -> Unit = {}) {
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows, streams)
+    val more = going.drop(1) // the first is the picture at the top
     val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
     val rows = KINDS.map { (k, label) -> tr(label) to shows.filter { it.kind == k } } + listOf(tr("Other") to other)
     val first = remember { FocusRequester() }
-    // Down from a Continue card goes to the row under it: the beam search took the next (lower, smaller) card instead.
+    // Down from Resume goes to the row under it: the beam search could take a far card instead.
     val below = remember { FocusRequester() }
     val firstShelf = rows.indexOfFirst { it.second.isNotEmpty() }
-    // The top edge fades out, as on Discover: a row scrolled up showed half posters cut flat under the header.
-    LazyColumn(Modifier.fadeTop(), contentPadding = PaddingValues(top = 12.dp)) {
-        // As on the phone: the last episode as a big card (focused first, OK plays it), the other shows in progress
-        // beside it as small cards (user, 2026-10-15: Home is for resuming fast). Novels are read: they count too.
-        if (going.isNotEmpty()) item(key = "going") {
+    // The banner stays whole while its buttons have the focus (the TV list scrolled Resume to the middle and cut its top).
+    val list = androidx.compose.foundation.lazy.rememberLazyListState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LazyColumn(state = list) {
+        // As the tablet's Glass Home: the last episode across the top (Resume focused first, OK plays it), the
+        // buttons and the stats on its picture (user, 2026-11-17; Home is for resuming fast). Novels count too.
+        item(key = "top") {
+            going.firstOrNull()?.let { (s, e) ->
+                Hero(s, e, header, stats, Modifier.focusRequester(first).onFocusChanged { if (it.isFocused) scope.launch { list.scrollToItem(0) } }.focusProperties { if (more.isNotEmpty() || kept.isNotEmpty() || firstShelf >= 0) down = below },
+                    onTop = { scope.launch { list.scrollToItem(0) } }, onShow = { onShow(s) }) { onPlay(s, e) }
+            } ?: Column { header(); Box(Modifier.padding(horizontal = 32.dp)) { stats() } }
+        }
+        if (more.isNotEmpty()) item(key = "going") {
             // A new state when the streamed cards arrive: else the row stays scrolled to the old first card.
-            LazyRow(state = remember(streams) { androidx.compose.foundation.lazy.LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Bottom,
-                contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 20.dp, bottom = 24.dp)) { // room for the focused card to grow 10%
-                itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
-                    ResumeCard(s, e, (if (i == 0) Modifier.focusRequester(first) else Modifier)
-                        .focusProperties { if (kept.isNotEmpty() || firstShelf >= 0) down = below }, width = if (i == 0) 360.dp else 220.dp) { onPlay(s, e) }
+            Column {
+                Heading(tr("Continue watching"), Modifier.padding(start = 48.dp))
+                LazyRow(state = remember(streams) { androidx.compose.foundation.lazy.LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    contentPadding = PaddingValues(start = 48.dp, end = 32.dp, top = 12.dp, bottom = 24.dp)) { // room for the focused card to grow 10%
+                    itemsIndexed(more, key = { _, p -> p.second.id }) { i, (s, e) ->
+                        ResumeCard(s, e, if (i == 0) Modifier.focusRequester(below) else Modifier, width = 300.dp) { onPlay(s, e) }
+                    }
                 }
             }
         }
         if (kept.isNotEmpty()) item(key = "streaming") {
-            Shelf(tr("Streaming")) {
+            Box(Modifier.padding(start = 32.dp)) { Shelf(tr("Streaming")) {
                 itemsIndexed(kept, key = { _, f -> f.id }) { i, f ->
-                    Poster(f.poster, f.name, f.year, null, when { i != 0 -> Modifier; going.isEmpty() -> Modifier.focusRequester(first); else -> Modifier.focusRequester(below) }) { onDiscovered(f) }
+                    Poster(f.poster, f.name, f.year, null, when { i != 0 -> Modifier; going.isEmpty() -> Modifier.focusRequester(first); more.isEmpty() -> Modifier.focusRequester(below); else -> Modifier }) { onDiscovered(f) }
                 }
-            }
+            } }
         }
         rows.forEachIndexed { r, (label, list) ->
             // Easiest first, finished last, as on the phone.
             val list = list.sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
             if (list.isNotEmpty()) item(key = "kind-$r") {
                 val top = going.isEmpty() && kept.isEmpty() && rows.take(r).all { it.second.isEmpty() }
-                Shelf(label) {
+                Box(Modifier.padding(start = 32.dp)) { Shelf(label) {
                     itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
                         Poster(s.poster, shortTitle(s.title), levelLine(s), null,
                             when {
                                 i != 0 -> Modifier
                                 top -> Modifier.focusRequester(first)
-                                r == firstShelf && kept.isEmpty() && going.isNotEmpty() -> Modifier.focusRequester(below)
+                                r == firstShelf && kept.isEmpty() && going.isNotEmpty() && more.isEmpty() -> Modifier.focusRequester(below)
                                 else -> Modifier
                             }) { onShow(s) }
                     }
-                }
+                } }
             }
         }
     }
     LaunchedEffect(lang, shows, streams) { first.focusSoon() }
+}
+
+/**
+ * Home's top, as the tablet's Glass Home: the last episode's picture across the screen (about 60 % of its height),
+ * the header ([header]) on it, then "CONTINUE WATCHING", the title, where it was left, Resume (plays from there, the
+ * focus at start: [modifier]) and Episodes (the show's page); the stats ([stats]) at its bottom right. No blur on TVs:
+ * dark gradients keep the text readable.
+ */
+@Composable
+private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Composable () -> Unit, modifier: Modifier, onTop: () -> Unit,
+                 onShow: () -> Unit, onPlay: () -> Unit) {
+    val height = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.62f).dp
+    Box(Modifier.fillMaxWidth().height(height)) {
+        NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
+        AsyncImage(model = e.thumb.ifEmpty { s.poster }, contentDescription = null, contentScale = ContentScale.Crop,
+            alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
+        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Colors.background.copy(alpha = 0.9f), 0.65f to Color.Transparent)))
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Colors.background.copy(alpha = 0.6f), 0.25f to Color.Transparent,
+            0.6f to Color.Transparent, 1f to Colors.background)))
+        header()
+        Column(Modifier.align(Alignment.BottomStart).padding(start = 48.dp, end = 24.dp, bottom = 24.dp).width(560.dp)) {
+            Text(tr("Continue watching").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)
+            Text(shortTitle(s.title), color = Color.White, fontSize = 44.sp, lineHeight = 50.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Color.White.copy(alpha = 0.85f), fontSize = 18.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+            ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(380.dp).padding(top = 12.dp))
+            Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onPlay, modifier = modifier) { Text("▶  " + tr("Resume")) }
+                Button(onClick = onShow, modifier = Modifier.onFocusChanged { if (it.isFocused) onTop() }) { Text(tr("Episodes")) }
+            }
+        }
+        Box(Modifier.align(Alignment.BottomEnd).padding(end = 32.dp, bottom = 8.dp)) { stats() }
+    }
 }
 
 @Composable

@@ -414,6 +414,10 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
                 // (empty: [LiveLines.noLines] says so once the file turned out to have no Japanese track either)
         }
     }
+    // No PC: the subtitle shift kept on this device for next time, as the TV does (alone_off_<id>; a saved shift beats the fit).
+    val offKey = "alone_off_" + query["id"].orEmpty()
+    if (alone.isNotEmpty()) remember(live) { live.offset = library.settings.prefs.getFloat(offKey, 0f).toDouble() }
+    DisposableEffect(Unit) { onDispose { if (alone.isNotEmpty() && detail == null) library.settings.prefs.edit().putFloat(offKey, live.offset.toFloat()).apply() } }
     LaunchedEffect(live) { live.run() }
     LaunchedEffect(live.noLines) { if (live.noLines) error = tr("No Japanese subtitles: none in this file, none on Jimaku") }
     DisposableEffect(Unit) {
@@ -478,6 +482,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
                 }.getOrElse { error = it.message; return@LaunchedEffect }
                 if (d == null) { step = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
             }
+            library.settings.prefs.edit().putFloat(offKey, live.offset.toFloat()).apply() // the word player adds its shifts to it
             live.stop()
             detail = d.copy(video = alone, resume = player.currentPosition / 1000.0)
         }

@@ -37,9 +37,20 @@ private val FURIGANA = Regex(""" ?(\S+?)\[([^\]]*)\]""")
 /** A field of an own card as text: furigana and HTML tags dropped (<b> marks the word in the sentence). */
 private fun plain(s: String) = s.replace(Regex("""<br\s*/?>"""), " ").replace(Regex("<[^>]+>"), "").replace(FURIGANA, "$1").trim()
 
-/** Where [word] is in [sentence], to mark it: whole words in spaced scripts, anywhere in Japanese. */
+/**
+ * Where [word] is in [sentence], to mark it: whole words in spaced scripts, anywhere in Japanese. A Japanese word not
+ * found as written is looked for without its trailing kana, one at a time, while a kanji is left (仕留める in
+ * 必ず仕留め…, 食べる in 食べた), so a conjugated form is marked by its stem.
+ */
 fun wordRanges(sentence: String, word: String): List<IntRange> {
     if (word.isEmpty()) return emptyList()
     val spaced = word.any { it.isLetter() && it.code < 0x3000 }
-    return Regex(if (spaced) "(?i)(?<![\\p{L}'])" + Regex.escape(word) + "(?![\\p{L}])" else Regex.escape(word)).findAll(sentence).map { it.range }.toList()
+    if (spaced) return Regex("(?i)(?<![\\p{L}'])" + Regex.escape(word) + "(?![\\p{L}])").findAll(sentence).map { it.range }.toList()
+    val kana = 'ぁ'..'ゟ'
+    var w = word
+    while (true) {
+        val found = Regex(Regex.escape(w)).findAll(sentence).map { it.range }.toList()
+        if (found.isNotEmpty() || w.last() !in kana || w.dropLast(1).all { it in kana }) return found
+        w = w.dropLast(1)
+    }
 }

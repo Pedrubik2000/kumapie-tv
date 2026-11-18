@@ -114,7 +114,15 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
             }
             val fitted = chunks.filter { it.second != null }
             if (fitted.size * 2 < chunks.size) return null
-            return other.map { t -> val c = (t / CHUNK).toInt(); t - fitted.minBy { kotlin.math.abs(it.first - c) }.second!! }
+            val near = { c: Int -> fitted.minBy { kotlin.math.abs(it.first - c) }.second!! }
+            val gap = { t: Double -> japanese.minOf { kotlin.math.abs(it - t) } }
+            // The chunk holding the opening has both amounts in it and fits one: a line over 0.5 s off a Japanese one by
+            // its chunk's offset takes a neighbour chunk's when that puts it nearer.
+            return other.map { t ->
+                val c = (t / CHUNK).toInt()
+                val own = near(c)
+                t - (if (gap(t - own) > 0.5) listOf(own, near(c - 1), near(c + 1)).minBy { gap(t - it) } else own)
+            }
         }
 
         /**

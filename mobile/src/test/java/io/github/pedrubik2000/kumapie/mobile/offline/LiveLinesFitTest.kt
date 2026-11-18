@@ -24,8 +24,9 @@ class LiveLinesFitTest {
         val english = japanese.filterIndexed { i, _ -> i % 5 != 2 }.map { if (it < 300) it + 0.8 else it + 2.8 } + listOf(200.5, 450.2)
         val placed = LiveLines.place(japanese, english.sorted())!!
         val onJapanese = placed.count { p -> japanese.any { kotlin.math.abs(it - p) <= 0.15 } }
-        // The chunk with the opening in it (180-360 s) takes one of the two: its lines past 300 s stay off.
-        org.junit.Assert.assertTrue("$onJapanese of ${english.size}", onJapanese >= english.size * 0.8)
+        // The chunk with the opening in it (180-360 s) has both amounts: its lines take the neighbour chunk's that fits
+        // them. Only the two extra lines (signs) may stay off.
+        org.junit.Assert.assertTrue("$onJapanese of ${english.size}", onJapanese >= english.size - 2)
     }
 
     @Test fun anotherEpisodesFileIsNotPlaced() =

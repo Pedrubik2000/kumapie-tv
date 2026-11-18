@@ -5,6 +5,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Auto" to "Auto",
     "Skip" to "Saltar",
     // Player
+    "Its spoken audio (%1\$s) can't play on this device: choose another source" to "Su audio hablado (%1\$s) no se puede reproducir en este dispositivo: elige otra fuente",
     "Try again" to "Reintentar",
     "Back" to "Volver",
     "↺ line" to "↺ línea",

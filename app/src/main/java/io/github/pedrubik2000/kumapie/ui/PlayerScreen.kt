@@ -113,11 +113,13 @@ fun rememberPlayer(video: String, resume: Double?, lang: String? = null): ExoPla
 /** [onPlayer]: the player, once made (StreamActivity hands its position back to NuvioTV). */
 @Composable
 fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Settings, episode: EpisodeDetail, onClose: () -> Unit, onPlayer: (ExoPlayer) -> Unit = {},
-                player: ExoPlayer = rememberPlayer(episode.video, episode.resume, episode.lang)) {
+                player: ExoPlayer = rememberPlayer(episode.video, episode.resume, episode.lang),
+                onController: (SceneController) -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     remember { onPlayer(player) }
     val ctl = remember { SceneController(episode, player, settings, api) }
+    remember(ctl) { onController(ctl) } // StreamActivity: the late fit moves its lines ([SceneController.shift])
     // kumapie's own cards: the carded words heard in each scene played to its end (exposures).
     remember(ctl) { ctl.onSceneSeen = { s -> sceneHeard(context, settings, ctl, s) } }
     // This TV's kuma3 colours the words it has cards for (a word mined here stays blue the next day, not red).
@@ -310,6 +312,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
                 PlayerView(it).apply {
                     useController = false
                     isFocusable = false
+                    subtitleView?.visibility = android.view.View.GONE // kumapie draws the lines; a stream's own track can be on (its fit)
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                     this.player = player

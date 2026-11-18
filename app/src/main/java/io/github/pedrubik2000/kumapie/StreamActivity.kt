@@ -279,17 +279,15 @@ class StreamActivity : ComponentActivity() {
         }
         var showLabel by remember { mutableStateOf(false) }
         LaunchedEffect(label) { showLabel = label != null; delay(5000); showLabel = false }
-        // Jimaku's lines are all there: the episode is made on the TV (words, colours, cards) and the same player goes on
-        // in ScenePlayer, after the fit had its chance (its timing goes into the scenes; a later shift doesn't).
+        // Jimaku's lines are all there: the episode is made on the TV (words, colours, cards) at once and the same player
+        // goes on in ScenePlayer. The fit to the file's own subtitle track comes later (it needs 8 of its lines played;
+        // waiting up to 30 s for it held the words back: Frieren 3 4K, 2026-11-18, words 37 s after OK, 30 of them the
+        // wait): when it lands, the scenes' lines move by it ([SceneController.shift]).
         val context = androidx.compose.ui.platform.LocalContext.current
         var shown by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.EpisodeDetail?>(null) }
         LaunchedEffect(live.lines) {
             if (live.lines.isEmpty()) return@LaunchedEffect
             val tLines = android.os.SystemClock.elapsedRealtime() // "words ready" below: how long each stage took (tvbench)
-            // The fit needs the file's own subtitle track (its line starts); a file without one waited the whole 30 s for
-            // nothing (Frieren 3 4K, 2026-11-18: words 37 s after OK, 30 of them here). Lines are known after the tracks.
-            if (live.canFit) kotlinx.coroutines.withTimeoutOrNull(30_000) { while (live.fitted == null) delay(500) }
-            val tFit = android.os.SystemClock.elapsedRealtime()
             val show = link.getQueryParameter("show").orEmpty()
             // English under the lines, from the user's subtitle addon if they added one (OpenSubtitles v3).
             val english = runCatching {
@@ -306,13 +304,34 @@ class StreamActivity : ComponentActivity() {
                 if (shown == null) { note = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
             }
             val now = android.os.SystemClock.elapsedRealtime()
-            android.util.Log.i("kumapie", "words ready: lines ${tLines - t0} ms after open, fit ${tFit - tLines}, english ${tEnglish - tFit}, build ${now - tEnglish} (${live.source}, ${live.lines.size} lines, fit ${if (live.canFit) "${live.fitted} from ${live.refCount} refs" else "no track"})")
+            android.util.Log.i("kumapie", "words ready: lines ${tLines - t0} ms after open, english ${tEnglish - tLines}, build ${now - tEnglish} (${live.source}, ${live.lines.size} lines, ${if (live.canFit) "fit later" else "no track to fit"})")
+        }
+        var ctl by remember { mutableStateOf<io.github.pedrubik2000.kumapie.player.SceneController?>(null) }
+        var built by remember { mutableStateOf<Double?>(null) } // the offset the scenes were made with
+        // The late fit: the scenes' lines move from [built] to it (a saved hand offset stays: LiveLines keeps it), then
+        // LiveLines stops listening.
+        LaunchedEffect(live.fitted, ctl) {
+            val c = ctl ?: return@LaunchedEffect
+            val from = built ?: return@LaunchedEffect
+            if (live.fitted == null) return@LaunchedEffect
+            if (live.offset != from) c.shift(live.offset - from)
+            android.util.Log.i("kumapie", "late fit: ${live.fitted} s from ${live.refCount} lines, lines moved ${live.offset - from} s")
+            built = live.offset
+            settings.prefs.edit().putFloat("alone_off_$id", live.offset.toFloat()).apply()
+            live.stop()
         }
         shown?.let { ep ->
-            remember(ep) { settings.prefs.edit().putFloat("alone_off_$id", live.offset.toFloat()).apply(); live.stop(); alone = null; note = null } // the scenes draw the lines now; UP / DOWN are theirs
+            // The scenes draw the lines now; UP / DOWN are theirs. LiveLines goes on listening to the file's track
+            // until the fit lands (a file without one: stopped now).
+            remember(ep) {
+                built = live.offset
+                settings.prefs.edit().putFloat("alone_off_$id", live.offset.toFloat()).apply()
+                if (!live.canFit || live.fitted != null) live.stop()
+                alone = null; note = null
+            }
             val backend = remember { io.github.pedrubik2000.kumapie.ui.AloneBackend(context, settings) }
             DisposableEffect(backend) { onDispose { backend.close() } }
-            return io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p)
+            return io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p, onController = { ctl = it })
         }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; requestFocus(); aloneView = this } },

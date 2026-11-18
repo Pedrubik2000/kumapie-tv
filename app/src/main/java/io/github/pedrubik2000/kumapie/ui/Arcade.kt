@@ -98,6 +98,29 @@ fun Modifier.arcadePanel(): Modifier = background(Arcade.band, RoundedCornerShap
 fun Modifier.arcadeCard(): Modifier = clip(RoundedCornerShape(22.dp)).background(Arcade.band)
     .border(1.dp, Arcade.line, RoundedCornerShape(22.dp)).padding(start = 16.dp, end = 24.dp)
 
+/**
+ * How lists follow the focus on a TV (user 2026-11-18, "add the animation"): a 300 ms glide. The list stays put
+ * while the focused item shows away from the edges; past them it glides so the item starts at 30 % (a pivot, as
+ * Google TV). Compose's default moved them in ~2 frames on the Chromecast (64 frames for a Home run, Google TV's
+ * home 720), which read as lag.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+val TvScroll = object : androidx.compose.foundation.gestures.BringIntoViewSpec {
+    override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> =
+        androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+
+    /** The item's start goes to 30 % of the list (a pivot), unless it already shows whole away from the edges. */
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val pivot = containerSize * 0.3f
+        val visible = offset >= 0f && offset + size <= containerSize
+        return when {
+            visible && offset >= containerSize * 0.1f && offset + size <= containerSize * 0.9f -> 0f
+            size > containerSize - pivot -> offset // too big for the pivot: its start at the list's start
+            else -> offset - pivot
+        }
+    }
+}
+
 /** A list's top edge fades out: rows scrolled up under a fixed header showed cut flat in half. */
 fun Modifier.fadeTop(until: Float = 0.08f): Modifier = graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
     .drawWithContent {
@@ -108,9 +131,34 @@ fun Modifier.fadeTop(until: Float = 0.08f): Modifier = graphicsLayer { compositi
 
 /** Behind the menus: the page with a faint light from the top left (the old diagonal band is gone). */
 fun Modifier.arcadeBackdrop(): Modifier = drawBehind {
-    drawRect(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0xFF1A2333), Color.Transparent),
+    // Opaque, the page colour past the glow: the one full-screen paint (the window draws none, themes.xml). The
+    // Chromecast's GPU paid for each layer while lists moved (2026-11-18: window + colour + glow = 3).
+    drawRect(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0xFF1A2333), Colors.background),
         center = Offset(size.width * 0.15f, 0f), radius = size.width * 0.7f))
 }
+
+/**
+ * A cover picture with [NeutralPoster] only until it loads: drawing both cost the Chromecast's GPU a layer per card
+ * while lists moved (2026-11-18).
+ */
+@Composable
+internal fun Cover(model: Any?, title: String, modifier: Modifier, showTitle: Boolean = true,
+                   fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
+                   alignment: Alignment = Alignment.Center, description: String? = title) {
+    var loaded by androidx.compose.runtime.remember(model) { mutableStateOf(false) }
+    Box(modifier) {
+        if (!loaded) {
+            if (fontSize == androidx.compose.ui.unit.TextUnit.Unspecified) NeutralPoster(title, Modifier.matchParentSize(), showTitle = showTitle)
+            else NeutralPoster(title, Modifier.matchParentSize(), fontSize = fontSize, showTitle = showTitle)
+        }
+        coil3.compose.AsyncImage(model = model, contentDescription = description, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            alignment = alignment, modifier = Modifier.matchParentSize(), onSuccess = { loaded = true }, onError = { loaded = false })
+    }
+}
+
+/** A card's fill: none, the picture covers it (one GPU layer less per card). */
+@Composable fun arcadeCardColors() = CardDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent,
+    pressedContainerColor = Color.Transparent)
 
 @Composable
 fun arcadeButtonColors(selected: Boolean = false): ButtonColors = ButtonDefaults.colors(

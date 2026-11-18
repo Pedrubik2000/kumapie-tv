@@ -66,9 +66,7 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
     Row(Modifier.fillMaxSize().padding(start = 48.dp, top = 32.dp, bottom = 32.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.width(300.dp)) {
             Box(Modifier.fillMaxWidth(if (show.description.isBlank()) 0.87f else 0.55f).aspectRatio(2f / 3f).clip(PosterSlab)) {
-                NeutralPoster(show.title, Modifier.fillMaxSize(), fontSize = 22.sp)
-                AsyncImage(model = show.poster, contentDescription = show.title, contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize())
+                Cover(show.poster, show.title, Modifier.fillMaxSize(), fontSize = 22.sp)
             }
             Text(show.title, fontSize = 22.sp, color = Colors.text, style = Arcade.label, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
             if (show.description.isNotBlank()) Text(show.description, fontSize = 14.sp, color = Colors.dim, maxLines = 8,

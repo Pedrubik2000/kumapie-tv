@@ -244,8 +244,8 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
         // buttons and the stats on its picture (user, 2026-11-17; Home is for resuming fast). Novels count too.
         item(key = "top") {
             going.firstOrNull()?.let { (s, e) ->
-                Hero(s, e, header, stats, Modifier.focusRequester(first).onFocusChanged { if (it.isFocused) scope.launch { list.scrollToItem(0) } }.focusProperties { if (more.isNotEmpty() || kept.isNotEmpty() || firstShelf >= 0) down = below },
-                    onTop = { scope.launch { list.scrollToItem(0) } }, onShow = { onShow(s) }) { onPlay(s, e) }
+                Hero(s, e, header, stats, Modifier.focusRequester(first).onFocusChanged { if (it.isFocused) scope.launch { list.animateScrollToItem(0) } }.focusProperties { if (more.isNotEmpty() || kept.isNotEmpty() || firstShelf >= 0) down = below },
+                    onTop = { scope.launch { list.animateScrollToItem(0) } }, onShow = { onShow(s) }) { onPlay(s, e) }
             } ?: Column { header(); Box(Modifier.padding(horizontal = 32.dp)) { stats() } }
         }
         if (more.isNotEmpty()) item(key = "going") {
@@ -308,9 +308,7 @@ private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Co
                 drawContent()
                 drawRect(Brush.verticalGradient(0.55f to Color.Black, 1f to Color.Transparent), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
             }) {
-            NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
-            AsyncImage(model = e.thumb.ifEmpty { s.poster }, contentDescription = null, contentScale = ContentScale.Crop,
-                alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
+            Cover(e.thumb.ifEmpty { s.poster }, s.title, Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null)
             Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Colors.background.copy(alpha = 0.9f), 0.65f to Color.Transparent)))
             Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Colors.background.copy(alpha = 0.6f), 0.25f to Color.Transparent)))
         }
@@ -343,13 +341,10 @@ internal fun Shelf(title: String, inset: androidx.compose.ui.unit.Dp = 16.dp, co
 @Composable
 internal fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, onClick: () -> Unit) {
     Column(Modifier.width(110.dp)) {
-        Card(onClick = onClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
-            Box(Modifier.fillMaxSize()) { // a Card lays out as a column: the box puts the image over the neutral poster
-                // Shows where there's no poster (never an episode frame). Smaller, file names split at their dots:
-                // 18 sp broke words in the middle ("Download/s", "chainsmo/ker.cat").
-                NeutralPoster(title.replace('.', ' ').replace('_', ' '), Modifier.fillMaxSize(), fontSize = 13.sp)
-                AsyncImage(model = image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            }
+        Card(onClick = onClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), colors = arcadeCardColors(), modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
+            // The neutral poster where there's none (never an episode frame). Smaller, file names split at their dots:
+            // 18 sp broke words in the middle ("Download/s", "chainsmo/ker.cat").
+            Cover(image, title.replace('.', ' ').replace('_', ' '), Modifier.fillMaxSize(), fontSize = 13.sp, description = title)
         }
         // Two lines: seasons were all "SOUSOU NO FRIEREN …"; 16 dp: the focused card's frame ran into it (Chromecast).
         Text(title, color = Colors.text, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label), maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -363,11 +358,9 @@ internal fun Poster(image: String, title: String, line: String, progress: Float?
 @Composable
 private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, onClick: () -> Unit) {
     Column(Modifier.width(width)) {
-        Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+        Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
             Box(Modifier.fillMaxSize()) {
-                NeutralPoster(s.title, Modifier.fillMaxSize(), showTitle = false)
-                AsyncImage(model = s.poster, contentDescription = s.title, contentScale = ContentScale.Crop,
-                    alignment = Alignment.TopCenter, modifier = Modifier.fillMaxSize())
+                Cover(s.poster, s.title, Modifier.fillMaxSize(), showTitle = false, alignment = Alignment.TopCenter)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Colors.background.copy(alpha = 0.85f))))
                 ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp))
             }

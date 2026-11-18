@@ -61,7 +61,8 @@ class MainActivity : ComponentActivity() {
         Updater.asset = "kumapie-tv-"
         val settings = Settings(this)
         fromAdb(intent, settings)
-        setContent { KumapieTheme { App(settings) } }
+        @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class) // LocalBringIntoViewSpec: the TV glide
+        setContent { KumapieTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides io.github.pedrubik2000.kumapie.ui.TvScroll) { App(settings) } } }
     }
 
     // kumapie already open: adb's intent comes here, not to onCreate. Saved, then the screens start again with it.
@@ -104,7 +105,7 @@ fun App(settings: Settings) {
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
 
-    Box(Modifier.fillMaxSize().background(Colors.background).arcadeBackdrop()
+    Box(Modifier.fillMaxSize().arcadeBackdrop()
         .onBackKey(enabled = stack.size > 1 && (server.isNotEmpty() || standalone)) { stack.removeAt(stack.lastIndex) }) {
         if (server.isEmpty() && !standalone) {
             SettingsScreen(settings, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone },

@@ -113,9 +113,11 @@ private fun TvJitenImport(settings: Settings) {
             Button(onClick = { top = n }) { Text((if (top == n) "✓ " else "") + if (n == 0) tr("None") else "%,d".format(n)) }
         }
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        jiten.SETS.forEach { (slug, name) ->
-            Button(onClick = { sets[slug] = sets[slug] != true }) { Text((if (sets[slug] == true) "✓ " else "") + tr(name)) }
+    jiten.SETS.entries.chunked(3).forEach { row -> // six in one row don't fit a 1080p TV
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            row.forEach { (slug, name) ->
+                Button(onClick = { sets[slug] = sets[slug] != true }) { Text((if (sets[slug] == true) "✓ " else "") + tr(name)) }
+            }
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {

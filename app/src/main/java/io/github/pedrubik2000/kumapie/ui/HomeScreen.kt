@@ -139,7 +139,7 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
 }
 
 /** The header's buttons: narrower than elsewhere so all nine of Pedro's fit a 960 dp TV. */
-private val TAB = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+internal val TAB = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
 
 /** "Review · N" for a person whose cards are on the PC (the PC refuses the others: no button). */
 @Composable
@@ -226,7 +226,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
 }
 
 @Composable
-private fun Shelf(title: String, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+internal fun Shelf(title: String, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     Column {
         Heading(title, Modifier.padding(start = 16.dp))
         // The focused card grows by 10%: padding keeps it inside the screen and off its title.

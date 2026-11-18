@@ -209,6 +209,8 @@ internal val esTv: Map<String, String> = mapOf(
     "Review" to "Repasar",
     "%1\$d left · %2\$d done" to "quedan %1\$d · %2\$d hechas",
     "All done for now" to "Todo repasado por ahora",
+    "My shows" to "Mis series",
+    "Find something to watch in Discover: what you play shows up here." to "Busca algo para ver en Descubrir: lo que pongas aparece aquí.",
     "Add words while watching: tap one, then Mine." to "Agrega palabras mientras ves: toca una, luego Minar.",
     "Hold ↑ on a word while watching to add it here." to "Mantén ↑ sobre una palabra mientras ves algo para añadirla aquí.",
     "Show" to "Mostrar",

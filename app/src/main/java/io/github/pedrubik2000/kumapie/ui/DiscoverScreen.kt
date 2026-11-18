@@ -257,6 +257,8 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
                             itemsIndexed(list) { i, f ->
                                 Line(i, f.optString("label"), f.optString("about"), null) {
                                     // An addon's stream (no PC): a link that plays as it is, with its live Japanese lines.
+                                    // Its title goes on Home, to come back to (no PC keeps "Continue watching").
+                                    if (f.has("url") && kept != true) scope.launch { runCatching { api.save(title, true) }.onSuccess { l -> kept = l.any { it.id == title.id } } }
                                     if (f.has("url")) return@Line context.startActivity(Intent(context, StreamActivity::class.java).setData(
                                         Uri.parse("kumapie://play").buildUpon().apply {
                                             listOf("url" to f.getString("url"), "type" to title.type, "id" to pick.first, "title" to pick.second,

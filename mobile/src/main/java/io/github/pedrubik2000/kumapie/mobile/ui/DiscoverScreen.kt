@@ -337,6 +337,8 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
             Files(library, title.type, id) { f ->
                 picking = null
                 // An addon's link (no PC): it plays as it is, its Japanese lines live, its words made on the phone.
+                // Its title goes on Home, to come back to (as the TV).
+                if (f.has("url") && kept != true) scope.launch { runCatching { library.discovery.save(title, true) } }
                 if (f.has("url")) return@Files onWatch(mapOf("lang" to "ja", "type" to title.type, "id" to id, "url" to f.getString("url"),
                     "file" to f.optString("file"), "title" to name, "show" to title.name))
                 onWatch(mapOf("lang" to "ja", "type" to title.type, "id" to id, "hash" to f.getString("hash"),

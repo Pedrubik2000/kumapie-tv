@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -182,20 +183,25 @@ fun AloneHome(settings: Settings, onDiscover: (io.github.pedrubik2000.kumapie.da
     LaunchedEffect(Unit) { due = runCatching { io.github.pedrubik2000.kumapie.lang.ownReview(context, lang).due().size }.getOrNull() }
     var kept by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.data.Found>>(emptyList()) }
     LaunchedEffect(Unit) { kept = runCatching { io.github.pedrubik2000.kumapie.data.Addons(addons, settings.prefs).saved() }.getOrDefault(emptyList()) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Title("kumapie", fontSize = 32.sp)
-        if (addons.isEmpty()) {
-            Text(tr("Nothing to watch yet."), color = Colors.text, fontSize = 22.sp)
-            Text(tr("kumapie plays what your own Stremio addons give it. Add one in Settings, or the address of a kumapie server on a PC."), color = Colors.dim)
+    // As the PC's Home: the logo and the buttons on top, then the titles as posters (newest kept first).
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Title("kuma", "pie")
+            Spacer(Modifier.width(12.dp))
+            if (addons.isNotEmpty()) Button(padding = TAB, onClick = { onDiscover(null) }, modifier = Modifier.focusRequester(focus)) { Text(tr("Discover")) }
+            due?.let { n -> Button(padding = TAB, onClick = { onReview(lang) }, colors = arcadeButtonColors(selected = n > 0)) { Text(tr("Review") + if (n > 0) " · $n" else "") } }
+            Button(padding = TAB, onClick = onSettings, modifier = if (addons.isEmpty()) Modifier.focusRequester(focus) else Modifier) { Text(tr("Settings")) }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (addons.isNotEmpty()) Button(onClick = { onDiscover(null) }, modifier = Modifier.focusRequester(focus)) { Text(tr("Discover")) }
-            due?.let { n -> Button(onClick = { onReview(lang) }, colors = arcadeButtonColors(selected = n > 0)) { Text(tr("Review") + if (n > 0) " · $n" else "") } }
-            Button(onClick = onSettings, modifier = if (addons.isEmpty()) Modifier.focusRequester(focus) else Modifier) { Text(tr("Settings")) }
-        }
-        if (kept.isNotEmpty()) {
-            Heading(tr("On Home"), Modifier.padding(top = 16.dp))
-            kept.forEach { f -> Button(onClick = { onDiscover(f) }) { Text(listOf(f.name, f.year).filter { it.isNotEmpty() }.joinToString(" · ")) } }
+        when {
+            addons.isEmpty() -> Column(Modifier.padding(start = 16.dp, top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(tr("Nothing to watch yet."), color = Colors.text, fontSize = 22.sp)
+                Text(tr("kumapie plays what your own Stremio addons give it. Add one in Settings, or the address of a kumapie server on a PC."), color = Colors.dim)
+            }
+            kept.isEmpty() -> Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim,
+                modifier = Modifier.padding(start = 16.dp, top = 24.dp))
+            else -> Shelf(tr("My shows")) {
+                items(kept.reversed().size) { i -> kept.reversed()[i].let { f -> Poster(f.poster, f.name, f.year, null, Modifier) { onDiscover(f) } } }
+            }
         }
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }

@@ -38,13 +38,42 @@ import io.github.pedrubik2000.kumapie.data.SrsCard
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.launch
 
+/** Where Review's cards come from and where its ratings go: the PC ([pcReview]) or this TV's own store ([ownReview]). */
+class ReviewSource(val due: suspend () -> List<SrsCard>, val rate: suspend (SrsCard, Int) -> Unit, val audioUrl: (String) -> String = { it })
+
+/** A person whose cards are on the PC (Jackson, user 2026-11-13): FSRS on the PC. */
+fun pcReview(api: Api, lang: String) = ReviewSource({ api.srsDue(lang).cards }, { c, r -> api.srsRate(c.word, r, lang = lang) }, api::url)
+
 /**
- * "Review" (Home, only for a person whose cards are on the PC: Jackson, user 2026-11-13): the PC's due cards, then the
- * new ones. Front: the line with the word marked, its audio plays; OK shows the meaning and the translation; four
- * buttons rate it (FSRS on the PC). When the list ends it asks the PC again (learning steps come back in minutes).
+ * No PC (kumapie for other people): the device's own cards ([io.github.pedrubik2000.kumapie.lang.SrsCards]), due now
+ * first (oldest due first), then the new ones (oldest mined first); FSRS on the TV. Own cards are text only: no audio.
+ */
+fun ownReview(context: android.content.Context, lang: String): ReviewSource {
+    val srs by lazy { io.github.pedrubik2000.kumapie.lang.SrsCards(context).store(io.github.pedrubik2000.kumapie.data.Lang.of(lang)) }
+    return ReviewSource(
+        due = {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val now = System.currentTimeMillis()
+                srs?.cards().orEmpty().filter { (it.due ?: 0L) <= now }
+                    .sortedWith(compareBy({ it.due == null }, { it.due ?: it.created }))
+                    .map { c ->
+                        val reading = FURIGANA.find(c.word)?.groupValues?.get(2).orEmpty()
+                        SrsCard(plain(c.word), plain(c.sentence), "", listOf(reading, plain(c.meaning)).filter { it.isNotBlank() }.joinToString(" · "),
+                            if (c.due == null) "new" else "review", "", c.id)
+                    }
+            }
+        },
+        rate = { c, r -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { requireNotNull(srs).rate(c.id, r) } },
+    )
+}
+
+/**
+ * "Review" (Home): the due cards, then the new ones. Front: the line with the word marked, its audio plays (cards from
+ * the PC); OK shows the meaning and the translation; four buttons rate it. When the list ends it asks again
+ * (learning steps come back in minutes).
  */
 @Composable
-fun ReviewScreen(api: Api, lang: String) {
+fun ReviewScreen(source: ReviewSource) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var cards by remember { mutableStateOf<List<SrsCard>?>(null) }
@@ -56,13 +85,13 @@ fun ReviewScreen(api: Api, lang: String) {
     val audio = remember { ExoPlayer.Builder(context).build() }
     DisposableEffect(Unit) { onDispose { audio.release() } }
     fun load() = scope.launch {
-        runCatching { api.srsDue(lang) }.onSuccess { cards = it.cards; i = 0; shown = false }.onFailure { error = it.message ?: it.toString() }
+        runCatching { source.due() }.onSuccess { cards = it; i = 0; shown = false }.onFailure { error = it.message ?: it.toString() }
     }
     LaunchedEffect(Unit) { load() }
     val card = cards?.getOrNull(i)
     fun play() {
         val a = card?.audio?.takeIf { it.isNotEmpty() } ?: return
-        audio.setMediaItem(MediaItem.fromUri(api.url(a)))
+        audio.setMediaItem(MediaItem.fromUri(source.audioUrl(a)))
         audio.prepare()
         audio.play()
     }
@@ -72,7 +101,7 @@ fun ReviewScreen(api: Api, lang: String) {
         if (busy) return
         busy = true
         scope.launch {
-            runCatching { api.srsRate(c.word, r, lang = lang) }
+            runCatching { source.rate(c, r) }
                 .onSuccess { done++; if (i + 1 < cards!!.size) { i++; shown = false } else load() }
                 .onFailure { error = it.message ?: it.toString() }
             busy = false
@@ -117,23 +146,30 @@ private fun Front(card: SrsCard, shown: Boolean, onShow: () -> Unit, onListen: (
         Row(Modifier.padding(top = 36.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (!shown) {
                 Button(onClick = onShow, modifier = Modifier.focusRequester(first)) { Text(tr("Show")) }
-                Button(onClick = onListen) { Text(tr("Listen")) }
+                if (card.audio.isNotEmpty()) Button(onClick = onListen) { Text(tr("Listen")) } // own cards: text only
             } else {
                 RATINGS.forEachIndexed { n, label ->
                     Button(onClick = { onRate(n + 1) }, modifier = if (n == 2) Modifier.focusRequester(first) else Modifier) {
                         Text(tr(label))
                     }
                 }
-                Button(onClick = onListen) { Text(tr("Listen")) }
+                if (card.audio.isNotEmpty()) Button(onClick = onListen) { Text(tr("Listen")) } // own cards: text only
             }
         }
     }
     LaunchedEffect(card.word, shown) { first.focusSoon() }
 }
 
-/** The line with every whole-word use of [word] marked as the player marks the picked word. */
+/** Anki's furigana: " 支配[しはい]" (the space starts the word). */
+private val FURIGANA = Regex(""" ?(\S+?)\[([^\]]*)\]""")
+
+/** A field of an own card as text: furigana and HTML tags dropped (<b> marks the word in the sentence). */
+private fun plain(s: String) = s.replace(Regex("""<br\s*/?>"""), " ").replace(Regex("<[^>]+>"), "").replace(FURIGANA, "$1").trim()
+
+/** The line with every use of [word] marked as the player marks the picked word: whole words in spaced scripts. */
 private fun marked(sentence: String, word: String) = buildAnnotatedString {
-    val hits = Regex("(?i)(?<![\\p{L}'])" + Regex.escape(word) + "(?![\\p{L}])").findAll(sentence).toList()
+    val spaced = word.any { it.isLetter() && it.code < 0x3000 }
+    val hits = Regex(if (spaced) "(?i)(?<![\\p{L}'])" + Regex.escape(word) + "(?![\\p{L}])" else Regex.escape(word)).findAll(sentence).toList()
     var at = 0
     for (h in hits) {
         append(sentence.substring(at, h.range.first))

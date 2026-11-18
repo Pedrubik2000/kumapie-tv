@@ -252,7 +252,8 @@ class StreamActivity : ComponentActivity() {
                 p.removeListener(listener)
                 // Left near the end: from the start next time.
                 val at = if (p.duration > 0 && p.currentPosition > p.duration - 120_000) 0f else p.currentPosition / 1000f
-                settings.prefs.edit().putFloat("alone_pos_$id", at).also { e -> alone?.let { e.putFloat("alone_off_$id", it.offset.toFloat()) } }.apply() // after the switch: kept at it
+                io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).played(id, at.toDouble(), (p.duration.coerceAtLeast(0) / 1000).toDouble()) // Home's Continue watching
+                alone?.let { settings.prefs.edit().putFloat("alone_off_$id", it.offset.toFloat()).apply() } // after the switch: kept at it
                 alone = null; aloneView = null
             }
         }

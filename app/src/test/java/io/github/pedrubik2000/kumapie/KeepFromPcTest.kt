@@ -30,5 +30,9 @@ class KeepFromPcTest {
         assertEquals(setOf("kitsu:2:1", "kitsu:2:2", "kitsu:3:1"), prefs.getStringSet("alone_seen", null))
         assertEquals(28.5f, prefs.getFloat("alone_pos_kitsu:2:3", 0f))
         assertEquals(0f, prefs.getFloat("alone_pos_kitsu:3:2", 0f))
+        // Home's Continue watching from the TV's own data: ep 3 where it was left, ep 2 from the start; nothing for kitsu:1.
+        assertEquals(listOf("kitsu:2:3" to 28.5, "kitsu:3:2" to null), addons.going().map { it.second.id to it.second.resume }.sortedBy { it.first })
+        addons.played("kitsu:2:3", 0.0, 1400.0) // left near its end: the next one
+        assertEquals("kitsu:2:4", addons.going().first().second.id)
     }
 }

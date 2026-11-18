@@ -124,8 +124,12 @@ fun App(settings: Settings) {
                     val addons = remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }
                     io.github.pedrubik2000.kumapie.ui.DiscoverScreen(addons, (stack.last() as Screen.Discover).open)
                 }
-                else -> io.github.pedrubik2000.kumapie.ui.AloneHome(settings, onDiscover = { stack.add(Screen.Discover(it)) },
-                    onSettings = { stack.add(Screen.Settings) }, onReview = { stack.add(Screen.Review(it)) })
+                // The PC's Home with this TV's own data: the streamed titles kept, where each was left, its own cards.
+                else -> HomeScreen(remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }, settings, "", "",
+                    onShow = { s -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, s.episodes.first()))) },
+                    onPlay = { s, e -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e))) },
+                    onSettings = { stack.add(Screen.Settings) }, onStats = {}, onProfiles = {}, onReview = { stack.add(Screen.Review(it)) },
+                    onDiscover = { stack.add(Screen.Discover()) }, onDiscovered = { stack.add(Screen.Discover(it)) })
             }
         } else {
             val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }

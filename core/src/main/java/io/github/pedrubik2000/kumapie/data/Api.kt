@@ -294,7 +294,7 @@ class Api(private val base: String, private val person: String = "") : Backend, 
      * Streamed titles to go on with (kumapie-server discover.py going()), as "Continue watching" cards: a Show of kind
      * "stream" (id = the Discover title) holding its one episode (id = the Discover episode; resume null = the next one).
      */
-    suspend fun going(): List<Pair<Show, Episode>> = JSONArray(get("/api/discover/going?lang=ja&person=" + java.net.URLEncoder.encode(person, "UTF-8")))
+    override suspend fun going(): List<Pair<Show, Episode>> = JSONArray(get("/api/discover/going?lang=ja&person=" + java.net.URLEncoder.encode(person, "UTF-8")))
         .objects().map { g ->
             val t = g.getJSONObject("title")
             val n = if (g.isNull("number")) null else g.getInt("number")

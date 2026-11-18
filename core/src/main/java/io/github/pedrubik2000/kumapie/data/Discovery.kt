@@ -32,6 +32,9 @@ interface Discovery {
     /** Marks an episode watched ([on]) or not. */
     suspend fun seen(id: String, on: Boolean)
 
+    /** Home's "Continue watching" for streamed titles: one episode each (resume null: the next one, from the start). */
+    suspend fun going(): List<Pair<Show, Episode>> = emptyList()
+
     /** A title object (also a meta answer). */
     fun found(o: JSONObject) = Found(o.optString("id"), o.optString("type", "series"), o.optString("name"), o.optString("poster"), o.optString("year"),
         o.optString("background"), o.optString("logo"), o.optString("description"), o.optString("genres"), o.optString("rating"), o.optString("runtime"))
@@ -168,6 +171,40 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
     }
 
     /**
+     * Home's "Continue watching" without a PC, as the PC's discover.py going(): per kept title its last episode
+     * ([played]; else the furthest one with a position, else the one after the furthest watched), the next one when
+     * that was watched or left near its end (position 0), newest first.
+     */
+    override suspend fun going(): List<Pair<Show, Episode>> {
+        val seen = store.getStringSet(SEEN, emptySet()).orEmpty()
+        val keys = store.all.keys
+        fun n(id: String) = id.substringAfterLast(':').toIntOrNull() ?: 0
+        return saved().mapNotNull { t ->
+            val last = store.getString("alone_last_${t.id}", null)?.let { runCatching { JSONObject(it) }.getOrNull() }
+            var id = last?.optString("id")?.takeIf { it.isNotEmpty() }
+                ?: keys.filter { it.startsWith("alone_pos_${t.id}:") }.map { it.removePrefix("alone_pos_") }.maxByOrNull(::n)
+                ?: seen.filter { it.startsWith("${t.id}:") }.maxByOrNull(::n)
+                ?: return@mapNotNull null
+            val pos = if (store.contains("alone_pos_$id")) store.getFloat("alone_pos_$id", 0f).toDouble() else null
+            var resume = pos?.takeIf { it > 20 }
+            if (id in seen || pos == 0.0) {
+                id = nextId(t.type, id)?.takeIf { it !in seen } ?: return@mapNotNull null
+                resume = null
+            }
+            val number = if (id == t.id) null else n(id)
+            val e = Episode(id, number?.let { tr("Episode %d", it) } ?: t.name, 1, number, store.getFloat("alone_len_$id", 0f).toDouble(), "",
+                0, 0, 0, resume, resumedAt = last?.optLong("at") ?: 0L)
+            Show(t.id, t.name, "stream", t.poster, listOf(e), "ja") to e
+        }.sortedByDescending { it.second.resumedAt }
+    }
+
+    /** An episode of a kept title was played: [going]'s last one for that title, [at] seconds, [length] in seconds. */
+    fun played(id: String, at: Double, length: Double) {
+        store.edit().putFloat("alone_pos_$id", at.toFloat()).putFloat("alone_len_$id", length.toFloat())
+            .putString("alone_last_${titleOf(id)}", JSONObject().put("id", id).put("at", System.currentTimeMillis() / 1000).toString()).apply()
+    }
+
+    /**
      * Leaving the PC (Settings): its Discover progress becomes this device's own. [saved] (the PC's, newest first) and
      * [going]'s titles kept on Home, every episode before a going one watched, and where that one was left.
      */
@@ -178,6 +215,8 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
             val n = e.id.substringAfterLast(':').toIntOrNull()
             if (nextId("series", e.id) != null && n != null) for (i in 1 until n) seen(e.id.substringBeforeLast(':') + ":$i", true)
             e.resume?.let { store.edit().putFloat("alone_pos_${e.id}", it.toFloat()).apply() } // StreamActivity's Alone
+            store.edit().putFloat("alone_len_${e.id}", e.duration.toFloat())
+                .putString("alone_last_${titleOf(e.id)}", JSONObject().put("id", e.id).put("at", e.resumedAt).toString()).apply()
         }
     }
 
@@ -210,6 +249,9 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         private const val MAX_ENGLISH = 5
         private const val SAVED = "alone_saved"
         private const val SEEN = "alone_seen"
+
+        /** The title of an episode id: kitsu:48269:5 -> kitsu:48269, tt0388629:1:5 -> tt0388629 (as discover.py). */
+        fun titleOf(id: String) = id.split(':').take(if (id.startsWith("kitsu:")) 2 else 1).joinToString(":")
 
         /** The episode after [id] (…:N -> …:N+1); null for a whole title (a movie, kitsu:12345: its number is no episode). */
         fun nextId(type: String, id: String): String? {

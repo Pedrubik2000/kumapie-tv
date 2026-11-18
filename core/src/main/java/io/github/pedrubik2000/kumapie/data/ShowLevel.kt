@@ -56,7 +56,11 @@ val Show.shown: String get() = titleJa.ifEmpty { title }
 
 /** Home's resume card: "14 min left · 61% easy" (the episode's share of i+0 / i+1 scenes, when the PC counted it). */
 fun resumeLine(e: Episode): String {
-    val left = if (e.resume == null) tr("Next episode") else tr("%d min left", ((e.duration - e.resume) / 60).toInt().coerceAtLeast(1))
+    val left = when {
+        e.resume == null -> tr("Next episode")
+        e.duration <= 0 -> tr("At %d min", (e.resume / 60).toInt().coerceAtLeast(1)) // length not known yet (no PC, copied from the PC)
+        else -> tr("%d min left", ((e.duration - e.resume) / 60).toInt().coerceAtLeast(1))
+    }
     val easy = if (e.easy > 0 && e.scenes > 0) e.easy * 100 / e.scenes else null
     return easy?.let { "$left · " + tr("%d%% easy", it) } ?: left
 }

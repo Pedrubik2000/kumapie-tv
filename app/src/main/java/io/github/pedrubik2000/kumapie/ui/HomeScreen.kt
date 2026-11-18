@@ -90,7 +90,7 @@ suspend fun FocusRequester.focusSoon() {
  * media type. OK on a show opens its episodes; on "Continue watching", the player where it was left.
  */
 @Composable
-fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onShow: (Show) -> Unit,
+fun HomeScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, settings: Settings, profile: String, who: String, onShow: (Show) -> Unit,
                onPlay: (Show, Episode) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit,
                onReview: (String) -> Unit = {}, onDiscover: () -> Unit = {}, onDiscovered: (Found) -> Unit = {}) {
     var shows by remember { mutableStateOf<List<Show>?>(null) }
@@ -98,12 +98,12 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(attempt) {
         error = null
-        runCatching { api.shows() }
+        runCatching { if (api is Api) api.shows() else emptyList() } // no PC: streamed titles only
             .onSuccess { all -> shows = all.filter { it.kind != "reels" }.map { s -> s.copy(episodes = s.episodes.filter { it.scenes > 0 }) }
                 .filter { it.episodes.isNotEmpty() } } // 0 scenes: nothing to play scene by scene
             .onFailure { error = it.message ?: it.toString() }
     }
-    val langs = Lang.ALL.map { it.code }.filter { c -> shows.orEmpty().any { it.lang == c } }
+    val langs = if (api !is Api) listOf("ja") else Lang.ALL.map { it.code }.filter { c -> shows.orEmpty().any { it.lang == c } }
     var picked by remember(profile) { mutableStateOf(settings.prefs.getString("home_lang_$profile", null)) }
     val lang = picked?.takeIf { it in langs } ?: langs.firstOrNull()
     // Discover titles kept on Home (+ HOME on a title's page), to stream later: Japanese only, as Discover.
@@ -120,7 +120,9 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
     }
 
     // Review's count: due and new cards on the PC (the PC refuses a person whose cards aren't there: no button).
-    val due by androidx.compose.runtime.produceState<Int?>(null, lang) { value = lang?.let { runCatching { api.srsDue(it).let { d -> d.due + d.new } }.getOrNull() } }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val due by androidx.compose.runtime.produceState<Int?>(null, lang) { value = lang?.let { runCatching {
+        if (api is Api) api.srsDue(it).let { d -> d.due + d.new } else io.github.pedrubik2000.kumapie.lang.ownReview(context, it).due().size }.getOrNull() } } // no PC: this TV's own cards
     // As the tablet's Glass Home (user, 2026-11-17): the bear top left, the language pill top right, round buttons
     // down the left edge over everything, the last episode as a picture across the top.
     val header = @Composable {
@@ -139,8 +141,8 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
         RailItem(androidx.compose.material.icons.Icons.Default.Home, tr("Home"), selected = true) {},
         RailItem(androidx.compose.material.icons.Icons.Default.Explore, tr("Discover"), onClick = onDiscover).takeIf { lang == "ja" },
         due?.let { n -> RailItem(androidx.compose.material.icons.Icons.Default.Style, tr("Review"), badge = n) { lang?.let(onReview) } },
-        RailItem(androidx.compose.material.icons.Icons.Default.BarChart, tr("Stats"), onClick = onStats),
-        RailItem(androidx.compose.material.icons.Icons.Default.Person, who, back = false, onClick = onProfiles), // back to "Who's watching?"
+        RailItem(androidx.compose.material.icons.Icons.Default.BarChart, tr("Stats"), onClick = onStats).takeIf { api is Api },
+        RailItem(androidx.compose.material.icons.Icons.Default.Person, who, back = false, onClick = onProfiles).takeIf { api is Api }, // back to "Who's watching?"
         RailItem(androidx.compose.material.icons.Icons.Default.Settings, tr("Settings"), onClick = onSettings),
     )
     Box(Modifier.fillMaxSize()) {
@@ -148,7 +150,10 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
             error != null -> Column { header(); Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings) } }
             shows == null || streams == null -> Column { header(); Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
             lang == null -> Column { header(); Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
-            else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header, railFocus, toRows) { LangCard(api, lang) }
+            else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header, railFocus, toRows) {
+                if (api is Api) LangCard(api, lang)
+                else if (kept.isEmpty()) Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim)
+            }
         }
         // From the top, under the bear: centred, six buttons reached the bear on a 540 dp Chromecast, and the column
         // jumped when Review came.
@@ -330,7 +335,7 @@ private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Co
             Text(shortTitle(s.shown), color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Color.White.copy(alpha = 0.85f), fontSize = 18.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-            ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(380.dp).padding(top = 12.dp))
+            if (e.duration > 0) ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(380.dp).padding(top = 12.dp))
             Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = onPlay, modifier = modifier) { Text("▶  " + tr("Resume")) }
                 Button(onClick = onShow, modifier = Modifier.onFocusChanged { if (it.isFocused) onTop() }) { Text(tr("Episodes")) }
@@ -389,7 +394,7 @@ private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, onCli
             Box(Modifier.fillMaxSize()) {
                 Cover(s.poster, s.title, Modifier.fillMaxSize(), showTitle = false, alignment = Alignment.TopCenter)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Colors.background.copy(alpha = 0.85f))))
-                ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp))
+                if (e.duration > 0) ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp))
             }
         }
         Text(shortTitle(s.shown), color = Colors.text, style = (if (width > 300.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium).merge(Arcade.label), maxLines = 1,

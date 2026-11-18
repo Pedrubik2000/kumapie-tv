@@ -49,7 +49,7 @@ fun pcReview(api: Api, lang: String) = ReviewSource({ api.srsDue(lang).cards }, 
  * (learning steps come back in minutes).
  */
 @Composable
-fun ReviewScreen(source: ReviewSource) {
+fun ReviewScreen(source: ReviewSource, server: Boolean = true) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var cards by remember { mutableStateOf<List<SrsCard>?>(null) }
@@ -93,7 +93,7 @@ fun ReviewScreen(source: ReviewSource) {
         }
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             when {
-                error != null -> ErrorBox(error!!, onRetry = { error = null; load() }, onSettings = null)
+                error != null -> ErrorBox(error!!, onRetry = { error = null; load() }, onSettings = null, server = server)
                 cards == null -> Text(tr("Loading…"), color = Colors.dim)
                 card == null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Title(tr("All done for now"), fontSize = 28.sp)

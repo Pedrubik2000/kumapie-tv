@@ -107,7 +107,8 @@ class SceneController(
     private var rangeTo = -1L
     private val rangesNew = ArrayList<io.github.pedrubik2000.kumapie.data.Span>()
     private var have = io.github.pedrubik2000.kumapie.data.Ranges.union(episode.ranges)
-    private val need = io.github.pedrubik2000.kumapie.data.Ranges.spoken(episode.scenes.filterNot { it.song }.flatMap { it.cues })
+    private var need = need(episode.scenes)
+    private fun need(of: List<Scene>) = io.github.pedrubik2000.kumapie.data.Ranges.spoken(of.filterNot { it.song }.flatMap { it.cues })
 
     private fun closeRange(next: Long) {
         if (rangeFrom in 0 until rangeTo) rangesNew += io.github.pedrubik2000.kumapie.data.Span(rangeFrom, rangeTo)
@@ -261,6 +262,7 @@ class SceneController(
                 english = s.english.map { it.copy(start = t(it.start), end = t(it.end)) })
         }
         stopAt = stopAt?.let(::t)
+        need = need(scenes) // what counts as watched moves with the lines
     }
 
     /** The scene's level, live: a rating or marking a word known lowers it ([io.github.pedrubik2000.kumapie.data.levelOf]). */
@@ -337,11 +339,13 @@ class SceneController(
         position = player.currentPosition / 1000.0
         // Loading counts as playing: a scene still buffering after a seek must not show paused (readable) subtitles.
         playing = player.isPlaying || (player.playWhenReady && player.playbackState == Player.STATE_BUFFERING)
-        if (playing) watchedMs += now - lastTick
+        val dt = now - lastTick
+        if (playing) watchedMs += dt
         lastTick = now
-        // The same stretch while the video moves on by itself; a jump (seek, another line) or a pause ends it.
+        // The same stretch while the video moves on by itself (no further than the clock and speed allow, +0.3 s); a
+        // jump (seek, another line) or a pause ends it.
         val ms = player.currentPosition
-        if (playing && rangeFrom >= 0 && ms >= rangeTo && ms - rangeTo < 2_000) rangeTo = ms else closeRange(if (playing) ms else -1)
+        if (playing && rangeFrom >= 0 && ms >= rangeTo && ms - rangeTo <= dt * speed + 300) rangeTo = ms else closeRange(if (playing) ms else -1)
         if (scenes.isEmpty()) return
 
         if (playing && position >= scene.end) seen(scene)

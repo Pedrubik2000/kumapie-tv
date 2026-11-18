@@ -3,6 +3,7 @@ package io.github.pedrubik2000.kumapie.mobile.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -100,10 +101,12 @@ fun ReviewScreen(source: ReviewSource, onBack: () -> Unit) {
                         if (card.meaning.isNotBlank()) Text(card.meaning, fontSize = 18.sp, textAlign = TextAlign.Center)
                     }
                     if (!shown) Button(onClick = { shown = true }) { Text(tr("Show")) }
-                    else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Four in a phone's width (Spanish labels are long): equal shares, little side padding.
+                        val pad = PaddingValues(horizontal = 6.dp)
                         listOf("Again", "Hard", "Good", "Easy").forEachIndexed { n, label ->
-                            if (n == 2) Button(onClick = { rate(n + 1) }) { Text(tr(label)) }
-                            else OutlinedButton(onClick = { rate(n + 1) }) { Text(tr(label)) }
+                            if (n == 2) Button(onClick = { rate(n + 1) }, Modifier.weight(1f), contentPadding = pad) { Text(tr(label)) }
+                            else OutlinedButton(onClick = { rate(n + 1) }, Modifier.weight(1f), contentPadding = pad) { Text(tr(label)) }
                         }
                     }
                 }

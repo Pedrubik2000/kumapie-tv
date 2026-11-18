@@ -175,12 +175,15 @@ class SrsCards(private val context: Context) : Cards {
     override fun addNote(pkg: String, mid: Long, fields: List<String>, tags: List<String>, deck: Long): Long =
         mine(Lang.ALL[deck.toInt()], fields(Lang.ALL[mid.toInt()]).zip(fields).toMap(), tags.joinToString(" "))
 
+    /** The id of the card [mine] would refuse as a duplicate (same Word), else null: the provider answers it instead of throwing. */
+    fun existing(lang: Lang, f: Map<String, String>): Long? = store(lang)?.cards()?.firstOrNull { it.word == text(f["Word"]) }?.id
+
     /** A card from the 🐻 note type's fields by name (kumapie's Miner, or Hoshi/chimahon through the provider); answers its id. */
     fun mine(lang: Lang, f: Map<String, String>, tags: String): Long {
         val ctx = CONTEXT.find(f["Context"].orEmpty())
         val s = requireNotNull(store(lang)) { "no person on this device" }
         // One card per word: the same word mined again made 37 duplicates (まひ three times; user, 2026-11-17).
-        check(s.cards().none { it.word == text(f["Word"]) }) { io.github.pedrubik2000.kumapie.i18n.tr("Already in your reviews") }
+        check(existing(lang, f) == null) { io.github.pedrubik2000.kumapie.i18n.tr("Already in your reviews") }
         return s.addCard(text(f["Word"]), text(f["Sentence"]), text(f[KnownWords.DEF_BI]), ctx?.groupValues?.get(1)?.unescape(),
             ctx?.groupValues?.get(2)?.unescape(), ctx?.let(::place), rest(f), tags).id.also { syncSoon(lang) }
     }

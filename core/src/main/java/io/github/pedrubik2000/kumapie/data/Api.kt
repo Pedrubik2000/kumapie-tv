@@ -46,7 +46,7 @@ class Api(private val base: String, private val person: String = "") : Backend, 
                         scenes = e.optInt("scenes"), seen = e.optInt("seen"), easy = e.optInt("easy"),
                         resume = if (e.isNull("resume")) null else e.getDouble("resume"),
                         episodeTitle = e.optString("episode_title").takeIf { it != "null" }.orEmpty(),
-                        resumedAt = e.optLong("resumed_at"), watchedFlag = e.optBoolean("watched"),
+                        resumedAt = e.optLong("resumed_at"), watchedFlag = e.optBoolean("watched", e.optInt("scenes") > 0 && e.optInt("seen") >= e.optInt("scenes")), // old caches: no "watched"
                     )
                 },
             )
@@ -569,7 +569,7 @@ fun lines(scenes: List<Scene>, watched: List<Span>): List<Scene> {
             defs = g.withIndex().flatMap { (place, e) ->
                 s.defs.filterKeys { it.startsWith("${e.second}|") }.map { "$place|" + it.key.substringAfter('|') to it.value }
             }.toMap(),
-            source = s.id, sourceLine = i,
+            source = s.id, sourceLine = i, sourceLines = g.map { it.second },
         ).let { l -> l.copy(seen = s.seen || watched.any { l.middle in it.start..it.end }) }
     }
 }
@@ -604,8 +604,13 @@ data class Scene(
      */
     val source: String = id,
     val sourceLine: Int = 0,
+    /** The source line of each of [cues] (sorted by start they needn't be [sourceLine], +1, +2…); empty: those. */
+    val sourceLines: List<Int> = emptyList(),
 ) {
     fun def(line: Int, word: String): LineDef? = defs["$line|$word"]
+
+    /** The PC's line in [source] of this line's cue [line] (the place [defs] keys use). */
+    fun sourceLineOf(line: Int): Int = sourceLines.getOrNull(line) ?: (sourceLine + line)
 
     /** Where it starts (ms): what kumapie's own cards, ratings and exposures keep as the place (Srs `scene` column). */
     val ms: Int get() = (start * 1000).toInt()

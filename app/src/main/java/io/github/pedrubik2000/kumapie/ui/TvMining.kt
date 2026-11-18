@@ -84,6 +84,8 @@ private object TvMining {
     val mined = HashMap<String, Long>()
     /** What the Japanese dictionaries' download is doing; null when it isn't running. */
     @Volatile var fetching: String? = null
+    /** The last download's error and when (ms), shown in the onboarding and retried after a while. */
+    @Volatile var failed: Pair<String, Long>? = null
     /** While an episode's cards are being read from kuma3 ([openCards]): the colours may be the saved ones, so no rating yet. */
     @Volatile var reading = false
     /** The word card's dictionaries ([TvDictionaries]) while shown: ↑↓ scroll it. */
@@ -125,8 +127,9 @@ private object TvMining {
         if (settings.server.isEmpty()) {
             fetching = tr("Downloading the Japanese dictionaries…")
             work.launch {
+                failed = null
                 runCatching { yomitan.installRecommended(Lang.JAPANESE) { fetching = it }.forEach { Log.i("kumapie", "ja dictionary: $it") } }
-                    .onFailure { Log.w("kumapie", "Japanese dictionaries: $it") }
+                    .onFailure { Log.w("kumapie", "Japanese dictionaries: $it"); failed = (it.message ?: it.toString()) to System.currentTimeMillis() }
                 fetching = null
             }
             return
@@ -158,7 +161,12 @@ private object TvMining {
 /** The Japanese dictionaries' download as a line for the onboarding: what it is doing, else ready / starting. */
 fun dictionariesState(context: Context, settings: Settings): String {
     TvMining.languages(context, settings)
-    return TvMining.fetching ?: if (TvMining.yomitan.of(Lang.JAPANESE).isNotEmpty()) tr("✓ ready") else tr("Starting…")
+    TvMining.fetching?.let { return it }
+    if (TvMining.yomitan.of(Lang.JAPANESE).isNotEmpty()) return tr("✓ ready")
+    // A failed download (no internet, GitHub down): say so, and try again every 15 s.
+    val (why, at) = TvMining.failed ?: return tr("Starting…")
+    if (System.currentTimeMillis() - at > 15_000) TvMining.fetchJapanese(context, settings)
+    return tr("Couldn't download them (%s). Trying again…", why)
 }
 
 /** Without a PC, the first run starts the Japanese dictionaries' download (JMdict, JMnedict) in the background. */
@@ -692,7 +700,7 @@ private fun mineOnPc(context: Context, api: Api, ctl: SceneController, picker: W
     val line = picker.line
     val meaning = scene.def(line, key)?.english?.takeIf { it.isNotBlank() } ?: (scene.meanings[key] ?: w?.meaning).orEmpty()
     scope.launch {
-        runCatching { api.srsAdd(scene.source, scene.sourceLine + line, key, meaning) }
+        runCatching { api.srsAdd(scene.source, scene.sourceLineOf(line), key, meaning) }
             .onSuccess { c -> setCard(ctl, key, c); say(tr("Added to your reviews")) }
             .onFailure { say(it.message ?: it.toString()) }
     }
@@ -711,6 +719,9 @@ suspend fun joinNames(context: Context, settings: Settings, episode: io.github.p
  */
 class AloneBackend(private val context: Context, private val settings: Settings) : io.github.pedrubik2000.kumapie.data.Backend {
     private val tts = android.speech.tts.TextToSpeech(context.applicationContext) {}
+
+    /** Frees the TV's voice: one per stream otherwise piles up with auto-next. */
+    fun close() = tts.shutdown()
 
     override suspend fun progress(episode: String, pos: Double, watched: Double, ranges: List<io.github.pedrubik2000.kumapie.data.Span>, done: Boolean) {}
 

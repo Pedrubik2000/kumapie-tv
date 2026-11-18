@@ -18,7 +18,7 @@ object Playable {
         when {
             Regex("""\bav1\b""").containsMatchIn(n) -> out += "av1"
             // HEVC without "10bit" in the name is 10 bit too in anime, nearly always ([DiabloTripleA] … S01E01.mkv: hvc1.2).
-            Regex("""\bx265\b|\bhevc\b|\bh\.?265\b""").containsMatchIn(n) -> out += "hevc10"
+            Regex("""\bx265\b|\bhevc\b|\bh\.?265\b""").containsMatchIn(n) -> if (!Regex("""\b8[ ._-]?bits?\b""").containsMatchIn(n)) out += "hevc10"
             Regex("""\bhi10p?\b""").containsMatchIn(n) -> out += "avc10"
             Regex("""\bx264\b|\bavc\b|\bh\.?264\b""").containsMatchIn(n) -> if (tenBit) out += "avc10"
             tenBit -> out += "hevc10" // 10 bit or HDR with no codec named: HEVC in practice (10-bit H.264 says Hi10)

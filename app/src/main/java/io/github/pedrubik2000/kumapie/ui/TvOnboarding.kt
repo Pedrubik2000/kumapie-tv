@@ -82,6 +82,8 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
         }
     }
     LaunchedEffect(step) { runCatching { first.requestFocus() } }
+    // Back goes to the step before (it closed the app, and the next launch began again at step 1).
+    androidx.activity.compose.BackHandler(enabled = step > 0) { step-- }
 }
 
 /** The QR code to the TV's setup page and what has come from it so far. */
@@ -132,7 +134,7 @@ private fun TvDownloads(settings: Settings) {
 /** [text] as a QR code, black on white, [size] pixels. */
 internal fun qr(text: String, size: Int): Bitmap {
     val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size)
-    return Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565).apply {
-        for (x in 0 until size) for (y in 0 until size) setPixel(x, y, if (m[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
-    }
+    // One array, one call: setPixel per pixel (230 000 of them) stalled a Chromecast on every Settings.
+    val px = IntArray(size * size) { if (m[it % size, it / size]) android.graphics.Color.BLACK else android.graphics.Color.WHITE }
+    return Bitmap.createBitmap(px, size, size, Bitmap.Config.RGB_565)
 }

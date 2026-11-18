@@ -144,18 +144,19 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
                 searched.isNotEmpty() && list!!.isEmpty() -> Message(tr("Nothing found"))
                 searched.isNotEmpty() -> LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(list!!, key = { it.id }) { f -> PosterCard(f, Modifier.fillMaxWidth()) { open = f } }
+                    items(list!!.distinctBy { it.id }, key = { it.id }) { f -> PosterCard(f, Modifier.fillMaxWidth()) { open = f } }
                 }
                 else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
                     // The hero: the first row's first few (your newest plans when you have an AniList list).
                     val featured = board!!.firstOrNull()?.second.orEmpty().filter { it.background.isNotEmpty() }.take(6)
                     if (featured.isNotEmpty()) item(key = "hero") { Hero(featured) { open = it } }
-                    board.forEach { (name, titles) ->
-                        item(key = "row-$name") {
+                    // Two addons may name a catalog alike, and two AniList entries may share a kitsu id: keys unique.
+                    board.forEachIndexed { index, (name, titles) ->
+                        item(key = "row-$index") {
                             Text(tr(name), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                 modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 10.dp))
                             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                items(titles, key = { it.id }) { f -> PosterCard(f, Modifier.width(if (wide()) 140.dp else 112.dp)) { open = f } }
+                                items(titles.distinctBy { it.id }, key = { it.id }) { f -> PosterCard(f, Modifier.width(if (wide()) 140.dp else 112.dp)) { open = f } }
                             }
                         }
                     }
@@ -516,6 +517,11 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     if (d != null) {
         return Box(Modifier.fillMaxSize().background(Color.Black)) {
             ScenePlayer(library, library.settings, library.backend(d.lang), d, startPaused = false, onBack, preloaded = player)
+            // The end of the episode still looks for the next one here (the listener above): its failure shown too.
+            error?.let {
+                Text(it, color = Color.White, fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).background(Color(0x99000000), RoundedCornerShape(18.dp)).border(1.dp, Glass.line, RoundedCornerShape(18.dp)).padding(14.dp, 6.dp))
+            }
         }
     }
     if (playing) { // words failed: the video goes on plain, the reason on top

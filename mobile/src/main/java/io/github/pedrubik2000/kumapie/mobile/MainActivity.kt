@@ -81,7 +81,7 @@ class MainActivity : ComponentActivity() {
         // The server address can be sent from the PC instead of typed:
         //   adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.mobile.MainActivity --es server https://...
         intent?.getStringExtra("server")?.let { settings.server = it }
-        addonsAndKey(intent, settings)
+        if (savedInstanceState == null) addonsAndKey(intent, settings) // not again on rotation: an addon removed since came back
         // The download notification (Android 13+ asks once).
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         enableEdgeToEdge()
@@ -164,8 +164,9 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     // Without a PC, as on the TV: JMdict and JMnedict download in the background on the first run (and again if it
     // didn't finish), so a word has a meaning without a trip to Settings.
-    LaunchedEffect(standalone, server) {
-        if (!standalone || server.isNotEmpty()) return@LaunchedEffect
+    // Not during onboarding: its last step installs them (a second install waited on the first, "Starting…").
+    LaunchedEffect(standalone, server, onboarded) {
+        if (!standalone || server.isNotEmpty() || !onboarded) return@LaunchedEffect
         val dicts = io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(appContext)
         if (dicts.of(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE).isEmpty())
             runCatching { dicts.installRecommended(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) {} }
@@ -189,7 +190,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     fun top(s: Screen?) { while (stack.size > 1) stack.removeAt(stack.lastIndex); if (s != null) stack += s }
     var more by remember { mutableStateOf(false) }
     val (main, extra) = destinations(homeLang, { top(Screen.Discover()) }, { top(Screen.Feed) }, { top(Screen.Downloads) },
-        { top(Screen.Stats) }, { top(Screen.Improve) }, { top(Screen.Search) }, if (server.isEmpty()) ({ top(Screen.Review) }) else null) { top(Screen.Settings(null)) }
+        { top(Screen.Stats) }, { top(Screen.Improve) }, { top(Screen.Search) }, if (server.isEmpty()) ({ top(Screen.Review) }) else null, refresh = stack.last()) { top(Screen.Settings(null)) }
     val tab: String? = when (stack.last()) { // the button shown selected: "" = Home, null = More, "-" = no menu
         is Screen.Discover -> tr("Discover")
         // Feed: upright and fullscreen like the player, so no menu beside it (it squeezed the video).

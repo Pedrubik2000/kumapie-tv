@@ -63,7 +63,8 @@ class StreamActivity : ComponentActivity() {
         val settings = Settings(this)
         val video = intent.data?.toString()
         if (video != null && Uri.parse(video).let { it.scheme == "kumapie" && it.host == "play" }) {
-            Tr.use(if (settings.server.isEmpty()) "" else settings.speaks)
+            // Without a PC: the menu language picked in the TV's first steps, as MainActivity.
+            Tr.use(if (settings.server.isEmpty()) settings.prefs.getString(io.github.pedrubik2000.kumapie.ui.ALONE_LANG, "").orEmpty() else settings.speaks)
             return setContent { KumapieTheme { Alone(settings, Uri.parse(video)) } }
         }
         if (video == null || settings.server.isEmpty()) {
@@ -301,6 +302,7 @@ class StreamActivity : ComponentActivity() {
         shown?.let { ep ->
             remember(ep) { settings.prefs.edit().putFloat("alone_off_$id", live.offset.toFloat()).apply(); live.stop(); alone = null; note = null } // the scenes draw the lines now; UP / DOWN are theirs
             val backend = remember { io.github.pedrubik2000.kumapie.ui.AloneBackend(context, settings) }
+            DisposableEffect(backend) { onDispose { backend.close() } }
             return io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p)
         }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -324,9 +326,11 @@ class StreamActivity : ComponentActivity() {
      */
     private suspend fun playNext(settings: Settings, link: Uri, say: (String) -> Unit) {
         val id = link.getQueryParameter("id").orEmpty()
-        val n = id.substringAfterLast(':').toIntOrNull() ?: return
         val type = link.getQueryParameter("type") ?: "series"
         val addons = io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)
+        // A movie or a whole title (kitsu:12345) has no next: 12346 is another show.
+        if (type == "movie" || id.count { it == ':' } < 2) { runCatching { addons.seen(id, true) }; return }
+        val n = id.substringAfterLast(':').toIntOrNull() ?: return
         runCatching { addons.seen(id, true) }
         say(tr("Next: episode %1\$d…", n + 1))
         val (next, f) = runCatching { addons.next(type, id, link.getQueryParameter("file").orEmpty()) }.getOrElse { return say(it.message ?: it.toString()) }

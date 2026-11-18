@@ -110,7 +110,12 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
     // Streamed titles in "Continue watching" too (the episode left partway, or the next one).
     // null while loading: the row waited for them, else it showed without them and reshuffled (focus on a card that moved).
     var streams by remember { mutableStateOf<List<Pair<Show, Episode>>?>(null) }
-    LaunchedEffect(lang) { streams = if (lang == "ja") runCatching { api.going() }.getOrDefault(emptyList()) else emptyList() }
+    // Waits for the shows: before them lang is null, and an empty list here drew Home without the streams.
+    LaunchedEffect(lang, shows == null) {
+        if (shows == null) return@LaunchedEffect
+        streams = null
+        streams = if (lang == "ja") runCatching { api.going() }.getOrDefault(emptyList()) else emptyList()
+    }
 
     // Review's count: due and new cards on the PC (the PC refuses a person whose cards aren't there: no button).
     val due by androidx.compose.runtime.produceState<Int?>(null, lang) { value = lang?.let { runCatching { api.srsDue(it).let { d -> d.due + d.new } }.getOrNull() } }
@@ -141,7 +146,9 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
             lang == null -> Column { header(); Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
             else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header) { LangCard(api, lang) }
         }
-        Rail(rail, Modifier.align(Alignment.CenterStart))
+        // From the top, under the bear: centred, six buttons reached the bear on a 540 dp Chromecast, and the column
+        // jumped when Review came.
+        Rail(rail, Modifier.align(Alignment.TopStart).padding(top = 100.dp))
     }
 }
 
@@ -159,7 +166,7 @@ private class RailItem(val icon: androidx.compose.ui.graphics.vector.ImageVector
 @Composable
 private fun Rail(items: List<RailItem>, modifier: Modifier) {
     Column(modifier.padding(start = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        items.forEach { item ->
+        items.forEach { item -> androidx.compose.runtime.key(item.label) {
             var focused by remember { mutableStateOf(false) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box {
@@ -178,7 +185,7 @@ private fun Rail(items: List<RailItem>, modifier: Modifier) {
                 if (focused) Text(item.label, color = Color.White, fontSize = 16.sp, style = Arcade.label,
                     modifier = Modifier.padding(start = 12.dp).background(Colors.background.copy(alpha = 0.7f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
             }
-        }
+        } }
     }
 }
 
@@ -313,12 +320,12 @@ private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Co
 }
 
 @Composable
-internal fun Shelf(title: String, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+internal fun Shelf(title: String, inset: androidx.compose.ui.unit.Dp = 16.dp, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     Column {
-        Heading(title, Modifier.padding(start = 16.dp))
+        Heading(title, Modifier.padding(start = inset))
         // The focused card grows by 10%: padding keeps it inside the screen and off its title.
         LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), content = content)
+            contentPadding = PaddingValues(horizontal = inset, vertical = 12.dp), content = content)
     }
 }
 
@@ -327,7 +334,9 @@ internal fun Poster(image: String, title: String, line: String, progress: Float?
     Column(Modifier.width(110.dp)) {
         Card(onClick = onClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
             Box(Modifier.fillMaxSize()) { // a Card lays out as a column: the box puts the image over the neutral poster
-                NeutralPoster(title, Modifier.fillMaxSize()) // shows where there's no poster (never an episode frame)
+                // Shows where there's no poster (never an episode frame). Smaller, file names split at their dots:
+                // 18 sp broke words in the middle ("Download/s", "chainsmo/ker.cat").
+                NeutralPoster(title.replace('.', ' ').replace('_', ' '), Modifier.fillMaxSize(), fontSize = 13.sp)
                 AsyncImage(model = image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
         }
@@ -364,7 +373,7 @@ fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: (() -> Unit)?, se
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Title(if (server) tr("Can't reach the dojo server") else tr("That didn't work"), fontSize = 26.sp) // [server] false: no PC, the addons answered
-            Text(plainError(message), color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
+            Text(if (server) plainError(message) else message, color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
             if (server) Text(tr("Is the PC on, and Tailscale connected on the TV?"), color = Colors.dim)
             Row(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again")) }

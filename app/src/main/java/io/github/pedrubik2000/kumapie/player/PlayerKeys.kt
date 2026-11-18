@@ -13,7 +13,7 @@ enum class Action(val label: String, val context: KeyContext = KeyContext.WATCH)
     NEXT_SCENE("Next line"),
     PREVIOUS_SCENE("Previous line"),
     REPLAY_LINE("Replay line"),
-    REPLAY_SCENE("Replay line"),
+    REPLAY_SCENE("Replay line and play on"), // REPLAY_LINE pauses after it
     CYCLE_SUBTITLES("Subtitles: hidden → blurred → both blurred → %s → both (paused after a line: pick a word)"),
     TOGGLE_GERMAN("%s subtitles"),   // the episode's language (the name stays: saved button maps use it)
     TOGGLE_ENGLISH("%s subtitles"),  // the translation's

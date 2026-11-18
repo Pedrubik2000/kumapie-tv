@@ -28,6 +28,8 @@ internal val esTv: Map<String, String> = mapOf(
     "While watching" to "Mientras ves",
     "In the word picker" to "Al elegir una palabra",
     "Replay line" to "Repetir la línea",
+    "Replay line and play on" to "Repetir la línea y seguir",
+    "Couldn't download them (%s). Trying again…" to "No se pudieron descargar (%s). Probando de nuevo…",
     "Subtitles: hidden → blurred → both blurred → %s → both (paused after a line: pick a word)" to
         "Subtítulos: ocultos → borrosos → los dos borrosos → %s → los dos (en pausa después de una línea: elegir una palabra)",
     "%s subtitles" to "Subtítulos en %s",
@@ -251,4 +253,18 @@ internal val esTv: Map<String, String> = mapOf(
     "Next: episode %1\$d…" to "Siguiente: episodio %1\$d…",
     "No files found for episode %1\$d" to "No hay archivos para el episodio %1\$d",
     "That didn't work" to "No ha funcionado",
+    "Streaming" to "Streaming",
+    "Watch" to "Ver",
+    "On Home" to "En Inicio",
+    "Nothing found" to "No se encontró nada",
+    "Asking Torrentio…" to "Preguntando a Torrentio…",
+    "Episode %1\$d" to "Episodio %1\$d",
+    "No files found for this" to "No hay archivos para esto",
+    // Addons (data/Discovery.kt) errors
+    "Add a Stremio addon in Settings first" to "Primero agrega un addon de Stremio en Ajustes",
+    "None of your addons has a catalog: add one that lists titles (Cinemeta, Kitsu…)" to
+        "Ninguno de tus addons tiene catálogo: agrega uno que liste títulos (Cinemeta, Kitsu…)",
+    "None of your addons knows this title" to "Ninguno de tus addons conoce este título",
+    "Your addon gives torrents, not links: set it up with your debrid key and paste its new address in Settings" to
+        "Tu addon da torrents, no enlaces: configúralo con tu clave de debrid y pega su nueva dirección en Ajustes",
 )

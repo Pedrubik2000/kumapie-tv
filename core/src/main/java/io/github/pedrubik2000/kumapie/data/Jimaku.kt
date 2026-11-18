@@ -75,7 +75,10 @@ object Jimaku {
     private val SONG_OR_SIGN = Regex("""sign|\bop\d*\b|\bed\d*\b|opening|ending|song|karaoke|kfx|lyric|\brom|romaji|kanji|title|insert|typeset|\bts\b|credit|staff""", RegexOption.IGNORE_CASE)
     private val KANA = Regex("[ぁ-ヿ]")
     private val JAPANESE = Regex("[぀-ヿ一-鿿]")
-    private val STAMP = """(\d+):(\d+):(\d+)[,.](\d+)"""
+    private const val STAMP = """(?:(\d+):)?(\d+):(\d+)[,.](\d+)""" // VTT may leave out the hours (mm:ss.ttt)
+
+    /** An .srt / .vtt arrow line's two times (groups 1-4, 5-8; an hours group may be empty). */
+    val ARROW = Regex("$STAMP\\s*-->\\s*$STAMP")
 
     /**
      * A subtitle file (.srt / .vtt / .ass / .ssa) -> the lines that are said, in time order: styling dropped, ASS signs,
@@ -104,8 +107,9 @@ object Jimaku {
                 }
             }
         } else for (block in text.split(Regex("""\n\s*\n"""))) {
-            val m = Regex("$STAMP\\s*-->\\s*$STAMP").find(block) ?: continue
-            val body = block.substring(m.range.last + 1).trim().lines().joinToString(" ") { it.trim() }
+            val m = ARROW.find(block) ?: continue
+            // The rest of the arrow line is VTT cue settings (align:start position:10%), not text.
+            val body = block.substring(m.range.last + 1).substringAfter('\n', "").trim().lines().joinToString(" ") { it.trim() }
                 .replace(Regex("""<[^>]+>|\{[^}]*\}"""), "").trim()
             val g = m.groupValues
             if (body.isNotEmpty()) out += Line(secs(g[1], g[2], g[3], g[4]), secs(g[5], g[6], g[7], g[8]), body)
@@ -135,7 +139,7 @@ object Jimaku {
     fun plain(text: String): String = text.replace(Regex("""\s+"""), " ").trim()
 
     private fun time(s: String): Double? = Regex("""\s*(\d+):(\d+):(\d+)\.(\d+)""").find(s)?.groupValues?.let { secs(it[1], it[2], it[3], it[4]) }
-    private fun secs(h: String, m: String, s: String, frac: String) = h.toInt() * 3600 + m.toInt() * 60 + s.toInt() + frac.toInt() / Math.pow(10.0, frac.length.toDouble())
+    private fun secs(h: String, m: String, s: String, frac: String) = (h.toIntOrNull() ?: 0) * 3600 + m.toInt() * 60 + s.toInt() + frac.toInt() / Math.pow(10.0, frac.length.toDouble())
 
     private fun decode(data: ByteArray): String {
         if (data.size >= 2 && ((data[0] == 0xFF.toByte() && data[1] == 0xFE.toByte()) || (data[0] == 0xFE.toByte() && data[1] == 0xFF.toByte()))) return String(data, Charsets.UTF_16)
@@ -143,7 +147,11 @@ object Jimaku {
         return if ('\uFFFD' in utf8) String(data, charset("windows-31j")) else utf8 // Shift-JIS files exist
     }
 
-    private fun unzip(data: ByteArray): List<Pair<String, ByteArray>> = ZipInputStream(ByteArrayInputStream(data)).use { z ->
+    /** Names in UTF-8, else Shift-JIS (Japanese Windows zips: UTF-8 throws on their names). */
+    private fun unzip(data: ByteArray): List<Pair<String, ByteArray>> =
+        try { unzip(data, Charsets.UTF_8) } catch (_: IllegalArgumentException) { unzip(data, charset("Shift_JIS")) }
+
+    private fun unzip(data: ByteArray, names: java.nio.charset.Charset): List<Pair<String, ByteArray>> = ZipInputStream(ByteArrayInputStream(data), names).use { z ->
         generateSequence { z.nextEntry }.filter { !it.isDirectory }.map { it.name.substringAfterLast('/') to z.readBytes() }.toList()
     }
 

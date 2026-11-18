@@ -40,6 +40,8 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
     var lines by mutableStateOf(emptyList<Triple<Double, Double, String>>())
         private set
     private val refs = ArrayList<Double>() // when the file's other track showed a line (seconds of video)
+    private var shown = emptyList<androidx.media3.common.text.Cue>() // the last group: a line ending under another isn't a new one
+    private var tried = 0 // refs.size [fit] last ran on
 
     init {
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
@@ -59,7 +61,8 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
 
     override fun onCues(cueGroup: CueGroup) {
         // Either track's line starts are the video's own clock: Jimaku's file is fitted to them ([fit]).
-        if (cueGroup.cues.isNotEmpty() && fitted == null) refs += player.currentPosition / 1000.0
+        if (fitted == null && cueGroup.cues.any { it !in shown }) refs += player.currentPosition / 1000.0
+        shown = cueGroup.cues
         if (needJimaku) return
         // Netflix's Japanese track is closed captions: （モモ）, （男子生徒の話し声）, ♪ go, as in a Jimaku file. Line by line,
         // so a two-line cue keeps its break.
@@ -80,8 +83,10 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         starts = got.map { it.first }
         lines = got
         while (true) {
-            if (fitted == null && refs.size >= MIN_REFS && refs.size % 2 == 0)
+            if (fitted == null && refs.size >= MIN_REFS && refs.size % 2 == 0 && refs.size != tried) {
+                tried = refs.size
                 fit(refs, starts)?.let { if (offset == 0.0) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
+            }
             if (source == "jimaku") {
                 val t = player.currentPosition / 1000.0 - offset
                 line = got.lastOrNull { it.first <= t }?.takeIf { t < it.second }?.third

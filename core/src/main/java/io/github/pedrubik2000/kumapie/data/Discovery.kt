@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import io.github.pedrubik2000.kumapie.i18n.tr
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -45,14 +46,15 @@ interface Discovery {
  */
 class Addons(urls: List<String>, private val store: SharedPreferences) : Discovery {
     private val bases = urls.map(::base).filter { it.isNotEmpty() }.distinct()
-    private var manifests: List<Pair<String, JSONObject>>? = null
+    private val manifests = java.util.concurrent.ConcurrentHashMap<String, JSONObject>()
 
-    private suspend fun manifests(): List<Pair<String, JSONObject>> = manifests ?: bases.mapNotNull { b ->
-        runCatching { b to JSONObject(get("$b/manifest.json")) }.getOrNull()
-    }.also { if (it.isNotEmpty() || bases.isEmpty()) manifests = it }
+    /** The addons that answer; one that didn't is asked again next time. */
+    private suspend fun manifests(): List<Pair<String, JSONObject>> = bases.mapNotNull { b ->
+        (manifests[b] ?: runCatching { JSONObject(get("$b/manifest.json")) }.getOrNull()?.also { manifests[b] = it })?.let { b to it }
+    }
 
     /** The addons' names, for Settings ("" for one that doesn't answer). */
-    suspend fun names(): List<String> = bases.map { b -> manifests().firstOrNull { it.first == b }?.second?.optString("name").orEmpty() }
+    suspend fun names(): List<String> = manifests().let { all -> bases.map { b -> all.firstOrNull { it.first == b }?.second?.optString("name").orEmpty() } }
 
     override suspend fun board(): List<Pair<String, List<Found>>> {
         val rows = ArrayList<Pair<String, List<Found>>>()
@@ -65,7 +67,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
             val titles = runCatching { metas(get("$b/catalog/${c.getString("type")}/${c.getString("id")}.json")) }.getOrDefault(emptyList())
             if (titles.isNotEmpty()) rows += (c.optString("name").ifEmpty { c.getString("id") } + " · " + c.getString("type")) to titles
         }
-        if (rows.isEmpty()) error(if (bases.isEmpty()) NO_ADDON else "None of your addons has a catalog: add one that lists titles (Cinemeta, Kitsu…)")
+        if (rows.isEmpty()) error(tr(if (bases.isEmpty()) NO_ADDON else "None of your addons has a catalog: add one that lists titles (Cinemeta, Kitsu…)"))
         return rows
     }
 
@@ -86,7 +88,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
             val meta = runCatching { JSONObject(get("$b/meta/$type/${enc(id)}.json")).optJSONObject("meta") }.getOrNull() ?: continue
             return title(meta, seen)
         }
-        error("None of your addons knows this title")
+        error(tr("None of your addons knows this title"))
     }
 
     override suspend fun discoverStreams(type: String, id: String): JSONArray {
@@ -97,18 +99,17 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
             val streams = runCatching { JSONObject(get("$b/stream/$type/${enc(id)}.json", 90_000)).optJSONArray("streams") }.getOrNull()
             for (s in streams.objects()) files(s)?.let(out::put) ?: torrents++
         }
-        if (out.length() == 0 && torrents > 0) error("Your addon gives torrents, not links: set it up with your debrid key and paste its new address in Settings")
+        if (out.length() == 0 && torrents > 0) error(tr("Your addon gives torrents, not links: set it up with your debrid key and paste its new address in Settings"))
         return out
     }
 
     /**
      * The episode after [id] (…:N -> …:N+1) and its file: the one of the same release group as [file] ([Group] at the
      * start of its name) if there is one, else the first this device decodes ([Playable]), else the first. Null when
-     * [id] has no episode number; throws when the addons give nothing for it.
+     * [id] has no episode number ([nextId]); throws when the addons give nothing for it.
      */
     suspend fun next(type: String, id: String, file: String): Pair<String, JSONObject>? {
-        val n = id.substringAfterLast(':').toIntOrNull() ?: return null
-        val next = id.substringBeforeLast(':') + ":" + (n + 1)
+        val next = nextId(type, id) ?: return null
         val files = discoverStreams(type, next).objects()
         val plays = files.filter { Playable.missing(it.optString("label") + " " + it.optString("about") + " " + it.optString("file")).isEmpty() }
         val group = Regex("""^\[[^\]]+\]""").find(file)?.value
@@ -128,7 +129,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
             runCatching { JSONObject(get("$b/subtitles/$kind/${enc(asked)}.json")).optJSONArray("subtitles").objects() }.getOrDefault(emptyList())
         }.filter { it.optString("lang") in setOf("eng", "en") }.take(MAX_ENGLISH)
         return files.mapNotNull { f ->
-            val lines = runCatching { Jimaku.cues("en.srt", get(f.getString("url")).toByteArray(), Jimaku::plain) }.getOrNull()
+            val lines = runCatching { Jimaku.cues("en.srt", bytes(f.getString("url")), Jimaku::plain) }.getOrNull() // raw: cues finds the charset
                 ?.takeIf { it.size * 2 >= japanese.size } ?: return@mapNotNull null // signs-only files
             val at = io.github.pedrubik2000.kumapie.player.LiveLines.place(japanese, lines.map { it.start }) ?: return@mapNotNull null
             lines.mapIndexed { i, l -> Jimaku.Line(at[i], at[i] + l.end - l.start, l.text) }
@@ -168,14 +169,16 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
 
     private fun metas(json: String): List<Found> = JSONObject(json).optJSONArray("metas").objects().map { found(title(it, emptySet())) }
 
-    private suspend fun get(url: String, readTimeout: Int = 30_000): String = withContext(Dispatchers.IO) {
+    private suspend fun get(url: String, readTimeout: Int = 30_000): String = String(bytes(url, readTimeout), Charsets.UTF_8)
+
+    private suspend fun bytes(url: String, readTimeout: Int = 30_000): ByteArray = withContext(Dispatchers.IO) {
         (URL(url).openConnection() as HttpURLConnection).run {
             connectTimeout = 15_000
             this.readTimeout = readTimeout
             setRequestProperty("User-Agent", "kumapie")
             try {
                 if (responseCode !in 200..299) error("${URL(url).host}: HTTP $responseCode")
-                inputStream.bufferedReader().use { it.readText() }
+                inputStream.use { it.readBytes() }
             } finally { disconnect() }
         }
     }
@@ -193,6 +196,13 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         private const val MAX_ENGLISH = 5
         private const val SAVED = "alone_saved"
         private const val SEEN = "alone_seen"
+
+        /** The episode after [id] (…:N -> …:N+1); null for a whole title (a movie, kitsu:12345: its number is no episode). */
+        fun nextId(type: String, id: String): String? {
+            if (type == "movie" || id.count { it == ':' } < 2) return null
+            val n = id.substringAfterLast(':').toIntOrNull() ?: return null
+            return id.substringBeforeLast(':') + ":" + (n + 1)
+        }
 
         private fun enc(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
         private fun JSONArray?.objects(): List<JSONObject> = (0 until (this?.length() ?: 0)).mapNotNull { this!!.optJSONObject(it) }

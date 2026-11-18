@@ -42,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,7 +56,7 @@ import io.github.pedrubik2000.kumapie.StreamActivity
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Found
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.tv.material3.Button
+import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.launch
 import io.github.pedrubik2000.kumapie.data.objects
 import io.github.pedrubik2000.kumapie.i18n.tr
@@ -96,14 +98,15 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
     Box(Modifier.fillMaxSize().onBackKey(searched.isNotEmpty()) { searched = ""; query = "" }) {
         val shown = focused ?: board?.firstOrNull()?.second?.firstOrNull()
         if (searched.isEmpty() && shown != null) Backdrop(shown.background.ifEmpty { shown.poster })
-        Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        // No side padding on the page: it cut the rows' posters with a straight line at both edges.
+        Column(Modifier.fillMaxSize().padding(top = 24.dp, bottom = 4.dp)) {
+            Row(Modifier.padding(horizontal = 32.dp), verticalAlignment = Alignment.CenterVertically) {
                 Title(tr("Discover"))
                 Spacer(Modifier.width(32.dp))
                 TvTextField(query, { query = it }, onDone = { searched = query.trim() }, Modifier.width(420.dp), placeholder = tr("Search"))
             }
             val list = found
-            when {
+            Column(Modifier.padding(horizontal = 32.dp)) { when {
                 error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = null, server = api is Api)
                 searched.isNotEmpty() && list == null || searched.isEmpty() && board == null -> Text(tr("Loading…"), color = Colors.dim)
                 searched.isNotEmpty() && list!!.isEmpty() -> Text(tr("Nothing found"), color = Colors.dim, fontSize = 20.sp, modifier = Modifier.padding(top = 32.dp, start = 16.dp))
@@ -111,14 +114,16 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
                     Heading(searched, Modifier.padding(top = 16.dp, start = 16.dp))
                     LazyVerticalGrid(GridCells.Adaptive(130.dp), contentPadding = PaddingValues(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                        itemsIndexed(list!!, key = { _, f -> f.id }) { i, f ->
+                        itemsIndexed(list!!.distinctBy { it.id }, key = { _, f -> f.id }) { i, f ->
                             Poster(f.poster, f.name, f.year, null, if (i == 0) Modifier.focusRequester(first) else Modifier) { open = f }
                         }
                     }
                 }
-                else -> {
+                else -> {}
+            } }
+            if (error == null && searched.isEmpty() && board != null) {
                     // The focused title, Stremio's way: its logo (else name), rating, genres and the start of its text.
-                    Column(Modifier.fillMaxWidth(0.5f).height(160.dp).padding(top = 8.dp), verticalArrangement = Arrangement.Bottom) { // 200 dp cut the row's years off on a 540 dp tall TV
+                    Column(Modifier.padding(start = 32.dp).fillMaxWidth(0.5f).height(140.dp).padding(top = 8.dp), verticalArrangement = Arrangement.Bottom) { // 200 dp cut the row's years off on a 540 dp tall TV
                         shown?.let { f ->
                             TitleLogo(f)
                             Text(f.line, color = Colors.text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
@@ -126,20 +131,25 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
                         }
                     }
                     // The top edge fades out: a row scrolled up peeked its years out under the text (Chromecast).
-                    LazyColumn(Modifier.fillMaxSize().fadeTop(0.06f), contentPadding = PaddingValues(top = 14.dp)) { // the fade ends above the first heading (it hid "ANILIST · PLANNING")
+                    // The focused row goes to the top of the list: left where the D-pad put it, the row above showed its
+                    // titles and years under the text, and the focused row's years were cut at the bottom.
+                    val rowsState = androidx.compose.foundation.lazy.rememberLazyListState()
+                    var row by remember { mutableIntStateOf(0) }
+                    LaunchedEffect(row) { rowsState.animateScrollToItem(row) }
+                    LazyColumn(Modifier.fillMaxSize().fadeTop(0.06f), state = rowsState) { // the fade ends above the first heading (it hid "ANILIST · PLANNING")
                         board!!.forEachIndexed { r, (name, titles) ->
-                            item(key = "row-$name") {
-                                Heading(tr(name), Modifier.padding(start = 16.dp, top = 12.dp))
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                                    itemsIndexed(titles, key = { _, f -> f.id }) { i, f ->
+                            item(key = "row-$r") {
+                                // 24 dp above: the fade sits there, not on the heading, and the row above is out of sight.
+                                Heading(tr(name), Modifier.padding(start = 48.dp, top = 24.dp))
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(horizontal = 48.dp, vertical = 8.dp)) {
+                                    itemsIndexed(titles.distinctBy { it.id }, key = { _, f -> f.id }) { i, f ->
                                         Poster(f.poster, f.name, f.year, null, (if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier)
-                                            .onFocusChanged { if (it.isFocused) focused = f }) { open = f }
+                                            .onFocusChanged { if (it.isFocused) { focused = f; row = r } }) { open = f }
                                     }
                                 }
                             }
                         }
                     }
-                }
             }
         }
     }
@@ -176,6 +186,7 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
     var files by remember { mutableStateOf<List<JSONObject>?>(null) }
     var kept by remember { mutableStateOf<Boolean?>(null) } // on Home (null: not known yet)
     var menu by remember { mutableStateOf<JSONObject?>(null) } // the episode OK was held on
+    val main = remember { FocusRequester() } // the ▶ button
     var reload by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(title.id) { kept = runCatching { api.saved().any { it.id == title.id } }.getOrNull() }
@@ -208,7 +219,7 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
             Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (meta != null) {
                     val next = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
-                    Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }) {
+                    Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }, modifier = Modifier.focusRequester(main)) {
                         Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) +
                             (if (next.optBoolean("ready") && next.optString("source").isNotEmpty()) " · " + next.optString("source") else "") else tr("Watch")))
                     }
@@ -223,7 +234,10 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
         }
         val m = meta
         val pick = picking
-        when {
+        // Left from the list: the ▶ button (the D-pad picked "+ Home", nearer the top of the list).
+        Box(Modifier.focusProperties {
+            onExit = { if (requestedFocusDirection == androidx.compose.ui.focus.FocusDirection.Left && meta != null) { cancelFocusChange(); main.requestFocus() } }
+        }.focusGroup()) { when {
             error != null -> ErrorBox(error!!, onRetry = { error = null; reload++ }, onSettings = null, server = api is Api)
             m == null -> Text(tr("Loading…"), color = Colors.dim)
             pick == null && menu != null -> {
@@ -290,7 +304,7 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
                     }
                 }
             }
-        }
+        } }
     }
     }
 }

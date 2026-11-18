@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.zIndex
@@ -138,10 +141,12 @@ internal fun activeJobs(): Int {
 @Composable
 internal fun destinations(homeLang: String, onDiscover: () -> Unit, onFeed: () -> Unit, onDownloads: () -> Unit,
                           onStats: () -> Unit, onImprove: () -> Unit, onSearch: () -> Unit, onReview: (() -> Unit)? = null,
+                          /** Counted again when this changes (the screen shown: back from Review). */
+                          refresh: Any? = null,
                           onSettings: () -> Unit): Pair<List<Dest>, List<Dest>> {
     // Review (no PC: kumapie's own cards; with a PC they are reviewed in kuma3): its count of due and new cards.
     val context = androidx.compose.ui.platform.LocalContext.current
-    val due by androidx.compose.runtime.produceState(0, homeLang, onReview != null) {
+    val due by androidx.compose.runtime.produceState(0, homeLang, onReview != null, refresh) {
         value = if (onReview == null) 0 else runCatching { io.github.pedrubik2000.kumapie.lang.ownReview(context, homeLang).due().size }.getOrDefault(0)
     }
     val main = listOfNotNull(
@@ -276,16 +281,18 @@ fun HomeScreen(
                 TextButton(onClick = { attempt++ }) { Text(tr("Try again")) }
             }
             Box(Modifier.fillMaxSize()) {
+                // Glass (tablet): the page runs under the status bar and the round buttons, as the rows' own top does.
+                val edge = if (wide) Modifier.statusBarsPadding().padding(start = GUTTER) else Modifier
                 when {
-                    error != null && shows == null -> Column(Modifier.align(Alignment.Center).padding(24.dp),
+                    error != null && shows == null -> Column(Modifier.align(Alignment.Center).then(edge).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(tr("Can't reach the PC"), style = MaterialTheme.typography.titleLarge)
                         Text(error ?: "", color = Colors.dim, style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = { attempt++ }) { Text(tr("Try again")) }
                     }
-                    shows == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    shows == null -> CircularProgressIndicator(Modifier.align(Alignment.Center).then(edge))
                     // Without a PC there are no episodes: what was kept from Discover, and Discover to find more.
-                    all.isEmpty() && library.settings.server.isEmpty() -> Column(Modifier.fillMaxSize()) {
+                    all.isEmpty() && library.settings.server.isEmpty() -> Column(Modifier.fillMaxSize().then(edge)) {
                         Streaming(library, onDiscovered)
                         Column(Modifier.fillMaxWidth().weight(1f).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
@@ -294,7 +301,7 @@ fun HomeScreen(
                             TextButton(onClick = { adding = true }) { Text(tr("Add an episode")) }
                         }
                     }
-                    all.isEmpty() -> Column(Modifier.align(Alignment.Center).padding(24.dp),
+                    all.isEmpty() -> Column(Modifier.align(Alignment.Center).then(edge).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(tr("No episodes yet"), style = MaterialTheme.typography.titleLarge)
                         Text(tr("Add a YouTube link or a video file."), color = Colors.dim, style = MaterialTheme.typography.bodyMedium)
@@ -351,7 +358,7 @@ private fun LangCard(library: Library, lang: String, shows: List<Show>, glass: B
     var p by remember(lang) { mutableStateOf(shownProgress[lang]) }
     LaunchedEffect(lang, shows) { p = runCatching { library.langProgress(lang, shows) }.getOrNull()?.also { shownProgress[lang] = it } }
     val s = p ?: return
-    if (glass) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    if (glass) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StatChip(minutes(s.today), tr("Today"), accent = true, onClick = onStats)
         StatChip(minutes(s.week), tr("Last 7 days"), onClick = onStats)
         StatChip(String.format(java.util.Locale.ROOT, "%.1f h", s.total / 3600), tr("In total"), onClick = onStats)
@@ -429,7 +436,7 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
         ResumeCard(library.poster(s.id, s.poster), s, e) { onPlay(s, e) }
     }
 
-    if (wide) LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+    if (wide) LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())) {
         if (going.isNotEmpty()) item(key = "hero") { going[0].let { (s, e) -> Hero(library, s, e, { onShow(s) }, { onPlay(s, e) }, top, header) } }
         else item(key = "card") { Column { top(); Box(Modifier.padding(start = GUTTER, top = 8.dp)) { header() } } }
         if (going.size > 1) item(key = "going") {

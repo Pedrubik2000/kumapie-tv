@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -72,7 +73,8 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TvTextField(server, { server = it }, onDone = ::save,
                 modifier = Modifier.width(640.dp).let { if (firstRun) it.focusRequester(focus) else it })
-            Button(onClick = ::save) { Text(tr("Save")) }
+            // Without a PC Change buttons is far below the addons: focus Save, at the top.
+            Button(onClick = ::save, modifier = if (!firstRun && settings.server.isEmpty()) Modifier.focusRequester(focus) else Modifier) { Text(tr("Save")) }
         }
         if (status.isNotEmpty()) Text(status, color = Colors.dim)
         if (firstRun) {
@@ -92,7 +94,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                 color = Colors.dim)
             addons.forEachIndexed { i, a ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(names.getOrNull(i).orEmpty().ifEmpty { tr("(no answer)") } + " · " + java.net.URI(io.github.pedrubik2000.kumapie.data.Addons.base(a)).host.orEmpty(),
+                    Text(names.getOrNull(i).orEmpty().ifEmpty { tr("(no answer)") } + " · " + io.github.pedrubik2000.kumapie.data.Addons.base(a).substringAfter("//").substringBefore('/'),
                         color = Colors.text, modifier = Modifier.width(640.dp))
                     Button(onClick = { addons = addons - a; settings.addons = addons }) { Text(tr("Remove")) }
                 }
@@ -117,7 +119,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             var showHelp by remember { mutableStateOf(settings.showHelp) }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Focus starts here, not in the server field: focusing a text field opens the TV's keyboard.
-                Button(onClick = onButtons, modifier = Modifier.focusRequester(focus)) { Text(tr("Change buttons")) }
+                Button(onClick = onButtons, modifier = if (!firstRun && settings.server.isEmpty()) Modifier else Modifier.focusRequester(focus)) { Text(tr("Change buttons")) }
                 Button(onClick = { showHelp = !showHelp; settings.showHelp = showHelp }) {
                     Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")))
                 }
@@ -174,7 +176,6 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
 @Composable
 fun AloneHome(settings: Settings, onDiscover: (io.github.pedrubik2000.kumapie.data.Found?) -> Unit, onSettings: () -> Unit,
               onReview: (String) -> Unit = {}) {
-    val focus = remember { FocusRequester() }
     val addons = remember { settings.addons }
     val context = androidx.compose.ui.platform.LocalContext.current
     // Review: this TV's own cards (Japanese at launch), "· N" when some are due or new.
@@ -186,32 +187,49 @@ fun AloneHome(settings: Settings, onDiscover: (io.github.pedrubik2000.kumapie.da
     var rows by remember { mutableStateOf<List<Pair<String, List<io.github.pedrubik2000.kumapie.data.Found>>>>(emptyList()) }
     LaunchedEffect(Unit) { if (addons.isNotEmpty()) rows = runCatching { io.github.pedrubik2000.kumapie.data.Addons(addons, settings.prefs).board() }.getOrDefault(emptyList()) }
     // As the PC's Home: the logo and the buttons on top, then the titles as posters (newest kept first).
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    val scroll = rememberScrollState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val tabs = remember { List(3) { FocusRequester() } } // Discover, Review, Settings
+    val firstPoster = remember { FocusRequester() }
+    val posters = kept.isNotEmpty() || rows.isNotEmpty()
+    // Down from any tab: the first poster (from Discover it went to the second, the one under it).
+    val down = if (posters) Modifier.focusProperties { this.down = firstPoster } else Modifier
+    fun tab(i: Int, onClick: () -> Unit): () -> Unit = { aloneTab = i; onClick() }
+    // Back down in the rows: up to the tabs first (it closed the app).
+    Column(Modifier.fillMaxSize().onBackKey(scroll.value > 0) { scope.launch { scroll.animateScrollTo(0) }; runCatching { tabs[aloneTab].requestFocus() } }
+        .verticalScroll(scroll).padding(vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(Modifier.padding(horizontal = 32.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Title("kuma", "pie")
             Spacer(Modifier.width(12.dp))
-            if (addons.isNotEmpty()) Button(padding = TAB, onClick = { onDiscover(null) }, modifier = Modifier.focusRequester(focus)) { Text(tr("Discover")) }
-            due?.let { n -> Button(padding = TAB, onClick = { onReview(lang) }, colors = arcadeButtonColors(selected = n > 0)) { Text(tr("Review") + if (n > 0) " · $n" else "") } }
-            Button(padding = TAB, onClick = onSettings, modifier = if (addons.isEmpty()) Modifier.focusRequester(focus) else Modifier) { Text(tr("Settings")) }
+            if (addons.isNotEmpty()) Button(padding = TAB, onClick = tab(0) { onDiscover(null) }, modifier = Modifier.focusRequester(tabs[0]).then(down)) { Text(tr("Discover")) }
+            due?.let { n -> Button(padding = TAB, onClick = tab(1) { onReview(lang) }, colors = arcadeButtonColors(selected = n > 0),
+                modifier = Modifier.focusRequester(tabs[1]).then(down)) { Text(tr("Review") + if (n > 0) " · $n" else "") } }
+            Button(padding = TAB, onClick = tab(2, onSettings), modifier = Modifier.focusRequester(tabs[2]).then(down)) { Text(tr("Settings")) }
         }
         when {
-            addons.isEmpty() -> Column(Modifier.padding(start = 16.dp, top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            addons.isEmpty() -> Column(Modifier.padding(start = 48.dp, end = 32.dp, top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(tr("Nothing to watch yet."), color = Colors.text, fontSize = 22.sp)
                 Text(tr("kumapie plays what your own Stremio addons give it. Add one in Settings, or the address of a kumapie server on a PC."), color = Colors.dim)
             }
             kept.isEmpty() -> Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim,
-                modifier = Modifier.padding(start = 16.dp, top = 24.dp))
-            else -> Shelf(tr("My shows")) {
-                items(kept.reversed().size) { i -> kept.reversed()[i].let { f -> Poster(f.poster, f.name, f.year, null, Modifier) { onDiscover(f) } } }
+                modifier = Modifier.padding(start = 48.dp, end = 32.dp, top = 24.dp))
+            else -> Shelf(tr("My shows"), inset = 48.dp) {
+                items(kept.reversed().size) { i -> kept.reversed()[i].let { f -> Poster(f.poster, f.name, f.year, null, if (i == 0) Modifier.focusRequester(firstPoster) else Modifier) { onDiscover(f) } } }
             }
         }
         // Discover's rows under it (the user's AniList lists, then the addons' catalogs): something to pick from the start.
-        rows.forEach { (name, titles) ->
-            Shelf(name) { items(titles.size) { i -> titles[i].let { f -> Poster(f.poster, f.name, f.year, null, Modifier) { onDiscover(f) } } } }
+        // Edge to edge: the page's padding cut the posters with a straight line at both sides.
+        rows.forEachIndexed { r, (name, titles) ->
+            Shelf(name, inset = 48.dp) { items(titles.size) { i -> titles[i].let { f ->
+                Poster(f.poster, f.name, f.year, null, if (r == 0 && i == 0 && kept.isEmpty()) Modifier.focusRequester(firstPoster) else Modifier) { onDiscover(f) } } } }
         }
     }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    // Back from Discover, Review or Settings: on the tab it went to (it was always Discover).
+    LaunchedEffect(Unit) { runCatching { tabs[aloneTab].requestFocus() }.onFailure { runCatching { tabs[2].requestFocus() } } }
 }
+
+/** The no-PC Home's tab last opened, focused again on the way back. */
+private var aloneTab = 0
 
 /** Where people report bugs and ideas (GitHub issues of the public repo). */
 const val ISSUES = "https://github.com/Pedrubik2000/kumapie-tv/issues"

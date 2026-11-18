@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.ui.Colors
@@ -121,7 +122,8 @@ fun Pill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, prima
         .clickable(onClick = onClick).padding(horizontal = 22.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         icon?.let { Icon(it, null, tint = ink, modifier = Modifier.size(24.dp)) }
-        Text(text, color = ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(text, color = ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false))
     }
 }
 

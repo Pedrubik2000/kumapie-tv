@@ -214,7 +214,12 @@ class WordColours : ContentProvider() {
             out.putBoolean("updated", srs.update(extras.getLong("note"), fields, extras.getString("tags")))
             return out
         }
-        val nid = srs.mine(lang, fields, extras.getString("tags").orEmpty())
+        // Already a card of that word ("Already in your reviews"): its note, flagged, not a crash in the calling app.
+        val nid = try { srs.mine(lang, fields, extras.getString("tags").orEmpty()) } catch (e: IllegalStateException) {
+            out.putBoolean("exists", true)
+            srs.existing(lang, fields)?.let { out.putLong("note", it) }
+            return out
+        }
         if (lang == io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) runBlocking { japanese.known.addNote(nid) } // blue at once
         android.util.Log.i("kumapie", "mined from $callingPackage: ${fields["Word"]} into ${lang.deck}")
         out.putLong("note", nid)

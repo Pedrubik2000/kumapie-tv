@@ -102,7 +102,7 @@ class WordPicker(
         val def = definition
         val word = selected?.word
         if (def != null && word != null && now - lastOk < 1_500) {
-            audio.play(api.definitionAudio(ctl.scene.source, ctl.scene.sourceLine + line, word))
+            audio.play(api.definitionAudio(ctl.scene.source, ctl.scene.sourceLineOf(line), word))
             lastOk = 0L
             return
         }
@@ -136,7 +136,7 @@ class WordPicker(
     /** The selected word's German definition read aloud. */
     fun hearDefinition() {
         val word = selected?.word ?: return
-        if (definition != null) audio.play(api.definitionAudio(ctl.scene.source, ctl.scene.sourceLine + line, word))
+        if (definition != null) audio.play(api.definitionAudio(ctl.scene.source, ctl.scene.sourceLineOf(line), word))
     }
 
     /** The selected word's line again; the picker stays open. */

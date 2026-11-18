@@ -78,6 +78,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.tv:tv-material:1.1.0")
+    implementation("androidx.compose.material:material-icons-extended") // the Home's round buttons (R8 keeps only those used)
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")

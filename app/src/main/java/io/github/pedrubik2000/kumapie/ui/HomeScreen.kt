@@ -38,6 +38,15 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Style
 import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -100,57 +109,78 @@ fun HomeScreen(api: Api, settings: Settings, profile: String, who: String, onSho
     var streams by remember { mutableStateOf<List<Pair<Show, Episode>>?>(null) }
     LaunchedEffect(lang) { streams = if (lang == "ja") runCatching { api.going() }.getOrDefault(emptyList()) else emptyList() }
 
-    // Scrolls sideways when the buttons don't fit (a squeezed SETTINGS wrapped letter by letter, 353 px tall, and
-    // pushed everything down: bedroom TV, 2026-11-15); focus brings the far ones into view.
-    // The logo stays put; only the buttons scroll (Pedro's nine cut SETTINGS and pushed the logo off, 2026-11-16).
+    // Review's count: due and new cards on the PC (the PC refuses a person whose cards aren't there: no button).
+    val due by androidx.compose.runtime.produceState<Int?>(null, lang) { value = lang?.let { runCatching { api.srsDue(it).let { d -> d.due + d.new } }.getOrNull() } }
+    // As the tablet's Glass Home (user, 2026-11-17): the bear top left, the language pill top right, round buttons
+    // down the left edge over everything, the last episode as a picture across the top.
     val header = @Composable {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 28.dp), verticalAlignment = Alignment.CenterVertically) {
-          Title("kuma", "pie")
-          Spacer(Modifier.width(20.dp))
-          Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-            if (langs.size > 1) langs.forEach { c ->
-                Button(padding = TAB, onClick = { picked = c; settings.prefs.edit().putString("home_lang_$profile", c).apply() },
-                    colors = arcadeButtonColors(selected = c == lang),
-                    modifier = Modifier.padding(end = 8.dp)) { Text(Lang.of(c).displayName) }
-            }
-            Spacer(Modifier.width(16.dp))
-            if (lang == "ja") { // Discover: Japanese only for now
-                Button(padding = TAB, onClick = onDiscover) { Text(tr("Discover")) }
-                Spacer(Modifier.width(8.dp))
-            }
-            if (lang != null) ReviewButton(api, lang, onReview)
-            Button(padding = TAB, onClick = onProfiles) { Text(who) } // back to "Who's watching?"
-            Spacer(Modifier.width(8.dp))
-            Button(padding = TAB, onClick = onStats) { Text(tr("Stats")) }
-            Spacer(Modifier.width(8.dp))
-            Button(padding = TAB, onClick = onSettings) { Text(tr("Settings")) }
-            Spacer(Modifier.width(12.dp)) // room for the focused button's 6% growth
-          }
+        Box(Modifier.fillMaxWidth().padding(start = 28.dp, end = 32.dp, top = 20.dp)) {
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(io.github.pedrubik2000.kumapie.R.drawable.bear), "kumapie",
+                Modifier.align(Alignment.TopStart).size(76.dp))
+            if (langs.size > 1) Button(padding = TAB, modifier = Modifier.align(Alignment.TopEnd).padding(top = 12.dp), onClick = {
+                val next = langs[(langs.indexOf(lang) + 1) % langs.size] // one button: OK goes to the next language
+                picked = next; settings.prefs.edit().putString("home_lang_$profile", next).apply()
+            }) { Text((lang?.let { Lang.of(it).displayName } ?: "") + "  ▾") }
         }
     }
-    // As the tablet's Glass Home (user, 2026-11-17): the last episode as a picture across the top, the buttons on it.
-    when {
-        error != null -> Column { header(); Box(Modifier.padding(horizontal = 32.dp)) { ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings) } }
-        shows == null || streams == null -> Column { header(); Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(horizontal = 48.dp)) }
-        lang == null -> Column { header(); Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(horizontal = 48.dp)) }
-        else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header) { LangCard(api, lang) }
+    val rail = listOfNotNull(
+        RailItem(androidx.compose.material.icons.Icons.Default.Home, tr("Home"), selected = true) {},
+        RailItem(androidx.compose.material.icons.Icons.Default.Explore, tr("Discover"), onClick = onDiscover).takeIf { lang == "ja" },
+        due?.let { n -> RailItem(androidx.compose.material.icons.Icons.Default.Style, tr("Review"), badge = n) { lang?.let(onReview) } },
+        RailItem(androidx.compose.material.icons.Icons.Default.BarChart, tr("Stats"), onClick = onStats),
+        RailItem(androidx.compose.material.icons.Icons.Default.Person, who, onClick = onProfiles), // back to "Who's watching?"
+        RailItem(androidx.compose.material.icons.Icons.Default.Settings, tr("Settings"), onClick = onSettings),
+    )
+    Box(Modifier.fillMaxSize()) {
+        when {
+            error != null -> Column { header(); Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings) } }
+            shows == null || streams == null -> Column { header(); Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
+            lang == null -> Column { header(); Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
+            else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header) { LangCard(api, lang) }
+        }
+        Rail(rail, Modifier.align(Alignment.CenterStart))
+    }
+}
+
+/** Where the page starts right of the round buttons ([Rail]). */
+private val RAIL = 124.dp
+
+/** A round button of the Home's left edge: [badge] > 0 shows a count on it (Review). */
+private class RailItem(val icon: androidx.compose.ui.graphics.vector.ImageVector, val label: String, val badge: Int = 0,
+                       val selected: Boolean = false, val onClick: () -> Unit)
+
+/**
+ * The tablet's Glass menu on the TV: round buttons down the left edge, Home first. The focused one shows its name
+ * beside it (on a phone you see the icon and tap; with a remote you need to know where OK goes).
+ */
+@Composable
+private fun Rail(items: List<RailItem>, modifier: Modifier) {
+    Column(modifier.padding(start = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        items.forEach { item ->
+            var focused by remember { mutableStateOf(false) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box {
+                    androidx.tv.material3.IconButton(onClick = item.onClick, modifier = Modifier.size(56.dp).onFocusChanged { focused = it.isFocused },
+                        colors = androidx.tv.material3.IconButtonDefaults.colors(
+                            containerColor = if (item.selected) Color.White else Colors.background.copy(alpha = 0.55f),
+                            contentColor = if (item.selected) Color.Black else Color.White,
+                            focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+                        border = androidx.tv.material3.IconButtonDefaults.border(border = androidx.tv.material3.Border(
+                            androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))))) {
+                        androidx.tv.material3.Icon(item.icon, item.label, Modifier.size(26.dp))
+                    }
+                    if (item.badge > 0) Text(if (item.badge > 99) "99+" else "${item.badge}", color = Color.White, fontSize = 11.sp,
+                        modifier = Modifier.align(Alignment.TopEnd).background(Colors.unknown, androidx.compose.foundation.shape.CircleShape).padding(horizontal = 5.dp))
+                }
+                if (focused) Text(item.label, color = Color.White, fontSize = 16.sp, style = Arcade.label,
+                    modifier = Modifier.padding(start = 12.dp).background(Colors.background.copy(alpha = 0.7f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
+            }
+        }
     }
 }
 
 /** The header's buttons: narrower than elsewhere so all nine of Pedro's fit a 960 dp TV. */
 internal val TAB = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
-
-/** "Review · N" for a person whose cards are on the PC (the PC refuses the others: no button). */
-@Composable
-private fun ReviewButton(api: Api, lang: String, onReview: (String) -> Unit) {
-    var n by remember(lang) { mutableStateOf<Int?>(null) }
-    LaunchedEffect(lang) { n = runCatching { api.srsDue(lang).let { it.due + it.new } }.getOrNull() }
-    val count = n ?: return
-    Button(padding = TAB, onClick = { onReview(lang) }, colors = arcadeButtonColors(selected = count > 0)) {
-        Text((tr("Review") + if (count > 0) " · $count" else ""))
-    }
-    Spacer(Modifier.width(8.dp))
-}
 
 /** Hours in this language (TV + phones) and words known, above everything (user, 2026-10-15), as on the phone. */
 @Composable
@@ -159,14 +189,17 @@ private fun LangCard(api: Api, lang: String) {
     var loaded by remember(lang) { mutableStateOf(false) }
     LaunchedEffect(lang) { t = runCatching { api.stats().langs[lang] }.getOrNull(); loaded = true }
     val s = t ?: return Spacer(Modifier.height(if (loaded) 0.dp else 66.dp)) // its height while loading: Home jumped down when it came
-    Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf((if (s.total < 36000) hoursMinutes(s.total) else "${(s.total / 3600).toInt()} h") to tr("In total"), hoursMinutes(s.week) to tr("Last 7 days"),
-            hoursMinutes(s.today) to tr("Today"), "${s.known}" to tr("Words known")).forEach { (v, l) ->
-            Column(Modifier.background(Arcade.slab, RowSlab).padding(horizontal = 26.dp, vertical = 8.dp)) {
-                Text(v, fontSize = 22.sp, color = Colors.accent, style = Arcade.label)
-                Text(l, fontSize = 12.sp, color = Colors.dim, style = Arcade.label)
+    // As the tablet's chips: today first (in the accent colour), dark glass with a thin white edge.
+    Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf(hoursMinutes(s.today) to tr("Today"), hoursMinutes(s.week) to tr("Last 7 days"),
+            (if (s.total < 36000) hoursMinutes(s.total) else "${"%.1f".format(s.total / 3600)} h") to tr("In total"), "%,d".format(s.known) to tr("Words known"))
+            .forEachIndexed { i, (v, l) ->
+                Column(Modifier.background(Colors.background.copy(alpha = 0.55f), RoundedCornerShape(18.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(18.dp)).padding(horizontal = 20.dp, vertical = 10.dp)) {
+                    Text(v, fontSize = 22.sp, color = if (i == 0) Colors.accent else Color.White, style = Arcade.label)
+                    Text(l, fontSize = 12.sp, color = Colors.dim, style = Arcade.label)
+                }
             }
-        }
     }
 }
 
@@ -198,9 +231,9 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
         if (more.isNotEmpty()) item(key = "going") {
             // A new state when the streamed cards arrive: else the row stays scrolled to the old first card.
             Column {
-                Heading(tr("Continue watching"), Modifier.padding(start = 48.dp))
+                Heading(tr("Continue watching"), Modifier.padding(start = RAIL))
                 LazyRow(state = remember(streams) { androidx.compose.foundation.lazy.LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp),
-                    contentPadding = PaddingValues(start = 48.dp, end = 32.dp, top = 12.dp, bottom = 24.dp)) { // room for the focused card to grow 10%
+                    contentPadding = PaddingValues(start = RAIL, end = 32.dp, top = 12.dp, bottom = 24.dp)) { // room for the focused card to grow 10%
                     itemsIndexed(more, key = { _, p -> p.second.id }) { i, (s, e) ->
                         ResumeCard(s, e, if (i == 0) Modifier.focusRequester(below) else Modifier, width = 300.dp) { onPlay(s, e) }
                     }
@@ -208,7 +241,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
             }
         }
         if (kept.isNotEmpty()) item(key = "streaming") {
-            Box(Modifier.padding(start = 32.dp)) { Shelf(tr("Streaming")) {
+            Box(Modifier.padding(start = RAIL - 16.dp)) { Shelf(tr("Streaming")) {
                 itemsIndexed(kept, key = { _, f -> f.id }) { i, f ->
                     Poster(f.poster, f.name, f.year, null, when { i != 0 -> Modifier; going.isEmpty() -> Modifier.focusRequester(first); more.isEmpty() -> Modifier.focusRequester(below); else -> Modifier }) { onDiscovered(f) }
                 }
@@ -219,7 +252,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
             val list = list.sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
             if (list.isNotEmpty()) item(key = "kind-$r") {
                 val top = going.isEmpty() && kept.isEmpty() && rows.take(r).all { it.second.isEmpty() }
-                Box(Modifier.padding(start = 32.dp)) { Shelf(label) {
+                Box(Modifier.padding(start = RAIL - 16.dp)) { Shelf(label) {
                     itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
                         Poster(s.poster, shortTitle(s.title), levelLine(s), null,
                             when {
@@ -245,7 +278,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
 @Composable
 private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Composable () -> Unit, modifier: Modifier, onTop: () -> Unit,
                  onShow: () -> Unit, onPlay: () -> Unit) {
-    val height = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.62f).dp
+    val height = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.66f).dp
     Box(Modifier.fillMaxWidth().height(height)) {
         NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
         AsyncImage(model = e.thumb.ifEmpty { s.poster }, contentDescription = null, contentScale = ContentScale.Crop,
@@ -254,9 +287,9 @@ private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Co
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Colors.background.copy(alpha = 0.6f), 0.25f to Color.Transparent,
             0.6f to Color.Transparent, 1f to Colors.background)))
         header()
-        Column(Modifier.align(Alignment.BottomStart).padding(start = 48.dp, end = 24.dp, bottom = 24.dp).width(560.dp)) {
+        Column(Modifier.align(Alignment.BottomStart).padding(start = RAIL, end = 24.dp, bottom = 24.dp).width(600.dp)) {
             Text(tr("Continue watching").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)
-            Text(shortTitle(s.title), color = Color.White, fontSize = 44.sp, lineHeight = 50.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(shortTitle(s.title), color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Color.White.copy(alpha = 0.85f), fontSize = 18.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
             ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(380.dp).padding(top = 12.dp))

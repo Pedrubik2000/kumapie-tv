@@ -97,7 +97,7 @@ private const val STEPS = 4
 @Composable
 private fun TvJitenImport(settings: Settings) {
     val context = LocalContext.current
-    val known = remember { TvMining.languages(context, settings).japanese.known }
+    val known = remember { japaneseKnown(context, settings) }
     val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var top by remember { mutableIntStateOf(10000) }

@@ -74,6 +74,9 @@ import kotlin.coroutines.resume
  * The TV's mining (no spaCy, no Sudachi: the PC's word data is the card's): [languages] when a player opens
  * ([paintCards]), the miner on the first hold ↑.
  */
+/** Japanese known words, for the onboarding's Jiten import (TvOnboarding). */
+internal fun japaneseKnown(context: Context, settings: Settings) = TvMining.languages(context, settings).japanese.known
+
 private object TvMining {
     private var miner: Miner? = null
     lateinit var languages: Languages

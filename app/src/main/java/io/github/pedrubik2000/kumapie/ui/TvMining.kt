@@ -742,7 +742,9 @@ class AloneBackend(private val context: Context, private val settings: Settings)
 
     override suspend fun markKnown(word: String, known: Boolean, scene: String): String = withContext(Dispatchers.IO) {
         val list = TvMining.languages(context, settings).of(Lang.JAPANESE).known
-        if (list.ready) list.mark(word, known) else if (known) "k" else "u"
+        // Always kept: [KnownWords.ready] (Anki read on this device) is never true on a TV, so marks made without the
+        // PC showed white and were gone the next time (Pedro, Chromecast, 2026-11-18).
+        list.mark(word, known)
     }
 
     override fun wordAudio(surface: String, lang: String): String = TvMining.recording(context, settings, surface, lang) ?: "tts:$surface"

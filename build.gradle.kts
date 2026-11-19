@@ -13,6 +13,7 @@ plugins {
 // then hoshidicts for two ABIs), phone 77.4 MB. Raise a limit only on purpose, with the reason in the commit.
 val apkBudgetMb = mapOf("app" to 11.0, "mobile" to 80.0)
 subprojects {
+    if (rootProject.hasProperty("debuggable")) return@subprojects // a heap-dump build (app/build.gradle.kts), never shipped
     val budget = apkBudgetMb[name] ?: return@subprojects
     val apks = layout.buildDirectory.dir("outputs/apk/release")
     tasks.matching { it.name == "assembleRelease" }.configureEach {

@@ -22,6 +22,9 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
  * own, but a FLAC audio track gets a decoder input buffer of 1 MB. A Blu-ray file streamed from Discover had FLAC frames
  * of 33-34 KB; Samsung's FLAC decoder (tablet) got ExoPlayer's 32 KB, every bigger frame was dropped ("Buffer too
  * small") and the video froze and paused with the audio (2026-11-15).
+ * Its buffer stops at [BUFFER_BYTES]: ExoPlayer's own aims at 50 s up to ~130 MB, in the Java heap; a 4K "AI upscale"
+ * Dandadan 10 filled 86 MB of it in seconds and, with Jiten's ~60 MB lexicon, the Chromecast's 256 MB heap ran out
+ * (crash, 2026-11-19; heap dump in work\kumapie\oom).
  */
 fun videoPlayer(context: Context, lang: String?): ExoPlayer = ExoPlayer.Builder(context, object : DefaultRenderersFactory(context) {
     override fun buildAudioRenderers(
@@ -34,12 +37,17 @@ fun videoPlayer(context: Context, lang: String?): ExoPlayer = ExoPlayer.Builder(
                     .let { if (format.sampleMimeType == MimeTypes.AUDIO_FLAC) maxOf(it, 1 shl 20) else it }
         }
     }
-}).build().apply {
+}).setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder()
+    .setTargetBufferBytes(BUFFER_BYTES).setPrioritizeTimeOverSizeThresholds(false).build()
+).build().apply {
     if (lang != null) {
         trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(lang).build()
         addListener(SpokenAudio(this, lang, context))
     }
 }
+
+/** The most video+audio [videoPlayer] holds ahead: ~10 s of a 40 Mbps 4K file, ~40 s of a usual 10 Mbps one. */
+const val BUFFER_BYTES = 48 shl 20
 
 /**
  * The [lang] audio track when its language tag doesn't say so: a dual-audio file named its tracks "Eng" (default) and

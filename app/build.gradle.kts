@@ -40,6 +40,8 @@ android {
 
     buildTypes {
         release {
+            // -Pdebuggable: the same release build, heap-dumpable (am dumpheap) on a TV, over the installed app and its data.
+            isDebuggable = project.hasProperty("debuggable")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

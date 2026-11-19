@@ -62,6 +62,19 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         // ExoPlayer's subtitle view): its cue times are the video's own clock, to fit Jimaku's file to ([fit]).
         if (ja) source = "file" else needJimaku = true
         canFit = tracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.length > 0 }
+        tracksKnown = true
+        if (stopWhenKnown && !canFit) stop()
+    }
+
+    /** The file's tracks were read ([canFit] means something from then on). */
+    var tracksKnown = false
+        private set
+    private var stopWhenKnown = false
+
+    /** The episode was made: stop, unless the fit to the file's track may still land (tracks not read yet: decided then). */
+    fun stopUnlessFitting() {
+        if (!tracksKnown) stopWhenKnown = true
+        else if (!canFit || fitted != null) stop()
     }
 
     override fun onCues(cueGroup: CueGroup) {
@@ -80,13 +93,14 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
      * shown, by the clock. With one (Netflix-style) the file's own lines stay on screen and Jimaku's only make the
      * episode ([lines]): a track's lines only come as it plays, the words need them all.
      */
-    suspend fun run() {
-        while (source.isEmpty() && !needJimaku) delay(200)
+    suspend fun run() = kotlinx.coroutines.coroutineScope {
+        // Asked at once and handed on as soon as they come: the words need only them, not the file's tracks (waiting for
+        // those first was ~1.4 s of a stream's words, tablet 2026-11-18).
         val got = runCatching { jimaku() }.getOrDefault(emptyList())
-        if (got.isEmpty()) { noLines = needJimaku; return }
+        if (got.isNotEmpty()) { starts = got.map { it.first }; lines = got }
+        while (source.isEmpty() && !needJimaku) delay(50)
+        if (got.isEmpty()) { noLines = needJimaku; return@coroutineScope }
         if (needJimaku) source = "jimaku"
-        starts = got.map { it.first }
-        lines = got
         while (true) {
             if (fitted == null && refs.size >= MIN_REFS && refs.size % 2 == 0 && refs.size != tried) {
                 tried = refs.size

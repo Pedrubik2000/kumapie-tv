@@ -48,7 +48,7 @@ class AloneStream(
         }
         built = live.offset
         saveOffset() // the word player adds its hand shifts to it
-        if (!live.canFit || live.fitted != null) live.stop() // else it listens to the file's track until the fit lands
+        live.stopUnlessFitting() // else it listens to the file's track until the fit lands
         // tvbench reads this line ("words ready").
         android.util.Log.i("kumapie", "words ready: lines ${tLines - t0} ms after open, english ${tEnglish - tLines}, " +
             "build ${android.os.SystemClock.elapsedRealtime() - tEnglish} (${live.source}, ${live.lines.size} lines, ${if (live.canFit) "fit later" else "no track to fit"})")

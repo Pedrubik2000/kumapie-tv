@@ -30,6 +30,23 @@ object Jimaku {
      */
     suspend fun lines(key: String, show: String, season: Int?, episode: Int?, videoName: String = ""): List<Line> {
         if (key.isBlank()) error("Jimaku needs your API key (free, jimaku.cc): add it in Settings")
+        // An episode opened before: its lines from the device (four requests in a row took ~2 s of a stream's words, tablet 2026-11-18).
+        val saved = cache?.let { java.io.File(it, "jimaku/" + "$show|$season|$episode|$videoName".hashCode().toUInt() + ".json") }
+        if (saved != null) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { saved.takeIf { it.exists() }?.let { f ->
+            runCatching { org.json.JSONArray(f.readText()).let { a -> (0 until a.length()).map { a.getJSONArray(it).let { l -> Line(l.getDouble(0), l.getDouble(1), l.getString(2)) } } } }
+                .getOrNull() } }?.let { return it }
+        return fetch(key, show, season, episode, videoName).also { lines ->
+            if (saved != null && lines.isNotEmpty()) runCatching {
+                saved.parentFile?.mkdirs()
+                saved.writeText(org.json.JSONArray(lines.map { org.json.JSONArray().put(it.start).put(it.end).put(it.text) }).toString())
+            }
+        }
+    }
+
+    /** Where [lines] keeps each episode's lines (the app's cache folder; null: not kept). */
+    @Volatile var cache: java.io.File? = null
+
+    private suspend fun fetch(key: String, show: String, season: Int?, episode: Int?, videoName: String): List<Line> {
         val media = runCatching { anilist(show, season) }.getOrNull()
         fun search(q: String) = "$API/entries/search?anime=true&$q"
         var entries = JSONArray(String(get(search(media?.let { "anilist_id=${it.first}" } ?: "query=${enc(show)}"), key)))

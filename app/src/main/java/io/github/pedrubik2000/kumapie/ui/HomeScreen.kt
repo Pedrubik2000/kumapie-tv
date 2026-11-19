@@ -123,7 +123,7 @@ fun HomeScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, settings: Set
     // Review's count: due and new cards on the PC (the PC refuses a person whose cards aren't there: no button).
     val context = androidx.compose.ui.platform.LocalContext.current
     val due by androidx.compose.runtime.produceState<Int?>(null, lang) { value = lang?.let { runCatching {
-        if (api is Api) api.srsDue(it).let { d -> d.due + d.new } else io.github.pedrubik2000.kumapie.lang.ownReview(context, it).due().size }.getOrNull() } } // no PC: this TV's own cards
+        if (api is Api) api.srsDue(it).let { d -> d.due + d.new } else io.github.pedrubik2000.kumapie.lang.ownDueCount(context, it) }.getOrNull() } } // no PC: this TV's own cards
     // As the tablet's Glass Home (user, 2026-11-17): the bear top left, the language pill top right, round buttons
     // down the left edge over everything, the last episode as a picture across the top.
     val header = @Composable {

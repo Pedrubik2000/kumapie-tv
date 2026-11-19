@@ -147,7 +147,7 @@ internal fun destinations(homeLang: String, onDiscover: () -> Unit, onFeed: () -
     // Review (no PC: kumapie's own cards; with a PC they are reviewed in kuma3): its count of due and new cards.
     val context = androidx.compose.ui.platform.LocalContext.current
     val due by androidx.compose.runtime.produceState(0, homeLang, onReview != null, refresh) {
-        value = if (onReview == null) 0 else runCatching { io.github.pedrubik2000.kumapie.lang.ownReview(context, homeLang).due().size }.getOrDefault(0)
+        value = if (onReview == null) 0 else runCatching { io.github.pedrubik2000.kumapie.lang.ownDueCount(context, homeLang) }.getOrDefault(0)
     }
     val main = listOfNotNull(
         Dest(Icons.Default.Explore, tr("Discover"), onDiscover).takeIf { homeLang == "ja" },

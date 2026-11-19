@@ -31,11 +31,23 @@ fun ownReview(context: android.content.Context, lang: String): ReviewSource {
     )
 }
 
+/**
+ * Home's Review count: the device's own cards due now plus the new ones, counted only. Home used `due().size`, which made
+ * every card's text with regexes: seconds of CPU on the Chromecast, still running when the title page and the stream
+ * list opened (their frames took 96-163 ms each, 2026-11-19).
+ */
+suspend fun ownDueCount(context: android.content.Context, lang: String): Int = withContext(Dispatchers.IO) {
+    val now = System.currentTimeMillis()
+    SrsCards(context).store(Lang.of(lang))?.cards().orEmpty().count { (it.due ?: 0L) <= now }
+}
+
 /** Anki's furigana: " 支配[しはい]" (the space starts the word). */
 private val FURIGANA = Regex(""" ?(\S+?)\[([^\]]*)\]""")
+private val BREAK = Regex("""<br\s*/?>""")
+private val TAG = Regex("<[^>]+>")
 
 /** A field of an own card as text: furigana and HTML tags dropped (<b> marks the word in the sentence). */
-private fun plain(s: String) = s.replace(Regex("""<br\s*/?>"""), " ").replace(Regex("<[^>]+>"), "").replace(FURIGANA, "$1").trim()
+private fun plain(s: String) = s.replace(BREAK, " ").replace(TAG, "").replace(FURIGANA, "$1").trim()
 
 /**
  * Where [word] is in [sentence], to mark it: whole words in spaced scripts, anywhere in Japanese. A Japanese word not

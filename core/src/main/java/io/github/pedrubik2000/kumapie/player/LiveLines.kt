@@ -62,6 +62,8 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         // ExoPlayer's subtitle view): its cue times are the video's own clock, to fit Jimaku's file to ([fit]).
         if (ja) source = "file" else needJimaku = true
         canFit = tracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.length > 0 }
+        dialogue(tracks)?.let { (g, i) -> if (!g.isTrackSelected(i)) player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setOverrideForType(androidx.media3.common.TrackSelectionOverride(g.mediaTrackGroup, i)).build() }
         tracksKnown = true
         if (stopWhenKnown && !canFit) stop()
     }
@@ -115,6 +117,19 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
     }
 
     companion object {
+        /**
+         * The text track with the dialogue (Japanese first): a dual-audio release's default English track is often
+         * "Signs/Song" only, which shows a line every few minutes, so the fit never got its [MIN_REFS] lines (Space
+         * Dandy [commie]: "English Signs/Song" selected, "English Subs" not, tablet 2026-11-19).
+         */
+        fun dialogue(tracks: Tracks): Pair<Tracks.Group, Int>? = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+            .flatMap { g -> (0 until g.length).map { g to it } }
+            .filter { (g, i) -> g.getTrackFormat(i).let { f -> f.selectionFlags and C.SELECTION_FLAG_FORCED == 0 && !notDialogue(f.label.orEmpty()) } }
+            .maxByOrNull { (g, i) -> if (g.getTrackFormat(i).language.orEmpty().startsWith("ja")) 1 else 0 }
+
+        /** A track label that says signs, songs or forced only ("English Signs/Song [commie]", "Forced"). */
+        fun notDialogue(label: String) = Regex("""sign|song|forced|karaoke|\bop\b|\bed\b""",RegexOption.IGNORE_CASE).containsMatchIn(label)
+
         private const val MIN_REFS = 8
         private const val CHUNK = 180.0
 

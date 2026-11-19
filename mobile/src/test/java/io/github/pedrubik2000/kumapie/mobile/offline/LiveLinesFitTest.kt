@@ -29,6 +29,12 @@ class LiveLinesFitTest {
         org.junit.Assert.assertTrue("$onJapanese of ${english.size}", onJapanese >= english.size - 2)
     }
 
+    @Test fun signsTracksAreNotDialogue() {
+        // Space Dandy [commie] (2026-11-19): the default English track was signs only; the fit waited on it for ever.
+        for (l in listOf("English Signs/Song [commie]", "Signs & Songs", "Forced", "English (OP/ED)")) org.junit.Assert.assertTrue(l, LiveLines.notDialogue(l))
+        for (l in listOf("English Subs [commie]", "Full Subtitles", "Closed Captions", "日本語", "")) org.junit.Assert.assertFalse(l, LiveLines.notDialogue(l))
+    }
+
     @Test fun anotherEpisodesFileIsNotPlaced() =
         assertNull(LiveLines.place((0 until 120).map { 3.0 + it * 5.1 }, (0 until 100).map { 7.3 + it * it * 0.061 }))
 }

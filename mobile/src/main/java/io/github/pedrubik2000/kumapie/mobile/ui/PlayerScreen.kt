@@ -203,6 +203,8 @@ internal fun ScenePlayer(
     onShift: ((Double, Double) -> Unit)? = null,
     /** A player already opened on [episode] (the feed's next page, buffered while the last one played); released here. */
     preloaded: ExoPlayer? = null,
+    /** False: [preloaded] is the caller's to release (a stream's episode remade with another Jimaku file keeps playing). */
+    ownsPlayer: Boolean = true,
     /** Discover's stream without a PC: the late fit moves the lines through it ([SceneController.shift]). */
     onController: (SceneController) -> Unit = {},
 ) {
@@ -267,7 +269,7 @@ internal fun ScenePlayer(
             ctl.tick()
             ctl.report()
             picker.release()
-            player.release()
+            if (ownsPlayer) player.release()
             bgm?.release()
             // Leaving the player with ratings in this scene: their cards take it (kumapie_plan.md 37b), after the screen is gone.
             val rated = ratings.values.toList()

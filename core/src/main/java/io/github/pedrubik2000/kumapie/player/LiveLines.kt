@@ -17,7 +17,14 @@ import kotlinx.coroutines.delay
  * ([jimaku]: [[start, end, text]] from the PC) shown by the player's clock, [offset] seconds moved (it may be timed for
  * another release). [line] is the one on screen now. [stop] before the player goes on with the episode's scenes.
  */
-class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () -> List<Triple<Double, Double, String>>) : Player.Listener {
+class LiveLines(
+    private val player: ExoPlayer,
+    /** Jimaku's next files for the episode (1: the second best…), tried when the first never fits ([OTHERS_AFTER]). */
+    private val others: suspend (Int) -> List<Triple<Double, Double, String>> = { emptyList() },
+    /** The file that fitted instead of the first: keep it for next time. */
+    private val switched: (List<Triple<Double, Double, String>>) -> Unit = {},
+    private val jimaku: suspend () -> List<Triple<Double, Double, String>>,
+) : Player.Listener {
     var line by mutableStateOf<String?>(null)
         private set
 
@@ -49,6 +56,7 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
     val refCount get() = refs.size
     private var shown = emptyList<androidx.media3.common.text.Cue>() // the last group: a line ending under another isn't a new one
     private var tried = 0 // refs.size [fit] last ran on
+    private var triedOthers = false
 
     init {
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
@@ -114,9 +122,25 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
                 tried = refs.size
                 fit(refs, starts)?.let { if (offset == 0.0 || offset == guess) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
             }
+            // The first file never fits (another script, or a loose one): the next ranked files against the lines heard so
+            // far; one that fits replaces it (its new [lines] remake the episode's words).
+            if (fitted == null && !triedOthers && refs.size >= OTHERS_AFTER) {
+                triedOthers = true
+                for (i in 1..3) {
+                    val other = runCatching { others(i) }.getOrDefault(emptyList()).takeIf { it.isNotEmpty() } ?: break
+                    val f = fit(refs.toList(), other.map { it.first }) ?: continue
+                    android.util.Log.i("LiveLines", "file ${i + 1} fitted $f s from ${refs.size} lines (the first didn't)")
+                    starts = other.map { it.first }
+                    lines = other
+                    if (offset == 0.0 || offset == guess) offset = f
+                    fitted = f
+                    switched(other)
+                    break
+                }
+            }
             if (source == "jimaku") {
                 val t = player.currentPosition / 1000.0 - offset
-                line = got.lastOrNull { it.first <= t }?.takeIf { t < it.second }?.third
+                line = lines.lastOrNull { it.first <= t }?.takeIf { t < it.second }?.third
             }
             delay(100)
         }
@@ -137,6 +161,7 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         fun notDialogue(label: String) = Regex("""sign|song|forced|karaoke|\bop\b|\bed\b""",RegexOption.IGNORE_CASE).containsMatchIn(label)
 
         private const val MIN_REFS = 8
+        private const val OTHERS_AFTER = 30
         private const val CHUNK = 180.0
 
         /**

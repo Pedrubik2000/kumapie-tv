@@ -406,7 +406,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
             trackSelectionParameters = trackSelectionParameters.buildUpon().setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true).build()
         }
     }
-    DisposableEffect(Unit) { onDispose { if (detail == null) player.release() } } // else ScenePlayer releases it
+    DisposableEffect(Unit) { onDispose { player.release() } } // after ScenePlayer's own dispose (ownsPlayer = false)
     // An addon's link (no PC, kumapie for other people): no polling; Jimaku is asked on the phone with the user's key.
     val alone = query["url"].orEmpty()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -506,7 +506,8 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         if (library.settings.upright) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     if (d != null) {
         return Box(Modifier.fillMaxSize().background(Color.Black)) {
-            ScenePlayer(library, library.settings, library.backend(d.lang), d, startPaused = false, onBack, preloaded = player, onController = { ctl = it })
+            // A new [d] (another Jimaku file fitted: AloneStream) is a new ScenePlayer on the same player.
+            androidx.compose.runtime.key(d) { ScenePlayer(library, library.settings, library.backend(d.lang), d, startPaused = false, onBack, preloaded = player, ownsPlayer = false, onController = { ctl = it }) }
             // The end of the episode still looks for the next one here (the listener above): its failure shown too.
             error?.let {
                 Text(it, color = Color.White, fontSize = 13.sp,

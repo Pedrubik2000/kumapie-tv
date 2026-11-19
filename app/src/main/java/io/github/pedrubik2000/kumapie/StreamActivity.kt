@@ -295,7 +295,8 @@ class StreamActivity : ComponentActivity() {
             remember(ep) { alone = null; note = null }
             val backend = remember { io.github.pedrubik2000.kumapie.ui.AloneBackend(context, settings) }
             DisposableEffect(backend) { onDispose { backend.close() } }
-            return io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p, onController = { ctl = it })
+            // A new [ep] (another Jimaku file fitted: AloneStream) is a new ScenePlayer on the same player.
+            return androidx.compose.runtime.key(ep) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p, onController = { ctl = it }) }
         }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; requestFocus(); aloneView = this } },

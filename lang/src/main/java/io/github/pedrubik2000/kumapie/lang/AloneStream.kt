@@ -93,6 +93,13 @@ class AloneStream(
         /** The device's shift for a no-PC episode's lines (the word player's hand shifts add to it). */
         fun offKey(id: String) = "alone_off_" + id.removePrefix("alone:")
 
+        /** A hand shift of a no-PC episode's lines by [by] s (the TV's and the phone's Subtitle timing): now, and kept for next time. */
+        fun shift(ctl: io.github.pedrubik2000.kumapie.player.SceneController, prefs: SharedPreferences, by: Double) {
+            ctl.shift(by)
+            val key = offKey(ctl.episode.id)
+            prefs.edit().putFloat(key, prefs.getFloat(key, 0f) + by.toFloat()).apply()
+        }
+
         /** The last file played of [id]'s title (its release: what Jimaku's files are ranked against). */
         fun fileKey(id: String) = "alone_file_" + io.github.pedrubik2000.kumapie.data.Addons.titleOf(id.removePrefix("alone:"))
 

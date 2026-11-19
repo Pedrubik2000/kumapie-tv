@@ -713,6 +713,12 @@ internal fun MenuLanguage(settings: Settings) {
     if (settings.server.isEmpty()) return
     Text(tr("This device belongs to"), color = Colors.accent)
     Text(tr("Episodes made here go to the PC, and the PC's new episodes come here (on Wi-Fi)."), color = Colors.dim, fontSize = 14.sp)
+    // The PC's people, as the TV's "Who's watching?" (the family's three when it doesn't answer).
+    var people by remember { mutableStateOf(listOf("pedro" to "Pedro", "giovanna" to "Giovanna", "jackson" to "Jackson")) }
+    LaunchedEffect(settings.server) {
+        runCatching { io.github.pedrubik2000.kumapie.data.Api(settings.server).people() }.getOrNull()
+            ?.takeIf { it.isNotEmpty() }?.let { p -> people = p.map { it.id to it.name } }
+    }
     var owner by remember { mutableStateOf(settings.owner) }
     var asking by remember { mutableStateOf<Pair<String, String>?>(null) } // the owner picked, waiting for Yes
     fun setOwner(key: String) {
@@ -724,7 +730,7 @@ internal fun MenuLanguage(settings: Settings) {
         }
     }
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("pedro" to "Pedro", "giovanna" to "Giovanna", "jackson" to "Jackson", "" to tr("Nobody (no sync)")).forEach { (key, label) ->
+        (people + ("" to tr("Nobody (no sync)"))).forEach { (key, label) ->
             androidx.compose.material3.FilterChip(selected = owner == key, label = { Text(label) }, onClick = {
                 // A first owner is set at once; moving the device to someone else (or to nobody) asks first.
                 if (owner.isBlank() || key == owner) setOwner(key) else asking = key to label

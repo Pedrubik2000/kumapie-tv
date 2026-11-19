@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.pedrubik2000.kumapie.data.Api
+import io.github.pedrubik2000.kumapie.data.ended
+import io.github.pedrubik2000.kumapie.data.watchReady
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.Tr
@@ -64,7 +66,7 @@ class StreamActivity : ComponentActivity() {
         val video = intent.data?.toString()
         if (video != null && Uri.parse(video).let { it.scheme == "kumapie" && it.host == "play" }) {
             // Without a PC: the menu language picked in the TV's first steps, as MainActivity.
-            Tr.use(if (settings.server.isEmpty()) settings.prefs.getString(io.github.pedrubik2000.kumapie.ui.ALONE_LANG, "").orEmpty() else settings.speaks)
+            Tr.use(if (settings.server.isEmpty()) settings.menuLanguage else settings.speaks)
             return setContent { KumapieTheme { Alone(settings, Uri.parse(video)) } }
         }
         if (video == null || settings.server.isEmpty()) {
@@ -156,24 +158,12 @@ class StreamActivity : ComponentActivity() {
      */
     private suspend fun watched(api: Api, link: Uri, shown: (String) -> Unit, video: (String) -> Unit, onNext: (String) -> Unit): EpisodeDetail {
         val query = link.queryParameterNames.associateWith { link.getQueryParameter(it).orEmpty() }
-        while (true) {
-            val r = api.watch(query)
-            onNext(r.optString("next"))
-            watchFile = r.optString("file").ifEmpty { query["file"].orEmpty() }
-            if (r.has("url")) video(r.getString("url"))
-            when (r.optString("state")) {
-                "ready" -> {
-                    val d = api.episode(r.getString("id"))
-                    val at = withContext(Dispatchers.Main) { player?.currentPosition ?: 0L } / 1000.0
-                    // Where it was left when that is further in than the plain video got while its words loaded (it starts at 0:00).
-                    return d.copy(video = r.getString("url"), show = query["title"].orEmpty(), resume = if (at > 1 && at >= (d.resume ?: 0.0)) at else d.resume)
-                }
-                "none" -> error(tr("No file is ready for this episode yet: pick one in its files"))
-                "failed" -> error(tr("The PC couldn't get it: %1\$s", r.optString("error")))
-                else -> shown(r.optString("step"))
-            }
-            delay(3_000)
-        }
+        watchFile = query["file"].orEmpty()
+        // The polling is shared with the phone (core data/Streaming.kt).
+        val r = api.watchReady(query, shown, video, onNext) { watchFile = it }
+        val d = api.episode(r.getString("id"))
+        val at = withContext(Dispatchers.Main) { player?.currentPosition ?: 0L } / 1000.0
+        return d.copy(video = r.getString("url"), show = query["title"].orEmpty(), resume = io.github.pedrubik2000.kumapie.data.resumeAt(at, d.resume))
     }
 
     /**
@@ -321,16 +311,13 @@ class StreamActivity : ComponentActivity() {
         val id = link.getQueryParameter("id").orEmpty()
         val type = link.getQueryParameter("type") ?: "series"
         val addons = io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)
-        // A movie or a whole title (kitsu:12345) has no next: 12346 is another show.
-        if (type == "movie" || id.count { it == ':' } < 2) { runCatching { addons.seen(id, true) }; return }
-        val n = id.substringAfterLast(':').toIntOrNull() ?: return
-        runCatching { addons.seen(id, true) }
-        say(tr("Next: episode %1\$d…", n + 1))
-        val (next, f) = runCatching { addons.next(type, id, link.getQueryParameter("file").orEmpty()) }.getOrElse { return say(it.message ?: it.toString()) }
-            ?: return say(tr("No files found for episode %1\$d", n + 1))
+        // Shared with the phone (core data/Streaming.kt): a movie or a whole title has no next.
+        val e = runCatching { addons.ended(type, id, link.getQueryParameter("file").orEmpty()) { say(tr("Next: episode %1\$d…", it)) } }
+            .getOrElse { return say(it.message ?: it.toString()) } ?: return
+        val (next, f) = e.next ?: return say(tr("No files found for episode %1\$d", e.n))
         val show = link.getQueryParameter("show").orEmpty()
         startActivity(Intent(this, StreamActivity::class.java).setData(Uri.parse("kumapie://play").buildUpon().apply {
-            listOf("url" to f.getString("url"), "type" to type, "id" to next, "title" to "$show ${n + 1}",
+            listOf("url" to f.getString("url"), "type" to type, "id" to next, "title" to "$show ${e.n}",
                 "show" to show, "file" to f.optString("file")).forEach { (k, v) -> appendQueryParameter(k, v) }
         }.build()))
         finish()

@@ -72,9 +72,6 @@ import io.github.pedrubik2000.kumapie.data.levelLine
 import io.github.pedrubik2000.kumapie.data.shortTitle
 import io.github.pedrubik2000.kumapie.data.shown
 
-/** Home's rows, in this order (the phone's); reels are feed-only, so the TV never lists them. */
-private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "visual_novels" to "Visual novels")
-
 /**
  * Asks for the focus until the target is laid out: a lazy list composes its items only when it lays them out, so a
  * plain requestFocus() right after the first composition throws (item 13c).
@@ -253,8 +250,8 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
                  header: @Composable () -> Unit = {}, railFocus: Map<String, FocusRequester> = emptyMap(), first: FocusRequester = remember { FocusRequester() }, api: io.github.pedrubik2000.kumapie.data.Discovery? = null, stats: @Composable () -> Unit = {}) {
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows, streams)
     val more = going.drop(1) // the first is the picture at the top
-    val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
-    val rows = KINDS.map { (k, label) -> tr(label) to shows.filter { it.kind == k } } + listOf(tr("Other") to other)
+    // Shared with the phone (core data/ShowLevel.kt): the categories, easiest first, finished last.
+    val rows = io.github.pedrubik2000.kumapie.data.libraryRows(shows).map { (label, list) -> tr(label) to list }
     // Down from Resume goes to the row under it: the beam search could take a far card instead.
     val below = remember { FocusRequester() }
     val firstShelf = rows.indexOfFirst { it.second.isNotEmpty() }
@@ -302,8 +299,6 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
             } }
         }
         rows.forEachIndexed { r, (label, list) ->
-            // Easiest first, finished last, as on the phone.
-            val list = list.sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
             if (list.isNotEmpty()) item(key = "kind-$r") {
                 val top = going.isEmpty() && kept.isEmpty() && rows.take(r).all { it.second.isEmpty() }
                 Box { Shelf(label, inset = RAIL) {

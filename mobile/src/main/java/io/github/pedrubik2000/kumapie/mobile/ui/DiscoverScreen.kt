@@ -84,6 +84,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import io.github.pedrubik2000.kumapie.data.ended
+import io.github.pedrubik2000.kumapie.data.watchReady
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.objects
@@ -425,13 +427,14 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
             override fun onPlaybackStateChanged(state: Int) {
                 // No PC: the next episode's file from the addons (the same release group if there is one).
                 if (state == Player.STATE_ENDED && alone.isNotEmpty()) scope.launch {
-                    step = tr("Next: episode %1\$d…", (query["id"].orEmpty().substringAfterLast(':').toIntOrNull() ?: 0) + 1)
                     val addons = library.discovery as? io.github.pedrubik2000.kumapie.data.Addons ?: return@launch
-                    runCatching { addons.seen(query["id"].orEmpty(), true) }
-                    runCatching { addons.next(query["type"].orEmpty(), query["id"].orEmpty(), file) }.onSuccess { n ->
-                        if (n == null) error = tr("No files found for this") else onNext(mapOf("lang" to (query["lang"] ?: "ja"), "type" to query["type"].orEmpty(),
+                    // Shared with the TV (core data/Streaming.kt): a movie or a whole title has no next (it said "No files found").
+                    runCatching { addons.ended(query["type"].orEmpty(), query["id"].orEmpty(), file) { step = tr("Next: episode %1\$d…", it) } }.onSuccess { e ->
+                        val n = e?.next
+                        if (e == null) return@onSuccess
+                        if (n == null) error = tr("No files found for episode %1\$d", e.n) else onNext(mapOf("lang" to (query["lang"] ?: "ja"), "type" to query["type"].orEmpty(),
                             "id" to n.first, "url" to n.second.getString("url"), "file" to n.second.optString("file"), "show" to query["show"].orEmpty(),
-                            "title" to "${query["show"].orEmpty()} ${n.first.substringAfterLast(':')}"))
+                            "title" to "${query["show"].orEmpty()} ${e.n}"))
                     }.onFailure { error = it.message ?: it.toString() }
                 }
                 if (state == Player.STATE_ENDED && next.isNotEmpty()) onNext(mapOf("lang" to (query["lang"] ?: "ja"),
@@ -473,32 +476,18 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         LaunchedEffect(live.fitted, ctl) { ctl?.let { s.fitLanded(it::shift) } }
     } else LaunchedEffect(Unit) {
         runCatching {
-            while (true) {
-                val r = library.api.watch(query)
-                next = r.optString("next")
-                r.optString("file").takeIf { it.isNotEmpty() }?.let { file = it }
-                val state = r.optString("state")
-                when (state) {
-                    "none" -> error(tr("No file is ready for this episode yet: pick one in its files"))
-                    "failed" -> error(r.optString("error"))
-                }
-                if (!playing && r.has("url")) {
-                    player.setMediaItem(MediaItem.fromUri(r.getString("url")))
+            // The polling is shared with the TV (core data/Streaming.kt).
+            val r = library.api.watchReady(query, step = { step = it }, url = { u ->
+                if (!playing) {
+                    player.setMediaItem(MediaItem.fromUri(u))
                     player.prepare()
                     player.play()
                     playing = true
                 }
-                if (state == "ready") {
-                    val d = library.episode(r.getString("id"))
-                    live.stop() // the scenes draw the lines now
-                    val at = player.currentPosition / 1000.0
-                    // Where it was left when that is further in than the plain video got while its words loaded (it starts at 0:00).
-                    detail = d.copy(video = r.getString("url"), resume = if (at > 1 && at >= (d.resume ?: 0.0)) at else d.resume)
-                    return@runCatching
-                }
-                step = r.optString("step")
-                delay(3_000)
-            }
+            }, next = { next = it }, file = { file = it })
+            val d = library.episode(r.getString("id"))
+            live.stop() // the scenes draw the lines now
+            detail = d.copy(video = r.getString("url"), resume = io.github.pedrubik2000.kumapie.data.resumeAt(player.currentPosition / 1000.0, d.resume))
         }.onFailure { error = it.message ?: it.toString() }
     }
     val d = detail

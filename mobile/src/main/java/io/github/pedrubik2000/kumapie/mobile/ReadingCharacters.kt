@@ -36,15 +36,13 @@ object ReadingCharacters {
     fun sync(context: Context, settings: Settings) = runCatching {
         val works = settings.prefs.getStringSet(WORKS, emptySet()).orEmpty()
         if (works.isNotEmpty()) post("${settings.server}/api/characters/works", JSONObject().put("works", JSONArray(works.toList())).toString())
-        val names = JSONArray(URL("${settings.server}/api/models/ja-dicts").readText()).let { a -> (0 until a.length()).map(a::getString) }
-        val newest = names.filter { it.startsWith("bee_reading_") }.maxOrNull() ?: return@runCatching
+        // Shared steps with the TV's dictionaries (YomitanDictionaries.pcJapanese / importFromPc).
+        val yomitan = YomitanDictionaries.get(context)
+        val newest = yomitan.pcJapanese(settings.server).filter { it.startsWith("bee_reading_") }.maxOrNull() ?: return@runCatching
         if (newest == settings.prefs.getString(FETCHED, null)) return@runCatching
-        val zip = File(context.cacheDir, newest)
-        URL("${settings.server}/api/models/ja-dicts/${Uri.encode(newest)}").openStream().use { i -> zip.outputStream().use { i.copyTo(it) } }
         kotlinx.coroutines.runBlocking {
-            YomitanDictionaries.get(context).import(listOf(Uri.fromFile(zip)), Lang.JAPANESE) {}.forEach { Log.i("kumapie", "reading characters: $it") }
+            yomitan.importFromPc(settings.server, newest).forEach { Log.i("kumapie", "reading characters: $it") }
         }
-        zip.delete()
         WordColours.forgetFaces() // names that had no face before may have one now
         settings.prefs.edit().putString(FETCHED, newest).apply()
     }.onFailure { Log.w("kumapie", "reading characters: $it") }

@@ -40,18 +40,9 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
     var message by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
 
-    fun update() {
-        if (!Updater.canInstall(context)) {
-            message = tr("Allow kumapie to install apps on the page that opened, then press Update again.")
-            return
-        }
-        progress = 0f
-        message = tr("Downloading…")
-        scope.launch {
-            runCatching { Updater.download(context, release) { progress = it } }
-                .onSuccess { message = tr("Installing…"); Updater.install(context, it) }
-                .onFailure { progress = -1f; message = tr("Download failed: %s", it.message) }
-        }
+    fun update() { scope.launch { // shared with the phone (Updater.update)
+        Updater.update(context, release, tr("Allow kumapie to install apps on the page that opened, then press Update again."),
+            { progress = it }, { message = it }) }
     }
 
     // Its own window: drawn over Home in the same one, Home took the focus when its titles came in later and the remote

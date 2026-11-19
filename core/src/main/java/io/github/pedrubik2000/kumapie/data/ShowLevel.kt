@@ -41,6 +41,29 @@ fun continueRow(shows: List<Show>, streams: List<Pair<Show, Episode>> = emptyLis
             ?.let { s to it }
     } + streams).sortedByDescending { it.second.resumedAt }
 
+/** Home's categories, in this order (the PC's library folders). Reels (YouTube shorts made on a phone) are feed-only. */
+val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "visual_novels" to "Visual novels")
+
+/**
+ * Home's library, the TV's rows and the phone's tabs: each of [KINDS] then "Other" (labels in English: tr them), the
+ * shows easiest first, finished last, no easy count yet (not synced) between them. Empty ones kept (the TV counts rows).
+ */
+fun libraryRows(shows: List<Show>): List<Pair<String, List<Show>>> {
+    val easiest = compareBy<Show>({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) })
+    val other = shows.filter { s -> s.kind != "reels" && KINDS.none { it.first == s.kind } }
+    return KINDS.map { (k, label) -> label to shows.filter { it.kind == k }.sortedWith(easiest) } + ("Other" to other.sortedWith(easiest))
+}
+
+/** Watch time as Stats and Home's cards say it: "45 min", "2 h", "11 h 36 min" (the TV's and the phone's). */
+fun hoursMinutes(seconds: Double): String {
+    val m = (seconds / 60).toInt()
+    return when {
+        m < 60 -> "$m min"
+        m % 60 == 0 -> "${m / 60} h"
+        else -> "${m / 60} h ${m % 60} min"
+    }
+}
+
 /** A streamed card's title for the Discover page ([Show.kind] "stream"). */
 fun streamFound(s: Show, e: Episode) = Found(s.id, if (e.number == null) "movie" else "series", s.title, s.poster, "")
 

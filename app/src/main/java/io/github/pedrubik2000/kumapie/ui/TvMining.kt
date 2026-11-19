@@ -139,19 +139,14 @@ private object TvMining {
             return
         }
         fetching = tr("Getting the Japanese dictionaries from the PC…")
-        val app = context.applicationContext
         val prefs = settings.prefs
         work.launch {
             runCatching {
-                val all = JSONArray(URL("${settings.server}/api/models/ja-dicts").readText())
-                val names = (0 until all.length()).map { all.getString(it) } - prefs.getStringSet(FETCHED, emptySet()).orEmpty()
+                // Every new one (the phone takes only the reading characters'): shared steps in YomitanDictionaries.
+                val names = yomitan.pcJapanese(settings.server) - prefs.getStringSet(FETCHED, emptySet()).orEmpty()
                 names.forEachIndexed { i, name ->
                     fetching = tr("Getting the Japanese dictionaries from the PC (%1\$d/%2\$d)…", i + 1, names.size)
-                    // Named as on the PC: "[Bilingual] JMdict….zip" gives the import its group.
-                    val zip = File(app.cacheDir, name)
-                    URL("${settings.server}/api/models/ja-dicts/${Uri.encode(name)}").openStream().use { input -> zip.outputStream().use { input.copyTo(it) } }
-                    yomitan.import(listOf(Uri.fromFile(zip)), Lang.JAPANESE) {}.forEach { Log.i("kumapie", "ja dictionary: $it") }
-                    zip.delete()
+                    yomitan.importFromPc(settings.server, name).forEach { Log.i("kumapie", "ja dictionary: $it") }
                     prefs.edit().putStringSet(FETCHED, prefs.getStringSet(FETCHED, emptySet()).orEmpty() + name).apply()
                 }
             }.onFailure { Log.w("kumapie", "Japanese dictionaries: $it") }
@@ -280,9 +275,8 @@ private fun dictLabel(title: String): String {
 /** The reading in kana with its pitch drawn over it: a line over the high morae, a drop after the accented one. */
 @Composable
 private fun PitchReading(kana: String, downstep: Int?) {
-    val morae = ArrayList<String>()
-    for (c in kana) if (c in "ゃゅょぁぃぅぇぉャュョァィゥェォ" && morae.isNotEmpty()) morae[morae.lastIndex] += c else morae += c.toString()
-    fun high(i: Int, n: Int) = when (n) { 0 -> i > 0; 1 -> i == 0; else -> i in 1 until n }
+    val morae = JapaneseLookup.morae(kana) // pitch shared with the phone's popup
+    fun high(i: Int, n: Int) = JapaneseLookup.high(i, n)
     Row {
         morae.forEachIndexed { i, m ->
             val up = downstep != null && high(i, downstep)

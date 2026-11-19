@@ -40,7 +40,7 @@ import kotlinx.coroutines.launch
 
 /** Set once the TV's onboarding was finished: it doesn't come back. */
 const val TV_ONBOARDED = "onboarded"
-/** The menu language picked in the onboarding ("" = the TV's own). */
+/** The menu language picked in the onboarding before it became Settings.menuLanguage (shared with the phone, 2026-11-19): read once to move it. */
 const val ALONE_LANG = "alone_lang"
 
 /**
@@ -51,7 +51,7 @@ const val ALONE_LANG = "alone_lang"
 @Composable
 fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
     var step by remember { mutableIntStateOf(0) }
-    var lang by remember { mutableStateOf(settings.prefs.getString(ALONE_LANG, "").orEmpty()) }
+    var lang by remember { mutableStateOf(settings.menuLanguage) }
     remember(lang) { Tr.use(lang) }
     val first = remember { FocusRequester() }
     Column(Modifier.fillMaxSize().padding(48.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -63,7 +63,7 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
                     listOf("" to tr("The TV's language"), "en" to "English", "es" to "Español").forEachIndexed { i, (code, label) ->
                         Button(onClick = {
                             lang = code
-                            settings.prefs.edit().putString(ALONE_LANG, code).apply()
+                            settings.menuLanguage = code // shared with the phone
                             if (code.isNotEmpty()) settings.speaks = code // meanings and the second line in it too
                         }, modifier = if (i == 0) Modifier.focusRequester(first) else Modifier) {
                             Text((if (lang == code) "✓ " else "") + label)
@@ -189,4 +189,11 @@ internal fun qr(text: String, size: Int): Bitmap {
     // One array, one call: setPixel per pixel (230 000 of them) stalled a Chromecast on every Settings.
     val px = IntArray(size * size) { if (m[it % size, it / size]) android.graphics.Color.BLACK else android.graphics.Color.WHITE }
     return Bitmap.createBitmap(px, size, size, Bitmap.Config.RGB_565)
+}
+
+/** The TV's old menu-language pref into the shared [Settings.menuLanguage], once (a TV set up before 2026-11-19). */
+fun moveAloneLang(settings: Settings) {
+    val old = settings.prefs.getString(ALONE_LANG, null) ?: return
+    if (settings.menuLanguage.isEmpty()) settings.menuLanguage = old
+    settings.prefs.edit().remove(ALONE_LANG).apply()
 }

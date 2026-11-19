@@ -111,9 +111,6 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.ui.NeutralPoster
 
-/** Home's categories, in this order (the PC's library folders). Reels (YouTube shorts made here) are feed-only. */
-private val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "visual_novels" to "Visual novels")
-
 /**
  * The languages this device learns: the ones its shows are in (saved each time Home gets the list), so a parent's phone
  * shows nothing German or Japanese. Before the first list: all; without a PC, Japanese (the only one at launch,
@@ -410,12 +407,8 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows, streams) // novels are read, not watched: they count too
     // Resume column beside the library only at expanded width (a tablet on its side); upright it's one column.
     val split = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
-    val other = shows.filter { s -> s.kind != "reels" && KINDS.none { it.first == s.kind } }
-    // Easiest first, finished last; no easy count yet (not synced) between them.
-    val kinds = (KINDS + listOf("" to "Other")).map { (k, label) ->
-        tr(label) to (if (k.isEmpty()) other else shows.filter { it.kind == k })
-            .sortedWith(compareBy({ ahead(it).isEmpty() }, { -(easyPercent(it) ?: -1) }))
-    }.filter { it.second.isNotEmpty() }
+    // Shared with the TV (core data/ShowLevel.kt): the categories, easiest first, finished last.
+    val kinds = io.github.pedrubik2000.kumapie.data.libraryRows(shows).map { (label, list) -> tr(label) to list }.filter { it.second.isNotEmpty() }
     var tab by rememberSaveable(shows.firstOrNull()?.lang) { mutableIntStateOf(0) }
     val picked = tab.coerceIn(0, (kinds.size - 1).coerceAtLeast(0))
     val tabs = @Composable {

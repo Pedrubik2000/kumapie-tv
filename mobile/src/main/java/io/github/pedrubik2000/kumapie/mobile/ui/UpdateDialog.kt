@@ -35,18 +35,9 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
     var progress by remember { mutableFloatStateOf(-1f) }
     var message by remember { mutableStateOf("") }
 
-    fun update() {
-        if (!Updater.canInstall(context)) {
-            message = tr("Allow kumapie to install apps on the page that opened, then tap Update again.")
-            return
-        }
-        progress = 0f
-        message = tr("Downloading…")
-        scope.launch {
-            runCatching { Updater.download(context, release) { progress = it } }
-                .onSuccess { message = tr("Installing…"); Updater.install(context, it) }
-                .onFailure { progress = -1f; message = tr("Download failed: %s", it.message) }
-        }
+    fun update() { scope.launch { // shared with the TV (Updater.update)
+        Updater.update(context, release, tr("Allow kumapie to install apps on the page that opened, then tap Update again."),
+            { progress = it }, { message = it }) }
     }
 
     AlertDialog(

@@ -465,9 +465,7 @@ internal fun ScenePlayer(
             Options(ctl, seekStep, { seekStep = it; settings.seekStep = it }, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow,
                 onShift?.let { f -> { secs: Double -> options = false; ctl.report(); f(secs, ctl.position) } }
                     ?: if (shiftsHere) ({ secs: Double ->
-                        ctl.shift(secs); shiftedHere += secs
-                        val key = io.github.pedrubik2000.kumapie.lang.AloneStream.offKey(episode.id)
-                        settings.prefs.edit().putFloat(key, settings.prefs.getFloat(key, 0f) + secs.toFloat()).apply()
+                        io.github.pedrubik2000.kumapie.lang.AloneStream.shift(ctl, settings.prefs, secs); shiftedHere += secs // shared with the TV
                     }) else null,
                 onShift?.let { library.local.shifted(episode.id) } ?: shiftedHere.takeIf { shiftsHere })
         }

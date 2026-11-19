@@ -200,15 +200,9 @@ private fun PitchReading(reading: String, downstep: Int?) {
     }
 }
 
-/** Heiban [0]: low then high; atamadaka [1]: high then low; nakadaka/odaka [n]: low, high up to mora n, then low. */
-private fun high(i: Int, n: Int) = when (n) { 0 -> i > 0; 1 -> i == 0; else -> i in 1 until n }
-
-private fun morae(kana: String): List<String> {
-    val small = "ゃゅょぁぃぅぇぉャュョァィゥェォ"
-    val out = ArrayList<String>()
-    for (c in kana) if (c in small && out.isNotEmpty()) out[out.lastIndex] = out.last() + c else out += c.toString()
-    return out
-}
+// Pitch: shared with the TV's word card (lang JapaneseLookup).
+private fun high(i: Int, n: Int) = io.github.pedrubik2000.kumapie.lang.JapaneseLookup.high(i, n)
+private fun morae(kana: String) = io.github.pedrubik2000.kumapie.lang.JapaneseLookup.morae(kana)
 
 /** The headword's cards in the shared WebView; chips hide the other groups; open/closed is remembered. */
 @Composable

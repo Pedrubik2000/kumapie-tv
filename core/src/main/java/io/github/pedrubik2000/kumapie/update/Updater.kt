@@ -108,6 +108,20 @@ object Updater {
             out
         }
 
+    /**
+     * The update dialog's Update, the TV's and the phone's: asks for the install permission first ([allow] says what
+     * to do then), else downloads ([progress] 0..1, -1 again on a failure) and hands it to Android's installer;
+     * [message] gets each step.
+     */
+    suspend fun update(context: Context, release: Release, allow: String, progress: (Float) -> Unit, message: (String) -> Unit) {
+        if (!canInstall(context)) return message(allow)
+        progress(0f)
+        message(tr("Downloading…"))
+        runCatching { download(context, release, progress) }
+            .onSuccess { message(tr("Installing…")); install(context, it) }
+            .onFailure { progress(-1f); message(tr("Download failed: %s", it.message)) }
+    }
+
     /** True when the app may install APKs; otherwise opens the system page to allow it and returns false. */
     fun canInstall(context: Context): Boolean {
         if (context.packageManager.canRequestPackageInstalls()) return true

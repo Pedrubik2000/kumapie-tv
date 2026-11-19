@@ -80,6 +80,22 @@ class YomitanDictionaries private constructor(private val context: Context) {
         return out.sortedBy { it.first }.map { it.second }
     }
 
+    /** The Japanese dictionaries the PC offers (`/api/models/ja-dicts`: zip names, "[Bilingual] JMdict….zip"). Blocking. */
+    fun pcJapanese(server: String): List<String> =
+        JSONArray(java.net.URL("$server/api/models/ja-dicts").readText()).let { a -> (0 until a.length()).map(a::getString) }
+
+    /**
+     * One of [pcJapanese] downloaded and imported (named as on the PC, which gives the import its group): the TV's
+     * dictionaries and the phone's reading characters. Answers what the import said.
+     */
+    suspend fun importFromPc(server: String, name: String): List<String> {
+        val zip = File(context.cacheDir, name)
+        withContext(Dispatchers.IO) {
+            java.net.URL("$server/api/models/ja-dicts/${Uri.encode(name)}").openStream().use { i -> zip.outputStream().use { i.copyTo(it) } }
+        }
+        return try { import(listOf(Uri.fromFile(zip)), Lang.JAPANESE) {} } finally { zip.delete() }
+    }
+
     /** Imports Yomitan zips picked by the user for [lang]. Answers one line per file. */
     suspend fun import(uris: List<Uri>, lang: Lang, progress: (String) -> Unit): List<String> = work.withLock { withContext(Dispatchers.IO) {
         uris.map { uri ->

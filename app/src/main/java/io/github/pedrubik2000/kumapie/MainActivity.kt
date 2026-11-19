@@ -132,7 +132,7 @@ fun App(settings: Settings) {
             io.github.pedrubik2000.kumapie.ui.TvOnboarding(settings, onDone = { onboarded = true })
         } else if (server.isEmpty()) {
             // No server: no profiles to ask for (one person) and nothing to list yet; the language picked in the onboarding.
-            LaunchedEffect(Unit) { Tr.use(settings.prefs.getString(io.github.pedrubik2000.kumapie.ui.ALONE_LANG, "").orEmpty()) }
+            LaunchedEffect(Unit) { io.github.pedrubik2000.kumapie.ui.moveAloneLang(settings); Tr.use(settings.menuLanguage) }
             when (stack.last()) {
                 Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
                     onSaved = { server = settings.server }, onUpdate = { update = it })

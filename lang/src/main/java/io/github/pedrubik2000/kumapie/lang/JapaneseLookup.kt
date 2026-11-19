@@ -264,6 +264,17 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         /** Katakana -> hiragana (Sudachi gives readings in katakana, dictionaries in hiragana). */
         fun hiragana(s: String): String = buildString { for (c in s) append(if (c in 'ァ'..'ヶ') c - 0x60 else c) }
 
+        /** A reading's morae (きょう: きょ, う), for drawing its pitch (the TV's word card and the phone's popup). */
+        fun morae(kana: String): List<String> {
+            val small = "ゃゅょぁぃぅぇぉャュョァィゥェォ"
+            val out = ArrayList<String>()
+            for (c in kana) if (c in small && out.isNotEmpty()) out[out.lastIndex] = out.last() + c else out += c.toString()
+            return out
+        }
+
+        /** Whether mora [i] is high with downstep [n]: heiban [0] low then high; atamadaka [1] high then low; [n] low, high up to mora n, then low. */
+        fun high(i: Int, n: Int) = when (n) { 0 -> i > 0; 1 -> i == 0; else -> i in 1 until n }
+
         /** A reading, or "" when it mixes kana and Latin letters: Bee's 紅娘 has ほんgにあんg (pinyin half turned into kana). */
         fun cleanReading(r: String): String =
             if (r.any { it in 'a'..'z' || it in 'A'..'Z' } && r.any { it in 'ぁ'..'ゖ' || it in 'ァ'..'ヶ' }) "" else r

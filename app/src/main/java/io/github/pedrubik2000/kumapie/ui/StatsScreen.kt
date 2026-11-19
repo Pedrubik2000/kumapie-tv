@@ -231,14 +231,7 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
     }
 }
 
-internal fun hoursMinutes(seconds: Double): String {
-    val m = (seconds / 60).toInt()
-    return when {
-        m < 60 -> "$m min"
-        m % 60 == 0 -> "${m / 60} h"
-        else -> "${m / 60} h ${m % 60} min"
-    }
-}
+internal fun hoursMinutes(seconds: Double): String = io.github.pedrubik2000.kumapie.data.hoursMinutes(seconds) // shared with the phone
 
 /** Month names in the menu language (the parents' Spanish Stats showed "Dec Jan Feb"). */
 private fun menuLocale(): Locale = if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) Locale("es") else Locale.ENGLISH

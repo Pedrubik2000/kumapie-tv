@@ -164,14 +164,7 @@ fun ProgressBar(fraction: Float, modifier: Modifier = Modifier) {
 }
 
 /** "24 min", "1 h 5 min". */
-fun minutes(seconds: Double): String {
-    val m = (seconds / 60).toInt()
-    return when {
-        m < 60 -> "$m min"
-        m % 60 == 0 -> "${m / 60} h"
-        else -> "${m / 60} h ${m % 60} min"
-    }
-}
+fun minutes(seconds: Double): String = io.github.pedrubik2000.kumapie.data.hoursMinutes(seconds) // shared with the TV
 
 /** Every bottom sheet: dark system bars under it (Material's sheet followed the system's light theme: a white bar). */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)

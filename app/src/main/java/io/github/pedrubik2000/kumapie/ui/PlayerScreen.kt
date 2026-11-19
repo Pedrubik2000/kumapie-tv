@@ -479,7 +479,7 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
             // A no-PC episode (Jimaku's lines, made as it streamed): every line earlier / later, kept for next time
             // (StreamActivity's alone_off_<id>, the shift it starts from).
             if (ctl.episode.id.startsWith("alone:")) {
-                val key = "alone_off_" + ctl.episode.id.removePrefix("alone:")
+                val key = io.github.pedrubik2000.kumapie.lang.AloneStream.offKey(ctl.episode.id)
                 var moved by remember { mutableStateOf(0.0) }
                 fun shift(by: Double) {
                     ctl.shift(by)

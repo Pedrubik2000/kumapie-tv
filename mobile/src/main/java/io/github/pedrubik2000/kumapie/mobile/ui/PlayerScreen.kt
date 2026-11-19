@@ -464,7 +464,7 @@ internal fun ScenePlayer(
                 onShift?.let { f -> { secs: Double -> options = false; ctl.report(); f(secs, ctl.position) } }
                     ?: if (shiftsHere) ({ secs: Double ->
                         ctl.shift(secs); shiftedHere += secs
-                        val key = "alone_off_" + episode.id.removePrefix("alone:")
+                        val key = io.github.pedrubik2000.kumapie.lang.AloneStream.offKey(episode.id)
                         settings.prefs.edit().putFloat(key, settings.prefs.getFloat(key, 0f) + secs.toFloat()).apply()
                     }) else null,
                 onShift?.let { library.local.shifted(episode.id) } ?: shiftedHere.takeIf { shiftsHere })

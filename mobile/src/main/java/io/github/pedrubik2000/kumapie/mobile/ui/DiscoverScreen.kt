@@ -397,7 +397,6 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     var next by remember { mutableStateOf("") }
     var file by remember { mutableStateOf(query["file"].orEmpty()) }
     var ctl by remember { mutableStateOf<io.github.pedrubik2000.kumapie.player.SceneController?>(null) }
-    var built by remember { mutableStateOf<Double?>(null) } // the offset the words were made with (no PC)
     val player = remember {
         io.github.pedrubik2000.kumapie.player.videoPlayer(context, query["lang"] ?: "ja").apply {
             // As ScenePlayer's own: the episode's audio language, the file's own subtitle tracks off.
@@ -408,18 +407,14 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     // An addon's link (no PC, kumapie for other people): no polling; Jimaku is asked on the phone with the user's key.
     val alone = query["url"].orEmpty()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val live = remember {
-        LiveLines(player) {
-            if (alone.isEmpty()) library.api.discoverSubs(query["type"].orEmpty(), query["id"].orEmpty(), file)
-            else io.github.pedrubik2000.kumapie.data.Jimaku.lines(library.settings.prefs.getString("jimaku_key", "").orEmpty(), query["show"].orEmpty(),
-                null, query["id"].orEmpty().substringAfterLast(':').toIntOrNull(), file).map { Triple(it.start, it.end, it.text) }
-                // (empty: [LiveLines.noLines] says so once the file turned out to have no Japanese track either)
-        }
+    // No PC: lines, words at once, the late fit, the shift and the place, shared with the TV (AloneStream).
+    val s = remember {
+        if (alone.isEmpty()) null else io.github.pedrubik2000.kumapie.lang.AloneStream(library.settings.prefs,
+            library.discovery as? io.github.pedrubik2000.kumapie.data.Addons, player, query["id"].orEmpty(), query["type"] ?: "series",
+            query["show"].orEmpty(), query["title"].orEmpty(), alone, file) { error = it }
     }
-    // No PC: the subtitle shift kept on this device for next time, as the TV does (alone_off_<id>; a saved shift beats the fit).
-    val offKey = "alone_off_" + query["id"].orEmpty()
-    if (alone.isNotEmpty()) remember(live) { live.offset = library.settings.prefs.getFloat(offKey, 0f).toDouble() }
-    DisposableEffect(Unit) { onDispose { if (alone.isNotEmpty() && detail == null) library.settings.prefs.edit().putFloat(offKey, live.offset.toFloat()).apply() } }
+    val live = remember { s?.live ?: LiveLines(player) { library.api.discoverSubs(query["type"].orEmpty(), query["id"].orEmpty(), file) } }
+    DisposableEffect(Unit) { onDispose { s?.leave() } }
     LaunchedEffect(live) { live.run() }
     LaunchedEffect(live.noLines) { if (live.noLines) error = tr("No Japanese subtitles: none in this file, none on Jimaku") }
     DisposableEffect(Unit) {
@@ -450,58 +445,29 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         onDispose { player.removeListener(ended) }
     }
     BackHandler(onBack = onBack)
-    if (alone.isNotEmpty()) {
-        val posKey = "alone_pos_" + query["id"].orEmpty()
+    if (s != null) {
         LaunchedEffect(Unit) {
             // Where it was left on this device (no PC to keep it), as the TV does.
-            val at = library.settings.prefs.getFloat(posKey, 0f)
-            player.setMediaItem(MediaItem.fromUri(alone), if (at > 5) (at * 1000).toLong() else 0L)
+            player.setMediaItem(MediaItem.fromUri(alone), ((io.github.pedrubik2000.kumapie.lang.AloneStream.resume(library.settings.prefs, s.id) ?: 0.0) * 1000).toLong())
             player.prepare()
             player.play()
             playing = true
             step = tr("Japanese lines from Jimaku…")
             while (true) { // saved as it plays: the word player takes this player over, and releases it
                 delay(5_000)
-                val d = player.duration
-                if (d > 0) library.settings.prefs.edit().putFloat(posKey,
-                    if (player.currentPosition > d - 120_000) 0f else player.currentPosition / 1000f).apply() // near the end: from the start next time
+                s.savePlace(player.currentPosition, player.duration)
             }
         }
-        // Jimaku's lines are all there: the episode is made on the phone at once, as on the TV. The fit to the file's own
-        // subtitle track lands later (it needs 8 of its lines played; waiting up to 30 s for it held the words back:
-        // 37 s on the TV, 2026-11-18) and moves the lines then (below).
+        // Jimaku's lines are all there: the episode is made at once ([AloneStream.build]); the late fit moves its lines.
         LaunchedEffect(live.lines) {
             if (live.lines.isEmpty()) return@LaunchedEffect
-            val t0 = android.os.SystemClock.elapsedRealtime()
-            // English under the lines, from the user's subtitle addon if they added one (OpenSubtitles v3).
-            val english = runCatching {
-                (library.discovery as? io.github.pedrubik2000.kumapie.data.Addons)
-                    ?.english(query["type"] ?: "series", query["id"].orEmpty(), live.lines.map { it.first + live.offset })
-            }.getOrNull().orEmpty()
-            var d: EpisodeDetail? = null
-            while (d == null) {
-                d = runCatching {
-                    io.github.pedrubik2000.kumapie.lang.EpisodeBuilder.fromLines(context, "alone:" + query["id"].orEmpty(), query["show"].orEmpty(),
-                        query["title"].orEmpty(), alone, (player.duration.takeIf { it > 0 } ?: 0L) / 1000.0, live.lines, live.offset, player.currentPosition / 1000.0, english)
-                }.getOrElse { error = it.message; return@LaunchedEffect }
-                if (d == null) { step = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
-            }
-            library.settings.prefs.edit().putFloat(offKey, live.offset.toFloat()).apply() // the word player adds its shifts to it
-            built = live.offset
-            if (!live.canFit || live.fitted != null) live.stop() // else it listens to the file's track until the fit lands
-            android.util.Log.i("kumapie", "words ready: ${android.os.SystemClock.elapsedRealtime() - t0} ms after the lines (${live.lines.size} lines, ${if (live.canFit) "fit later" else "no track to fit"})")
-            detail = d.copy(video = alone, resume = player.currentPosition / 1000.0)
+            detail = runCatching {
+                s.build(context, (player.duration.takeIf { it > 0 } ?: 0L) / 1000.0, { player.currentPosition / 1000.0 }) {
+                    step = tr("Words: downloading the Japanese dictionary (once)…")
+                }
+            }.getOrElse { error = it.message; return@LaunchedEffect }
         }
-        LaunchedEffect(live.fitted, ctl) {
-            val c = ctl ?: return@LaunchedEffect
-            val from = built ?: return@LaunchedEffect
-            if (live.fitted == null) return@LaunchedEffect
-            if (live.offset != from) c.shift(live.offset - from)
-            android.util.Log.i("kumapie", "late fit: ${live.fitted} s from ${live.refCount} lines, lines moved ${live.offset - from} s")
-            built = live.offset
-            library.settings.prefs.edit().putFloat(offKey, live.offset.toFloat()).apply()
-            live.stop()
-        }
+        LaunchedEffect(live.fitted, ctl) { ctl?.let { s.fitLanded(it::shift) } }
     } else LaunchedEffect(Unit) {
         runCatching {
             while (true) {

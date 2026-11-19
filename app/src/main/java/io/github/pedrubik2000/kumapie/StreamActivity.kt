@@ -231,13 +231,19 @@ class StreamActivity : ComponentActivity() {
      */
     @Composable
     private fun Alone(settings: Settings, link: Uri) {
-        val t0 = remember { android.os.SystemClock.elapsedRealtime() }
         val id = link.getQueryParameter("id").orEmpty()
-        val resume = remember { settings.prefs.getFloat("alone_pos_$id", 0f).toDouble() }
+        val show = link.getQueryParameter("show").orEmpty()
         val scope = androidx.compose.runtime.rememberCoroutineScope()
-        val p = rememberPlayer(link.getQueryParameter("url").orEmpty(), resume.takeIf { it > 5 }, "ja")
+        val p = rememberPlayer(link.getQueryParameter("url").orEmpty(), remember { io.github.pedrubik2000.kumapie.lang.AloneStream.resume(settings.prefs, id) }, "ja")
         remember(p) { player = p; p.playWhenReady = true }
         var note by remember { mutableStateOf<String?>(null) }
+        // Lines, words at once, the late fit, the shift and the place: shared with the phone/tablet's WatchScreen.
+        val s = remember(p) {
+            io.github.pedrubik2000.kumapie.lang.AloneStream(settings.prefs, io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs), p, id,
+                link.getQueryParameter("type") ?: "series", show, link.getQueryParameter("title") ?: show,
+                link.getQueryParameter("url").orEmpty(), link.getQueryParameter("file").orEmpty()) { note = it }
+        }
+        val live = s.live
         DisposableEffect(p) {
             val listener = object : Player.Listener {
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
@@ -251,24 +257,12 @@ class StreamActivity : ComponentActivity() {
             p.addListener(listener)
             onDispose {
                 p.removeListener(listener)
-                // Left near the end: from the start next time.
-                val at = if (p.duration > 0 && p.currentPosition > p.duration - 120_000) 0f else p.currentPosition / 1000f
-                io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).played(id, at.toDouble(), (p.duration.coerceAtLeast(0) / 1000).toDouble()) // Home's Continue watching
-                alone?.let { settings.prefs.edit().putFloat("alone_off_$id", it.offset.toFloat()).apply() } // after the switch: kept at it
+                s.savePlace(p.currentPosition, p.duration) // and Home's Continue watching
+                s.leave()
                 alone = null; aloneView = null
             }
         }
-        val live = remember(p) {
-            LiveLines(p) {
-                val number = id.substringAfterLast(':').toIntOrNull()
-                runCatching {
-                    io.github.pedrubik2000.kumapie.data.Jimaku.lines(settings.prefs.getString("jimaku_key", "").orEmpty(),
-                        link.getQueryParameter("show").orEmpty(), null, number, link.getQueryParameter("file").orEmpty())
-                }.onFailure { note = it.message }.getOrDefault(emptyList()).map { Triple(it.start, it.end, it.text) }
-                    // (empty: [LiveLines.noLines] says so once the file turned out to have no Japanese track either)
-            }
-        }
-        remember(live) { alone = live; live.offset = settings.prefs.getFloat("alone_off_$id", 0f).toDouble() }
+        remember(live) { alone = live }
         LaunchedEffect(live) { live.run() }
         LaunchedEffect(live.noLines) { if (live.noLines && note == null) note = tr("No Japanese subtitles: none in this file, none on Jimaku") }
         // Which lines and how far moved, for a few seconds after it changes (it used to stay on the whole time).
@@ -287,48 +281,18 @@ class StreamActivity : ComponentActivity() {
         var shown by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.EpisodeDetail?>(null) }
         LaunchedEffect(live.lines) {
             if (live.lines.isEmpty()) return@LaunchedEffect
-            val tLines = android.os.SystemClock.elapsedRealtime() // "words ready" below: how long each stage took (tvbench)
-            val show = link.getQueryParameter("show").orEmpty()
-            // English under the lines, from the user's subtitle addon if they added one (OpenSubtitles v3).
-            val english = runCatching {
-                io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)
-                    .english(link.getQueryParameter("type") ?: "series", id, live.lines.map { it.first + live.offset })
-            }.getOrDefault(emptyList())
-            val tEnglish = android.os.SystemClock.elapsedRealtime()
-            // Null while Sudachi's dictionary downloads (the first time): the lines go on meanwhile, then it is made.
-            while (shown == null) {
-                shown = runCatching {
-                    io.github.pedrubik2000.kumapie.lang.EpisodeBuilder.fromLines(context, "alone:$id", show, link.getQueryParameter("title") ?: show,
-                        link.getQueryParameter("url").orEmpty(), (p.duration.takeIf { it > 0 } ?: 0L) / 1000.0, live.lines, live.offset, p.currentPosition / 1000.0, english)
-                }.getOrElse { note = it.message; return@LaunchedEffect }
-                if (shown == null) { note = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
-            }
-            val now = android.os.SystemClock.elapsedRealtime()
-            android.util.Log.i("kumapie", "words ready: lines ${tLines - t0} ms after open, english ${tEnglish - tLines}, build ${now - tEnglish} (${live.source}, ${live.lines.size} lines, ${if (live.canFit) "fit later" else "no track to fit"})")
+            shown = runCatching {
+                s.build(context, (p.duration.takeIf { it > 0 } ?: 0L) / 1000.0, { p.currentPosition / 1000.0 }) {
+                    note = tr("Words: downloading the Japanese dictionary (once)…")
+                }
+            }.getOrElse { note = it.message; return@LaunchedEffect }
         }
         var ctl by remember { mutableStateOf<io.github.pedrubik2000.kumapie.player.SceneController?>(null) }
-        var built by remember { mutableStateOf<Double?>(null) } // the offset the scenes were made with
-        // The late fit: the scenes' lines move from [built] to it (a saved hand offset stays: LiveLines keeps it), then
-        // LiveLines stops listening.
-        LaunchedEffect(live.fitted, ctl) {
-            val c = ctl ?: return@LaunchedEffect
-            val from = built ?: return@LaunchedEffect
-            if (live.fitted == null) return@LaunchedEffect
-            if (live.offset != from) c.shift(live.offset - from)
-            android.util.Log.i("kumapie", "late fit: ${live.fitted} s from ${live.refCount} lines, lines moved ${live.offset - from} s")
-            built = live.offset
-            settings.prefs.edit().putFloat("alone_off_$id", live.offset.toFloat()).apply()
-            live.stop()
-        }
+        LaunchedEffect(live.fitted, ctl) { ctl?.let { s.fitLanded(it::shift) } }
         shown?.let { ep ->
             // The scenes draw the lines now; UP / DOWN are theirs. LiveLines goes on listening to the file's track
-            // until the fit lands (a file without one: stopped now).
-            remember(ep) {
-                built = live.offset
-                settings.prefs.edit().putFloat("alone_off_$id", live.offset.toFloat()).apply()
-                if (!live.canFit || live.fitted != null) live.stop()
-                alone = null; note = null
-            }
+            // until the fit lands (a file without one: stopped by build).
+            remember(ep) { alone = null; note = null }
             val backend = remember { io.github.pedrubik2000.kumapie.ui.AloneBackend(context, settings) }
             DisposableEffect(backend) { onDispose { backend.close() } }
             return io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p, onController = { ctl = it })

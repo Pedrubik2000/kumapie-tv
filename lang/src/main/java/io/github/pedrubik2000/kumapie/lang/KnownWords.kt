@@ -419,7 +419,9 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             .filter { it.word != null }.groupBy({ it.word!! }, { it.text })
         for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w ->
             val p = paint(k, written[k]?.let { f -> w.copy(forms = f.associateWith { "" }) } ?: w)
-            val n = recolour(p, pcColours, if (pcColours) null else status(k))
+            // A word marked known stays white ([Word.shown]: marked first): an episode built again (a later Jimaku fit)
+            // came without the flag and the word's own card ("b") drew it blue again (Pedro, 2026-11-19).
+            val n = recolour(p, pcColours, if (pcColours) null else status(k)).let { if (!it.marked && k in marked) it.copy(marked = true) else it }
             if (n != w) ctl.words[k] = n
         }
     }

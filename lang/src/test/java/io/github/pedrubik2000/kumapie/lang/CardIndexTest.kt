@@ -38,6 +38,19 @@ class CardIndexTest {
         assertEquals("d", again.state("Tante", nowSecs = 1_800_000_600))
     }
 
+    /** The saved copy: built again from [CardIndex.snapshot], every form has the same state (a rating included). */
+    @Test fun snapshotRebuildsTheSameIndex() {
+        val index = CardIndex()
+        index.build(listOf(note(1, "Tante"), note(2, "gehen"), note(3, "Hausnummer")),
+            listOf(card(10, 1, 2), card(20, 2, 2), card(30, 3, 0)), due = mapOf(10L to "review", 30L to "new"))
+        index.update(listOf(card(10, 1, 2)), mapOf(30L to "new")) // Tante rated Good: no longer due
+        val (keys, cards) = index.snapshot()
+        val again = CardIndex()
+        again.build(keys.keys.map { AnkiCards.Note(it, emptyMap(), emptySet()) }, cards, index.due) { keys[it.id].orEmpty() }
+        for (form in listOf("tante", "gehen", "hausnummer", "nothing")) assertEquals(form, index.state(form), again.state(form))
+        assertEquals("k", again.state("Tante")) // white after Good, not red
+    }
+
     /** A word mined on the TV could not be rated: its card was never in the index (user, 2026-11-10). */
     @Test fun minedNoteJoins() {
         val index = CardIndex()

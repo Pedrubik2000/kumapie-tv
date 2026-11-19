@@ -219,12 +219,26 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val pkg = pkgNow() ?: return@withContext
         val notes = anki.notes(pkg, search)
         cardIndex.build(notes, anki.cards(pkg, search), cardIndex.due, cardKeys(notes))
+        saveIndex()
     }
 
     /** The note just mined here into the index: on a TV [reloadCards] takes most of a minute, this one note is quick. */
     suspend fun addNote(id: Long) = withContext(Dispatchers.IO) {
         val pkg = pkgNow() ?: return@withContext
         cardIndex.add(anki.notes(pkg, "nid:$id"), anki.cards(pkg, "nid:$id"), language::cardKeys)
+        saveIndex()
+    }
+
+    /**
+     * The saved copy ([loadCards]) as the index is now, after a rating, an Undo, a mined card or the queue read again:
+     * an episode opened right after drew its words from the copy of the last full read (その割には rated Good was
+     * red for the first seconds, until the real read; Chromecast 2026-11-19).
+     */
+    private fun saveIndex() {
+        val pkg = pkgNow() ?: return
+        val (keys, cards) = cardIndex.snapshot()
+        if (keys.isEmpty()) return // not read yet in this run: the copy stays
+        runCatching { saveCards(pkg, keys, cards) }.onFailure { Log.w("kumapie", "cards not saved: $it") }
     }
 
     /**
@@ -270,7 +284,9 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      * the queue of that last read, so the colours can be a day old until [readCards] ends. False: nothing saved yet.
      */
     suspend fun loadCards(): Boolean = withContext(Dispatchers.IO) {
-        if (cardIndex.due != null) return@withContext true
+        // Read in this run: the cards themselves, not only the queue ([refreshDue] sets that when a stream is built
+        // here, before the TV loads the cards: the due words weren't green and a word rated Good was red, 2026-11-19).
+        if (cardIndex.due != null && cardIndex.forms().isNotEmpty()) return@withContext true
         runCatching {
             val o = JSONObject(cardsFile.readText())
             val k = o.getJSONObject("keys")
@@ -285,7 +301,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             val d = o.getJSONObject("due")
             val notes = keys.keys.map { AnkiCards.Note(it, emptyMap(), emptySet()) }
             if (lastReading == null) lastReading = Reading(o.getString("pkg"), notes, cards, emptyMap())
-            cardIndex.build(notes, cards, d.keys().asSequence().associate { it.toLong() to d.getString(it) }) { keys[it.id].orEmpty() }
+            cardIndex.build(notes, cards, cardIndex.due ?: d.keys().asSequence().associate { it.toLong() to d.getString(it) }) { keys[it.id].orEmpty() }
             true
         }.getOrDefault(false)
     }
@@ -314,6 +330,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         if (!force && System.currentTimeMillis() - dueAt < 60_000) return@withContext
         dueAt = System.currentTimeMillis()
         cardIndex.update(emptyList(), anki.due(pkg))
+        saveIndex()
     }
 
     /** The Anki day of [ms]: days start at 4:00 local time (kuma3's default "next day starts at"). */
@@ -364,6 +381,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val answered = answer.filter { (reps[it.id] ?: 0) > it.reps }.map { it.id }.toSet()
         // Not due now; kuma3's queue is read again when the player leaves the scene.
         cardIndex.update(fetched, cardIndex.due?.minus(answered))
+        saveIndex()
         val label = anki.undoLabel(pkg)
         Log.i("kumapie", "rate: $form ease $ease, ${answered.size} of ${answer.size} cards answered, kuma3 Undo: '$label'")
         if (pkg == SrsCards.PKG && answered.isNotEmpty()) srs.syncSoon(lang) // to the PC and the other devices now
@@ -384,6 +402,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         repeat(r.cards) { if (anki.undoLabel(pkg).isNotEmpty()) anki.undo(pkg) }
         val after = cardsOf(pkg, r.notes)
         cardIndex.update(after, cardIndex.due) // the queue comes with the player's next read
+        saveIndex()
         val undone = after.count { it.reps < (before[it.id] ?: 0) }
         Log.i("kumapie", "undo: $undone of ${r.cards} reviews taken back, kuma3 now says '${anki.undoLabel(pkg)}'")
         if (pkg == SrsCards.PKG && undone > 0) srs.syncSoon(lang)

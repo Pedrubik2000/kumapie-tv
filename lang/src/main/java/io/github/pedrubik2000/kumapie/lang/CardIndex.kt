@@ -54,6 +54,14 @@ class CardIndex {
     /** Every form with a card of its own. */
     fun forms(): Set<String> = byForm.keys
 
+    /** What [build] needs to make this index again (KnownWords' saved copy): each note's forms and the cards. */
+    fun snapshot(): Pair<Map<Long, List<String>>, List<AnkiCards.Card>> {
+        val forms = HashMap<Long, MutableSet<String>>()
+        val cards = LinkedHashMap<Long, AnkiCards.Card>()
+        for ((form, cs) in byForm) for (c in cs) { forms.getOrPut(c.noteId) { LinkedHashSet() } += form; cards[c.id] = c }
+        return forms.mapValues { it.value.toList() } to cards.values.toList()
+    }
+
     /** The form's own cards. */
     fun cards(form: String): List<AnkiCards.Card> = byForm[form.lowercase()].orEmpty()
 

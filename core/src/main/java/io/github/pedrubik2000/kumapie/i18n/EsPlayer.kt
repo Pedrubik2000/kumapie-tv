@@ -23,6 +23,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Known" to "Conocida",
     "Mark known" to "Marcar conocida",
     "Slow (0.75x)" to "Lento (0.75x)",
+    "Lookup only: no word colours" to "Solo consultar: palabras sin colores",
     "Back %d s" to "Atrás %d s",
     "Forward %d s" to "Adelante %d s",
     "Back / forward buttons" to "Botones atrás / adelante",

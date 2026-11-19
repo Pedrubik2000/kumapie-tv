@@ -118,7 +118,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
                 if (seg.word != null) wordRanges += (at until at + seg.text.length) to SubtitleTap.Word(lineIndex, s)
                 at += seg.text.length
             }
-            append(colored(cue, ctl.words, dim = paused && cue != current, selected = selectedSeg, faces = faces.keys))
+            append(colored(cue, ctl.words, dim = paused && cue != current, selected = selectedSeg, faces = faces.keys, plain = ctl.plainWords))
             if (selectedSeg >= 0) {
                 val before = cue.segments.take(selectedSeg).sumOf { it.text.length } + cue.segments.take(selectedSeg + 1).count { it.word in faces }
                 val len = cue.segments[selectedSeg].text.length
@@ -351,12 +351,12 @@ private fun anchorOf(c: LayoutCoordinates, l: TextLayoutResult?, range: IntRange
 /** The character a face stands for in the subtitles' text. */
 private const val FACE = "�"
 
-private fun colored(cue: Cue, words: Map<String, Word>, dim: Boolean, selected: Int = -1, faces: Set<String> = emptySet()): AnnotatedString =
+private fun colored(cue: Cue, words: Map<String, Word>, dim: Boolean, selected: Int = -1, faces: Set<String> = emptySet(), plain: Boolean = false): AnnotatedString =
     buildAnnotatedString {
         val base = if (dim) Colors.dim else Colors.text
         cue.segments.forEachIndexed { i, seg ->
             if (seg.word in faces) appendInlineContent(seg.word!!, FACE)
-            val color = when (seg.word?.let { words[it]?.shownFor(seg.text) ?: "u" }) {
+            val color = when (if (plain) "k" else seg.word?.let { words[it]?.shownFor(seg.text) ?: "u" }) {
                 "u", "l" -> if (dim) Colors.unknown.copy(alpha = 0.7f) else Colors.unknown
                 "d" -> if (dim) Colors.due.copy(alpha = 0.7f) else Colors.due
                 "b" -> if (dim) Colors.mined.copy(alpha = 0.7f) else Colors.mined

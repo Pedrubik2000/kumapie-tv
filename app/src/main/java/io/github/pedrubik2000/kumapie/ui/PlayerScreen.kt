@@ -472,6 +472,9 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
             Button(onClick = ctl::togglePlayThroughKnown, modifier = Modifier.fillMaxWidth()) {
                 Text(tr("i+0 lines (no new or due word): %s", if (ctl.playThroughKnown) tr("play through") else tr("pause")).replace("I+0", "i+0"))
             }
+            Button(onClick = ctl::togglePlainWords, modifier = Modifier.fillMaxWidth()) {
+                Text(tr("Word colours: %s", if (ctl.plainWords) tr("off (lookup only)") else tr("on")))
+            }
             Button(onClick = ctl::toggleSlow, modifier = Modifier.fillMaxWidth()) {
                 Text(tr("Speed: %s", if (ctl.slow) "0.75x" else tr("normal")))
             }

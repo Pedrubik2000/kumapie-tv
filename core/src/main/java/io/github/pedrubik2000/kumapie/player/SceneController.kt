@@ -66,6 +66,9 @@ class SceneController(
     /** i+0 scenes (no red words) don't pause at their start or end (user, 2026-10-14). */
     var playThroughKnown by mutableStateOf(settings.playThroughKnown)
         private set
+    /** Lookup only: lines and definitions without word colours ([Settings.plainWords]). */
+    var plainWords by mutableStateOf(settings.plainWords)
+        private set
     var slow by mutableStateOf(settings.slow)
         private set
     /** What the subtitles show. Stays as set from scene to scene and is remembered for next time. */
@@ -299,6 +302,11 @@ class SceneController(
         settings.pauseAtSceneEnd = pauseAtSceneEnd
         if (player.isPlaying) stopAtSceneEnd()
         showBanner()
+    }
+
+    fun togglePlainWords() {
+        plainWords = !plainWords
+        settings.plainWords = plainWords
     }
 
     fun togglePlayThroughKnown() {

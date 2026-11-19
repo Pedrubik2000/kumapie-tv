@@ -652,6 +652,7 @@ private fun Options(ctl: SceneController, seekStep: Int, onSeekStep: (Int) -> Un
         OptionRow(tr("Primed Listening: wait before each line (read, then play)"), ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
         OptionRow(tr("Pause after each line"), ctl.pauseAtSceneEnd, ctl::togglePauseAtSceneEnd)
         OptionRow(tr("Wait only on lines with a new or due word"), ctl.playThroughKnown, ctl::togglePlayThroughKnown)
+        OptionRow(tr("Lookup only: no word colours"), ctl.plainWords, ctl::togglePlainWords)
         OptionRow(tr("Slow (0.75x)"), ctl.slow, ctl::toggleSlow)
         if (onUpright != null) OptionRow(tr("Upright: line by line, swipe left"), uprightNow, onUpright)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -161,6 +161,8 @@ internal val esTv: Map<String, String> = mapOf(
     "play through" to "seguir sin parar",
     "i+0 plays through" to "i+0 sin parar",
     "Speed: %s" to "Velocidad: %s",
+    "Word colours: %s" to "Colores de palabras: %s",
+    "off (lookup only)" to "no (solo consultar)",
     "normal" to "normal",
     "Subtitles: %s" to "Subtítulos: %s",
     "Help: the buttons" to "Ayuda: los botones",

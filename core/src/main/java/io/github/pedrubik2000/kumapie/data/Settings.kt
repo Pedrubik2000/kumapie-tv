@@ -85,6 +85,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("play_through_known", false)
         set(value) = prefs.edit().putBoolean("play_through_known", value).apply()
 
+    /** Lookup only: every word in the lines and definitions is plain white (no red, green or blue); words can still be picked. */
+    var plainWords: Boolean
+        get() = prefs.getBoolean("plain_words", false)
+        set(value) = prefs.edit().putBoolean("plain_words", value).apply()
+
     /** Play at 0.75x. */
     var slow: Boolean
         get() = prefs.getBoolean("slow", false)

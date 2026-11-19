@@ -106,7 +106,7 @@ private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: S
     Text(heading, color = Colors.text, fontSize = if (style != null) 34.sp else 26.sp, style = style ?: androidx.compose.ui.text.TextStyle.Default)
     if (!heading.equals(written, ignoreCase = true)) Text(written, color = Colors.dim, fontSize = 18.sp)
     val germanKnown = def.target.all { s -> s.word == null || (ctl.words[s.word]?.status ?: "u") == "k" }
-    val german = coloredDefinition(def, ctl.words, if (picker.inDef) picker.defSeg else -1)
+    val german = coloredDefinition(def, ctl.words, if (picker.inDef) picker.defSeg else -1, ctl.plainWords)
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val tappable = if (onTapDef == null) Modifier else Modifier.pointerInput(def) {
         detectTapGestures { p -> layout?.let { segmentAt(it, p, def) }?.let(onTapDef) }
@@ -153,9 +153,9 @@ private fun segmentAt(l: TextLayoutResult, p: Offset, def: LineDef): Int? {
 }
 
 /** The German definition, its words coloured like the subtitles (red new, green due), [selected] highlighted. */
-private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: Int): AnnotatedString = buildAnnotatedString {
+private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: Int, plain: Boolean = false): AnnotatedString = buildAnnotatedString {
     def.target.forEachIndexed { i, seg ->
-        val color = when (seg.word?.let { words[it]?.shown ?: "u" }) {
+        val color = when (if (plain) "k" else seg.word?.let { words[it]?.shown ?: "u" }) {
             "u", "l" -> Colors.unknown
             "d" -> Colors.due
             "b" -> Colors.mined

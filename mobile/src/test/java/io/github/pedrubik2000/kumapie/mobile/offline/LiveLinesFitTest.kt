@@ -20,7 +20,7 @@ class LiveLinesFitTest {
 
     @Test fun anEnglishFileIsPlacedPerPartOfTheEpisode() {
         // AoT 1 (2026-11-17): the English file runs 0.8 s ahead before the opening and 2.8 s after; it splits and skips lines.
-        val japanese = (0 until 120).map { 3.0 + it * 5.1 + (it % 3) * 0.7 }
+        val japanese = (0 until 120).runningFold(3.0) { t, i -> t + 2 + ((i * 7919) % 37) * 0.31 } // uneven gaps, as real lines
         val english = japanese.filterIndexed { i, _ -> i % 5 != 2 }.map { if (it < 300) it + 0.8 else it + 2.8 } + listOf(200.5, 450.2)
         val placed = LiveLines.place(japanese, english.sorted())!!
         val onJapanese = placed.count { p -> japanese.any { kotlin.math.abs(it - p) <= 0.15 } }
@@ -33,6 +33,21 @@ class LiveLinesFitTest {
         // Space Dandy [commie] (2026-11-19): the default English track was signs only; the fit waited on it for ever.
         for (l in listOf("English Signs/Song [commie]", "Signs & Songs", "Forced", "English (OP/ED)")) org.junit.Assert.assertTrue(l, LiveLines.notDialogue(l))
         for (l in listOf("English Subs [commie]", "Full Subtitles", "Closed Captions", "日本語", "")) org.junit.Assert.assertFalse(l, LiveLines.notDialogue(l))
+    }
+
+    @Test fun chancePairsFitNothing() {
+        // Eden of the East 2 (2026-11-19): 8 English line starts against lines they don't match; the old vote fitted
+        // 26.1 s out of two chance pairs.
+        val english = listOf(247.62, 249.02, 251.13, 256.07, 256.96, 257.85, 259.12, 262.86)
+        val japanese = listOf(241.14, 243.73, 245.83, 250.78, 252.23, 260.21, 262.25, 270.4, 275.9, 281.3, 222.1, 230.6, 236.2)
+        assertNull(LiveLines.fit(english, japanese))
+    }
+
+    @Test fun aFileWithoutTheOpeningFitsOver60Seconds() {
+        // Eden of the East 2: Coalgirls' Japanese file is 80.1 s earlier than the [bonkai77] video all through.
+        val japanese = (0 until 60).runningFold(6.0) { t, i -> t + 2 + ((i * 7919) % 37) * 0.31 }
+        val english = japanese.filterIndexed { i, _ -> i % 4 != 1 }.map { it + 80.1 }.filter { it in 200.0..300.0 }
+        assertEquals(80.1, LiveLines.fit(english, japanese)!!, 0.11)
     }
 
     @Test fun anotherEpisodesFileIsNotPlaced() =

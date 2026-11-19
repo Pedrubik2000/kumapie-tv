@@ -283,7 +283,9 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
             Text(t.line, color = Colors.text, fontSize = 16.sp, modifier = Modifier.padding(top = 6.dp))
             Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (meta != null) {
-                    val next = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
+                    // No PC: the episode Home's Continue watching shows (Eden of the East: Home said 2, ▶ played 1, 2026-11-19).
+                    val going = remember(title.id) { api.goingNow()?.firstOrNull { it.first.id == title.id }?.second?.id }
+                    val next = eps.firstOrNull { it.optString("id") == going } ?: io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
                     Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }, modifier = Modifier.focusRequester(main).focusProperties { if (!side) down = toEps }) {
                         Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) +
                             (if (next.optBoolean("ready") && next.optString("source").isNotEmpty()) " · " + next.optString("source") else "") else tr("Watch")))

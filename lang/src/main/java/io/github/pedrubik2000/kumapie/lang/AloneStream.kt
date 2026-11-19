@@ -26,7 +26,12 @@ class AloneStream(
         runCatching { Jimaku.lines(prefs.getString("jimaku_key", "").orEmpty(), show, null, episodeNumber(id), file) }
             .onFailure { onError(it.message) }.getOrDefault(emptyList()).map { Triple(it.start, it.end, it.text) }
         // (empty: [LiveLines.noLines] says so once the file turned out to have no Japanese track either)
-    }.also { it.offset = prefs.getFloat(offKey(id), 0f).toDouble() }
+    }.also {
+        it.offset = prefs.getFloat(offKey(id), 0f).toDouble()
+        // A saved shift is a starting point: this play's fit replaces it (false fits were saved before 2026-11-19: Eden of
+        // the East 2 kept 2.8 s, the true one being -5.6 s); a shift nudged by hand now wins.
+        it.guess = it.offset
+    }
 
     /** The offset the scenes were made with; null until [build] made them. */
     var built: Double? = null

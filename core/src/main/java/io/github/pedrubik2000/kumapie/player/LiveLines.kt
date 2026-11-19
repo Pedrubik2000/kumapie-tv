@@ -26,6 +26,9 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         private set
     var offset by mutableDoubleStateOf(0.0)
 
+    /** The [offset] it started from (saved last time): the fit replaces it, as it does 0; a hand nudge doesn't. */
+    var guess: Double? = null
+
     /** The offset [fit] found from the file's other subtitle track (null: not yet / no track); a hand nudge after it wins. */
     var fitted by mutableStateOf<Double?>(null)
         private set
@@ -109,7 +112,7 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         while (true) {
             if (fitted == null && refs.size >= MIN_REFS && refs.size % 2 == 0 && refs.size != tried) {
                 tried = refs.size
-                fit(refs, starts)?.let { if (offset == 0.0) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
+                fit(refs, starts)?.let { if (offset == 0.0 || offset == guess) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
             }
             if (source == "jimaku") {
                 val t = player.currentPosition / 1000.0 - offset
@@ -164,18 +167,23 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
 
         /**
          * One offset for Jimaku's line [starts] (seconds) that puts the most of them on the other track's line starts
-         * [refs]: every pair within 60 s votes for its difference (0.1 s steps, a step either side counts too); the
-         * winner needs 5 votes and a third of [refs]. Null when nothing agrees (no match, or another script).
+         * [refs]: every pair within 180 s proposes its difference (0.1 s steps); a proposal counts the refs it puts within
+         * 0.15 s of a Jimaku line. The winner needs 6 of them, half of [refs], and 1.5 times any other offset's (over 0.3 s
+         * away). Null when nothing agrees (no match, another script, or a loose one: Eden of the East 2's Coalgirls
+         * Japanese file, where 5 smeared votes from 8 lines fitted noise as 2.8, 16.8, 26.1 s, tablet 2026-11-19; on
+         * that episode's English track and Netflix file: 1 wrong in 1200 tries, against 2 % and 0-74 % on Coalgirls). 180 s, not
+         * 60: Coalgirls' file is a good one, 80.1 s off this release (an opening it doesn't have), fitted 292 of 360 tries.
          * ponytail: one offset for the whole episode; a release with a different cut (recap, OP) needs one per part.
          */
         fun fit(refs: List<Double>, starts: List<Double>): Double? {
-            val votes = HashMap<Long, Int>()
-            for (r in refs) for (j in starts) if (kotlin.math.abs(r - j) <= 60) {
-                val bin = Math.round((r - j) * 10)
-                for (b in bin - 1..bin + 1) votes.merge(b, 1, Int::plus)
-            }
-            val (bin, n) = votes.maxByOrNull { it.value } ?: return null
-            return if (n >= 5 && n * 3 >= refs.size) bin / 10.0 else null
+            val proposed = HashMap<Long, Int>() // offset (0.1 s) -> refs proposing it
+            for (r in refs) starts.filter { kotlin.math.abs(r - it) <= 180 }.map { Math.round((r - it) * 10) }.toSet()
+                .forEach { proposed.merge(it, 1, Int::plus) }
+            fun hits(bin: Long) = refs.count { r -> starts.any { kotlin.math.abs(r - it - bin / 10.0) <= 0.15 } }
+            val scored = proposed.entries.sortedByDescending { it.value }.take(40).map { it.key to hits(it.key) }.sortedByDescending { it.second }
+            val (bin, n) = scored.firstOrNull() ?: return null
+            val other = scored.filter { kotlin.math.abs(it.first - bin) > 3 }.maxOfOrNull { it.second } ?: 0
+            return if (n >= 6 && n * 2 >= refs.size && n * 2 >= other * 3) bin / 10.0 else null
         }
     }
 

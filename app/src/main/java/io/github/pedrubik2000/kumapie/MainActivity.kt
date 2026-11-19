@@ -56,6 +56,9 @@ var Settings.profile: String
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The bear splash goes the moment Home's first frame is ready: Android's own fade-out took ~330 ms over a Home
+        // already drawn (tablet, 2026-11-19).
+        if (android.os.Build.VERSION.SDK_INT >= 31) splashScreen.setOnExitAnimationListener { it.remove() }
         Updater.repo = BuildConfig.UPDATE_REPO
         Updater.version = BuildConfig.VERSION_NAME
         Updater.asset = "kumapie-tv-"

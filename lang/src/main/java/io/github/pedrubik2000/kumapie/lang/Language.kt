@@ -31,7 +31,7 @@ sealed interface Language {
     suspend fun entries(tap: Tap): List<DictEntry>
     /** Says the word: a person's recording first, else [voice]. */
     fun say(hw: Headword)
-    /** The key a word marked known is kept under in [io.github.pedrubik2000.kumapie.mobile.offline.Progress] (shared by every language). */
+    /** The key a word marked known is kept under in [io.github.pedrubik2000.kumapie.lang.Progress] (shared by every language). */
     fun markKey(word: String): String
     /** The word a Progress mark key stands for, or null when the mark is another language's. */
     fun wordOfMark(key: String): String?

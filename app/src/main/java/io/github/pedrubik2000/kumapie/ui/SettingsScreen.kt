@@ -40,15 +40,6 @@ import kotlinx.coroutines.launch
  * The server address and updates. Also the first-run screen (firstRun = true): the address can be typed here,
  * or sent from the PC: adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.MainActivity --es server <url>
  */
-/**
- * The words marked known on the person's devices and the PC, newest mark of each word winning, as the phone merges
- * them (offline/Progress.kt). The TV posts an empty progress under its own name: the PC answers only to a device.
- */
-private suspend fun pcMarks(pc: Api): Set<String> {
-    val devices = pc.devicesProgress("tv-" + android.os.Build.MODEL, org.json.JSONObject())
-    return io.github.pedrubik2000.kumapie.lang.LeavePc.newestMarks(
-        devices.keys().asSequence().map { devices.getJSONObject(it) }.toList() + org.json.JSONObject(pc.history()))
-}
 
 @Composable
 fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
@@ -96,7 +87,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server")) }
         }
         if (!firstRun && settings.server.isNotEmpty()) {
-            // Leaving the PC: the same steps as the phone (lang/LeavePc.kt), the marks read from the PC.
+            // Leaving the PC: the same steps as the phone (lang/LeavePc.kt), watch time and marks through Progress.
             Button(onClick = {
                 status = tr("Copying your words, cards and progress…")
                 scope.launch {
@@ -104,7 +95,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                         val pc = Api(settings.server, settings.profile)
                         io.github.pedrubik2000.kumapie.lang.LeavePc.run(context, pc, settings.server, settings.profile,
                             tvLanguages(context, settings).all,
-                            io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)) { pcMarks(pc) }
+                            io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs))
                     }.onSuccess { settings.server = ""; settings.standalone = true; onSaved() }
                         .onFailure { status = tr("Can't reach %1\$s (%2\$s)", settings.server, it.message) }
                 }

@@ -176,7 +176,7 @@ class WordColours : ContentProvider() {
                 "mark" -> {
                     // As the app's own mark (Library.markKnown): kept in progress too, so the next sync keeps it.
                     val markKnown = extras!!.getBoolean("known")
-                    val progress = io.github.pedrubik2000.kumapie.mobile.offline.Progress.of(ctx)
+                    val progress = io.github.pedrubik2000.kumapie.lang.Progress.of(ctx)
                     for (f in forms()) {
                         progress.mark(japanese.markKey(f), markKnown)
                         known.mark(f, markKnown)

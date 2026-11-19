@@ -47,16 +47,17 @@ import java.util.Locale
 /**
  * Watch time and what was done: today / 7 days / total / streak, a year heatmap, the last 30 days as bars,
  * scenes, lookups and words marked known. Each section can be focused, so ↑↓ scroll through them.
- * A study day starts at 4 am (as in Anki); the server counts the days.
+ * A study day starts at 4 am (as in Anki). [load]: the PC's (`api.stats()`), or without a PC this TV's own
+ * ([io.github.pedrubik2000.kumapie.lang.Progress.stats], as the phone's).
  */
 @Composable
-fun StatsScreen(api: Api, onSettings: () -> Unit) {
+fun StatsScreen(load: suspend () -> Stats, onSettings: () -> Unit) {
     var stats by remember { mutableStateOf<Stats?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(attempt) {
         error = null
-        runCatching { api.stats() }.onSuccess { stats = it }.onFailure { error = it.message ?: it.toString() }
+        runCatching { load() }.onSuccess { stats = it }.onFailure { error = it.message ?: it.toString() }
     }
     when {
         error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings)
@@ -68,7 +69,7 @@ fun StatsScreen(api: Api, onSettings: () -> Unit) {
 @Composable
 private fun StatsContent(s: Stats) {
     val first = remember { FocusRequester() }
-    val today = LocalDateTime.now().minusHours(4).toLocalDate() // the study day, as the server counts it
+    val today = io.github.pedrubik2000.kumapie.lang.Progress.today() // the study day, as the server counts it
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 56.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {

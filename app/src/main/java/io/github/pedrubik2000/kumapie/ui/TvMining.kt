@@ -561,7 +561,7 @@ class TvRating {
     var today by mutableStateOf(0)
         private set
     fun count(settings: Settings, n: Int) {
-        val day = "rated_" + java.time.LocalDateTime.now().minusHours(4).toLocalDate()
+        val day = "rated_" + io.github.pedrubik2000.kumapie.lang.Progress.today()
         today = settings.prefs.getInt(day, 0) + n
         settings.prefs.edit().putInt(day, today).apply()
     }
@@ -709,28 +709,28 @@ suspend fun joinNames(context: Context, settings: Settings, episode: io.github.p
 
 /**
  * The word player's [io.github.pedrubik2000.kumapie.data.Backend] on a TV without a PC (kumapie for other people):
- * known marks go to this TV's word list, lookups are counted here, a word is read by a person's recording if there is
- * one, else the TV's own voice. Where it was left: StreamActivity keeps it (prefs `alone_pos_<id>`).
+ * known marks go to this TV's word list, watch time, lookups and marks to [Progress] (as on the phone: Stats and Home's
+ * numbers without a PC), a word is read by a person's recording if there is one, else the TV's own voice. Where it was
+ * left: StreamActivity keeps it (prefs `alone_pos_<id>`).
  */
-class AloneBackend(private val context: Context, private val settings: Settings) : io.github.pedrubik2000.kumapie.data.Backend {
+class AloneBackend(private val context: Context, private val settings: Settings, private val lang: String = "ja") : io.github.pedrubik2000.kumapie.data.Backend {
     private val tts = android.speech.tts.TextToSpeech(context.applicationContext) {}
+    private val progress = io.github.pedrubik2000.kumapie.lang.Progress.of(context)
 
     /** Frees the TV's voice: one per stream otherwise piles up with auto-next. */
     fun close() = tts.shutdown()
 
-    override suspend fun progress(episode: String, pos: Double, watched: Double, ranges: List<io.github.pedrubik2000.kumapie.data.Span>, done: Boolean) {}
+    override suspend fun progress(episode: String, pos: Double, watched: Double, ranges: List<io.github.pedrubik2000.kumapie.data.Span>, done: Boolean) =
+        withContext(Dispatchers.IO) { progress.record(episode, pos, watched, lang, ranges, done) }
 
-    override suspend fun lookup(word: String, scene: String): Int {
-        val n = settings.prefs.getInt("alone_lookups_$word", 0) + 1
-        settings.prefs.edit().putInt("alone_lookups_$word", n).apply()
-        return n
-    }
+    override suspend fun lookup(word: String, scene: String): Int = withContext(Dispatchers.IO) { progress.lookup(word) }
 
     override suspend fun markKnown(word: String, known: Boolean, scene: String): String = withContext(Dispatchers.IO) {
-        val list = TvMining.languages(context, settings).of(Lang.JAPANESE).known
+        val language = TvMining.languages(context, settings).of(lang)
+        progress.mark(language.markKey(word), known)
         // Always kept: [KnownWords.ready] (Anki read on this device) is never true on a TV, so marks made without the
         // PC showed white and were gone the next time (Pedro, Chromecast, 2026-11-18).
-        list.mark(word, known)
+        language.known.mark(word, known)
     }
 
     override fun wordAudio(surface: String, lang: String): String = TvMining.recording(context, settings, surface, lang) ?: "tts:$surface"

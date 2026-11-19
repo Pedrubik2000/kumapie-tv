@@ -91,7 +91,7 @@ fun StatsScreen(library: Library, onBack: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StatsContent(s: Stats) {
-    val today = LocalDateTime.now().minusHours(4).toLocalDate()
+    val today = io.github.pedrubik2000.kumapie.lang.Progress.today()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         item {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

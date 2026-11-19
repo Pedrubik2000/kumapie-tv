@@ -1,4 +1,4 @@
-package io.github.pedrubik2000.kumapie.mobile.offline
+package io.github.pedrubik2000.kumapie.lang
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

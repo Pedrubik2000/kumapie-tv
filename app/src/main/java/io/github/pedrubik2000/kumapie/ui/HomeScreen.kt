@@ -147,7 +147,7 @@ fun HomeScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, settings: Set
         RailItem(androidx.compose.material.icons.Icons.Default.Home, tr("Home"), selected = true) {},
         RailItem(androidx.compose.material.icons.Icons.Default.Explore, tr("Discover"), onClick = onDiscover).takeIf { lang == "ja" },
         due?.let { n -> RailItem(androidx.compose.material.icons.Icons.Default.Style, tr("Review"), badge = n) { lang?.let(onReview) } },
-        RailItem(androidx.compose.material.icons.Icons.Default.BarChart, tr("Stats"), onClick = onStats).takeIf { api is Api },
+        RailItem(androidx.compose.material.icons.Icons.Default.BarChart, tr("Stats"), onClick = onStats), // without a PC: this TV's own
         RailItem(androidx.compose.material.icons.Icons.Default.Person, who, back = false, onClick = onProfiles).takeIf { api is Api }, // back to "Who's watching?"
         RailItem(androidx.compose.material.icons.Icons.Default.Settings, tr("Settings"), onClick = onSettings),
     )
@@ -157,8 +157,9 @@ fun HomeScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, settings: Set
             shows == null || streams == null -> Column { header(); Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
             lang == null -> Column { header(); Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
             else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header, railFocus, toRows, api = api) {
-                if (api is Api) LangCard(api, lang)
-                else if (kept.isEmpty()) Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim)
+                if (api is Api) LangCard(lang) { api.stats().langs[lang] }
+                else LangCard(lang) { aloneTotal(context, settings, lang) }
+                if (api !is Api && kept.isEmpty()) Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim)
             }
         }
         // From the top, under the bear: centred, six buttons reached the bear on a 540 dp Chromecast, and the column
@@ -213,12 +214,23 @@ internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequeste
 /** The header's buttons: narrower than elsewhere so all nine of Pedro's fit a 960 dp TV. */
 internal val TAB = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
 
+/**
+ * Without a PC: this TV's time in [lang] and words known ([io.github.pedrubik2000.kumapie.lang.Progress], as the
+ * phone's Home card); null before anything was watched.
+ */
+private suspend fun aloneTotal(context: android.content.Context, settings: Settings, lang: String) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val p = io.github.pedrubik2000.kumapie.lang.Progress
+    val (today, week, total) = p.totals(p.daysIn(lang, p.of(context).merged, emptyMap()))
+    io.github.pedrubik2000.kumapie.data.LangTotal(today, week, total, tvLanguages(context, settings).of(lang).known.knownList().size)
+        .takeIf { total > 0 }
+}
+
 /** Hours in this language (TV + phones) and words known, above everything (user, 2026-10-15), as on the phone. */
 @Composable
-private fun LangCard(api: Api, lang: String) {
+private fun LangCard(lang: String, load: suspend () -> io.github.pedrubik2000.kumapie.data.LangTotal?) {
     var t by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.LangTotal?>(null) }
     var loaded by remember(lang) { mutableStateOf(false) }
-    LaunchedEffect(lang) { t = runCatching { api.stats().langs[lang] }.getOrNull(); loaded = true }
+    LaunchedEffect(lang) { t = runCatching { load() }.getOrNull(); loaded = true }
     val s = t ?: return Spacer(Modifier.height(if (loaded) 0.dp else 66.dp)) // its height while loading: Home jumped down when it came
     // As the tablet's chips: today first (in the accent colour), dark glass with a thin white edge.
     Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

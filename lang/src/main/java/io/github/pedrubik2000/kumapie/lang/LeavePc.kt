@@ -18,13 +18,14 @@ object LeavePc {
     }
 
     /**
-     * [marks]: the words marked known on every device and the PC (the phone's own progress sync, the TV's read of
-     * the PC's), each language keeping its own.
+     * [Progress] synced once more (every device's part and the PC's history: watch time, positions, lookups, the
+     * words marked known, each language keeping its own), so Stats and Home's numbers go on without the PC.
      */
-    suspend fun run(context: Context, pc: Api, server: String, person: String, languages: List<Language>,
-                    addons: Addons, marks: suspend () -> Set<String>): Result {
+    suspend fun run(context: Context, pc: Api, server: String, person: String, languages: List<Language>, addons: Addons): Result {
         val cards = Cards.get(context).srs.takeFromPc(server, person, languages)
-        val marked = marks()
+        val progress = Progress.of(context)
+        progress.sync(pc)
+        val marked = progress.merged.marked
         languages.forEach { l -> l.known.useMarked(marked.mapNotNull(l::wordOfMark).toSet()) }
         PersonalDictionary.get(context).sync(pc::personalDictionary)
         addons.keepFromPc(pc.saved(), pc.going())

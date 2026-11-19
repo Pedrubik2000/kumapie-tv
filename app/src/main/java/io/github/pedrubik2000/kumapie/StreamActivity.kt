@@ -293,7 +293,7 @@ class StreamActivity : ComponentActivity() {
             // The scenes draw the lines now; UP / DOWN are theirs. LiveLines goes on listening to the file's track
             // until the fit lands (a file without one: stopped by build).
             remember(ep) { alone = null; note = null }
-            val backend = remember { io.github.pedrubik2000.kumapie.ui.AloneBackend(context, settings) }
+            val backend = remember { io.github.pedrubik2000.kumapie.ui.AloneBackend(context, settings, ep.lang) }
             DisposableEffect(backend) { onDispose { backend.close() } }
             // A new [ep] (another Jimaku file fitted: AloneStream) is a new ScenePlayer on the same player.
             return androidx.compose.runtime.key(ep) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p, onController = { ctl = it }) }

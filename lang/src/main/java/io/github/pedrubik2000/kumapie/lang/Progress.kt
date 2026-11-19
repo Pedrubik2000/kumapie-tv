@@ -1,4 +1,4 @@
-package io.github.pedrubik2000.kumapie.mobile.offline
+package io.github.pedrubik2000.kumapie.lang
 
 import android.content.Context
 import io.github.pedrubik2000.kumapie.i18n.tr
@@ -7,7 +7,6 @@ import android.util.Log
 import io.github.pedrubik2000.kumapie.data.Ranges
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Span
-import io.github.pedrubik2000.kumapie.lang.AnkiCards
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
@@ -166,6 +165,16 @@ class Progress private constructor(context: Context, private val settings: Setti
         }
     }
 
+    // ------------------------------------------------------------------ stats (the phone, and the TV without a PC)
+
+    /**
+     * Stats from what is merged here (this device, the others, the PC's history), so they need no PC: watch time per
+     * study day, today / 7 days / total, the streak (days with at least a minute), lookups, marks; scenes from [shows]
+     * (the PC's library: none on a TV without one).
+     */
+    fun stats(shows: List<io.github.pedrubik2000.kumapie.data.Show> = emptyList()): io.github.pedrubik2000.kumapie.data.Stats =
+        statsOf(merged, shows, java.time.LocalDate.parse(studyDay()))
+
     // ------------------------------------------------------------------ merging
 
     /** This person's devices only, without the PC's history (the TV): what the PC gets as the phones' time. */
@@ -241,6 +250,31 @@ class Progress private constructor(context: Context, private val settings: Setti
         }
 
         /** The study day (it starts at 4 am, like the PC's and Anki's). */
-        fun studyDay(): String = LocalDateTime.now().minusHours(4).toLocalDate().toString()
+        fun studyDay(): String = today().toString()
+
+        /** [studyDay] as a date. */
+        fun today(): java.time.LocalDate = LocalDateTime.now().minusHours(4).toLocalDate()
+
+        /** Seconds today, in the last 7 days (today included) and in all of [days] (study day -> seconds). */
+        fun totals(days: Map<String, Double>, today: java.time.LocalDate = today()): Triple<Double, Double, Double> =
+            Triple(days[today.toString()] ?: 0.0, (0L..6L).sumOf { days[today.minusDays(it).toString()] ?: 0.0 }, days.values.sum())
+
+        /** [stats] for [m] on study day [today]. */
+        fun statsOf(m: View, shows: List<io.github.pedrubik2000.kumapie.data.Show>, today: java.time.LocalDate): io.github.pedrubik2000.kumapie.data.Stats {
+            fun day(d: java.time.LocalDate) = m.watch[d.toString()] ?: 0.0
+            var streak = 0
+            var d = if (day(today) < 60) today.minusDays(1) else today // today not started: the streak counts to yesterday
+            while (day(d) >= 60) { streak++; d = d.minusDays(1) }
+            val top = m.lookups.entries.sortedWith(compareBy({ -it.value }, { it.key })).take(10)
+                .map { io.github.pedrubik2000.kumapie.data.TopLookup(it.key, it.value, m.gloss[it.key] ?: "") }
+            val (now, week, total) = totals(m.watch, today)
+            return io.github.pedrubik2000.kumapie.data.Stats(
+                days = m.watch, today = now, week = week, total = total,
+                streak = streak, scenesSeen = shows.sumOf { s -> s.episodes.sumOf { it.seen } }, scenesTotal = shows.sumOf { s -> s.episodes.sumOf { it.scenes } },
+                lookups = m.lookups.values.sum(), wordsLookedUp = m.lookups.size, topLookups = top, markedKnown = m.marked.size,
+                shows = shows.map { s -> io.github.pedrubik2000.kumapie.data.ShowProgress(s.title, s.episodes.sumOf { it.seen }, s.episodes.sumOf { it.scenes }) } // lines heard of lines: the PC's count
+                    .sortedByDescending { it.seen },
+            )
+        }
     }
 }

@@ -28,7 +28,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.KnownWords
 import io.github.pedrubik2000.kumapie.lang.Miner
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
-import io.github.pedrubik2000.kumapie.mobile.offline.Progress
+import io.github.pedrubik2000.kumapie.lang.Progress
 import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch

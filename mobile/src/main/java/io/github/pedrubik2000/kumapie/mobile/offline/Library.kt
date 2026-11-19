@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.mobile.offline
 
 import android.content.Context
+import io.github.pedrubik2000.kumapie.lang.Progress
 import io.github.pedrubik2000.kumapie.i18n.tr
 import android.net.Uri
 import io.github.pedrubik2000.kumapie.data.Api
@@ -101,11 +102,11 @@ class Library(context: Context, val settings: Settings) {
         sendWatch()
     }
 
-    /** Leaving the PC (lang/LeavePc.kt, shared with the TV; marks and positions through [progress]), then no server. */
+    /** Leaving the PC (lang/LeavePc.kt, shared with the TV), then no server. */
     suspend fun leavePc() {
         val api = api
         io.github.pedrubik2000.kumapie.lang.LeavePc.run(appContext, api, settings.server, settings.owner, languages.all,
-            io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)) { progress.sync(api); progress.merged.marked }
+            io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs))
         settings.server = ""
         settings.standalone = true
     }
@@ -281,28 +282,10 @@ class Library(context: Context, val settings: Settings) {
         })
     }
 
-    /**
-     * Stats from [Progress] (this device, the others through Anki, the PC's history), so they need no PC: watch time
-     * per study day, today / 7 days / total, the streak (days with at least a minute), scenes, lookups, marks.
-     */
+    /** Stats from [Progress] ([Progress.stats], shared with the TV without a PC), synced first. */
     suspend fun stats(): io.github.pedrubik2000.kumapie.data.Stats {
         syncProgress()
-        val shows = runCatching { shows().first }.getOrDefault(emptyList())
-        val m = progress.merged
-        val today = java.time.LocalDate.parse(Progress.studyDay())
-        fun day(d: java.time.LocalDate) = m.watch[d.toString()] ?: 0.0
-        var streak = 0
-        var d = if (day(today) < 60) today.minusDays(1) else today // today not started: the streak counts to yesterday
-        while (day(d) >= 60) { streak++; d = d.minusDays(1) }
-        val top = m.lookups.entries.sortedWith(compareBy({ -it.value }, { it.key })).take(10)
-            .map { io.github.pedrubik2000.kumapie.data.TopLookup(it.key, it.value, m.gloss[it.key] ?: "") }
-        return io.github.pedrubik2000.kumapie.data.Stats(
-            days = m.watch, today = day(today), week = (0L..6L).sumOf { day(today.minusDays(it)) }, total = m.watch.values.sum(),
-            streak = streak, scenesSeen = shows.sumOf { s -> s.episodes.sumOf { it.seen } }, scenesTotal = shows.sumOf { s -> s.episodes.sumOf { it.scenes } },
-            lookups = m.lookups.values.sum(), wordsLookedUp = m.lookups.size, topLookups = top, markedKnown = m.marked.size,
-            shows = shows.map { s -> io.github.pedrubik2000.kumapie.data.ShowProgress(s.title, s.episodes.sumOf { it.seen }, s.episodes.sumOf { it.scenes }) } // lines heard of lines: the PC's count
-                .sortedByDescending { it.seen },
-        )
+        return progress.stats(runCatching { shows().first }.getOrDefault(emptyList()))
     }
 
     /** Home's progress card: time in [lang] (today, 7 days, all) and the words known in it. */
@@ -310,10 +293,8 @@ class Library(context: Context, val settings: Settings) {
 
     suspend fun langProgress(lang: String, shows: List<Show>): LangProgress = withContext(Dispatchers.IO) {
         val m = progress.merged
-        val days = Progress.daysIn(lang, m, sceneLang(m, shows))
-        val today = java.time.LocalDate.parse(Progress.studyDay())
-        LangProgress(days[today.toString()] ?: 0.0, (0L..6L).sumOf { days[today.minusDays(it).toString()] ?: 0.0 }, days.values.sum(),
-            languages.of(lang).known.knownList().size)
+        val (today, week, total) = Progress.totals(Progress.daysIn(lang, m, sceneLang(m, shows)))
+        LangProgress(today, week, total, languages.of(lang).known.knownList().size)
     }
 
     /** Every episode of [shows] with its scenes and word colours (fetched once per app run; unreachable ones skipped). */

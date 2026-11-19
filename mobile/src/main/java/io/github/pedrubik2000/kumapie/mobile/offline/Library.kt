@@ -57,7 +57,7 @@ class Library(context: Context, val settings: Settings) {
         com.chaquo.python.Python.getInstance().getModule("german").callAttr("parse_fields", modelDir, fieldsJson).toString()
     }
     /** Cards mined into kuma3 Anki. */
-    val miner by lazy { Miner(context, languages, dictionary) }
+    val miner by lazy { Miner(context, languages, dictionary, settings.server) } // the PC: its episodes' videos, and cuts the device can't make
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
     /** Episodes made on this device (YouTube links processed here), listed first. */

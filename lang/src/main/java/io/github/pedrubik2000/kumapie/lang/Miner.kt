@@ -211,9 +211,13 @@ class Miner(
      * kumapie's own cards' media (Pedro, 2026-11-19): the line's audio as Opus 16 kbps and a frame 480 px wide
      * ([CardMedia]), no clip. Either failing leaves the card without it (Review then skips the card) rather than no card.
      */
-    private suspend fun ownMedia(r: Request, fieldNames: Collection<String>, slug: String, startMs: Long, endMs: Long,
+    private suspend fun ownMedia(asked: Request, fieldNames: Collection<String>, slug: String, startMs: Long, endMs: Long,
                                  progress: (String) -> Unit, fields: HashMap<String, String>) {
         val pkg = SrsCards.PKG
+        // A PC episode's video is the PC's path (/api/sync/…/video.mp4), as the player gets it: the PC's address first,
+        // unless the file is on this device (a download). Cutting it as a file found nothing (tablet, 2026-11-19).
+        val v = asked.episode.video
+        val r = if (v.startsWith("/") && !File(v).exists() && server.isNotEmpty()) asked.copy(episode = asked.episode.copy(video = server.trimEnd('/') + v)) else asked
         progress(tr("Cutting the line's audio…"))
         val lineFile = File(dir, "line.ogg").apply { delete() }
         runCatching {

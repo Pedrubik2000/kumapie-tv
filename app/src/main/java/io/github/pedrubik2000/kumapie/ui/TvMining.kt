@@ -512,7 +512,7 @@ fun sceneHeard(context: Context, settings: Settings, ctl: SceneController, s: io
     TvMining.languages(context, settings).of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.ms, settings.subtitles.name.lowercase())
 
 /**
- * Leaving a scene (or the player) where words were rated: each rated word's card takes the line it was rated on, with
+ * Closing the player (not each scene: a cut while the stream plays broke it) after rating words: each rated word's card takes the line it was rated on, with
  * that line's audio and picture ([Miner.recontext], as on the phone). Outlives the player.
  */
 fun moveRated(context: Context, settings: Settings, rating: TvRating) {
@@ -548,7 +548,7 @@ val RATEABLE = setOf("d", "b", "k")
  */
 class TvRating {
     /**
-     * This scene's ratings of own cards and where they were made (the frame on screen then): leaving the scene, each
+     * This player's ratings of own cards and where they were made (the frame on screen then): when it closes, each
      * rated word's card takes it ([moveRated]; the phone's recontext, Pedro 2026-11-19). An Undo takes its one out.
      */
     val moves = ArrayList<Pair<KnownWords.Rated, Miner.Request>>()

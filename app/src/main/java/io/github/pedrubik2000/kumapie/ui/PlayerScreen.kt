@@ -124,8 +124,9 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
     remember(ctl) { ctl.onSceneSeen = { s -> sceneHeard(context, settings, ctl, s) } }
     // This TV's kuma3 colours the words it has cards for (a word mined here stays blue the next day, not red).
     val rating = remember { TvRating() }
-    // Leaving a scene where words were rated: their cards move to where they were rated (as on the phone).
-    LaunchedEffect(ctl.index) { moveRated(context, settings, rating) }
+    // Rated words' cards move to where they were rated when the player closes ([moveRated]), not at each scene: each
+    // move cuts the line's audio from the same stream, and cutting while it played broke Dandadan 9 on the Chromecast
+    // (ERROR_CODE_PARSING_CONTAINER_MALFORMED two seconds after the sixth cut, 2026-11-19).
     // The saved colours at once; then kuma3 syncs (it is never opened on the TV) and its cards are read again.
     LaunchedEffect(Unit) { openCards(context, settings, ctl) }
     val picker = remember { WordPicker(ctl, api, scope) }
@@ -251,7 +252,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
             ctl.tick()
             ctl.report()
             picker.release() // the player: rememberPlayer's dispose, after this one
-            moveRated(context, settings, rating) // the last scene's rated words
+            moveRated(context, settings, rating) // every rated word's card, now that the stream stopped
             syncAnkiLater(context, settings, ctl) // what was mined and rated here
             view.keepScreenOn = false
         }

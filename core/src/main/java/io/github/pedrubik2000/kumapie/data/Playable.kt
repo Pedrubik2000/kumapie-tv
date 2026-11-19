@@ -14,20 +14,33 @@ object Playable {
     fun needs(name: String): Set<String> {
         val n = name.lowercase()
         val out = HashSet<String>()
-        val tenBit = Regex("""10[ ._-]?bits?|main ?10|\bma10p?\b|\bhdr(10)?\b|dolby ?vision|\bdv\b""").containsMatchIn(n)
+        val tenBit = TEN_BIT.containsMatchIn(n)
         when {
-            Regex("""\bav1\b""").containsMatchIn(n) -> out += "av1"
+            AV1.containsMatchIn(n) -> out += "av1"
             // HEVC without "10bit" in the name is 10 bit too in anime, nearly always ([DiabloTripleA] … S01E01.mkv: hvc1.2).
-            Regex("""\bx265\b|\bhevc\b|\bh\.?265\b""").containsMatchIn(n) -> if (!Regex("""\b8[ ._-]?bits?\b""").containsMatchIn(n)) out += "hevc10"
-            Regex("""\bhi10p?\b""").containsMatchIn(n) -> out += "avc10"
-            Regex("""\bx264\b|\bavc\b|\bh\.?264\b""").containsMatchIn(n) -> if (tenBit) out += "avc10"
+            HEVC.containsMatchIn(n) -> if (!EIGHT_BIT.containsMatchIn(n)) out += "hevc10"
+            HI10.containsMatchIn(n) -> out += "avc10"
+            AVC.containsMatchIn(n) -> if (tenBit) out += "avc10"
             tenBit -> out += "hevc10" // 10 bit or HDR with no codec named: HEVC in practice (10-bit H.264 says Hi10)
         }
-        if (Regex("""\b2160p\b|\b4k\b|\buhd\b""").containsMatchIn(n)) out += "4k"
+        if (UHD.containsMatchIn(n)) out += "4k"
         return out
     }
 
-    /** What this device decodes, from the same words as [needs] ("avc" always: every Android device has it). */
+    // Compiled once: [needs] runs for every file of a stream list, on the main thread.
+    private val TEN_BIT by lazy { Regex("""10[ ._-]?bits?|main ?10|\bma10p?\b|\bhdr(10)?\b|dolby ?vision|\bdv\b""") }
+    private val AV1 by lazy { Regex("""\bav1\b""") }
+    private val HEVC by lazy { Regex("""\bx265\b|\bhevc\b|\bh\.?265\b""") }
+    private val EIGHT_BIT by lazy { Regex("""\b8[ ._-]?bits?\b""") }
+    private val HI10 by lazy { Regex("""\bhi10p?\b""") }
+    private val AVC by lazy { Regex("""\bx264\b|\bavc\b|\bh\.?264\b""") }
+    private val UHD by lazy { Regex("""\b2160p\b|\b4k\b|\buhd\b""") }
+
+    /**
+     * What this device decodes, from the same words as [needs] ("avc" always: every Android device has it). Read on a
+     * background thread soon after launch (MainActivity): the codec list took ~40 % of the main thread's first stream
+     * list on the Chromecast, inside one 110 ms frame (2026-11-19).
+     */
     val device: Set<String> by lazy {
         val out = hashSetOf("avc")
         val decoders = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filter { !it.isEncoder }

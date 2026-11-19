@@ -359,16 +359,23 @@ addEventListener('scroll', mark); mark();
 
 /**
  * The video frame on screen, 480 p WebP: a Japanese card's picture. The phone's way (a frame from the stream) gives
- * none on the bedroom TV. Null when the TV won't copy it.
+ * none on the bedroom TV. Null when the TV won't copy it, or copies only an empty surface (one flat colour: a card
+ * rated on the Chromecast right after going back lines while paused got a grey picture, 2026-11-19): then the miner
+ * takes the frame from the video itself.
  */
 private suspend fun screenFrame(view: PlayerView?, dir: File, name: String = "tv-shot.webp"): File? {
     val surface = view?.videoSurfaceView as? SurfaceView ?: return null
     if (surface.width == 0 || surface.height == 0) return null
     val bitmap = Bitmap.createBitmap(surface.width, surface.height, Bitmap.Config.ARGB_8888)
-    val copied = suspendCancellableCoroutine { cont ->
-        PixelCopy.request(surface, bitmap, { cont.resume(it == PixelCopy.SUCCESS) }, Handler(Looper.getMainLooper()))
+    var copied = false
+    for (attempt in 0 until 3) { // the frame after a seek may not be drawn yet
+        if (attempt > 0) kotlinx.coroutines.delay(300)
+        copied = suspendCancellableCoroutine { cont ->
+            PixelCopy.request(surface, bitmap, { cont.resume(it == PixelCopy.SUCCESS) }, Handler(Looper.getMainLooper()))
+        } && !flat(bitmap)
+        if (copied) break
     }
-    if (!copied) return null
+    if (!copied) return null.also { Log.w("kumapie", "screen frame: nothing on the video surface") }
     return withContext(Dispatchers.IO) {
         val out = File(File(dir, "mining").apply { mkdirs() }, name)
         @Suppress("DEPRECATION")
@@ -376,6 +383,13 @@ private suspend fun screenFrame(view: PlayerView?, dir: File, name: String = "tv
         out.outputStream().use { Bitmap.createScaledBitmap(bitmap, 480 * bitmap.width / bitmap.height, 480, true).compress(webp, 80, it) }
         out
     }
+}
+
+/** One flat colour (no picture): 64 pixels across the frame within a few levels of each other. */
+internal fun flat(b: Bitmap): Boolean {
+    val px = (0 until 64).map { i -> b.getPixel((i % 8 * 2 + 1) * b.width / 16, (i / 8 * 2 + 1) * b.height / 16) }
+    fun spread(shift: Int) = px.maxOf { it shr shift and 0xff } - px.minOf { it shr shift and 0xff }
+    return spread(16) < 6 && spread(8) < 6 && spread(0) < 6
 }
 
 /**

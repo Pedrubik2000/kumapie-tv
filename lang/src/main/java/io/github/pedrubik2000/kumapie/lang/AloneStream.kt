@@ -6,6 +6,7 @@ import io.github.pedrubik2000.kumapie.data.Addons
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Jimaku
 import io.github.pedrubik2000.kumapie.player.LiveLines
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 
 /**
@@ -39,6 +40,11 @@ class AloneStream(
     var built: Double? = null
         private set
 
+    /** The English files, asked as the stream opens ([build] only fits them): 0.8-2.3 s of a Chromecast's words before. */
+    private val englishFiles = addons?.let { a ->
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).async { runCatching { a.englishFiles(type, id) }.getOrDefault(emptyList()) }
+    }
+
     /**
      * The episode from Jimaku's lines (call once [LiveLines.lines] is filled), English under them from the user's
      * subtitle addon if there is one. While Sudachi's dictionary downloads (the first time) it waits, [onWait] each
@@ -48,7 +54,7 @@ class AloneStream(
      */
     suspend fun build(context: android.content.Context, languages: Languages, duration: Double, position: () -> Double, onWait: () -> Unit): EpisodeDetail {
         val tLines = android.os.SystemClock.elapsedRealtime()
-        val english = runCatching { addons?.english(type, id, live.lines.map { it.first + live.offset }) }.getOrNull().orEmpty()
+        val english = runCatching { englishFiles?.await()?.let { addons!!.fitEnglish(it, live.lines.map { l -> l.first + live.offset }) } }.getOrNull().orEmpty()
         val tEnglish = android.os.SystemClock.elapsedRealtime()
         var ep: EpisodeDetail? = null
         while (ep == null) {
@@ -56,6 +62,7 @@ class AloneStream(
             if (ep == null) { onWait(); delay(5_000) }
         }
         val built0 = ep
+        val tBuilt = android.os.SystemClock.elapsedRealtime()
         ep = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             languages.of(built0.lang).known.run { refreshDue(); apply(built0) }
         }
@@ -64,7 +71,7 @@ class AloneStream(
         live.stopUnlessFitting() // else it listens to the file's track until the fit lands
         // tvbench reads this line ("words ready").
         android.util.Log.i("kumapie", "words ready: lines ${tLines - t0} ms after open, english ${tEnglish - tLines}, " +
-            "build ${android.os.SystemClock.elapsedRealtime() - tEnglish} (${live.source}, ${live.lines.size} lines, ${if (live.canFit) "fit later" else "no track to fit"})")
+            "build ${android.os.SystemClock.elapsedRealtime() - tEnglish} (builder ${tBuilt - tEnglish}, colours ${android.os.SystemClock.elapsedRealtime() - tBuilt}; ${live.source}, ${live.lines.size} lines, ${if (live.canFit) "fit later" else "no track to fit"})")
         return ep.copy(video = video, resume = position())
     }
 
@@ -121,7 +128,11 @@ class AloneStream(
             for ((show, e) in going.take(max)) runCatching {
                 val t = android.os.SystemClock.elapsedRealtime()
                 val lines = kotlinx.coroutines.runBlocking { Jimaku.lines(key, show.title, null, episodeNumber(e.id), prefs.getString(fileKey(e.id), "").orEmpty()) }
-                if (lines.isNotEmpty()) model.words(lines.map { it.text }, background = true)
+                if (lines.isNotEmpty()) model.words(lines.map { it.text }, background = true).let { tokens ->
+                    // Its faces and pictures too ([Japanese.warmFaces]): ~4.5 s of an open on the Chromecast (Dandadan 10, 2026-11-19).
+                    LangKit.get(context, io.github.pedrubik2000.kumapie.data.Settings(context)).languages.japanese
+                        .warmFaces(tokens.flatten().filter { it.isWord }.map { it.base }.toSet())
+                }
                 android.util.Log.i("kumapie", "prefetched ${show.title} ${e.id}: ${lines.size} lines in ${android.os.SystemClock.elapsedRealtime() - t} ms")
             }
         }

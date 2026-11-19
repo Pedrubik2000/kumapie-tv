@@ -217,17 +217,60 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
         val portraits = keys.mapNotNull { k ->
             // autoKnown asks characterName too and keeps the answer: the colours need it anyway (the TV has no parser).
             if (!yomitan.isCharacter(lang, k) || !(if (model.isReady) autoKnown(k) else yomitan.characterName(lang, k) != null)) null
-            else runCatching { yomitan.characterPortrait(lang, k, episode.work)?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) } }.getOrNull()
-                ?.let { k to it.asImageBitmap() }
+            else face(k, episode.work)?.let { k to it }
         }.toMap()
-        // Pictures (user, 2026-11-16: イナゴ like the faces): words not known yet that a [Pictures] dictionary has.
-        val pictures = (keys - portraits.keys - names).filter { episode.words[it]?.let { w -> w.status == "k" || w.marked } != true }
-            .mapNotNull { k -> runCatching { yomitan.wordPicture(lang, k)?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) } }.getOrNull()
-                ?.let { k to it.asImageBitmap() } }.toMap()
-        android.util.Log.i("kumapie", "names: ${names.size} in ${faceStart - started} ms, faces: ${portraits.keys}, pictures: ${pictures.size} in ${System.currentTimeMillis() - faceStart} ms")
+        // Pictures (user, 2026-11-16: イナゴ like the faces): words not known yet that a [Pictures] dictionary has. Known by
+        // this device too ([KnownWords.status]): an episode just built here (a no-PC stream) has every word "u", and every
+        // word of Dandadan 10 was looked up (pictures 4.4 s of its 8.4 s open, Chromecast 2026-11-19).
+        val pictureStart = System.currentTimeMillis()
+        val unknown = (keys - portraits.keys - names).filter { episode.words[it]?.let { w -> w.status == "k" || w.marked } != true && known.status(it) != "k" }
+        val pictures = unknown.mapNotNull { k -> picture(k)?.let { k to it } }.toMap()
+        android.util.Log.i("kumapie", "names: ${names.size} in ${faceStart - started} ms, faces: ${portraits.keys} of ${keys.size} words in " +
+            "${pictureStart - faceStart} ms, pictures: ${pictures.size} of ${unknown.size} asked in ${System.currentTimeMillis() - pictureStart} ms")
         // Joined names (猫猫 from the PC's 猫|猫) are characters' names: known, as [autoKnown] says. Red here ignored every
         // mark on the TV, whose colours come only from the PC's split (user 2026-11-16: "marked mao mao a lot of times").
         return episode.copy(scenes = scenes, words = episode.words + names.associateWith { Word("k", "") }, portraits = pictures + portraits)
+    }
+
+    /**
+     * Faces and pictures of this app run, "work|word" (pictures "|pic|word") -> the small picture or null (none): a
+     * dictionary look-up and its media were ~330 ms a face on the Chromecast (Dandadan 10's 9 faces: 3 s of its open,
+     * 2026-11-19); Home's prefetch fills it ahead ([warmFaces]). At most [FACES] kept.
+     */
+    private val faces = object : LinkedHashMap<String, androidx.compose.ui.graphics.ImageBitmap>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, androidx.compose.ui.graphics.ImageBitmap>) = size > FACES
+    }
+    /** The keys with no face or picture (most words): kept apart, so they never push a picture out of [faces]. */
+    private val noFace = HashSet<String>()
+
+    private fun cached(key: String, load: () -> ByteArray?): androidx.compose.ui.graphics.ImageBitmap? {
+        synchronized(faces) { faces[key]?.let { return it }; if (key in noFace) return null }
+        val bitmap = runCatching { load()?.let(::small)?.asImageBitmap() }.getOrNull()
+        synchronized(faces) { if (bitmap != null) faces[key] = bitmap else noFace += key }
+        return bitmap
+    }
+
+    private fun face(word: String, work: String?) = cached("${work.orEmpty()}|$word") { yomitan.characterPortrait(lang, word, work) }
+    private fun picture(word: String) = cached("|pic|$word") { yomitan.wordPicture(lang, word) }
+
+    /**
+     * Faces and pictures for [words] (an episode's, split ahead on Home: [AloneStream.prefetch]) into [faces], so its
+     * open finds them ready. Characters as [joinNames] asks ([autoKnown] keeps its answers); pictures for words not known.
+     */
+    fun warmFaces(words: Set<String>) {
+        for (k in words) {
+            if (yomitan.isCharacter(lang, k)) { if (if (model.isReady) autoKnown(k) else yomitan.characterName(lang, k) != null) face(k, "") }
+            else if (known.status(k) != "k") picture(k)
+        }
+    }
+
+    /** A face or picture decoded at 128-255 px (drawn about a line high), not the dictionary's full size. */
+    private fun small(bytes: ByteArray): android.graphics.Bitmap? {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 128) sample *= 2
+        return android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
     }
 
     /**
@@ -285,6 +328,9 @@ class Languages(context: Context, settings: Settings, yomitan: YomitanDictionari
     /** The language of a word marked in a [code] episode: kana or kanji in it means Japanese. */
     fun ofWord(word: String, code: String): Language = if (JAPANESE_TEXT.containsMatchIn(word)) japanese else of(code)
 }
+
+/** Faces and pictures a Japanese language keeps decoded (128-255 px: 150 are ~10-40 MB, outside the Java heap). */
+private const val FACES = 150
 
 /** Hiragana, katakana or kanji: a Japanese word. */
 private val JAPANESE_TEXT = Regex("[぀-ヿ㐀-鿿]")

@@ -147,19 +147,24 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
      * ([io.github.pedrubik2000.kumapie.player.LiveLines.place]): of the first [MAX_ENGLISH] files, the one that puts
      * most of its lines on a Japanese one. Empty when no addon has one that fits.
      */
-    suspend fun english(type: String, id: String, japanese: List<Double>): List<Jimaku.Line> {
+    suspend fun english(type: String, id: String, japanese: List<Double>): List<Jimaku.Line> = fitEnglish(englishFiles(type, id), japanese)
+
+    /** [english]'s download half: the first [MAX_ENGLISH] English files' lines, read; needs no Japanese, so a stream asks at once. */
+    suspend fun englishFiles(type: String, id: String): List<List<Jimaku.Line>> {
         val asked = imdb(type, id) ?: return emptyList()
         val kind = if (type == "movie") "movie" else "series" // IMDb has movies and series; Kitsu also says "anime"
         val files = manifests().filter { (_, m) -> gives(m, "subtitles", kind, asked) }.flatMap { (b, _) ->
             runCatching { JSONObject(get("$b/subtitles/$kind/${enc(asked)}.json")).optJSONArray("subtitles").objects() }.getOrDefault(emptyList())
         }.filter { it.optString("lang") in setOf("eng", "en") }.take(MAX_ENGLISH)
-        return files.mapNotNull { f ->
-            val lines = runCatching { Jimaku.cues("en.srt", bytes(f.getString("url")), Jimaku::plain) }.getOrNull() // raw: cues finds the charset
-                ?.takeIf { it.size * 2 >= japanese.size } ?: return@mapNotNull null // signs-only files
-            val at = io.github.pedrubik2000.kumapie.player.LiveLines.place(japanese, lines.map { it.start }) ?: return@mapNotNull null
-            lines.mapIndexed { i, l -> Jimaku.Line(at[i], at[i] + l.end - l.start, l.text) }
-        }.maxByOrNull { ls -> ls.count { l -> japanese.any { kotlin.math.abs(it - l.start) <= 0.3 } } }.orEmpty()
+        return files.mapNotNull { f -> runCatching { Jimaku.cues("en.srt", bytes(f.getString("url")), Jimaku::plain) }.getOrNull() } // raw: cues finds the charset
     }
+
+    /** [english]'s fitting half: of [files], the one that puts most of its lines on a [japanese] line start, placed there. */
+    fun fitEnglish(files: List<List<Jimaku.Line>>, japanese: List<Double>): List<Jimaku.Line> = files.mapNotNull { lines ->
+        if (lines.size * 2 < japanese.size) return@mapNotNull null // signs-only files
+        val at = io.github.pedrubik2000.kumapie.player.LiveLines.place(japanese, lines.map { it.start }) ?: return@mapNotNull null
+        lines.mapIndexed { i, l -> Jimaku.Line(at[i], at[i] + l.end - l.start, l.text) }
+    }.maxByOrNull { ls -> ls.count { l -> japanese.any { kotlin.math.abs(it - l.start) <= 0.3 } } }.orEmpty()
 
     /** [id] as subtitle addons know it (IMDb: tt…, an episode tt…:season:episode); a Kitsu id through its meta's imdb_id, imdbSeason, imdbEpisode. */
     private suspend fun imdb(type: String, id: String): String? {

@@ -61,6 +61,16 @@ fun ReviewScreen(source: ReviewSource, onBack: () -> Unit) {
     fun load() = scope.launch { runCatching { source.due() }.onSuccess { cards = it; i = 0; shown = false }.onFailure { error = it.message ?: it.toString() } }
     LaunchedEffect(Unit) { load() }
     val card = cards?.getOrNull(i)
+    // The card's line audio: plays when the card comes, and on Listen (as the TV's).
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val audio = remember { androidx.media3.exoplayer.ExoPlayer.Builder(context).build() }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { audio.release() } }
+    fun play(uri: String) {
+        audio.setMediaItem(androidx.media3.common.MediaItem.fromUri(source.audioUrl(uri)))
+        audio.prepare()
+        audio.play()
+    }
+    LaunchedEffect(card?.id) { card?.audio?.takeIf { it.isNotEmpty() }?.let(::play) }
     fun rate(r: Int) {
         val c = card ?: return
         if (busy) return
@@ -87,6 +97,9 @@ fun ReviewScreen(source: ReviewSource, onBack: () -> Unit) {
                 }
                 else -> Column(Modifier.widthIn(max = 700.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                    // The line's picture and audio (own cards with both only: ownReview), as the TV's Review.
+                    io.github.pedrubik2000.kumapie.ui.CardPicture(card.image, Modifier.fillMaxWidth())
+                    if (card.audio.isNotEmpty()) OutlinedButton(onClick = { play(card.audio) }) { Text(tr("Listen")) }
                     Text(buildAnnotatedString {
                         var at = 0
                         for (r in wordRanges(card.sentence, card.word)) {

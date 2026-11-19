@@ -175,6 +175,15 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                 }) { Text(tr("Font: %s", JapaneseFonts.label(font))) }
                 Text(JapaneseFonts.SAMPLE, fontSize = 26.sp, color = Colors.text, fontFamily = JapaneseFonts.family(font))
             }
+            // Where mined cards' pictures and audio go (Pedro, 2026-11-19: the Chromecast's USB drive; the bedroom TV has none).
+            Heading(tr("Card pictures and audio"), Modifier.padding(top = 24.dp))
+            val usbHere = remember { io.github.pedrubik2000.kumapie.lang.CardMedia.usbDir(context) != null }
+            var onUsb by remember { mutableStateOf(settings.prefs.getBoolean(io.github.pedrubik2000.kumapie.lang.CardMedia.USB, false)) }
+            if (!usbHere) Text(tr("Kept on this TV (no USB drive plugged in)."), color = Colors.dim)
+            else Button(onClick = {
+                onUsb = !onUsb
+                scope.launch(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.lang.CardMedia.setUsb(context, onUsb) }
+            }) { Text(if (onUsb) tr("Kept on: the USB drive") else tr("Kept on: this TV")) }
             Heading(tr("Updates"), Modifier.padding(top = 24.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = {

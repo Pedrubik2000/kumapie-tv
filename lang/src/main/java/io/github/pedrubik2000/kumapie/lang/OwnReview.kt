@@ -10,7 +10,8 @@ class ReviewSource(val due: suspend () -> List<SrsCard>, val rate: suspend (SrsC
 
 /**
  * No PC (kumapie for other people): the device's own cards ([SrsCards]), due now first (oldest due first), then the
- * new ones (oldest mined first); FSRS on the device. Own cards are text only: no audio. TV and phone.
+ * new ones (oldest mined first); FSRS on the device. TV and phone. Only cards with the line's audio and picture on this
+ * device ([CardMedia]; Pedro, 2026-11-19): a card mined or moved here has them, the PC's copies are text.
  */
 fun ownReview(context: android.content.Context, lang: String): ReviewSource {
     val srs by lazy { SrsCards(context).store(Lang.of(lang)) }
@@ -20,15 +21,25 @@ fun ownReview(context: android.content.Context, lang: String): ReviewSource {
                 val now = System.currentTimeMillis()
                 srs?.cards().orEmpty().filter { (it.due ?: 0L) <= now }
                     .sortedWith(compareBy({ it.due == null }, { it.due ?: it.created }))
-                    .map { c ->
+                    .mapNotNull { c ->
+                        val (audio, image) = media(context, c.fields) ?: return@mapNotNull null
                         val reading = FURIGANA.find(c.word)?.groupValues?.get(2).orEmpty()
                         SrsCard(plain(c.word), plain(c.sentence), "", listOf(reading, plain(c.meaning)).filter { it.isNotBlank() }.joinToString(" · "),
-                            if (c.due == null) "new" else "review", "", c.id)
+                            if (c.due == null) "new" else "review", audio, c.id, image)
                     }
             }
         },
         rate = { c, r -> withContext(Dispatchers.IO) { requireNotNull(srs).rate(c.id, r) } },
     )
+}
+
+/** An own card's audio and picture as file URIs ([fields]: its JSON), null when either isn't on this device. */
+private fun media(context: android.content.Context, fields: String): Pair<String, String>? {
+    if ("[audio:" !in fields || "<img" !in fields) return null // most cards: text only, no file lookups
+    val (audio, image) = CardMedia.names(org.json.JSONObject(fields).let { o -> o.keys().asSequence().map { o.getString(it) }.toList() })
+    val a = audio?.let { CardMedia.file(context, it) } ?: return null
+    val i = image?.let { CardMedia.file(context, it) } ?: return null
+    return android.net.Uri.fromFile(a).toString() to android.net.Uri.fromFile(i).toString()
 }
 
 /**

@@ -713,13 +713,8 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
             value = if (cue == null || picker.selectedInDef != null) emptyList() else runCatching { language.forms(cue.text, offset) }
                 .onFailure { android.util.Log.w("kumapie", "word card forms: $it") }.getOrDefault(emptyList())
         }
-        japaneseRateForms(library, found, io.github.pedrubik2000.kumapie.lang.SensePick.english(ctl.scene, line)) { w, p ->
-            library.miner.mine(io.github.pedrubik2000.kumapie.lang.Miner.Request(ctl.episode, ctl.scene, line, w), p)
-        }
-    } else listOf(RateForm(key, null, if (picker.selectedInDef != null) null else ({ p -> // a word in a definition has no line
-        val request = autoWordCard(library, ctl, line, segment.text, key)
-        library.miner.mine(request, p)
-    })))
+        japaneseRateForms(found)
+    } else listOf(RateForm(key, null)) // only a word with a card is rated (the TV alike, Pedro 2026-11-19)
     // A word in a definition has no line: its rating doesn't move its card to this scene.
     val at = if (picker.selectedInDef != null) null else io.github.pedrubik2000.kumapie.lang.Miner.Request(ctl.episode, ctl.scene, line,
         io.github.pedrubik2000.kumapie.lang.Miner.Word(segment.text, key, null, ""))

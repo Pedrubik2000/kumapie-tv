@@ -171,7 +171,8 @@ class Miner(
         val fields = HashMap<String, String>()
         val startMs = ((cues.first().start - 0.25).coerceAtLeast(0.0) * 1000).toLong()
         val endMs = ((cues.last().end + 0.25) * 1000).toLong()
-        if (pkg != SrsCards.PKG) { // kumapie's own cards are text only: no audio, clip or picture to cut
+        if (pkg == SrsCards.PKG) ownMedia(r, fieldNames, slug, startMs, endMs, progress, fields)
+        else {
         progress(tr("Cutting the line's audio…"))
         val lineFile = File(dir, if (opus) "line.ogg" else "line.m4a").apply { delete() }
         cutOnPc(r, startMs, endMs, lineFile) { audioClip(r.episode.video, startMs, endMs, lineFile, r.episode.lang) }
@@ -204,6 +205,30 @@ class Miner(
         fields["Notes"] = esc(english(r.scene, cues))
         fields["Context"] = esc("$how in kumapie: ${r.episode.show} · ${r.episode.title}, at ${r.scene.ms / 60_000}:${"%02d".format(r.scene.ms / 1000 % 60)}.")
         fields
+    }
+
+    /**
+     * kumapie's own cards' media (Pedro, 2026-11-19): the line's audio as Opus 16 kbps and a frame 480 px wide
+     * ([CardMedia]), no clip. Either failing leaves the card without it (Review then skips the card) rather than no card.
+     */
+    private suspend fun ownMedia(r: Request, fieldNames: Collection<String>, slug: String, startMs: Long, endMs: Long,
+                                 progress: (String) -> Unit, fields: HashMap<String, String>) {
+        val pkg = SrsCards.PKG
+        progress(tr("Cutting the line's audio…"))
+        val lineFile = File(dir, "line.ogg").apply { delete() }
+        runCatching {
+            cutOnPc(r, startMs, endMs, lineFile) { audioClip(r.episode.video, startMs, endMs, lineFile, r.episode.lang, CardMedia.AUDIO_BITRATE) }
+            val name = anki.addMedia(pkg, lineFile, "${slug}_$startMs-$endMs")
+            fields[if ("Sentence Audio" in fieldNames) "Sentence Audio" else "Video"] = "[audio:$name]"
+        }.onFailure { Log.w("kumapie", "card audio: $it") }
+        lineFile.delete()
+        val shot = runCatching {
+            r.picture?.takeIf { it.exists() } ?: r.scene.picAt((startMs + endMs) / 2000.0)?.let(::picture) ?: screenshot(r.episode.video, (startMs + endMs) / 2)
+        }.getOrNull()
+        val small = shot?.let { CardMedia.small(it, File(dir, "card.webp").apply { delete() }) }
+        if (small != null && "Image" in fieldNames) fields["Image"] = "<img src=\"${anki.addMedia(pkg, small, "${slug}_$startMs")}\">"
+        small?.delete()
+        shot?.delete()
     }
 
     /**
@@ -348,9 +373,9 @@ class Miner(
         },
     )
 
-    /** [startMs]..[endMs] of [source]'s audio alone ([lang]'s track): Opus 32 kbps 48 kHz when [out] is .ogg, else AAC in .m4a. */
+    /** [startMs]..[endMs] of [source]'s audio alone ([lang]'s track): Opus [bitrate] 48 kHz when [out] is .ogg, else AAC in .m4a. */
     @OptIn(UnstableApi::class)
-    suspend fun audioClip(source: String, startMs: Long, endMs: Long, out: File, lang: String? = null) = withContext(Dispatchers.Main) {
+    suspend fun audioClip(source: String, startMs: Long, endMs: Long, out: File, lang: String? = null, bitrate: Int = 32_000) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
             val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
             val item = MediaItem.Builder().setUri(uri).setClippingConfiguration(
@@ -361,7 +386,7 @@ class Miner(
                 .setAudioMimeType(if (ogg) MimeTypes.AUDIO_OPUS else MimeTypes.AUDIO_AAC)
                 .apply {
                     if (ogg) setMuxerFactory(WebmMuxer.Factory(ogg = true)).setEncoderFactory(DefaultEncoderFactory.Builder(context)
-                        .setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(32_000).build()).build())
+                        .setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(bitrate).build()).build())
                 }
                 .addListener(object : Transformer.Listener {
                     override fun onCompleted(composition: Composition, result: ExportResult) {
@@ -476,22 +501,29 @@ class Miner(
     /**
      * A rating's new scene (kumapie_plan.md 37b): each of [notes] (the rated word's own Mined cards) takes [r]'s line
      * ([sceneFields], "Rated in kumapie"), unless it has that sentence already. Word, definitions, word audio, tags and
-     * scheduling stay; no flag; a Japanese "form of …" note stays. Answers how many notes changed.
+     * scheduling stay; no flag; a Japanese "form of …" note stays. The line's audio and picture come with it (a card
+     * from the PC gets its first, [CardMedia]); the old ones are deleted when no card uses them. The TV and the phone.
+     * Answers how many notes changed.
      */
     suspend fun recontext(notes: List<Long>, r: Request): Int = withContext(Dispatchers.IO) {
-        val known = languages.of(r.episode.lang).known
-        val pkg = known.ankiApp() ?: return@withContext 0
-        val japanese = languages.of(r.episode.lang) is Japanese
+        val language = languages.of(r.episode.lang)
+        val pkg = SrsCards.PKG
+        val japanese = language is Japanese
         val text = plain(if (japanese) r.scene.cues[r.line].text else sentence(r.scene, r.line).first)
         val stale = anki.notes(pkg, "nid:" + notes.joinToString(",")).filter { plain(it.fields["Sentence"].orEmpty()) != text }
         if (stale.isEmpty()) return@withContext 0
-        val scene = sceneFields(r, pkg, stale.first().fields.keys, "Rated")
+        // Every field of the note type (an own card keeps only its filled ones: one from the PC has no media yet).
+        val names = anki.noteType(pkg, language.known.noteTypes)?.second ?: stale.first().fields.keys
+        val scene = sceneFields(r, pkg, names, "Rated")
+        val own = Cards.get(context).srs
+        val old = stale.flatMap { CardMedia.names(it.fields.values).toList() }.filterNotNull().toSet()
         for (n in stale) {
-            val fields = LinkedHashMap(n.fields)
-            scene.forEach { (k, v) -> if (k in fields) fields[k] = v }
-            Regex("<br>form of .*$").find(n.fields["Notes"].orEmpty())?.let { fields["Notes"] = fields["Notes"] + it.value }
-            anki.updateNote(pkg, n.id, n.tags, fields.values.toList())
+            val fields = HashMap(scene)
+            Regex("<br>form of .*$").find(n.fields["Notes"].orEmpty())?.let { fields["Notes"] = scene["Notes"].orEmpty() + it.value }
+            own.update(n.id, fields, null)
         }
+        val used = anki.notes(pkg, "deck:${language.lang.deck}").flatMap { CardMedia.names(it.fields.values).toList() }.filterNotNull().toSet()
+        CardMedia.sweep(context, old, used)
         Log.i("kumapie", "recontext: ${stale.size} of ${notes.size} notes now at ${r.episode.title} scene ${r.scene.index + 1}")
         stale.size
     }

@@ -34,10 +34,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * One form to rate: its [key] in the language's card index, a [label] (Japanese rows: "気にしない [きにしない]"; none for
- * the one German row), and [make]: makes its card when it has none (answers the line to show), null when it can't.
+ * One form to rate: its [key] in the language's card index and a [label] (Japanese rows: "気にしない [きにしない]"; none
+ * for the one German row). Only a form with a card of its own shows (the TV alike: Pedro, 2026-11-19).
  */
-class RateForm(val key: String, val label: String?, val make: (suspend (progress: (String) -> Unit) -> String)?)
+class RateForm(val key: String, val label: String?)
 
 /**
  * A rating, its "Answered: …" line, and where it was made ([at]: the player's line, null elsewhere). The rated word's
@@ -57,12 +57,10 @@ suspend fun recontext(library: Library, ratings: Collection<Rating>) {
 }
 
 /**
- * Again / Hard / Good / Easy for each form's own kuma3 cards (kumapie_anki_review_plan.md): one rating answers every
- * card of the form kuma3 shows today, else its first (an early review); time = rows shown -> button. A form without a
- * card of its own gets its card made first ([RateForm.make]), then the rating. Then Undo (kuma3's; a card it made
- * stays, new) and today's total of cards reviewed from episodes. kuma3's queue is not read again here: reading it
- * selects decks, which replaces kuma3's Undo ("Select Deck"); the player reads it when you leave a scene you rated in.
- * While a rating or the player's read runs ([busy], in [scope], which outlives the rows) no button works.
+ * Again / Hard / Good / Easy for each form's own cards (kumapie's store): one rating answers every card of the form due
+ * today, else its first (an early review); time = rows shown -> button. A form without a card of its own has no row
+ * (Pedro, 2026-11-19: as on the TV). Then Undo and today's total of cards reviewed from episodes. While a rating or the
+ * player's read runs ([busy], in [scope], which outlives the rows) no button works.
  */
 @Composable
 fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, forms: List<RateForm>, ratings: Ratings,
@@ -98,12 +96,10 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
         // words, which redraws this) shows at once instead of "No card yet". [tick] redraws after a rating.
         @Suppress("UNUSED_EXPRESSION") tick
         val state = known.cardIndex.state(f.key)
-        if (state != null && (state != "u" || f.make != null)) Column(Modifier.padding(top = 6.dp)) {
+        if (state != null && state != "u") Column(Modifier.padding(top = 6.dp)) {
             f.label?.let {
                 Text(it, fontSize = 15.sp, color = when (state) { "d" -> Colors.due; "k" -> Colors.text; "b" -> Colors.mined; else -> Colors.unknown })
             }
-            // Said before the tap: a rating here makes a card in the Mined deck first (user, 2026-10-14).
-            if (state == "u" && ratings[f.key] == null) Text(tr("No card yet: a rating adds one."), color = Colors.dim, fontSize = 13.sp)
             val r = ratings[f.key]?.rated
             val answered = ratings[f.key]?.label.orEmpty()
             // Filled and the card's whole width (user, 2026-10-13): red, gray, green, blue.
@@ -112,14 +108,9 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
                     Button(enabled = !busy.value, contentPadding = PaddingValues(horizontal = 4.dp), modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color(0xFF1E1B26)), onClick = {
                         rating {
-                            if (known.cardIndex.state(f.key) == "u") {
-                                val made = runCatching { f.make!! { said[f.key] = it } }.onFailure { said[f.key] = it.message ?: it.toString() }.isSuccess
-                                if (!made) return@rating
-                                known.reloadCards()
-                            }
                             val done = known.rate(f.key, i + 1, System.currentTimeMillis() - opened, watch)
                             if (done != null) { ratings[f.key] = Rating(done, tr("Answered: %s", tr(label)), at); count(done.cards); said.remove(f.key) }
-                            else said[f.key] = tr("kuma3 didn't take the rating.")
+                            else said[f.key] = tr("The rating didn't go in.")
                         }
                     }) { Text(tr(label), fontSize = 14.sp, maxLines = 1) }
                 }
@@ -128,14 +119,13 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
                 TextButton(enabled = !busy.value, onClick = {
                     rating {
                         if (known.undo(r)) { count(-r.cards); ratings.remove(f.key); said.remove(f.key) }
-                        else said[f.key] = tr("kuma3 didn't undo it (something else was done there since?).")
+                        else said[f.key] = tr("Couldn't undo it (something else was done since?).")
                     }
                 }) { Text(tr("Undo")) }
             }
             said[f.key]?.let { Text(it, color = Colors.dim, fontSize = 13.sp) }
         }
     }
-    if (busy.value) Text(tr("Updating kuma3's queue…"), color = Colors.dim, fontSize = 13.sp)
     if (today > 0) Text(tr("Reviewed from episodes today: %d", today), color = Colors.dim, fontSize = 13.sp)
 }
 

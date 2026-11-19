@@ -441,7 +441,9 @@ data class SrsDue(val due: Int, val new: Int, val today: Int, val cards: List<Sr
 
 /** A PC card: the word, its line and the line's translation, the meaning mined with it, its state, the line's audio (server path). */
 /** [id]: the card in this device's own store (no PC); 0 for the PC's. */
-data class SrsCard(val word: String, val sentence: String, val translation: String, val meaning: String, val state: String, val audio: String, val id: Long = 0)
+data class SrsCard(val word: String, val sentence: String, val translation: String, val meaning: String, val state: String, val audio: String, val id: Long = 0,
+                   /** The line's picture (own cards: a file on this device, [io.github.pedrubik2000.kumapie.lang.CardMedia]); "" none. */
+                   val image: String = "")
 
 /** A Discover title: Stremio [id] ("kitsu:46474"), [type] "series" / "movie". */
 /** A Discover title (kumapie-server discover.py `_title`): the rest is for the hero banner and the title page. */

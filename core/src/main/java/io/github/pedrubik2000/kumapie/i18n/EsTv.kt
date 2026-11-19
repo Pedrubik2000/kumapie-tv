@@ -272,4 +272,8 @@ internal val esTv: Map<String, String> = mapOf(
     "None of your addons knows this title" to "Ninguno de tus addons conoce este título",
     "Your addon gives torrents, not links: set it up with your debrid key and paste its new address in Settings" to
         "Tu addon da torrents, no enlaces: configúralo con tu clave de debrid y pega su nueva dirección en Ajustes",
+    "Card pictures and audio" to "Imágenes y audio de las tarjetas",
+    "Kept on this TV (no USB drive plugged in)." to "Se guardan en esta TV (no hay una memoria USB conectada).",
+    "Kept on: the USB drive" to "Se guardan en: la memoria USB",
+    "Kept on: this TV" to "Se guardan en: esta TV",
 )

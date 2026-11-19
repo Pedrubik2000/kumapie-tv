@@ -124,6 +124,8 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
     remember(ctl) { ctl.onSceneSeen = { s -> sceneHeard(context, settings, ctl, s) } }
     // This TV's kuma3 colours the words it has cards for (a word mined here stays blue the next day, not red).
     val rating = remember { TvRating() }
+    // Leaving a scene where words were rated: their cards move to where they were rated (as on the phone).
+    LaunchedEffect(ctl.index) { moveRated(context, settings, rating) }
     // The saved colours at once; then kuma3 syncs (it is never opened on the TV) and its cards are read again.
     LaunchedEffect(Unit) { openCards(context, settings, ctl) }
     val picker = remember { WordPicker(ctl, api, scope) }
@@ -156,10 +158,10 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
             // Rating a due word: one arrow rates it (← Again, ↓ Hard, → Good, ↑ Easy), Back cancels, nothing else acts.
             if (rating.open) {
                 when (action) {
-                    Action.PICK_LEFT -> rateWord(context, api, settings, ctl, picker, scope, rating, 1)
-                    Action.PICK_DOWN -> rateWord(context, api, settings, ctl, picker, scope, rating, 2)
-                    Action.PICK_RIGHT -> rateWord(context, api, settings, ctl, picker, scope, rating, 3)
-                    Action.PICK_UP -> rateWord(context, api, settings, ctl, picker, scope, rating, 4)
+                    Action.PICK_LEFT -> rateWord(context, api, settings, ctl, picker, scope, rating, 1, playerView)
+                    Action.PICK_DOWN -> rateWord(context, api, settings, ctl, picker, scope, rating, 2, playerView)
+                    Action.PICK_RIGHT -> rateWord(context, api, settings, ctl, picker, scope, rating, 3, playerView)
+                    Action.PICK_UP -> rateWord(context, api, settings, ctl, picker, scope, rating, 4, playerView)
                     Action.PICK_CLOSE -> rating.open = false
                     else -> Unit
                 }
@@ -249,7 +251,8 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
             ctl.tick()
             ctl.report()
             picker.release() // the player: rememberPlayer's dispose, after this one
-            syncAnkiLater(context, settings, ctl) // what was mined and rated here, to AnkiWeb
+            moveRated(context, settings, rating) // the last scene's rated words
+            syncAnkiLater(context, settings, ctl) // what was mined and rated here
             view.keepScreenOn = false
         }
     }

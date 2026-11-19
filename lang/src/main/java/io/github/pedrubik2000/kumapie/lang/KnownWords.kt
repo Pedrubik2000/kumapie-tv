@@ -156,8 +156,11 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** The Anki note type with the German sentences and Core 1000 words: its new name first, then the old one. */
     val noteTypes = lang.noteTypes
 
-    /** The AnkiDroid to read: the first installed one (kuma3 Anki first), or null. */
-    fun ankiApp(): String? = if (srs.active(lang)) SrsCards.PKG else anki.installed().firstOrNull()
+    /**
+     * Where this person's cards are: kumapie's own store, always (Pedro, 2026-11-19: nobody uses kuma3 any more; it
+     * picked kuma3 when the store hadn't come from the PC). Null only when the device has no person yet.
+     */
+    fun ankiApp(): String? = SrsCards.PKG.takeIf { srs.store(lang) != null }
 
     /** The app the last read came from, or kumapie's store once it is this person's (a saved kuma3 read must not take ratings then). */
     private fun pkgNow(): String? = if (srs.active(lang)) SrsCards.PKG else lastReading?.pkg

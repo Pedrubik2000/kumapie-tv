@@ -368,7 +368,7 @@ addEventListener('scroll', mark); mark();
  * The video frame on screen, 480 p WebP: a Japanese card's picture. The phone's way (a frame from the stream) gives
  * none on the bedroom TV. Null when the TV won't copy it.
  */
-private suspend fun screenFrame(view: PlayerView?, dir: File): File? {
+private suspend fun screenFrame(view: PlayerView?, dir: File, name: String = "tv-shot.webp"): File? {
     val surface = view?.videoSurfaceView as? SurfaceView ?: return null
     if (surface.width == 0 || surface.height == 0) return null
     val bitmap = Bitmap.createBitmap(surface.width, surface.height, Bitmap.Config.ARGB_8888)
@@ -377,7 +377,7 @@ private suspend fun screenFrame(view: PlayerView?, dir: File): File? {
     }
     if (!copied) return null
     return withContext(Dispatchers.IO) {
-        val out = File(File(dir, "mining").apply { mkdirs() }, "tv-shot.webp") // the folder kuma3 may read (file_paths.xml)
+        val out = File(File(dir, "mining").apply { mkdirs() }, name)
         @Suppress("DEPRECATION")
         val webp = if (Build.VERSION.SDK_INT >= 30) Bitmap.CompressFormat.WEBP_LOSSY else Bitmap.CompressFormat.WEBP
         out.outputStream().use { Bitmap.createScaledBitmap(bitmap, 480 * bitmap.width / bitmap.height, 480, true).compress(webp, 80, it) }
@@ -437,8 +437,7 @@ fun mineWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
                 // monolingual definition; the PC's meaning when no sense fits.
                 io.github.pedrubik2000.kumapie.lang.WordCard.auto(TvMining.languages.of(ctl.lang), TvMining.yomitan, ctl, line, segment.text, key)
             }
-            // kumapie's own cards are text only (Miner.cutScene): no full-screen copy for them
-            val picture = if (japanese && pkg != io.github.pedrubik2000.kumapie.lang.SrsCards.PKG) runCatching { screenFrame(view, context.cacheDir) }.getOrNull() else null
+            val picture = runCatching { screenFrame(view, context.cacheDir) }.getOrNull() // the card's picture (own cards too: CardMedia)
             miner.mine(Miner.Request(ctl.episode, scene, line, w, picture)) {}
         }
             .onSuccess {
@@ -512,6 +511,21 @@ suspend fun syncAnki(context: Context, settings: Settings, ctl: SceneController,
 fun sceneHeard(context: Context, settings: Settings, ctl: SceneController, s: io.github.pedrubik2000.kumapie.data.Scene) =
     TvMining.languages(context, settings).of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.ms, settings.subtitles.name.lowercase())
 
+/**
+ * Leaving a scene (or the player) where words were rated: each rated word's card takes the line it was rated on, with
+ * that line's audio and picture ([Miner.recontext], as on the phone). Outlives the player.
+ */
+fun moveRated(context: Context, settings: Settings, rating: TvRating) {
+    if (rating.moves.isEmpty()) return
+    val moves = rating.moves.toList()
+    rating.moves.clear()
+    val app = context.applicationContext
+    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+        val miner = TvMining.miner(app, settings)
+        for ((rated, at) in moves) runCatching { miner.recontext(rated.notes, at) }.onFailure { Log.w("kumapie", "recontext: $it") }
+    }
+}
+
 /** [syncAnki] when leaving the player: outlives it. */
 fun syncAnkiLater(context: Context, settings: Settings, ctl: SceneController) {
     kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { syncAnki(context.applicationContext, settings, ctl, wait = false) }
@@ -533,6 +547,11 @@ val RATEABLE = setOf("d", "b", "k")
  * [fresh] while that Undo is offered (until the next word card).
  */
 class TvRating {
+    /**
+     * This scene's ratings of own cards and where they were made (the frame on screen then): leaving the scene, each
+     * rated word's card takes it ([moveRated]; the phone's recontext, Pedro 2026-11-19). An Undo takes its one out.
+     */
+    val moves = ArrayList<Pair<KnownWords.Rated, Miner.Request>>()
     var open by mutableStateOf(false)
     var last by mutableStateOf<Pair<String, KnownWords.Rated>?>(null)
     var fresh by mutableStateOf(false)
@@ -572,7 +591,7 @@ fun pickedCard(ctl: SceneController, picker: WordPicker): Pair<String, String?>?
  * a due (green) word, after its meaning was shown; one rating answers every due card of the word. kuma3 is not opened.
  * Then the card closes and the picker goes to the next word (a line with several due words: rate, rate, rate).
  */
-fun rateWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, rating: TvRating, ease: Int) {
+fun rateWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend, settings: Settings, ctl: SceneController, picker: WordPicker, scope: CoroutineScope, rating: TvRating, ease: Int, view: PlayerView? = null) {
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     rating.open = false
     val (form, state) = pickedCard(ctl, picker) ?: return
@@ -599,12 +618,18 @@ fun rateWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
     if (rating.busy) return
     val language = TvMining.languages(context, settings).of(ctl.lang)
     val ms = System.currentTimeMillis() - rating.since
+    val line = picker.line
+    val surface = picker.selected?.text.orEmpty()
+    val scene = ctl.scene
     rating.busy = true
     scope.launch {
         try {
             val done = language.known.rate(form, ease, ms, io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.ms, settings.subtitles.name.lowercase(), null, ctl.speed.toDouble()))
             if (done == null) say(tr("The rating didn't go in."))
             else {
+                // Where it was rated, with the frame on screen now: its card moves there when the scene is left ([moveRated]).
+                val frame = runCatching { screenFrame(view, context.cacheDir, "rated-${System.nanoTime()}.webp") }.getOrNull()
+                rating.moves += done to Miner.Request(ctl.episode, scene, line, Miner.Word(surface, form, null, ""), frame)
                 rating.last = form to done
                 rating.said = tr(RATINGS[ease - 1])
                 rating.fresh = true
@@ -620,7 +645,7 @@ fun rateWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
     }
 }
 
-/** Takes the last rating back with kuma3's Undo (while nothing else was done in kuma3 since): the word is due again. */
+/** Takes the last rating back (while nothing else was done since): the word is due again, and its card stays where it was. */
 fun undoRating(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend, settings: Settings, ctl: SceneController, scope: CoroutineScope, rating: TvRating) {
     fun say(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     rating.open = false
@@ -645,6 +670,7 @@ fun undoRating(context: Context, api: io.github.pedrubik2000.kumapie.data.Backen
     scope.launch {
         try {
             if (language.known.undo(rated)) {
+                rating.moves.removeAll { it.first === rated }
                 rating.last = null
                 rating.fresh = false
                 rating.count(settings, -rated.cards)

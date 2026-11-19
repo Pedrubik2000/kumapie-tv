@@ -97,10 +97,8 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
                 }
             }
             if (said.isNotEmpty()) Text(said, fontSize = 12.sp, color = Colors.dim)
-            // The picked word's rows (as in the word card); a missing form gets a word-only card (word, reading, meaning, audio).
-            if (forms.isNotEmpty()) RatingRows(ja.known, library.settings.prefs, japaneseRateForms(library, forms, null) { w, _ ->
-                library.miner.mineJapaneseWord(w)
-            }, ratings, scope, busy)
+            // The picked word's rows (as in the word card): forms with a card only.
+            if (forms.isNotEmpty()) RatingRows(ja.known, library.settings.prefs, japaneseRateForms(forms), ratings, scope, busy)
             headwords?.let { YomitanPopup(library, Lang.JAPANESE, it, onSpeak = ja::say) }
         }
     }

@@ -60,8 +60,10 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
     fun cards(): List<Card> = db.rawQuery("SELECT $CARD_COLS FROM cards WHERE (' ' || tags || ' ') NOT LIKE '% $DELETED %'", null).use { c -> buildList { while (c.moveToNext()) add(card(c)) } }
 
     /** How many of [cards] are due by [time] (never-rated ones too), counted by SQLite: loading every card to count took
-     *  ~14 % of the Chromecast's main thread at cold start (2026-11-19). */
-    fun dueCount(time: Long): Int = db.rawQuery("SELECT COUNT(*) FROM cards WHERE (' ' || tags || ' ') NOT LIKE '% $DELETED %' AND IFNULL(due, 0) <= ?",
+     *  ~14 % of the Chromecast's main thread at cold start (2026-11-19). Only cards with the line's audio and picture, as
+     *  Review shows ([ownReview]; their files are checked there). */
+    fun dueCount(time: Long): Int = db.rawQuery("SELECT COUNT(*) FROM cards WHERE (' ' || tags || ' ') NOT LIKE '% $DELETED %' AND IFNULL(due, 0) <= ?" +
+        " AND fields LIKE '%[audio:%' AND fields LIKE '%<img%'",
         arrayOf("$time")).use { if (it.moveToFirst()) it.getInt(0) else 0 }
 
     fun card(id: Long): Card? = db.rawQuery("SELECT $CARD_COLS FROM cards WHERE id = ?", arrayOf("$id")).use { if (it.moveToFirst()) card(it) else null }

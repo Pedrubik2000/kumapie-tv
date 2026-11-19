@@ -188,7 +188,8 @@ class SrsCards(private val context: Context) : Cards {
 
     override fun deck(pkg: String, name: String): Long = Lang.ALL.indexOfFirst { it.deck == name }.toLong().also { require(it >= 0) { "no deck $name" } }
 
-    override fun addMedia(pkg: String, file: File, preferredName: String) = ""
+    /** The line's audio and picture, small, in [CardMedia] (this device or its USB drive); answers the name fields use. */
+    override fun addMedia(pkg: String, file: File, preferredName: String) = CardMedia.put(context, file, preferredName)
 
     override fun addNote(pkg: String, mid: Long, fields: List<String>, tags: List<String>, deck: Long): Long =
         mine(Lang.ALL[deck.toInt()], fields(Lang.ALL[mid.toInt()]).zip(fields).toMap(), tags.joinToString(" "))
@@ -231,9 +232,13 @@ class SrsCards(private val context: Context) : Cards {
     private fun names(c: Srs.Card) = listOf("Word", "Sentence", KnownWords.DEF_BI) + JSONObject(c.fields).keys().asSequence().toList()
     private fun values(c: Srs.Card) = JSONObject(c.fields).let { o -> listOf(c.word, c.sentence, c.meaning) + o.keys().asSequence().map { o.getString(it) }.toList() }
 
-    /** The fields that aren't Word, Sentence or the bilingual definition, without media; empty ones left out. */
+    /**
+     * The fields that aren't Word, Sentence or the bilingual definition, without media but the line's own ([MEDIA_FIELDS]:
+     * its audio and picture, [CardMedia]); empty ones left out.
+     */
     private fun rest(f: Map<String, String>) = JSONObject().apply {
-        for ((k, v) in f) if (k !in setOf("Word", "Sentence", KnownWords.DEF_BI)) text(v).takeIf { it.isNotEmpty() }?.let { put(k, it) }
+        for ((k, v) in f) if (k !in setOf("Word", "Sentence", KnownWords.DEF_BI))
+            (if (k in MEDIA_FIELDS) MEDIA.findAll(v).joinToString("") { it.value } else text(v)).takeIf { it.isNotEmpty() }?.let { put(k, it) }
     }.toString()
 
     companion object {
@@ -242,6 +247,8 @@ class SrsCards(private val context: Context) : Cards {
         /** The one person of a device without a PC (no profiles there). */
         const val LOCAL = "me"
         private val MEDIA = Regex("""<img[^>]*>|\[(?:sound|audio):[^\]]*\]""", RegexOption.IGNORE_CASE)
+        /** The fields that keep their media: the line's audio and picture ([CardMedia]); word and definition audio stay out. */
+        val MEDIA_FIELDS = setOf("Sentence Audio", "Video", "Image")
         /** "Mined in kumapie: <show> · <episode>, scene N." as Miner writes it (and tools\srs\import_kuma3.py reads it). */
         private val CONTEXT = Regex("""(?:Mined|Rated) in kumapie: (.*?) · (.*), (?:scene (\d+)|at (\d+):(\d\d))\.""")
 
@@ -254,9 +261,9 @@ class SrsCards(private val context: Context) : Cards {
         private fun text(v: String?) = MEDIA.replace(v.orEmpty(), "").trim()
         private fun String.unescape() = replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
-        /** Pedro's note types' fields (Miner checks them; media fields stay empty here). */
+        /** Pedro's note types' fields (Miner checks them); German / English got an Image too (own cards: a picture, no clip). */
         private fun fields(lang: Lang) = if (lang == Lang.JAPANESE)
             listOf("Sentence", "Sentence Audio", "Word", "Word Audio", KnownWords.DEF_BI, KnownWords.DEF_MONO, "Definition Audio", "am-study-morphs", "Image", "Notes", "Context")
-        else listOf("Sentence", "Video", "Word", "Word Audio", KnownWords.DEF_BI, KnownWords.DEF_MONO, "Definition Audio", "am-study-morphs", "Notes", "Context")
+        else listOf("Sentence", "Video", "Word", "Word Audio", KnownWords.DEF_BI, KnownWords.DEF_MONO, "Definition Audio", "am-study-morphs", "Image", "Notes", "Context")
     }
 }

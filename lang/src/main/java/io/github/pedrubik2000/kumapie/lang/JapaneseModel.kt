@@ -88,7 +88,7 @@ class JapaneseModel(private val context: Context) : Model {
         val t = android.os.SystemClock.elapsedRealtime()
         var first = 0L
         return texts.mapIndexed { i, x -> s.split(x).also { if (i == 0) first = android.os.SystemClock.elapsedRealtime() - t } }
-            .also { android.util.Log.i("kumapie", "jiten split: ${texts.size} lines in ${android.os.SystemClock.elapsedRealtime() - t} ms (first $first)") }
+            .also { if (texts.size > 1) android.util.Log.i("kumapie", "jiten split: ${texts.size} lines in ${android.os.SystemClock.elapsedRealtime() - t} ms (first $first)") }
     }
 
     /** Jiten's splitter once its files are here (one per process: ~95 MB), else null. */

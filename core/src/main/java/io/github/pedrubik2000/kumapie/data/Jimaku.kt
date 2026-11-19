@@ -88,14 +88,16 @@ object Jimaku {
         return season to null
     }
 
-    private val CHINESE_STYLE = Regex("""CN|CHS|CHT|ZH|[中简繁]|(?i:(?:^|[\W_])(?:cn|chs|cht|zh|chi)(?:$|[\W_]))""")
-    private val SONG_OR_SIGN = Regex("""sign|\bop\d*\b|\bed\d*\b|opening|ending|song|karaoke|kfx|lyric|\brom|romaji|kanji|title|insert|typeset|\bts\b|credit|staff""", RegexOption.IGNORE_CASE)
-    private val KANA = Regex("[ぁ-ヿ]")
-    private val JAPANESE = Regex("[぀-ヿ一-鿿]")
+    // Compiled on first use, not when the app opens (`Jimaku.cache = cacheDir` in onCreate): ~10 % of the Chromecast's
+    // main thread in the first 3 s (2026-11-19).
+    private val CHINESE_STYLE by lazy { Regex("""CN|CHS|CHT|ZH|[中简繁]|(?i:(?:^|[\W_])(?:cn|chs|cht|zh|chi)(?:$|[\W_]))""") }
+    private val SONG_OR_SIGN by lazy { Regex("""sign|\bop\d*\b|\bed\d*\b|opening|ending|song|karaoke|kfx|lyric|\brom|romaji|kanji|title|insert|typeset|\bts\b|credit|staff""", RegexOption.IGNORE_CASE) }
+    private val KANA by lazy { Regex("[ぁ-ヿ]") }
+    private val JAPANESE by lazy { Regex("[぀-ヿ一-鿿]") }
     private const val STAMP = """(?:(\d+):)?(\d+):(\d+)[,.](\d+)""" // VTT may leave out the hours (mm:ss.ttt)
 
     /** An .srt / .vtt arrow line's two times (groups 1-4, 5-8; an hours group may be empty). */
-    val ARROW = Regex("$STAMP\\s*-->\\s*$STAMP")
+    val ARROW by lazy { Regex("$STAMP\\s*-->\\s*$STAMP") }
 
     /**
      * A subtitle file (.srt / .vtt / .ass / .ssa) -> the lines that are said, in time order: styling dropped, ASS signs,

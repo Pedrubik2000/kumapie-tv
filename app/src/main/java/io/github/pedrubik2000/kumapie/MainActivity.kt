@@ -61,7 +61,9 @@ class MainActivity : ComponentActivity() {
         Updater.asset = "kumapie-tv-"
         val settings = Settings(this)
         fromAdb(intent, settings)
-        if (settings.server.isBlank()) io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() // no PC: streams' words
+        // No PC: streams' words. 5 s in, after Home: loading it at once (~95 MB, a GC every 0.6 s) slowed the
+        // Chromecast's cold start to Home settled (2026-11-19).
+        if (settings.server.isBlank()) window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() }, 5000)
         io.github.pedrubik2000.kumapie.data.Jimaku.cache = cacheDir // an episode's lines kept for the next time it opens
         @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class) // LocalBringIntoViewSpec: the TV glide
         setContent { KumapieTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides io.github.pedrubik2000.kumapie.ui.TvScroll) { App(settings) } } }

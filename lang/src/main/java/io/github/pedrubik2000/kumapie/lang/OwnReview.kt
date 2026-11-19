@@ -38,7 +38,7 @@ fun ownReview(context: android.content.Context, lang: String): ReviewSource {
  */
 suspend fun ownDueCount(context: android.content.Context, lang: String): Int = withContext(Dispatchers.IO) {
     val now = System.currentTimeMillis()
-    SrsCards(context).store(Lang.of(lang))?.cards().orEmpty().count { (it.due ?: 0L) <= now }
+    SrsCards(context).store(Lang.of(lang))?.dueCount(now) ?: 0
 }
 
 /** Anki's furigana: " 支配[しはい]" (the space starts the word). */

@@ -38,6 +38,10 @@ class JimakuTest {
     @Test fun netflixCaptionsKeepOnlyWhatIsSaid() = assertEquals(listOf("", "ちょっ てめっ", "絶滅したわ そんな男", "ああ ヤダヤダ", ""),
         listOf("（男子生徒の話し声）", "（彼氏）ちょっ てめっ", "（ミーコ･ムーコ）絶滅したわ そんな男", "（モモ）ああ ヤダヤダ", "♪～").map(Jimaku::spoken))
 
+    @Test fun linesSavedTwiceOverAreTurnedBack() = assertEquals(
+        "♪ Defects… ♪\nCafé “ok”\n日本語 â stays\nplain",
+        Jimaku.unmangle("â™ª Defectsâ€¦ â™ª\nCafÃ© â€œokâ€\u009D\n日本語 â stays\nplain"))
+
     @Test fun anAddonsAddressAsPasted() = assertEquals(List(4) { "https://a.example/cfg=1" }, listOf(
         "https://a.example/cfg=1/manifest.json", "stremio://a.example/cfg=1/manifest.json", " a.example/cfg=1/ ", "https://a.example/cfg=1").map(Addons::base))
 }

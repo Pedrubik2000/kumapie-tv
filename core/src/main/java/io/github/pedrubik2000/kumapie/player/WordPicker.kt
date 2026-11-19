@@ -168,8 +168,10 @@ class WordPicker(
             cue.segments.mapIndexedNotNull { s, segment -> if (segment.word != null) Spot(l, s) else null }
         }
         val here = Spot(line, seg)
-        val wanted = all.filter { status(it) != "k" || (isOpen && it == here) }
-        return wanted.ifEmpty { all }
+        // Every word white: all of them (the cursor's own word counted as "coloured" here, so it couldn't move: Pedro,
+        // 2026-11-19).
+        if (all.none { status(it) != "k" }) return all
+        return all.filter { status(it) != "k" || (isOpen && it == here) }
     }
 
     private fun step(by: Int) {

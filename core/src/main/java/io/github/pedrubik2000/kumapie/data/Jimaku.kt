@@ -164,8 +164,30 @@ object Jimaku {
     private fun decode(data: ByteArray): String {
         if (data.size >= 2 && ((data[0] == 0xFF.toByte() && data[1] == 0xFE.toByte()) || (data[0] == 0xFE.toByte() && data[1] == 0xFF.toByte()))) return String(data, Charsets.UTF_16)
         val utf8 = String(data, Charsets.UTF_8).removePrefix("\uFEFF")
-        return if ('\uFFFD' in utf8) String(data, charset("windows-31j")) else utf8 // Shift-JIS files exist
+        return if ('\uFFFD' in utf8) String(data, charset("windows-31j")) else unmangle(utf8) // Shift-JIS files exist
     }
+
+    /**
+     * Lines saved twice over (UTF-8 read as Windows-1252, then saved as UTF-8 again): "\u00E2\u2122\u00AA" is \u266A, "\u00E2\u20AC\u00A6" is \u2026, "\u00C3\u00A9" is \u00E9
+     * (an English file for Dandadan 9 on the Chromecast, 2026-11-19). Each such line is turned back; others stay.
+     */
+    fun unmangle(text: String): String {
+        if (!MANGLED.containsMatchIn(text)) return text
+        val cp1252 = charset("windows-1252")
+        return text.lines().joinToString("\n") { line ->
+            if (!MANGLED.containsMatchIn(line)) return@joinToString line
+            // Back to the bytes: Windows-1252, and the five bytes it leaves undefined (0x81 0x8D 0x8F 0x90 0x9D, kept as
+            // U+0081\u2026 by the first wrong reading) as themselves. Anything else (Japanese): the line wasn't mangled.
+            val bytes = java.io.ByteArrayOutputStream()
+            for (c in line) when {
+                c.code < 0x80 || c.code in 0xA0..0xFF || c.code in listOf(0x81, 0x8D, 0x8F, 0x90, 0x9D) -> bytes.write(c.code)
+                cp1252.newEncoder().canEncode(c) -> bytes.write(c.toString().toByteArray(cp1252))
+                else -> return@joinToString line
+            }
+            String(bytes.toByteArray(), Charsets.UTF_8).takeIf { '\uFFFD' !in it } ?: line
+        }
+    }
+    private val MANGLED by lazy { Regex("[\u00C2\u00C3\u00E2][\u0080-\u00BF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u0192\u02C6\u02DC\u2013\u2014\u2018-\u201E\u2020-\u2022\u2026\u2030\u2039\u203A\u20AC\u2122]") }
 
     /** Names in UTF-8, else Shift-JIS (Japanese Windows zips: UTF-8 throws on their names). */
     private fun unzip(data: ByteArray): List<Pair<String, ByteArray>> =

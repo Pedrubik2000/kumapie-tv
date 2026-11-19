@@ -180,25 +180,14 @@ fun startJapaneseDictionaries(context: Context, settings: Settings) {
 }
 
 /**
- * A Japanese word card's word, as the phone's automatic card picks it: the PC's dictionary form ([lemma]) looked up
- * (else the longest match from the word), with the PC's [reading] (else the first) and its pitch, the bilingual meaning that fits the line's
- * [english] (else the first), the first monolingual definition.
+ * A Japanese word card for the dictionary form (Pedro, 2026-11-19: on the TV always the dictionary form, with its
+ * pitch): the PC's [lemma] looked up (else the longest match from the word), the PC's [reading] picking the entry; what
+ * goes on it as on the phone ([io.github.pedrubik2000.kumapie.lang.WordCard.japanese]).
  */
 private fun japaneseWord(y: YomitanDictionaries, text: String, offset: Int, surface: String, key: String, lemma: String?, reading: String,
                          english: String): Miner.Word {
-    val ja = Lang.JAPANESE
     val hw = tvHeadword(y, text, offset, lemma, reading) ?: return Miner.Word(surface, key, lemma ?: surface, "")
-    val glossaries = hw.terms.flatMap { it.glossaries }
-    fun group(dict: String) = y.groupOf(ja, dict)
-    val bilingual = glossaries.filter { group(it.dict).contains("bilingual", true) }.ifEmpty {
-        glossaries.filterNot { group(it.dict).contains("mono", true) || group(it.dict).contains("form", true) || it.dict.contains("form", true) }
-    }
-    val meanings = bilingual.flatMap { g -> g.senses.flatMap { JapaneseLookup.bilingualMeanings(it) }.distinct().take(12) }.distinct().take(40)
-    val gloss = meanings.getOrNull(SensePick.bestMeaning(meanings, english) ?: 0).orEmpty()
-    val mono = glossaries.filter { group(it.dict).contains("mono", true) }
-        .firstNotNullOfOrNull { g -> g.senses.firstNotNullOfOrNull { JapaneseLookup.monolingualDefinition(it) } }
-    return Miner.Word(surface, key, hw.expression, gloss, reading = hw.reading.takeIf { it.isNotBlank() },
-        pitch = hw.pitches.flatMap { it.second }.firstOrNull(), mono = mono)
+    return io.github.pedrubik2000.kumapie.lang.WordCard.japanese(y, hw, surface, key, null, null, english)
 }
 
 /** The TV's Japanese headword (no Sudachi): the PC's [lemma] looked up, else Yomitan's scan from [offset]; the PC's [reading] picks the entry. */
@@ -449,9 +438,10 @@ fun mineWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
                 val cue = scene.cues[line]
                 val offset = cue.segments.take(picker.seg).sumOf { it.text.length }
                 withContext(Dispatchers.IO) { japaneseWord(TvMining.yomitan, cue.text, offset, segment.text, key, lemma, word?.reading.orEmpty(), SensePick.english(scene, line)) }
-            } else {
-                val gloss = def?.english?.takeIf { it.isNotBlank() } ?: (scene.meanings[key] ?: word?.meaning)?.substringAfter(" = ").orEmpty()
-                Miner.Word(segment.text, key, lemma, gloss, null, def)
+            } else withContext(Dispatchers.IO) {
+                // As on the phone (Pedro, 2026-11-19): the dictionary sense that fits the line, its example, a
+                // monolingual definition; the PC's meaning when no sense fits.
+                io.github.pedrubik2000.kumapie.lang.WordCard.auto(TvMining.languages.of(ctl.lang), TvMining.yomitan, ctl, line, segment.text, key)
             }
             // kumapie's own cards are text only (Miner.cutScene): no full-screen copy for them
             val picture = if (japanese && pkg != io.github.pedrubik2000.kumapie.lang.SrsCards.PKG) runCatching { screenFrame(view, context.cacheDir) }.getOrNull() else null

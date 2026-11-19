@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.lang.Miner
 import io.github.pedrubik2000.kumapie.lang.SensePick
+import io.github.pedrubik2000.kumapie.lang.WordCard
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
@@ -40,87 +41,18 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.launch
 import io.github.pedrubik2000.kumapie.i18n.tr
 
-/** One meaning to choose for a word card. */
-private data class Choice(val label: String, val gloss: String, val example: Pair<String, String>?)
+// What goes on a word card is shared with the TV (lang/WordCard.kt); this file keeps the sheet.
+private typealias Choice = WordCard.Choice
 
-/** A word card's meanings (kumapie's own first, then the dictionaries'), the one picked at first, and monolingual definitions. */
-private class WordChoices(val choices: List<Choice>, val chosen: Int, val monos: List<Choice>, val fits: Boolean = false)
+private suspend fun wordChoices(library: Library, ctl: SceneController, line: Int, surface: String, key: String) =
+    WordCard.choices(library.languages.of(ctl.lang), library.yomitan, ctl, line, surface, key)
 
-private suspend fun wordChoices(library: Library, ctl: SceneController, line: Int, surface: String, key: String): WordChoices {
-    val scene = ctl.scene
-    val word = ctl.words[key]
-    val def = scene.def(line, key)
-    val lemma = def?.lemma?.takeIf { it.isNotBlank() } ?: word?.lemma?.takeIf { it.isNotBlank() }
-    val own = (def?.english?.takeIf { it.isNotBlank() } ?: (scene.meanings[key] ?: word?.meaning)?.substringAfter(" = "))
-        ?.takeIf { it.isNotBlank() }
-    val list = mutableListOf<Choice>()
-    own?.let { list += Choice("kumapie: $it", it, null) }
-    val all = library.languages.of(ctl.lang).entries(io.github.pedrubik2000.kumapie.lang.Tap(surface, 0, surface.length, key, lemma))
-    // Monolingual dictionaries (wty-de-de, wty-en-en) give the card's monolingual definition, not its meaning.
-    val isMono = { e: io.github.pedrubik2000.kumapie.lang.DictEntry -> library.yomitan.groupOf(ctl.lang, e.dict) == "Monolingual" }
-    val entries = all.filterNot(isMono).ifEmpty { all }
-    val monos = all.filter(isMono).flatMap { e -> e.senses.take(3).map { Choice("${e.word} (${e.pos}): ${it.gloss}", it.gloss, null) } }
-        .distinctBy { it.gloss }.take(8)
-    val fits = SensePick.best(entries, SensePick.english(scene, line))
-    var fitting = -1
-    val seen = HashMap<String, Int>() // the same entry can come twice (by surface and by lemma): one row per meaning
-    entries.forEachIndexed { i, e ->
-        e.senses.forEachIndexed { j, s ->
-            seen[e.pos + "\u0000" + s.gloss]?.let { if (fits == i to j) fitting = it; return@forEachIndexed }
-            seen[e.pos + "\u0000" + s.gloss] = list.size
-            if (fits == i to j) fitting = list.size
-            list += Choice("${e.word} (${e.pos}): ${s.gloss}" + if (fits == i to j) tr("  · fits this line") else "", s.gloss,
-                s.examples.firstOrNull())
-        }
-    }
-    return WordChoices(list, if (own == null && fitting >= 0) fitting else 0, monos)
-}
+/** The word card the mine sheet would make with what it picks at first (rating a word without a card of its own makes it). */
+internal suspend fun autoWordCard(library: Library, ctl: SceneController, line: Int, surface: String, key: String): Miner.Request =
+    Miner.Request(ctl.episode, ctl.scene, line, WordCard.auto(library.languages.of(ctl.lang), library.yomitan, ctl, line, surface, key))
 
-/**
- * The word card the mine sheet would make with what it picks at first (rating a word without a card of its own makes
- * it): this line, the scene clip, the word's audio, the meaning that fits the line, the first monolingual definition.
- */
-internal suspend fun autoWordCard(library: Library, ctl: SceneController, line: Int, surface: String, key: String): Miner.Request {
-    val c = wordChoices(library, ctl, line, surface, key)
-    val pick = c.choices.getOrNull(c.chosen) // none: the card is made without a meaning
-    val def = ctl.scene.def(line, key)
-    val lemma = def?.lemma?.takeIf { it.isNotBlank() } ?: ctl.words[key]?.lemma?.takeIf { it.isNotBlank() }
-    return Miner.Request(ctl.episode, ctl.scene, line, Miner.Word(surface, key, lemma, pick?.gloss.orEmpty(), pick?.example, def, mono = c.monos.firstOrNull()?.gloss))
-}
-
-/**
- * A Japanese headword's meanings: from the bilingual dictionaries (else every one but monolingual and forms ones), the
- * one that fits [english] (the line's English, when there is a line) chosen and marked; and monolingual definitions,
- * one per dictionary, encyclopedias (Pixiv, Wikipedia…) last so a 国語 dictionary leads.
- */
-private fun japaneseChoices(library: Library, hw: io.github.pedrubik2000.kumapie.lang.Headword?, english: String?): WordChoices {
-    val ja = io.github.pedrubik2000.kumapie.data.Lang.JAPANESE
-    val glossaries = hw?.terms?.flatMap { it.glossaries }.orEmpty()
-    fun group(dict: String) = library.yomitan.groupOf(ja, dict)
-    val isMono = { g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("mono", ignoreCase = true) }
-    val isBilingual = { g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary -> group(g.dict).contains("bilingual", ignoreCase = true) }
-    val meaningDicts = glossaries.filter(isBilingual).ifEmpty {
-        glossaries.filterNot { isMono(it) || group(it.dict).contains("form", ignoreCase = true) || it.dict.contains("form", ignoreCase = true) }
-    }
-    fun choice(g: io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Glossary, m: String) = Choice("${shortDictName(g.dict)}: $m", m, null)
-    var choices = meaningDicts.flatMap { g ->
-        // 12: a Jitendex entry is now one meaning per sense, and the one that fits can be far down (取る "to gather").
-        (if (g.dict == io.github.pedrubik2000.kumapie.lang.PersonalDictionary.TITLE) g.senses // as you wrote it, in any language
-        else g.senses.flatMap { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.bilingualMeanings(it) }).distinct().take(12).map { choice(g, it) }
-    }.distinctBy { it.gloss }.take(40)
-    var chosen = 0
-    var fits = false
-    english?.let { SensePick.bestMeaning(choices.map { c -> c.gloss }, it) }?.let { i ->
-        fits = true
-        choices = choices.mapIndexed { k, c -> if (k == i) c.copy(label = c.label + tr("  · fits this line")) else c }
-        chosen = i
-    }
-    val encyclopedia = Regex("pixiv|wiki|ニコ|百科", RegexOption.IGNORE_CASE)
-    val monos = glossaries.filter(isMono).sortedBy { if (encyclopedia.containsMatchIn(it.dict)) 1 else 0 }
-        .mapNotNull { g -> g.senses.firstNotNullOfOrNull { io.github.pedrubik2000.kumapie.lang.JapaneseLookup.monolingualDefinition(it) }?.let { choice(g, it) } }
-        .distinctBy { it.gloss }.take(8)
-    return WordChoices(choices, chosen, monos, fits)
-}
+private fun japaneseChoices(library: Library, hw: io.github.pedrubik2000.kumapie.lang.Headword?, english: String?) =
+    WordCard.japaneseChoices(library.yomitan, hw, english)
 
 /** The meaning of [hw] that fits the line's English (the word popup's "In this line"), null when none does. */
 internal fun fitsThisLine(library: Library, hw: io.github.pedrubik2000.kumapie.lang.Headword, english: String?): String? {
@@ -133,15 +65,8 @@ internal fun fitsThisLine(library: Library, hw: io.github.pedrubik2000.kumapie.l
  * its headword's meaning that fits the line ([english]; null: the first), "form of 気にする" for a conjugated form, pitch
  * only for the headword itself; no meaning (and no "form of") when the dictionaries have none.
  */
-internal fun japaneseWord(library: Library, f: io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form, english: String?): Miner.Word {
-    val hw = f.head
-    val c = japaneseChoices(library, hw, english)
-    val pick = c.choices.getOrNull(c.chosen) // none: the card is made without a meaning
-    val own = f.written == hw?.expression
-    return Miner.Word(f.surface, null, f.written, pick?.gloss.orEmpty(), reading = f.reading,
-        pitch = if (own) hw?.pitches?.flatMap { it.second }?.firstOrNull() else null, mono = c.monos.firstOrNull()?.gloss,
-        formOf = hw?.expression?.takeIf { !own })
-}
+internal fun japaneseWord(library: Library, f: io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form, english: String?): Miner.Word =
+    WordCard.japanese(library.yomitan, f.head, f.surface, null, f.written, f.reading, english)
 
 /** Japanese rows ([io.github.pedrubik2000.kumapie.lang.JapaneseLookup.forms]) as [RateForm]s; [make] adds a missing form's card from its [Miner.Word]. */
 internal fun japaneseRateForms(library: Library, forms: List<io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form>, english: String?,

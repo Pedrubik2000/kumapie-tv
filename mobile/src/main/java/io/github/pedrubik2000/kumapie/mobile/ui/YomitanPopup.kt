@@ -383,7 +383,4 @@ function render(css, html, g) {
  * A dictionary as a reader names it: "sankoku8-gpt-5.6-luna en-jp" -> "Sankoku", "Jitendex.org [2026-10-03]" ->
  * "Jitendex", "JMdict" stays (the import's name is a file name). A name not in Latin letters stays as it is.
  */
-internal fun shortDictName(dict: String): String {
-    val word = Regex("^[A-Za-z]+").find(dict)?.value ?: return dict.take(24)
-    return if (word.any { it.isUpperCase() }) word else word.replaceFirstChar { it.uppercase() }
-}
+internal fun shortDictName(dict: String): String = io.github.pedrubik2000.kumapie.lang.WordCard.shortDictName(dict)

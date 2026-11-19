@@ -78,7 +78,7 @@ import kotlin.coroutines.resume
 internal fun japaneseKnown(context: Context, settings: Settings) = TvMining.languages(context, settings).japanese.known
 internal fun tvLanguages(context: Context, settings: Settings) = TvMining.languages(context, settings)
 
-private object TvMining {
+internal object TvMining {
     private var miner: Miner? = null
     lateinit var languages: Languages
     lateinit var yomitan: YomitanDictionaries

@@ -43,8 +43,10 @@ class AloneStream(
      * The episode from Jimaku's lines (call once [LiveLines.lines] is filled), English under them from the user's
      * subtitle addon if there is one. While Sudachi's dictionary downloads (the first time) it waits, [onWait] each
      * round. Throws what the builder throws. After it the lines are the scenes': [LiveLines] goes on only to fit.
+     * The words come coloured by this device's known words and cards ([KnownWords.apply]): the builder makes every
+     * word red, and the phone drew a whole stream red until something repainted (Frieren 3, 2026-11-19).
      */
-    suspend fun build(context: android.content.Context, duration: Double, position: () -> Double, onWait: () -> Unit): EpisodeDetail {
+    suspend fun build(context: android.content.Context, languages: Languages, duration: Double, position: () -> Double, onWait: () -> Unit): EpisodeDetail {
         val tLines = android.os.SystemClock.elapsedRealtime()
         val english = runCatching { addons?.english(type, id, live.lines.map { it.first + live.offset }) }.getOrNull().orEmpty()
         val tEnglish = android.os.SystemClock.elapsedRealtime()
@@ -52,6 +54,10 @@ class AloneStream(
         while (ep == null) {
             ep = EpisodeBuilder.fromLines(context, "alone:$id", show, title, video, duration, live.lines, live.offset, position(), english)
             if (ep == null) { onWait(); delay(5_000) }
+        }
+        val built0 = ep
+        ep = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            languages.of(built0.lang).known.run { refreshDue(); apply(built0) }
         }
         built = live.offset
         saveOffset() // the word player adds its hand shifts to it

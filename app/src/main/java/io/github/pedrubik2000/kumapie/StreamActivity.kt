@@ -272,7 +272,7 @@ class StreamActivity : ComponentActivity() {
         LaunchedEffect(live.lines) {
             if (live.lines.isEmpty()) return@LaunchedEffect
             shown = runCatching {
-                s.build(context, (p.duration.takeIf { it > 0 } ?: 0L) / 1000.0, { p.currentPosition / 1000.0 }) {
+                s.build(context, io.github.pedrubik2000.kumapie.ui.TvMining.languages(context, settings), (p.duration.takeIf { it > 0 } ?: 0L) / 1000.0, { p.currentPosition / 1000.0 }) {
                     note = tr("Words: downloading the Japanese dictionary (once)…")
                 }
             }.getOrElse { note = it.message; return@LaunchedEffect }

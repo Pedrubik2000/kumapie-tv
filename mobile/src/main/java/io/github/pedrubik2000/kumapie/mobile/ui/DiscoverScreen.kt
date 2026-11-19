@@ -468,7 +468,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         LaunchedEffect(live.lines) {
             if (live.lines.isEmpty()) return@LaunchedEffect
             detail = runCatching {
-                s.build(context, (player.duration.takeIf { it > 0 } ?: 0L) / 1000.0, { player.currentPosition / 1000.0 }) {
+                s.build(context, library.languages, (player.duration.takeIf { it > 0 } ?: 0L) / 1000.0, { player.currentPosition / 1000.0 }) {
                     step = tr("Words: downloading the Japanese dictionary (once)…")
                 }
             }.getOrElse { error = it.message; return@LaunchedEffect }

@@ -85,10 +85,18 @@ class JapaneseModel(private val context: Context) : Model {
     /** Each text's words as a learner sees them ([join]): 届いた (届く), できない (できる), でも, 防御力. */
     fun words(texts: List<String>): List<List<Token>> {
         val s = splitter() ?: return parse(texts).map(::join)
+        // An episode split before (reopened, resumed): its words from the device. The Chromecast splits ~20 ms a line
+        // (Dandadan 9: 374 lines in 7.6-9.7 s of the 10.4 s to its words, 2026-11-19); the key changes with Jiten's files.
+        val saved = if (texts.size > 1) File(context.cacheDir, "jiten/" + key(texts, splitterFiles.sumOf { it.lastModified() }) + ".json") else null
+        saved?.takeIf { it.exists() }?.let { f -> runCatching { decode(f.readText()) }.getOrNull()?.takeIf { it.size == texts.size } }?.let {
+            android.util.Log.i("kumapie", "jiten split: ${texts.size} lines from the device")
+            return it
+        }
         val t = android.os.SystemClock.elapsedRealtime()
         var first = 0L
         return texts.mapIndexed { i, x -> s.split(x).also { if (i == 0) first = android.os.SystemClock.elapsedRealtime() - t } }
             .also { if (texts.size > 1) android.util.Log.i("kumapie", "jiten split: ${texts.size} lines in ${android.os.SystemClock.elapsedRealtime() - t} ms (first $first)") }
+            .also { words -> saved?.let { f -> runCatching { f.parentFile?.mkdirs(); f.writeText(encode(words)) } } }
     }
 
     /** Jiten's splitter once its files are here (one per process: ~95 MB), else null. */
@@ -119,6 +127,18 @@ class JapaneseModel(private val context: Context) : Model {
     }
 
     companion object {
+        /** [words]' file name for [texts] split with Jiten's files of [version]. */
+        fun key(texts: List<String>, version: Long): String = java.security.MessageDigest.getInstance("SHA-1")
+            .digest((version.toString() + "\n" + texts.joinToString("\n")).toByteArray()).joinToString("") { "%02x".format(it) }
+
+        // Lines, tokens and fields split by the ASCII separators (RS, US, GS): never in subtitle text.
+        fun encode(words: List<List<Token>>): String = words.joinToString("\u001E") { line ->
+            line.joinToString("\u001F") { listOf(it.surface, it.base, it.reading, it.pos, it.begin.toString(), it.sub).joinToString("\u001D") } }
+
+        fun decode(text: String): List<List<Token>> = text.split('\u001E').map { line ->
+            if (line.isEmpty()) emptyList() else line.split('\u001F').map { t ->
+                t.split('\u001D').let { f -> Token(f[0], f[1], f[2], f[3], f[4].toInt(), f[5]) } } }
+
         private val HEADS = setOf("動詞", "形容詞")
         private val HONORIFIC = setOf("さん", "ちゃん", "くん", "君", "様", "さま", "たち", "達", "殿", "氏")
         private val CONNECTIVE = setOf("て", "で", "ちゃ", "じゃ")

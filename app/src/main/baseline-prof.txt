@@ -4,3 +4,7 @@ Landroidx/media3/**;
 HSPLandroidx/media3/**;->**(**)**
 Lkotlinx/coroutines/**;
 HSPLkotlinx/coroutines/**;->**(**)**
+Lcom/worksap/**;
+HSPLcom/worksap/**;->**(**)**
+Lkotlin/**;
+HSPLkotlin/**;->**(**)**

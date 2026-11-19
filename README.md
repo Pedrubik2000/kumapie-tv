@@ -158,6 +158,10 @@ Four modules. Paths are under `src/main/java/io/github/pedrubik2000/kumapie/`.
 Compose (Material 3 on mobile, Compose for TV), Media3 ExoPlayer, Coil, WorkManager. JSON is parsed with
 `org.json`.
 
+- Lint: `./gradlew detekt slopCheck` (CI too). detekt's few rules are in `detekt.yml`; old findings in `<module>/detekt-baseline.xml` and `slop.baseline`, which only shrink.
+- No comments in `:app` and `:core` `src/main`: the why goes in the commit message. `:lang` and `:mobile` may not gain comments.
+- A file is 400 lines at most (`lang/jiten/` exempt); one already over may not grow; no file name ending in a digit.
+
 ## Server
 
 The PC side is a private Python server (standard library only). Each phone or tablet adds `?person=<profile>` to

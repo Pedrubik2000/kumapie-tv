@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ForbiddenImport:AudioAwake.kt:import android.os.Handler</ID>
+    <ID>ForbiddenImport:Players.kt:import android.os.Handler</ID>
+    <ID>LongMethod:Subtitles.kt:@Composable fun Subtitles</ID>
+  </CurrentIssues>
+</SmellBaseline>

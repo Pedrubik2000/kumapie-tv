@@ -1,0 +1,26 @@
+# kumapie's lint for :app and :core src/main (C:\dojo\code\plans\kumapie_slop_plan.md). Only these rules, each one
+# earned by a bug; a "# fix:" line is what the build prints under a finding. New rule = a bug that happened, named in
+# its commit. Old findings: <module>/detekt-baseline.xml (shrinks, never grows). `!!` is in slopCheck
+# (build.gradle.kts): detekt's UnsafeCallOnNullableType needs type resolution and finds nothing without it.
+config:
+  validation: true
+
+complexity:
+  active: true
+  LongMethod: # fix: split it into named composables/functions of 60 lines or less (not a new Foo2.kt)
+    active: true
+    allowedLines: 60
+
+style:
+  active: true
+  ForbiddenImport:
+    active: true
+    forbiddenImports:
+      - value: 'kotlinx.coroutines.runBlocking'
+        reason: 'it freezes the TV''s main thread: use a coroutine scope (rememberCoroutineScope, LaunchedEffect, withContext)'
+      - value: 'android.os.Handler'
+        reason: 'post and postDelayed outlive the screen: use LaunchedEffect / delay in a coroutine'
+      - value: 'java.net.URI'
+        reason: 'URI() throws on a | or a space (Torrentio options crashed Settings): use Uri.parse or Addons.base'
+      - value: 'android.speech.tts.TextToSpeech'
+        reason: 'one TextToSpeech per stream leaked (AloneBackend): speak through Languages.of(lang).voice'

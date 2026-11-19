@@ -39,8 +39,9 @@ internal val esCore: Map<String, String> = mapOf(
     "download failed: HTTP %d" to "falló la descarga: HTTP %d",
     "status %d" to "estado %d",
     "Update failed: %s" to "No se pudo actualizar: %s",
-    "Hidden" to "Ocultos",
     "%s, blurred" to "%s, borroso",
+    "%s, hidden until paused" to "%s, oculto hasta pausar",
+    "%1\$s + %2\$s, hidden until paused" to "%1\$s + %2\$s, ocultos hasta pausar",
     "%1\$s + %2\$s, blurred" to "%1\$s + %2\$s borroso",
     "Spanish" to "Español",
 )

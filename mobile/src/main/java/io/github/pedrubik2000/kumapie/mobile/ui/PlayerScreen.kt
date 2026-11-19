@@ -386,7 +386,7 @@ internal fun ScenePlayer(
         )
 
         // A novel never shows the play button; its bar only when opened or on a long press.
-        val barVisible = picker.isOpen || if (episode.novel) now < menuUntil else !ctl.playing || now < ctl.bannerUntil
+        val barVisible = picker.isOpen || if (episode.novel) now < menuUntil else !ctl.playing
         if (barVisible) Column {
             TopBar(ctl, onBack = onBack, onOptions = { options = true }, onScenes = { sceneList = true })
             if (episode.novel) Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

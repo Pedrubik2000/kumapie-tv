@@ -72,10 +72,12 @@ class SceneController(
     var subtitles by mutableStateOf(settings.subtitles)
         private set
     /** The episode's language is on screen (blurred or readable). */
-    val showTarget: Boolean get() = subtitles == Subtitles.BLURRED || subtitles == Subtitles.BOTH_BLURRED || subtitles == Subtitles.TARGET || subtitles == Subtitles.BOTH
+    val showTarget: Boolean get() = subtitles != Subtitles.ENGLISH
     /** It is there but blurred: you see that (and how much) is said, not what. */
     val blurTarget: Boolean get() = subtitles == Subtitles.BLURRED || subtitles == Subtitles.BOTH_BLURRED
-    val showEnglish: Boolean get() = subtitles == Subtitles.ENGLISH || subtitles == Subtitles.BOTH_BLURRED || subtitles == Subtitles.BOTH
+    val showEnglish: Boolean get() = subtitles == Subtitles.ENGLISH || subtitles == Subtitles.BOTH_BLURRED || subtitles == Subtitles.BOTH || subtitles == Subtitles.BOTH_HIDDEN
+    /** Nothing while it plays, the lines once paused. */
+    val onlyPaused: Boolean get() = subtitles == Subtitles.HIDDEN || subtitles == Subtitles.BOTH_HIDDEN
     /** Both lines blurred: the translation blurs with the episode's language. */
     val blurEnglish: Boolean get() = subtitles == Subtitles.BOTH_BLURRED
 
@@ -268,9 +270,10 @@ class SceneController(
     /** The scene's level, live: a rating or marking a word known lowers it ([io.github.pedrubik2000.kumapie.data.levelOf]). */
     fun levelOf(scene: Scene): Int? = io.github.pedrubik2000.kumapie.data.levelOf(scene, words)
 
-    /** Remote ↓: hidden → German blurred → both blurred → German → German + English → hidden. */
+    /** Remote ↓: hidden (German when paused) → both hidden → German blurred → both blurred → German → German + English → hidden. */
     fun cycleSubtitles() = changeSubtitles(when (subtitles) {
-        Subtitles.HIDDEN -> Subtitles.BLURRED
+        Subtitles.HIDDEN -> Subtitles.BOTH_HIDDEN
+        Subtitles.BOTH_HIDDEN -> Subtitles.BLURRED
         Subtitles.BLURRED -> Subtitles.BOTH_BLURRED
         Subtitles.BOTH_BLURRED -> Subtitles.TARGET
         Subtitles.TARGET -> Subtitles.BOTH

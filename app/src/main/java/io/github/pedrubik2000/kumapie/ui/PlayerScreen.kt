@@ -286,8 +286,6 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
             !help && !begun -> { begun = true; ctl.begin() }
         }
     }
-    var now by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { now = SystemClock.uptimeMillis(); delay(250) } }
     BackHandler(onBack = onClose)
 
     Box(
@@ -320,7 +318,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
             },
             modifier = Modifier.fillMaxSize(),
         )
-        if ((!ctl.playing || now < ctl.bannerUntil || picker.isOpen) && !options) TopBar(ctl, title = shortTitle(ctl.episode.show))
+        if ((!ctl.playing || picker.isOpen) && !options) TopBar(ctl, title = shortTitle(ctl.episode.show))
         Subtitles(ctl, picker, onAnchor = { anchor = it }, aboveBox = true)
         if (picker.isOpen && picker.cardOpen) anchor?.let {
             val japanese = ctl.lang == Lang.JAPANESE

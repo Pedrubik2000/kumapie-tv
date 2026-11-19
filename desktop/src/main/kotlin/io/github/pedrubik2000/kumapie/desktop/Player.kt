@@ -124,7 +124,7 @@ private fun ScenePlayer(api: Api, bridge: Bridge, settings: Settings, episode: E
     var options by remember { mutableStateOf(false) }
     var now by remember { mutableStateOf(android.os.SystemClock.uptimeMillis()) }
     // Read through derivedStateOf: `now` changes every 40 ms, and reading it directly rebuilt the whole player 25 times a second.
-    val showTop by remember { derivedStateOf { !ctl.playing || now < ctl.bannerUntil || picker.isOpen } }
+    val showTop by remember { derivedStateOf { !ctl.playing || picker.isOpen } }
 
     /** kuma3's card states onto the episode's words (KnownWords.paint): a word with its own card gets its state. */
     suspend fun reloadCards() {

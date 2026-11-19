@@ -282,6 +282,7 @@ private fun shown(ctl: SceneController, picker: WordPicker): Shown? {
     if (ctl.episode.novel && !picking && scene.cues.firstOrNull()?.let { pos < it.start - 0.05 } == true) return null
     // A novel's scene is one line: shown whole from its text on (no flicker while the voice catches up).
     val paused = !ctl.playing || picking || ctl.episode.novel
+    if (ctl.onlyPaused && !paused) return null
     val german: List<Cue> = when {
         picking -> scene.cues
         !ctl.showTarget -> emptyList()

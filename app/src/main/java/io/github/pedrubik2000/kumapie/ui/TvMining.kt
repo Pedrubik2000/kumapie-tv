@@ -49,6 +49,7 @@ import io.github.pedrubik2000.kumapie.lang.GlossaryHtml
 import io.github.pedrubik2000.kumapie.lang.Headword
 import io.github.pedrubik2000.kumapie.lang.Japanese
 import io.github.pedrubik2000.kumapie.lang.KnownWords
+import io.github.pedrubik2000.kumapie.lang.LangKit
 import io.github.pedrubik2000.kumapie.lang.Language
 import io.github.pedrubik2000.kumapie.lang.JapaneseLookup
 import io.github.pedrubik2000.kumapie.lang.Languages
@@ -79,9 +80,10 @@ internal fun japaneseKnown(context: Context, settings: Settings) = TvMining.lang
 internal fun tvLanguages(context: Context, settings: Settings) = TvMining.languages(context, settings)
 
 internal object TvMining {
-    private var miner: Miner? = null
-    lateinit var languages: Languages
-    lateinit var yomitan: YomitanDictionaries
+    /** The shared language layer ([LangKit], as on the phone); set by [languages]. */
+    private var kit: LangKit? = null
+    val languages: Languages get() = kit!!.languages
+    val yomitan: YomitanDictionaries get() = kit!!.yomitan
     /** Outlives the player: the Japanese dictionaries keep coming after it closes. */
     private val work = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     /** Words mined on this TV since kumapie started -> their notes: hold ↑ again shows the card. */
@@ -95,31 +97,22 @@ internal object TvMining {
     /** The word card's dictionaries ([TvDictionaries]) while shown: ↑↓ scroll it. */
     @android.annotation.SuppressLint("StaticFieldLeak") var web: WebView? = null
 
-    private var dictionary: Dictionary? = null
-
     /** A person's recording of the word (Wikimedia Commons, saved), for [AloneBackend]. */
     fun recording(context: Context, settings: Settings, surface: String, lang: String): String? {
         languages(context, settings)
-        return dictionary?.recording(surface, lang)
+        return kit!!.dictionary.recording(surface, lang)
     }
 
     fun languages(context: Context, settings: Settings): Languages {
-        if (dictionary == null) {
-            val app = context.applicationContext
-            yomitan = YomitanDictionaries.get(app)
-            dictionary = Dictionary(app)
-            languages = Languages(app, settings, yomitan, dictionary!!) { _, _ -> error("no spaCy on the TV") }
+        if (kit == null) {
+            kit = LangKit.get(context, settings)
             // A TV that mines Japanese gets the zips added on the PC since, in the background.
             if (yomitan.of(Lang.JAPANESE).isNotEmpty() && settings.server.isNotEmpty()) fetchJapanese(context, settings)
         }
         return languages
     }
 
-    fun miner(context: Context, settings: Settings): Miner = miner ?: run {
-        val languages = languages(context, settings)
-        val d = dictionary!!.also { d -> if (Dictionary.RECORDINGS.any { !d.recordingsFile(it).exists() }) d.download() }
-        Miner(context.applicationContext, languages, d, settings.server).also { miner = it }
-    }
+    fun miner(context: Context, settings: Settings): Miner = languages(context, settings).let { kit!!.miner }
     /**
      * The PC's Japanese Yomitan zips (state\dicts\yomitan-ja, the phone's set) this TV hasn't imported yet (by file
      * name), into its dictionaries: all of them the first time, then the ones added on the PC (the card dictionaries,
@@ -447,7 +440,7 @@ fun mineWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
                 ctl.words[key]?.let { w -> ctl.words[key] = w.copy(card = "b") }
                 // Its card into the index, or a rating finds none ("kuma3 didn't take the rating", user 2026-11-10).
                 val language = TvMining.languages(context, settings).of(ctl.lang)
-                runCatching { language.known.addNote(miner.lastNote) }.onSuccess { repaint(language, ctl) }.onFailure { Log.w("kumapie", "mined card not read: $it") }
+                runCatching { language.known.mined(miner.lastNote, ctl, pcColours(ctl)) }.onFailure { Log.w("kumapie", "mined card not read: $it") }
             }
             .onFailure { say(it.message ?: it.toString()) }
     }
@@ -507,10 +500,6 @@ suspend fun syncAnki(context: Context, settings: Settings, ctl: SceneController,
     if (synced && !busy()) paintCards(context, settings, ctl)
 }
 
-/** A scene played to its end on the TV: its carded words heard, for kumapie's own cards (exposures). */
-fun sceneHeard(context: Context, settings: Settings, ctl: SceneController, s: io.github.pedrubik2000.kumapie.data.Scene) =
-    TvMining.languages(context, settings).of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.ms, settings.subtitles.name.lowercase())
-
 /**
  * Closing the player (not each scene: a cut while the stream plays broke it) after rating words: each rated word's card takes the line it was rated on, with
  * that line's audio and picture ([Miner.recontext], as on the phone). Outlives the player.
@@ -532,8 +521,10 @@ fun syncAnkiLater(context: Context, settings: Settings, ctl: SceneController) {
 }
 
 /** Every word of the episode coloured by the card index as it is now (after [paintCards]' read, a rating, an undo). */
-private fun repaint(language: Language, ctl: SceneController) =
-    language.known.repaint(ctl, pcColours = !ctl.episode.id.startsWith("alone:")) // "alone:": built on this TV
+private fun repaint(language: Language, ctl: SceneController) = language.known.repaint(ctl, pcColours(ctl))
+
+/** A PC episode keeps the PC's colours for words without a card; "alone:" ones were built on this TV. */
+private fun pcColours(ctl: SceneController) = !ctl.episode.id.startsWith("alone:")
 
 // ------------------------------------------------------------ ratings in the word picker (user, 2026-11-09)
 

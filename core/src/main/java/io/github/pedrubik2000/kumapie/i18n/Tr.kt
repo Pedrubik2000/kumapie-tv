@@ -23,6 +23,9 @@ object Tr {
     private val es: Map<String, String> by lazy { esCore + esHome + esPlayer + esSettings + esAdd + esOther + esTv + esNav }
 
     fun of(english: String): String = if (spanish) es[english] ?: english else english
+
+    /** Month and day names in the menu language (the parents' Spanish Stats showed "Dec Jan Feb"). */
+    val locale: java.util.Locale get() = if (spanish) java.util.Locale("es") else java.util.Locale.ENGLISH
 }
 
 /** [english] in the menu language; with [args], a String.format template (%s, %d, %1$s). */

@@ -53,9 +53,10 @@ class Miner(
     private val context: Context,
     private val languages: Languages,
     private val dictionary: Dictionary,
-    /** The PC (kumapie-server), which cuts what this device can't decode ([cutOnPc]); "" = none. */
-    private val server: String = "",
+    /** The PC (kumapie-server) now, which cuts what this device can't decode ([cutOnPc]); "" = none. */
+    private val serverNow: () -> String = { "" },
 ) {
+    private val server get() = serverNow()
     private val anki: Cards = Cards.get(context)
     private val dir = File(context.cacheDir, "mining")
     /** One card at a time: mines share [dir]'s files (clip.webm, line.ogg); two at once broke a clip ("Muxer error"). */

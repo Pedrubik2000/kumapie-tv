@@ -166,7 +166,7 @@ private fun Heatmap(days: Map<String, Double>, today: LocalDate, modifier: Modif
     val months = remember(start) {
         (0..52).mapNotNull { w ->
             val d = start.plusWeeks(w.toLong())
-            if (d.dayOfMonth <= 7) w to d.month.getDisplayName(TextStyle.SHORT, if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) Locale("es") else Locale.ENGLISH) else null
+            if (d.dayOfMonth <= 7) w to d.month.getDisplayName(TextStyle.SHORT, io.github.pedrubik2000.kumapie.i18n.Tr.locale) else null
         }
     }
     val cell = 11.dp
@@ -189,17 +189,7 @@ private fun Heatmap(days: Map<String, Double>, today: LocalDate, modifier: Modif
     }
 }
 
-private fun heat(seconds: Double): Color {
-    val m = seconds / 60
-    return when {
-        m < 1 -> Colors.surface
-        m < 5 -> Colors.accent.copy(alpha = 0.3f)
-        m < 15 -> Colors.accent.copy(alpha = 0.5f)
-        m < 30 -> Colors.accent.copy(alpha = 0.7f)
-        m < 60 -> Colors.accent.copy(alpha = 0.85f)
-        else -> Colors.accent
-    }
-}
+private fun heat(seconds: Double) = io.github.pedrubik2000.kumapie.ui.heat(seconds) // shared with the TV
 
 /** Minutes per day for the last 30 days, the longest day's minutes on top. */
 @Composable
@@ -218,7 +208,7 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
             }
         }
         Row(Modifier.fillMaxWidth()) {
-            Text(today.minusDays(29).let { "${it.dayOfMonth} ${it.month.getDisplayName(TextStyle.SHORT, if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) Locale("es") else Locale.ENGLISH)}" },
+            Text(today.minusDays(29).let { "${it.dayOfMonth} ${it.month.getDisplayName(TextStyle.SHORT, io.github.pedrubik2000.kumapie.i18n.Tr.locale)}" },
                 fontSize = 11.sp, color = Colors.dim)
             Box(Modifier.weight(1f))
             Text(tr("today"), fontSize = 11.sp, color = Colors.text) // Glass: no orange (user 2026-11-17)

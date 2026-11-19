@@ -228,6 +228,15 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     }
 
     /**
+     * A card just mined here ([Miner.lastNote]): into the index, then the player's words coloured by it (blue, its
+     * rating row), the TV and the phone alike. [pcColours]: see [repaint].
+     */
+    suspend fun mined(note: Long, ctl: io.github.pedrubik2000.kumapie.player.SceneController, pcColours: Boolean) {
+        addNote(note)
+        repaint(ctl, pcColours)
+    }
+
+    /**
      * Only the word cards and kuma3's queue, no sentences parsed (the TV has no parser; it colours by the PC's words):
      * [paint] works after it. False without kuma3 or its permission.
      */
@@ -312,6 +321,11 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     /** Forms rated since the last [exposed]: their cards weren't just heard. */
     private val ratedHere = HashSet<String>()
+
+    /** The player's scenes, as each first plays to its end here: their carded words heard ([exposed]), both apps. */
+    fun listen(ctl: io.github.pedrubik2000.kumapie.player.SceneController, settings: io.github.pedrubik2000.kumapie.data.Settings) {
+        ctl.onSceneSeen = { s -> exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.ms, settings.subtitles.name.lowercase()) }
+    }
 
     /**
      * A scene played to its end (SceneController.onSceneSeen): each card of a word in it that wasn't rated there gets an

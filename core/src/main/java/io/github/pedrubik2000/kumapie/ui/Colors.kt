@@ -27,6 +27,19 @@ object Colors {
     val levelOne = Color(0xFFE6C463)
 }
 
+/** A Stats heatmap day ([seconds] watched): no time grey, then brighter with the minutes (5, 15, 30, 60). Both apps. */
+fun heat(seconds: Double): Color {
+    val m = seconds / 60
+    return when {
+        m < 1 -> Colors.surface
+        m < 5 -> Colors.accent.copy(alpha = 0.3f)
+        m < 15 -> Colors.accent.copy(alpha = 0.5f)
+        m < 30 -> Colors.accent.copy(alpha = 0.7f)
+        m < 60 -> Colors.accent.copy(alpha = 0.85f)
+        else -> Colors.accent
+    }
+}
+
 /** The tapped word in a line or a definition: see [Colors.pickedSoft]. */
 fun pickedStyle(color: Color) = if (Colors.pickedSoft) androidx.compose.ui.text.SpanStyle(color = color, background = Color.White.copy(alpha = 0.22f))
     else androidx.compose.ui.text.SpanStyle(color = Color.Black, background = Colors.picked ?: color)

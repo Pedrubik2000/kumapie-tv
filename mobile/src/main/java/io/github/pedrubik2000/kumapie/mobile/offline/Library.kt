@@ -38,26 +38,31 @@ class Library(context: Context, val settings: Settings) {
         Thread { runCatching { m.fillYouTube() } }.start() // once per start: YouTube shows without their channel's picture
     } }
     val pending = Pending(context)
+    /** The language layer, shared with the TV's code and every Library of this app run (the condensed-audio service's too). */
+    private val kit = run {
+        // spaCy in Chaquopy's Python (python/german.py): Python lives in this app module, not in :lang.
+        io.github.pedrubik2000.kumapie.lang.LangKit.spacy = { modelDir, fieldsJson ->
+            if (!com.chaquo.python.Python.isStarted()) com.chaquo.python.Python.start(com.chaquo.python.android.AndroidPlatform(appContext))
+            com.chaquo.python.Python.getInstance().getModule("german").callAttr("parse_fields", modelDir, fieldsJson).toString()
+        }
+        io.github.pedrubik2000.kumapie.lang.LangKit.get(context, settings)
+    }
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */
-    val yomitan = YomitanDictionaries.get(context).also {
+    val yomitan = kit.yomitan.also {
         // Episodes to and from the PC (the hub), when this device has an owner: hourly, and once now.
         if (settings.owner.isNotBlank()) io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.run { schedule(context); now(context) }
         io.github.pedrubik2000.kumapie.lang.YomitanUpdateWorker.schedule(context)
         if (io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).all().isNotEmpty()) io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.schedule(context)
     }
     /** Meanings without the PC: Yomitan dictionaries, else the offline Wiktionary file, Wiktionary online (cached), recordings. */
-    val dictionary = Dictionary(context, yomitan).also { d ->
+    val dictionary = kit.dictionary.also { d ->
         // The word recordings (a few MB a language) come by themselves: nobody has to find the button.
         if (Dictionary.RECORDINGS.any { !d.recordingsFile(it).exists() }) d.download()
     }
     /** What each language does its own way: lookups, word audio, known words. */
-    val languages = Languages(context, settings, yomitan, dictionary) { modelDir, fieldsJson ->
-        // spaCy in Chaquopy's Python (python/german.py): Python lives in this app module, not in :lang.
-        if (!com.chaquo.python.Python.isStarted()) com.chaquo.python.Python.start(com.chaquo.python.android.AndroidPlatform(appContext))
-        com.chaquo.python.Python.getInstance().getModule("german").callAttr("parse_fields", modelDir, fieldsJson).toString()
-    }
-    /** Cards mined into kuma3 Anki. */
-    val miner by lazy { Miner(context, languages, dictionary, settings.server) } // the PC: its episodes' videos, and cuts the device can't make
+    val languages: Languages = kit.languages
+    /** Cards mined (kumapie's own store); the PC cuts what the device can't. */
+    val miner: Miner get() = kit.miner
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val showsCache = File(context.filesDir, "shows.json")
     /** Episodes made on this device (YouTube links processed here), listed first. */

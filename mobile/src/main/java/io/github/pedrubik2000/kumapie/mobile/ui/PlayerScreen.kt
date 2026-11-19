@@ -221,7 +221,7 @@ internal fun ScenePlayer(
     val ctl = remember { SceneController(episode, player, settings, backend) }
     remember(ctl) { onController(ctl) }
     // kumapie's own cards: the carded words heard in each line played to its end (exposures).
-    remember(ctl) { ctl.onSceneSeen = { s -> library.languages.of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.ms, library.settings.subtitles.name.lowercase()) } }
+    remember(ctl) { library.languages.of(ctl.lang).known.listen(ctl, library.settings) }
     // A novel's music: its own player, so it goes on while a line waits for the tap; quiet under the voices (0.4 was too loud).
     val bgm = remember { if (!episode.novel) null else ExoPlayer.Builder(context).build().apply { repeatMode = Player.REPEAT_MODE_ONE; volume = 0.25f } }
     val track = if (bgm == null) null else ctl.scene.bgm

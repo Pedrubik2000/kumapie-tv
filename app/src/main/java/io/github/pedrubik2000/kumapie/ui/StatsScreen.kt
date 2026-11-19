@@ -193,19 +193,6 @@ private fun Heatmap(days: Map<String, Double>, today: LocalDate, modifier: Modif
     }
 }
 
-/** No time: grey; then brighter with the minutes (5, 15, 30, 60). */
-private fun heat(seconds: Double): Color {
-    val m = seconds / 60
-    return when {
-        m < 1 -> Colors.surface
-        m < 5 -> Colors.accent.copy(alpha = 0.3f)
-        m < 15 -> Colors.accent.copy(alpha = 0.5f)
-        m < 30 -> Colors.accent.copy(alpha = 0.7f)
-        m < 60 -> Colors.accent.copy(alpha = 0.85f)
-        else -> Colors.accent
-    }
-}
-
 /** Minutes per day for the last 30 days, with the longest day's minutes on top. */
 @Composable
 private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier = Modifier) {
@@ -233,5 +220,4 @@ private fun Bars(days: Map<String, Double>, today: LocalDate, modifier: Modifier
 
 internal fun hoursMinutes(seconds: Double): String = io.github.pedrubik2000.kumapie.data.hoursMinutes(seconds) // shared with the phone
 
-/** Month names in the menu language (the parents' Spanish Stats showed "Dec Jan Feb"). */
-private fun menuLocale(): Locale = if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) Locale("es") else Locale.ENGLISH
+private fun menuLocale(): Locale = io.github.pedrubik2000.kumapie.i18n.Tr.locale

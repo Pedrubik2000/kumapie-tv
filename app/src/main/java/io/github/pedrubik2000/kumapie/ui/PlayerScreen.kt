@@ -121,7 +121,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
     val ctl = remember { SceneController(episode, player, settings, api) }
     remember(ctl) { onController(ctl) } // StreamActivity: the late fit moves its lines ([SceneController.shift])
     // kumapie's own cards: the carded words heard in each scene played to its end (exposures).
-    remember(ctl) { ctl.onSceneSeen = { s -> sceneHeard(context, settings, ctl, s) } }
+    remember(ctl) { tvLanguages(context, settings).of(ctl.lang).known.listen(ctl, settings) }
     // This TV's kuma3 colours the words it has cards for (a word mined here stays blue the next day, not red).
     val rating = remember { TvRating() }
     // Rated words' cards move to where they were rated when the player closes ([moveRated]), not at each scene: each

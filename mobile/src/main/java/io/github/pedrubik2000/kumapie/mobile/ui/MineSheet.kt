@@ -162,9 +162,7 @@ fun MineSheet(library: Library, episode: EpisodeDetail, ctl: SceneController, pi
                     .onSuccess {
                         status = it; done = true
                         // The new card: its word gets its colour and the rating row now.
-
-                        known.reloadCards()
-                        key?.let { k -> ctl.words[k]?.let { w -> ctl.words[k] = known.paint(k, w) } }
+                        known.mined(library.miner.lastNote, ctl, pcColours = false)
                     }
                     .onFailure { status = it.message ?: it.toString() }
                 busy = false
@@ -295,7 +293,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
             else null
             mining.launch {
                 runCatching { library.miner.mine(Miner.Request(episode, scene, line, w)) { status = it } }
-                    .onSuccess { status = it; done = true; known.reloadCards(); repaintWords(ctl, known) }
+                    .onSuccess { status = it; done = true; known.mined(library.miner.lastNote, ctl, pcColours = false) }
                     .onFailure { status = it.message ?: it.toString() }
                 busy = false
             }

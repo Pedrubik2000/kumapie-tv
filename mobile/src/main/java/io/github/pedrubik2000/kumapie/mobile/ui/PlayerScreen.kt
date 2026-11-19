@@ -246,17 +246,18 @@ internal fun ScenePlayer(
     // kuma3's whole queue read again after a rating, in the background (big collections: seconds); not cancelled with the word card.
     val queueScope = rememberCoroutineScope()
     val queueBusy = remember { mutableStateOf(false) } // while it runs, no rating (it would read a queue from before)
-    // Leaving a scene you rated in: kuma3's queue read once (RWKV-Instant may bring a card back). Not after each rating:
-    // the read selects decks, which replaces kuma3's Undo, so ratings stay undoable while you're in their scene.
+    // Rated cards waiting to take the line they were rated on ([recontext]): when the player closes, not at each scene,
+    // as on the TV: each move cuts the line's audio from the stream playing, and that broke a stream (Chromecast, 2026-11-19).
+    val moves = remember { ArrayList<Rating>() }
+    // Leaving a scene you rated in: the due queue read once (a card may come back); its ratings' Undo ends there.
     LaunchedEffect(ctl.scene.index) {
         if (ratings.isEmpty()) return@LaunchedEffect
-        val rated = ratings.values.toList()
+        moves += ratings.values
         ratings.clear()
         val known = library.languages.of(ctl.lang).known
         queueBusy.value = true
         queueScope.launch {
-            // The rated cards take their new scene first (kumapie_plan.md 37b): their Undo is over now.
-            try { recontext(library, rated); known.refreshDue(force = true); repaintWords(ctl, known) } finally { queueBusy.value = false }
+            try { known.refreshDue(force = true); repaintWords(ctl, known) } finally { queueBusy.value = false }
         }
     }
     var menuUntil by remember { mutableLongStateOf(SystemClock.uptimeMillis() + 3_000) } // a novel's bar
@@ -271,8 +272,8 @@ internal fun ScenePlayer(
             picker.release()
             if (ownsPlayer) player.release()
             bgm?.release()
-            // Leaving the player with ratings in this scene: their cards take it (kumapie_plan.md 37b), after the screen is gone.
-            val rated = ratings.values.toList()
+            // Leaving the player: every rated card takes its line (kumapie_plan.md 37b), now that the stream stopped.
+            val rated = moves + ratings.values
             // ponytail: fire-and-forget scope; if the app is killed within those seconds the card keeps its old scene.
             if (rated.isNotEmpty()) kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { recontext(library, rated) }
         }

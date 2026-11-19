@@ -203,6 +203,8 @@ internal fun ScenePlayer(
     onShift: ((Double, Double) -> Unit)? = null,
     /** A player already opened on [episode] (the feed's next page, buffered while the last one played); released here. */
     preloaded: ExoPlayer? = null,
+    /** Discover's stream without a PC: the late fit moves the lines through it ([SceneController.shift]). */
+    onController: (SceneController) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -215,6 +217,7 @@ internal fun ScenePlayer(
         }
     }
     val ctl = remember { SceneController(episode, player, settings, backend) }
+    remember(ctl) { onController(ctl) }
     // kumapie's own cards: the carded words heard in each line played to its end (exposures).
     remember(ctl) { ctl.onSceneSeen = { s -> library.languages.of(ctl.lang).known.exposed(s.cues.flatMap { c -> c.segments.mapNotNull { it.word } }, ctl.episode.id, s.ms, library.settings.subtitles.name.lowercase()) } }
     // A novel's music: its own player, so it goes on while a line waits for the tap; quiet under the voices (0.4 was too loud).
@@ -329,6 +332,7 @@ internal fun ScenePlayer(
             factory = {
                 PlayerView(it).apply {
                     useController = false
+                    subtitleView?.visibility = android.view.View.GONE // kumapie draws the lines; a stream's own track can be on (its fit)
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                     this.player = player

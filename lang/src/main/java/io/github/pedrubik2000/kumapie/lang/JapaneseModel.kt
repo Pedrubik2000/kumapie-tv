@@ -37,6 +37,27 @@ class JapaneseModel(private val context: Context) : Model {
     val splitterReady: Boolean get() = isReady && splitterFiles.all { it.exists() }
     private val work get() = WorkManager.getInstance(context)
 
+    /**
+     * Leaving the PC (Use without the PC): Jiten's files from [server] now, since without a PC they never come
+     * ([JapaneseModelWorker] gets them only from the device's PC) and Sudachi alone split far worse (the no-PC TV,
+     * 2026-11-18). Network: off the main thread.
+     */
+    fun fetchSplitter(server: String) {
+        base.mkdirs()
+        for (f in splitterFiles) if (!f.exists()) {
+            val part = File(f.path + ".part")
+            (java.net.URL("$server/api/models/${f.name}").openConnection() as java.net.HttpURLConnection).run {
+                connectTimeout = 15_000
+                readTimeout = 60_000
+                try {
+                    if (responseCode != 200) throw java.io.IOException("${f.name}: HTTP $responseCode")
+                    inputStream.use { i -> part.outputStream().use { i.copyTo(it) } }
+                } finally { disconnect() }
+            }
+            if (!part.renameTo(f)) throw java.io.IOException("${f.name}: couldn't move it into place")
+        }
+    }
+
     override fun download() {
         val request = OneTimeWorkRequestBuilder<JapaneseModelWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())

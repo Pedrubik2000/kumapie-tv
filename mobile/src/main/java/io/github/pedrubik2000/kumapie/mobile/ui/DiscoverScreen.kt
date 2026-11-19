@@ -396,6 +396,8 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
     var next by remember { mutableStateOf("") }
     var file by remember { mutableStateOf(query["file"].orEmpty()) }
+    var ctl by remember { mutableStateOf<io.github.pedrubik2000.kumapie.player.SceneController?>(null) }
+    var built by remember { mutableStateOf<Double?>(null) } // the offset the words were made with (no PC)
     val player = remember {
         io.github.pedrubik2000.kumapie.player.videoPlayer(context, query["lang"] ?: "ja").apply {
             // As ScenePlayer's own: the episode's audio language, the file's own subtitle tracks off.
@@ -465,10 +467,12 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
                     if (player.currentPosition > d - 120_000) 0f else player.currentPosition / 1000f).apply() // near the end: from the start next time
             }
         }
-        // Jimaku's lines are all there: the episode is made on the phone, after the fit had its chance (as on the TV).
+        // Jimaku's lines are all there: the episode is made on the phone at once, as on the TV. The fit to the file's own
+        // subtitle track lands later (it needs 8 of its lines played; waiting up to 30 s for it held the words back:
+        // 37 s on the TV, 2026-11-18) and moves the lines then (below).
         LaunchedEffect(live.lines) {
             if (live.lines.isEmpty()) return@LaunchedEffect
-            kotlinx.coroutines.withTimeoutOrNull(30_000) { while (live.fitted == null) delay(500) }
+            val t0 = android.os.SystemClock.elapsedRealtime()
             // English under the lines, from the user's subtitle addon if they added one (OpenSubtitles v3).
             val english = runCatching {
                 (library.discovery as? io.github.pedrubik2000.kumapie.data.Addons)
@@ -483,8 +487,20 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
                 if (d == null) { step = tr("Words: downloading the Japanese dictionary (once)…"); delay(5_000) }
             }
             library.settings.prefs.edit().putFloat(offKey, live.offset.toFloat()).apply() // the word player adds its shifts to it
-            live.stop()
+            built = live.offset
+            if (!live.canFit || live.fitted != null) live.stop() // else it listens to the file's track until the fit lands
+            android.util.Log.i("kumapie", "words ready: ${android.os.SystemClock.elapsedRealtime() - t0} ms after the lines (${live.lines.size} lines, ${if (live.canFit) "fit later" else "no track to fit"})")
             detail = d.copy(video = alone, resume = player.currentPosition / 1000.0)
+        }
+        LaunchedEffect(live.fitted, ctl) {
+            val c = ctl ?: return@LaunchedEffect
+            val from = built ?: return@LaunchedEffect
+            if (live.fitted == null) return@LaunchedEffect
+            if (live.offset != from) c.shift(live.offset - from)
+            android.util.Log.i("kumapie", "late fit: ${live.fitted} s from ${live.refCount} lines, lines moved ${live.offset - from} s")
+            built = live.offset
+            library.settings.prefs.edit().putFloat(offKey, live.offset.toFloat()).apply()
+            live.stop()
         }
     } else LaunchedEffect(Unit) {
         runCatching {
@@ -521,7 +537,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         if (library.settings.upright) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     if (d != null) {
         return Box(Modifier.fillMaxSize().background(Color.Black)) {
-            ScenePlayer(library, library.settings, library.backend(d.lang), d, startPaused = false, onBack, preloaded = player)
+            ScenePlayer(library, library.settings, library.backend(d.lang), d, startPaused = false, onBack, preloaded = player, onController = { ctl = it })
             // The end of the episode still looks for the next one here (the listener above): its failure shown too.
             error?.let {
                 Text(it, color = Color.White, fontSize = 13.sp,

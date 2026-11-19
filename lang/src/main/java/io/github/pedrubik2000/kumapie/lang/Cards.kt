@@ -113,6 +113,7 @@ class SrsCards(private val context: Context) : Cards {
     suspend fun takeFromPc(server: String, person: String, languages: List<Language>): Map<String, Int> {
         val api = Api(server, person)
         api.info()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { JapaneseModel(context).fetchSplitter(server) }
         return languages.associate { l ->
             val s = synchronized(stores) { stores.getOrPut("$LOCAL/${l.lang.code}") { Srs(context, LOCAL, l.lang) } }
             s.sync { api.srsSync(l.lang.code, it) }

@@ -12,17 +12,10 @@ import java.net.Socket
 import java.net.URLDecoder
 import kotlin.concurrent.thread
 
-/**
- * The TV's setup page for the phone (kumapie_plan.md "Onboarding"; keys are long to type with a remote): a small HTTP
- * page on the home Wi-Fi, only while the onboarding shows it, under a random path the QR code carries. The phone posts
- * the Jimaku key, the Real-Debrid token (-> Torrentio), Kitsu and the AniList username; [onSaved] then.
- * ponytail: plain HTTP on the LAN, one request per connection; the random path keeps other devices on the Wi-Fi out.
- */
 class SetupPage(private val settings: Settings, private val onSaved: () -> Unit) {
     private val code = (1..10).map { "abcdefghjkmnpqrstuvwxyz23456789".random() }.joinToString("")
     private var socket: ServerSocket? = null
 
-    /** Starts it; answers its address (http://<the TV's Wi-Fi address>:<port>/<code>), null without a home network. */
     fun start(): String? {
         val ip = lanAddress() ?: return null
         val s = ServerSocket(0).also { socket = it }
@@ -58,16 +51,13 @@ class SetupPage(private val settings: Settings, private val onSaved: () -> Unit)
 
     private fun save(f: Map<String, String>) {
         f["jimaku"]?.takeIf { it.isNotEmpty() }?.let { settings.jimakuKey = it }
-        // An unticked box isn't posted: it takes its addon off. Shared with the phone's onboarding.
         settings.setSources(kitsu = f["kitsu"] == "on", english = f["english"] == "on", rd = f["rd"].orEmpty())
         f["anilist"]?.let { settings.anilist = it }
     }
 
-    /** The page: keys are never sent back (a field already set says so). */
     private fun form(): String {
         val p = settings.prefs
         fun set(yes: Boolean) = if (yes) " <b>✓ ${tr("set")}</b>" else ""
-        // Ticked when there, or on a first setup (no addons yet).
         fun tick(addon: String) = if (settings.addons.isEmpty() || addon in settings.addons) " checked" else ""
         return """
             <h1>${tr("Set up kumapie")}</h1>
@@ -103,7 +93,6 @@ class SetupPage(private val settings: Settings, private val onSaved: () -> Unit)
     }
 
     companion object {
-        /** The TV's address on the home network (Wi-Fi or Ethernet; not Tailscale's 100.x). */
         fun lanAddress(): String? = NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
             .flatMap { it.inetAddresses.toList() }.filterIsInstance<Inet4Address>().firstOrNull { it.isSiteLocalAddress }?.hostAddress
     }

@@ -10,6 +10,8 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performKeyInput
@@ -136,5 +138,35 @@ class TvDiscoverFocusTest {
         rule.waitUntil(5_000) { rule.focusedTitle() == "Zeta" }
         rule.press(Key.Back) // the first Back left Discover (Chromecast, 2026-11-17)
         rule.waitUntil(5_000) { rule.focusedTitle() == "Alpha" }
+    }
+}
+
+/** The TV's first run without a PC (bug hunt 2026-11-17: Back quit the app; a failed dictionary download said "Starting…" forever). */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], qualifiers = "w960dp-h540dp-television-xhdpi")
+class TvOnboardingTest {
+    @get:Rule val rule = createComposeRule()
+
+    @Test fun backGoesOneStepBack() {
+        lateinit var activity: androidx.activity.ComponentActivity
+        rule.setContent {
+            activity = LocalContext.current as androidx.activity.ComponentActivity
+            TvOnboarding(Settings(LocalContext.current), onDone = {})
+        }
+        rule.onNodeWithText("Next").requestFocus()
+        rule.press(Key.DirectionCenter)
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Step 2 of 4").fetchSemanticsNodes().isNotEmpty() }
+        rule.runOnUiThread { activity.onBackPressedDispatcher.onBackPressed() }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Step 1 of 4").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(false, activity.isFinishing)
+    }
+
+    @Test fun aFailedDictionaryDownloadSaysSo() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        TvMining.fetching = null
+        TvMining.failed = "no internet" to System.currentTimeMillis()
+        val said = dictionariesState(context, Settings(context))
+        TvMining.failed = null
+        assertEquals("Couldn't download them (no internet). Trying again…", said)
     }
 }

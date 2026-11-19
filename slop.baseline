@@ -1,8 +1,6 @@
 # slopCheck's baseline (build.gradle.kts): shrinks, never grows. Rewritten by `gradlew slopCheck -PslopBaseline`.
-comments :lang 2138
+comments :lang 2116
 comments :mobile 815
-comments app/src/main/java/io/github/pedrubik2000/kumapie/MainActivity.kt 26
-comments app/src/main/java/io/github/pedrubik2000/kumapie/StreamActivity.kt 31
 comments app/src/main/java/io/github/pedrubik2000/kumapie/data/KeySettings.kt 1
 comments app/src/main/java/io/github/pedrubik2000/kumapie/player/PlayerKeys.kt 23
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/Arcade.kt 45
@@ -13,19 +11,14 @@ comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 63
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 59
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/ProfilesScreen.kt 2
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/ReviewScreen.kt 5
-comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/SettingsScreen.kt 19
-comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/SetupPage.kt 6
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/ShowScreen.kt 9
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/StatsScreen.kt 7
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/Theme.kt 9
-comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/TvMining.kt 79
-comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/TvOnboarding.kt 15
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/UpdateDialog.kt 4
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/AniList.kt 7
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 118
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Backdrops.kt 5
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Backend.kt 8
-comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Discovery.kt 46
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Jimaku.kt 25
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Lang.kt 12
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Playable.kt 10
@@ -60,7 +53,6 @@ comments core/src/main/java/io/github/pedrubik2000/kumapie/update/InstallReceive
 comments core/src/main/java/io/github/pedrubik2000/kumapie/update/Updater.kt 10
 digit lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Fsrs6.kt
 digit lang/src/main/java/io/github/pedrubik2000/kumapie/lang/jiten/RepairStages2.kt
-forbid app/src/main/java/io/github/pedrubik2000/kumapie/StreamActivity.kt 2
 forbid app/src/main/java/io/github/pedrubik2000/kumapie/player/PlayerKeys.kt 1
 forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 7
 forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 2
@@ -68,8 +60,6 @@ forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 2
 forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/ProfilesScreen.kt 3
 forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/ReviewScreen.kt 2
 forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/StatsScreen.kt 2
-forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/TvMining.kt 7
-forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/Discovery.kt 2
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/Ranges.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/Settings.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/ShowLevel.kt 1
@@ -78,9 +68,7 @@ forbid core/src/main/java/io/github/pedrubik2000/kumapie/ui/Subtitles.kt 1
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 425
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 467
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 526
-lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/TvMining.kt 759
 lines core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 726
-lines core/src/main/java/io/github/pedrubik2000/kumapie/data/Discovery.kt 401
 lines core/src/main/java/io/github/pedrubik2000/kumapie/player/SceneController.kt 453
 lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Hoshidicts.kt 630
 lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/KnownWords.kt 677

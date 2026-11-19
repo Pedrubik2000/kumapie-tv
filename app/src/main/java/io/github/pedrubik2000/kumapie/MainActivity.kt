@@ -35,7 +35,6 @@ import io.github.pedrubik2000.kumapie.ui.arcadeBackdrop
 import io.github.pedrubik2000.kumapie.ui.onBackKey
 import io.github.pedrubik2000.kumapie.update.Updater
 
-/** The app's screens. Back goes one screen back; on Home it leaves the app. */
 sealed interface Screen {
     data object Home : Screen
     data class ShowEpisodes(val show: Show) : Screen
@@ -43,12 +42,10 @@ sealed interface Screen {
     data object Settings : Screen
     data object Buttons : Screen
     data object Stats : Screen
-    /** [open]: a title kept on Home, opened straight away. */
     data class Discover(val open: io.github.pedrubik2000.kumapie.data.Found? = null) : Screen
     data class Review(val lang: String) : Screen
 }
 
-/** The last profile chosen on "Who's watching?" (it gets the focus there next time). */
 var Settings.profile: String
     get() = prefs.getString("profile", "") ?: ""
     set(value) = prefs.edit().putString("profile", value).apply()
@@ -56,11 +53,7 @@ var Settings.profile: String
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The bear splash goes the moment Home's first frame is ready: Android's own fade-out took ~330 ms over a Home
-        // already drawn (tablet, 2026-11-19).
         if (android.os.Build.VERSION.SDK_INT >= 31) splashScreen.setOnExitAnimationListener { it.remove() }
-        // Home's top picture (the last one it showed) decoded at its size (the whole screen, cropped) while Home is built:
-        // it came 100-200 ms after Home's first frame, decoded from disk (tablet, 2026-11-19).
         io.github.pedrubik2000.kumapie.data.Backdrops.lastHero(this)?.let { image ->
             val m = resources.displayMetrics
             coil3.SingletonImageLoader.get(this).enqueue(coil3.request.ImageRequest.Builder(this).data(image)
@@ -71,27 +64,20 @@ class MainActivity : ComponentActivity() {
         Updater.asset = "kumapie-tv-"
         val settings = Settings(this)
         fromAdb(intent, settings)
-        // No PC: streams' words. 5 s in, after Home: loading it at once (~95 MB, a GC every 0.6 s) slowed the
-        // Chromecast's cold start to Home settled (2026-11-19).
         if (settings.server.isBlank()) window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() }, 5000)
-        window.decorView.postDelayed({ Thread { io.github.pedrubik2000.kumapie.data.Playable.device }.start() }, 3000) // a stream list's decoders (Playable.device)
-        // No PC: Continue watching's episodes split before they're opened (AloneStream.prefetch), after Jiten's warm-up.
+        window.decorView.postDelayed({ Thread { io.github.pedrubik2000.kumapie.data.Playable.device }.start() }, 3000)
         if (settings.server.isBlank()) window.decorView.postDelayed({ Thread { io.github.pedrubik2000.kumapie.lang.AloneStream.prefetch(applicationContext, settings.prefs,
             io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).goingNow()) }.apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start() }, 8000)
-        io.github.pedrubik2000.kumapie.data.Jimaku.cache = cacheDir // an episode's lines kept for the next time it opens
-        @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class) // LocalBringIntoViewSpec: the TV glide
+        io.github.pedrubik2000.kumapie.data.Jimaku.cache = cacheDir
+        @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
         setContent { KumapieTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides io.github.pedrubik2000.kumapie.ui.TvScroll) { App(settings) } } }
     }
 
-    // kumapie already open: adb's intent comes here, not to onCreate. Saved, then the screens start again with it.
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         if (fromAdb(intent, Settings(this))) recreate()
     }
 
-    /** The server address can be sent from the PC instead of typed with the remote:
-     *    adb shell am start -n <app id>/io.github.pedrubik2000.kumapie.MainActivity --es server https://...
-     *  Without a PC, the same way (long to type with a remote): --es addon <address> adds one ('' clears), --es jimaku <key>. */
     private fun fromAdb(intent: android.content.Intent?, settings: Settings): Boolean {
         var any = false
         intent?.getStringExtra("server")?.let { settings.server = it; any = true }
@@ -110,15 +96,13 @@ class MainActivity : ComponentActivity() {
 fun App(settings: Settings) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
-    var standalone by remember { mutableStateOf(settings.standalone) } // no PC server: chosen on the first run
+    var standalone by remember { mutableStateOf(settings.standalone) }
     var onboarded by remember { mutableStateOf(settings.prefs.getBoolean(io.github.pedrubik2000.kumapie.ui.TV_ONBOARDED, false)) }
-    // Without a PC: JMdict and JMnedict download in the background, on the first run (and again if it didn't finish).
     LaunchedEffect(standalone, server) { if (standalone && server.isEmpty()) io.github.pedrubik2000.kumapie.ui.startJapaneseDictionaries(context, settings) }
-    var profile by remember { mutableStateOf<Profile?>(null) } // asked at every start, like Netflix
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
 
-    LaunchedEffect(Unit) { // once per start; debug builds have their own app id, so they don't self-update
+    LaunchedEffect(Unit) {
         if (!BuildConfig.DEBUG) update = runCatching { Updater.newer() }.getOrNull()
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
@@ -128,67 +112,77 @@ fun App(settings: Settings) {
         if (server.isEmpty() && !standalone) {
             SettingsScreen(settings, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone },
                 onUpdate = { update = it })
-        } else if (server.isEmpty() && !onboarded) { // without a PC: the setup (language, keys from the phone, downloads), once
+        } else if (server.isEmpty() && !onboarded) {
             io.github.pedrubik2000.kumapie.ui.TvOnboarding(settings, onDone = { onboarded = true })
         } else if (server.isEmpty()) {
-            // No server: no profiles to ask for (one person) and nothing to list yet; the language picked in the onboarding.
-            LaunchedEffect(Unit) { io.github.pedrubik2000.kumapie.ui.moveAloneLang(settings); Tr.use(settings.menuLanguage) }
-            when (stack.last()) {
-                Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
-                    onSaved = { server = settings.server }, onUpdate = { update = it })
-                Screen.Buttons -> ButtonsScreen(settings)
-                // This TV's own time, lookups and marks (Progress, as the phone's).
-                Screen.Stats -> StatsScreen({ io.github.pedrubik2000.kumapie.lang.Progress.of(context).stats() }, onSettings = { stack.add(Screen.Settings) })
-                is Screen.Review -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(io.github.pedrubik2000.kumapie.lang.ownReview(context, (stack.last() as Screen.Review).lang), server = false)
-                is Screen.Discover -> {
-                    val addons = remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }
-                    io.github.pedrubik2000.kumapie.ui.DiscoverScreen(addons, (stack.last() as Screen.Discover).open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
-                        onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) })
-                }
-                // The PC's Home with this TV's own data: the streamed titles kept, where each was left, its own cards.
-                else -> HomeScreen(remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }, settings, "", "",
-                    onShow = { s -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, s.episodes.first()))) },
-                    onPlay = { s, e -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e))) },
-                    onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) }, onProfiles = {}, onReview = { stack.add(Screen.Review(it)) },
-                    onDiscover = { stack.add(Screen.Discover()) }, onDiscovered = { stack.add(Screen.Discover(it)) })
-            }
+            AloneScreens(settings, stack, onSaved = { server = settings.server }, onUpdate = { update = it })
         } else {
-            val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }
-            LaunchedEffect(api) { api.findLan() }
-            val screen = stack.last()
-            if (profile == null && screen != Screen.Settings) {
-                ProfilesScreen(api, settings.profile, onPick = {
-                    settings.profile = it.id
-                    Tr.use(it.menu)
-                    settings.speaks = if (it.menu == "es") "es" else "en" // translation line and help texts
-                    profile = it
-                }, onSettings = { stack.add(Screen.Settings) })
-            } else when (screen) {
-                Screen.Home -> HomeScreen(api, settings, profile?.id.orEmpty(), profile?.name.orEmpty(),
-                    onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e ->
-                        when { // a streamed card: its prepared file, else its page to pick one
-                            s.kind != "stream" -> stack.add(Screen.Player(s, e))
-                            e.ready -> context.startActivity(android.content.Intent(context, StreamActivity::class.java).setData(
-                                io.github.pedrubik2000.kumapie.data.streamQuery(s, e).entries.fold(android.net.Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) ->
-                                    b.appendQueryParameter(k, v) }.build()))
-                            else -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e)))
-                        }
-                    },
-                    onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
-                    onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.add(Screen.Discover()) },
-                    onDiscovered = { stack.add(Screen.Discover(it)) })
-                is Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api, screen.open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
-                    onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) })
-                is Screen.Review -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(io.github.pedrubik2000.kumapie.ui.pcReview(api, screen.lang))
-                Screen.Stats -> StatsScreen({ api.stats() }, onSettings = { stack.add(Screen.Settings) })
-                is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
-                is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,
-                    onClose = { stack.removeAt(stack.lastIndex) })
-                Screen.Buttons -> ButtonsScreen(settings)
-                Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
-                    onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it }) // standalone: "Use without the PC"
-            }
+            PcScreens(settings, server, stack, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
+    }
+}
+
+@Composable
+private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { io.github.pedrubik2000.kumapie.ui.moveAloneLang(settings); Tr.use(settings.menuLanguage) }
+    when (stack.last()) {
+        Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
+            onSaved = onSaved, onUpdate = onUpdate)
+        Screen.Buttons -> ButtonsScreen(settings)
+        Screen.Stats -> StatsScreen({ io.github.pedrubik2000.kumapie.lang.Progress.of(context).stats() }, onSettings = { stack.add(Screen.Settings) })
+        is Screen.Review -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(io.github.pedrubik2000.kumapie.lang.ownReview(context, (stack.last() as Screen.Review).lang), server = false)
+        is Screen.Discover -> {
+            val addons = remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }
+            io.github.pedrubik2000.kumapie.ui.DiscoverScreen(addons, (stack.last() as Screen.Discover).open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
+                onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) })
+        }
+        else -> HomeScreen(remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }, settings, "", "",
+            onShow = { s -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, s.episodes.first()))) },
+            onPlay = { s, e -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e))) },
+            onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) }, onProfiles = {}, onReview = { stack.add(Screen.Review(it)) },
+            onDiscover = { stack.add(Screen.Discover()) }, onDiscovered = { stack.add(Screen.Discover(it)) })
+    }
+}
+
+@Composable
+private fun PcScreens(settings: Settings, server: String, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var profile by remember { mutableStateOf<Profile?>(null) }
+    val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }
+    LaunchedEffect(api) { api.findLan() }
+    val screen = stack.last()
+    if (profile == null && screen != Screen.Settings) {
+        ProfilesScreen(api, settings.profile, onPick = {
+            settings.profile = it.id
+            Tr.use(it.menu)
+            settings.speaks = if (it.menu == "es") "es" else "en"
+            profile = it
+        }, onSettings = { stack.add(Screen.Settings) })
+    } else when (screen) {
+        Screen.Home -> HomeScreen(api, settings, profile?.id.orEmpty(), profile?.name.orEmpty(),
+            onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e ->
+                when {
+                    s.kind != "stream" -> stack.add(Screen.Player(s, e))
+                    e.ready -> context.startActivity(android.content.Intent(context, StreamActivity::class.java).setData(
+                        io.github.pedrubik2000.kumapie.data.streamQuery(s, e).entries.fold(android.net.Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) ->
+                            b.appendQueryParameter(k, v) }.build()))
+                    else -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e)))
+                }
+            },
+            onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
+            onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.add(Screen.Discover()) },
+            onDiscovered = { stack.add(Screen.Discover(it)) })
+        is Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api, screen.open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
+            onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) })
+        is Screen.Review -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(io.github.pedrubik2000.kumapie.ui.pcReview(api, screen.lang))
+        Screen.Stats -> StatsScreen({ api.stats() }, onSettings = { stack.add(Screen.Settings) })
+        is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
+        is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,
+            onClose = { stack.removeAt(stack.lastIndex) })
+        Screen.Buttons -> ButtonsScreen(settings)
+        Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
+            onSaved = onSaved, onUpdate = onUpdate)
     }
 }

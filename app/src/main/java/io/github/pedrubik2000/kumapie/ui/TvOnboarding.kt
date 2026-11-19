@@ -38,16 +38,9 @@ import io.github.pedrubik2000.kumapie.i18n.Tr
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.launch
 
-/** Set once the TV's onboarding was finished: it doesn't come back. */
 const val TV_ONBOARDED = "onboarded"
-/** The menu language picked in the onboarding before it became Settings.menuLanguage (shared with the phone, 2026-11-19): read once to move it. */
 const val ALONE_LANG = "alone_lang"
 
-/**
- * The TV's first run without a PC (kumapie_plan.md "Onboarding"): the language with the remote, then the keys from the
- * phone (a QR code to [SetupPage], the TV shows what came), then the downloads. Every step can be skipped; Settings
- * has the addons and the Jimaku key later.
- */
 @Composable
 fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
     var step by remember { mutableIntStateOf(0) }
@@ -63,8 +56,8 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
                     listOf("" to tr("The TV's language"), "en" to "English", "es" to "Español").forEachIndexed { i, (code, label) ->
                         Button(onClick = {
                             lang = code
-                            settings.menuLanguage = code // shared with the phone
-                            if (code.isNotEmpty()) settings.speaks = code // meanings and the second line in it too
+                            settings.menuLanguage = code
+                            if (code.isNotEmpty()) settings.speaks = code
                         }, modifier = if (i == 0) Modifier.focusRequester(first) else Modifier) {
                             Text((if (lang == code) "✓ " else "") + label)
                         }
@@ -84,23 +77,17 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
         }
     }
     LaunchedEffect(step) { runCatching { first.requestFocus() } }
-    // Back goes to the step before (it closed the app, and the next launch began again at step 1).
     androidx.activity.compose.BackHandler(enabled = step > 0) { step-- }
 }
 
 private const val STEPS = 4
 
-/**
- * Japanese words imported as known from jiten.moe (kumapie_plan.md item 6), like the phone's Settings: the top words
- * (a few sizes, no typing with the remote) and Jiten's word sets. Known while the word has no Mined card.
- */
 @Composable
 internal fun TvJitenImport(settings: Settings) {
     val context = LocalContext.current
     val known = remember { japaneseKnown(context, settings) }
     val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    // What was imported last time, to change it in Settings (the words marked known are kept apart: never touched).
     val last = remember { known.jitenChoice }
     var top by remember { mutableIntStateOf(last?.first ?: 10000) }
     val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to (last?.second?.contains(it) ?: true) }.toTypedArray()) }
@@ -115,7 +102,7 @@ internal fun TvJitenImport(settings: Settings) {
             Button(onClick = { top = n }) { Text((if (top == n) "✓ " else "") + if (n == 0) tr("None") else "%,d".format(n)) }
         }
     }
-    jiten.SETS.entries.chunked(3).forEach { row -> // six in one row don't fit a 1080p TV
+    jiten.SETS.entries.chunked(3).forEach { row ->
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             row.forEach { (slug, name) ->
                 Button(onClick = { sets[slug] = sets[slug] != true }) { Text((if (sets[slug] == true) "✓ " else "") + tr(name)) }
@@ -138,10 +125,9 @@ internal fun TvJitenImport(settings: Settings) {
     if (said.isNotEmpty()) Text(said, color = Colors.text, fontSize = 18.sp)
 }
 
-/** The QR code to the TV's setup page and what has come from it so far (also in Settings: [onSaved] there). */
 @Composable
 internal fun PhonePage(settings: Settings, onSaved: () -> Unit = {}) {
-    var saved by remember { mutableIntStateOf(0) } // bumped when the phone saves: the rows below read the prefs again
+    var saved by remember { mutableIntStateOf(0) }
     val page = remember { SetupPage(settings) { saved++; onSaved() } }
     val url = remember { page.start() }
     DisposableEffect(Unit) { onDispose { page.stop() } }
@@ -166,7 +152,6 @@ internal fun PhonePage(settings: Settings, onSaved: () -> Unit = {}) {
     }
 }
 
-/** The dictionaries (meanings) and Sudachi (splits lines into words), started now, each with its state. */
 @Composable
 private fun TvDownloads(settings: Settings) {
     val context = LocalContext.current
@@ -183,15 +168,12 @@ private fun TvDownloads(settings: Settings) {
     Text(tr("Word splitter: %s", modelState ?: if (model.isReady) tr("✓ ready") else tr("Starting…")), color = Colors.text, fontSize = 18.sp)
 }
 
-/** [text] as a QR code, black on white, [size] pixels. */
 internal fun qr(text: String, size: Int): Bitmap {
     val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size)
-    // One array, one call: setPixel per pixel (230 000 of them) stalled a Chromecast on every Settings.
     val px = IntArray(size * size) { if (m[it % size, it / size]) android.graphics.Color.BLACK else android.graphics.Color.WHITE }
     return Bitmap.createBitmap(px, size, size, Bitmap.Config.RGB_565)
 }
 
-/** The TV's old menu-language pref into the shared [Settings.menuLanguage], once (a TV set up before 2026-11-19). */
 fun moveAloneLang(settings: Settings) {
     val old = settings.prefs.getString(ALONE_LANG, null) ?: return
     if (settings.menuLanguage.isEmpty()) settings.menuLanguage = old

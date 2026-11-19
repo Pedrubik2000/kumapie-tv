@@ -9,13 +9,6 @@ import io.github.pedrubik2000.kumapie.player.LiveLines
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 
-/**
- * An addon's stream without a PC, the same on the TV (StreamActivity.Alone) and the phone/tablet (WatchScreen): its
- * Japanese lines live ([live]: the file's own track, else Jimaku's file with the user's key), the episode made on the
- * device as soon as Jimaku's lines are there ([build]: words at once), the fit to the file's other subtitle track
- * landing later ([fitLanded]: the scenes' lines move by it), the shift ([offKey]) and the place kept on this device.
- * Each app keeps only its screen.
- */
 class AloneStream(
     private val prefs: SharedPreferences, private val addons: Addons?, player: ExoPlayer,
     val id: String, val type: String, val show: String, val title: String, val video: String, private val file: String,
@@ -26,32 +19,20 @@ class AloneStream(
     val live = LiveLines(player, jimaku = {
         runCatching { Jimaku.lines(prefs.getString("jimaku_key", "").orEmpty(), show, null, episodeNumber(id), file) }
             .onFailure { onError(it.message) }.getOrDefault(emptyList()).map { Triple(it.start, it.end, it.text) }
-        // (empty: [LiveLines.noLines] says so once the file turned out to have no Japanese track either)
     }, others = { skip ->
         Jimaku.lines(prefs.getString("jimaku_key", "").orEmpty(), show, null, episodeNumber(id), file, skip).map { Triple(it.start, it.end, it.text) }
     }, switched = { l -> Jimaku.keep(show, null, episodeNumber(id), file, l.map { Jimaku.Line(it.first, it.second, it.third) }, fitted = true) }).also {
         it.offset = prefs.getFloat(offKey(id), 0f).toDouble()
-        // A saved shift is a starting point: this play's fit replaces it (false fits were saved before 2026-11-19: Eden of
-        // the East 2 kept 2.8 s, the true one being -5.6 s); a shift nudged by hand now wins.
         it.guess = it.offset
     }
 
-    /** The offset the scenes were made with; null until [build] made them. */
     var built: Double? = null
         private set
 
-    /** The English files, asked as the stream opens ([build] only fits them): 0.8-2.3 s of a Chromecast's words before. */
     private val englishFiles = addons?.let { a ->
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).async { runCatching { a.englishFiles(type, id) }.getOrDefault(emptyList()) }
     }
 
-    /**
-     * The episode from Jimaku's lines (call once [LiveLines.lines] is filled), English under them from the user's
-     * subtitle addon if there is one. While Sudachi's dictionary downloads (the first time) it waits, [onWait] each
-     * round. Throws what the builder throws. After it the lines are the scenes': [LiveLines] goes on only to fit.
-     * The words come coloured by this device's known words and cards ([KnownWords.apply]): the builder makes every
-     * word red, and the phone drew a whole stream red until something repainted (Frieren 3, 2026-11-19).
-     */
     suspend fun build(context: android.content.Context, languages: Languages, duration: Double, position: () -> Double, onWait: () -> Unit): EpisodeDetail {
         val tLines = android.os.SystemClock.elapsedRealtime()
         val english = runCatching { englishFiles?.await()?.let { addons!!.fitEnglish(it, live.lines.map { l -> l.first + live.offset }) } }.getOrNull().orEmpty()
@@ -67,15 +48,13 @@ class AloneStream(
             languages.of(built0.lang).known.run { refreshDue(); apply(built0) }
         }
         built = live.offset
-        saveOffset() // the word player adds its hand shifts to it
-        live.stopUnlessFitting() // else it listens to the file's track until the fit lands
-        // tvbench reads this line ("words ready").
+        saveOffset()
+        live.stopUnlessFitting()
         android.util.Log.i("kumapie", "words ready: lines ${tLines - t0} ms after open, english ${tEnglish - tLines}, " +
             "build ${android.os.SystemClock.elapsedRealtime() - tEnglish} (builder ${tBuilt - tEnglish}, colours ${android.os.SystemClock.elapsedRealtime() - tBuilt}; ${live.source}, ${live.lines.size} lines, ${if (live.canFit) "fit later" else "no track to fit"})")
         return ep.copy(video = video, resume = position())
     }
 
-    /** The late fit, once it landed after [build]: the scenes' lines move by [shift] (a saved hand shift stays). True: done. */
     fun fitLanded(shift: (Double) -> Unit): Boolean {
         val by = lateShift(built, live.offset, live.fitted) ?: return false
         if (by != 0.0) shift(by)
@@ -88,39 +67,28 @@ class AloneStream(
 
     private fun saveOffset() = prefs.edit().putFloat(offKey(id), live.offset.toFloat()).apply()
 
-    /** Where it plays now, for next time and Home's Continue watching (near the end: from the start). */
     fun savePlace(positionMs: Long, durationMs: Long) {
         if (durationMs <= 0) return
         val at = place(positionMs / 1000.0, durationMs / 1000.0)
         addons?.played(id, at, durationMs / 1000.0) ?: prefs.edit().putFloat("alone_pos_$id", at.toFloat()).apply()
-        prefs.edit().putString(fileKey(id), file).apply() // [prefetch]'s guess for the title's next episode
+        prefs.edit().putString(fileKey(id), file).apply()
     }
 
-    /** The screen goes: a shift nudged before the words came is kept (after, the word player keeps its own). */
     fun leave() { if (built == null) saveOffset() }
 
     companion object {
-        /** Where [id] was left on this device (seconds); null: from the start. Read before the player is made. */
         fun resume(prefs: SharedPreferences, id: String): Double? = prefs.getFloat("alone_pos_$id", 0f).toDouble().takeIf { it > 5 }
 
-        /** The device's shift for a no-PC episode's lines (the word player's hand shifts add to it). */
         fun offKey(id: String) = "alone_off_" + id.removePrefix("alone:")
 
-        /** A hand shift of a no-PC episode's lines by [by] s (the TV's and the phone's Subtitle timing): now, and kept for next time. */
         fun shift(ctl: io.github.pedrubik2000.kumapie.player.SceneController, prefs: SharedPreferences, by: Double) {
             ctl.shift(by)
             val key = offKey(ctl.episode.id)
             prefs.edit().putFloat(key, prefs.getFloat(key, 0f) + by.toFloat()).apply()
         }
 
-        /** The last file played of [id]'s title (its release: what Jimaku's files are ranked against). */
         fun fileKey(id: String) = "alone_file_" + io.github.pedrubik2000.kumapie.data.Addons.titleOf(id.removePrefix("alone:"))
 
-        /**
-         * Continue watching's episodes ([going], Home's row: the first [max]) split before they're opened: Jimaku's lines
-         * (ranked against the title's last file) and Jiten's split, both kept on the device, so opening one is a reopen
-         * (Chromecast: words 1.6 s instead of ~11). A background split waits while a stream's runs. Off the main thread.
-         */
         fun prefetch(context: android.content.Context, prefs: SharedPreferences, going: List<Pair<io.github.pedrubik2000.kumapie.data.Show, io.github.pedrubik2000.kumapie.data.Episode>>, max: Int = 5) {
             val key = prefs.getString("jimaku_key", "").orEmpty()
             val model = JapaneseModel(context)
@@ -129,7 +97,6 @@ class AloneStream(
                 val t = android.os.SystemClock.elapsedRealtime()
                 val lines = kotlinx.coroutines.runBlocking { Jimaku.lines(key, show.title, null, episodeNumber(e.id), prefs.getString(fileKey(e.id), "").orEmpty()) }
                 if (lines.isNotEmpty()) model.words(lines.map { it.text }, background = true).let { tokens ->
-                    // Its faces and pictures too ([Japanese.warmFaces]): ~4.5 s of an open on the Chromecast (Dandadan 10, 2026-11-19).
                     LangKit.get(context, io.github.pedrubik2000.kumapie.data.Settings(context)).languages.japanese
                         .warmFaces(tokens.flatten().filter { it.isWord }.map { it.base }.toSet())
                 }
@@ -139,10 +106,8 @@ class AloneStream(
 
         fun episodeNumber(id: String) = id.substringAfterLast(':').toIntOrNull()
 
-        /** Left within 2 minutes of the end: from the start next time. */
         fun place(at: Double, length: Double) = if (at > length - 120) 0.0 else at
 
-        /** How far the built scenes' lines move when the fit lands; null: nothing to move yet. */
         fun lateShift(built: Double?, offset: Double, fitted: Double?): Double? =
             if (built == null || fitted == null) null else offset - built
     }

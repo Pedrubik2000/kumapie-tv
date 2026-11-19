@@ -387,6 +387,23 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         w.copy(card = cardIndex.state(key)?.takeUnless { it == "u" && extraKnown(key) },
             forms = w.forms?.mapValues { (form, _) -> cardIndex.state(form)?.takeUnless { it == "u" && extraKnown(key) } ?: "" })
 
+    /**
+     * Every word of the player's episode coloured again by the card index as it is now (after a rating, an undo, a
+     * mined card), the TV and the phone/tablet alike. A word without a card of its own ("u") takes its status:
+     * [pcColours] the episode's, the PC's (a PC episode on the TV, which reads no Anki; the PC knows words without
+     * cards, Jiten lists and marks: "u" drew せっかく, のに... red, 2026-10-22); otherwise this device's own [status]
+     * (the phone, which coloured it with [apply]; an episode built on the device, all red from the builder, 2026-11-18).
+     */
+    fun repaint(ctl: io.github.pedrubik2000.kumapie.player.SceneController, pcColours: Boolean) {
+        val written = if (language !is Japanese) emptyMap() else ctl.episode.scenes.asSequence().flatMap { it.cues }.flatMap { it.segments }
+            .filter { it.word != null }.groupBy({ it.word!! }, { it.text })
+        for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w ->
+            val p = paint(k, written[k]?.let { f -> w.copy(forms = f.associateWith { "" }) } ?: w)
+            val n = recolour(p, pcColours, if (pcColours) null else status(k))
+            if (n != w) ctl.words[k] = n
+        }
+    }
+
     /** A word marked known in the app (or unmarked); answers its status now. */
     fun mark(word: String, known: Boolean): String {
         setMarked(if (known) marked + word else marked - word)
@@ -581,6 +598,16 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         /** Word cards mined in kumapie ([Miner]): judged by their Word field, like Core 1000. */
         val MINED_WORD = Lang.GERMAN.tag("word")
         const val NICOS_WEG = "Nicos_Weg_A1"
+
+        /**
+         * [repaint]'s rule for one painted word [p]: [pcColours] drops the "u" card states (no card of its own) so the
+         * episode's status shows ([io.github.pedrubik2000.kumapie.data.Word.shown] = card ?: status); otherwise the
+         * device's own status [own] (null = unknown, keeps [p]'s), the "u" dropped when [own] says known.
+         */
+        fun recolour(p: io.github.pedrubik2000.kumapie.data.Word, pcColours: Boolean, own: String?): io.github.pedrubik2000.kumapie.data.Word {
+            val q = if (pcColours || own == "k") p.copy(card = p.card?.takeUnless { it == "u" }, forms = p.forms?.mapValues { (_, s) -> if (s == "u") "" else s }) else p
+            return if (pcColours) q else q.copy(status = own ?: q.status)
+        }
         /** The definition fields (the card's template marks the second as locked monolingual). */
         const val DEF_BI = "Definition (bilingual)"
         const val DEF_MONO = "Definition (monolingual)"

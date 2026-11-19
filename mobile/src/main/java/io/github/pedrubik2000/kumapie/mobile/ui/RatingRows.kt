@@ -139,7 +139,5 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
     if (today > 0) Text(tr("Reviewed from episodes today: %d", today), color = Colors.dim, fontSize = 13.sp)
 }
 
-/** Every word of the player's episode coloured by the index again (cheap: a few hundred words). */
-fun repaintWords(ctl: io.github.pedrubik2000.kumapie.player.SceneController, known: KnownWords) {
-    for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> known.paint(k, w).let { n -> if (n != w) ctl.words[k] = n } }
-}
+/** Every word of the player's episode coloured by the index again (cheap: a few hundred words; shared with the TV). */
+fun repaintWords(ctl: io.github.pedrubik2000.kumapie.player.SceneController, known: KnownWords) = known.repaint(ctl, pcColours = false)

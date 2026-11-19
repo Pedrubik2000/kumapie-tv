@@ -534,22 +534,8 @@ fun syncAnkiLater(context: Context, settings: Settings, ctl: SceneController) {
 }
 
 /** Every word of the episode coloured by the card index as it is now (after [paintCards]' read, a rating, an undo). */
-private fun repaint(language: Language, ctl: SceneController) {
-    val known = language.known
-    val written = if (language !is Japanese) emptyMap() else ctl.episode.scenes.asSequence().flatMap { it.cues }.flatMap { it.segments }
-        .filter { it.word != null }.groupBy({ it.word!! }, { it.text })
-    // "u" (no card of its own) keeps the PC's colour: the PC knows words without cards (Jiten lists, marked, the
-    // phone's parses); the TV has none of those, so "u" drew せっかく, のに... red (user, 2026-10-22).
-    // An episode made on this TV without a PC ("alone:") came all red from the builder: its colour is this TV's own
-    // judgement then (marks, Jiten's imported words, names; every line was red, 2026-11-18).
-    val alone = ctl.episode.id.startsWith("alone:")
-    for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w ->
-        known.paint(k, w.copy(forms = written[k]?.associateWith { "" }))
-            .let { p -> p.copy(card = p.card?.takeUnless { it == "u" }, forms = p.forms?.mapValues { (_, s) -> if (s == "u") "" else s }) }
-            .let { p -> if (alone) p.copy(status = known.status(k) ?: p.status) else p }
-            .let { n -> if (n != w) ctl.words[k] = n }
-    }
-}
+private fun repaint(language: Language, ctl: SceneController) =
+    language.known.repaint(ctl, pcColours = !ctl.episode.id.startsWith("alone:")) // "alone:": built on this TV
 
 // ------------------------------------------------------------ ratings in the word picker (user, 2026-11-09)
 

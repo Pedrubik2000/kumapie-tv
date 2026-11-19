@@ -59,6 +59,13 @@ class MainActivity : ComponentActivity() {
         // The bear splash goes the moment Home's first frame is ready: Android's own fade-out took ~330 ms over a Home
         // already drawn (tablet, 2026-11-19).
         if (android.os.Build.VERSION.SDK_INT >= 31) splashScreen.setOnExitAnimationListener { it.remove() }
+        // Home's top picture (the last one it showed) decoded at its size (the whole screen, cropped) while Home is built:
+        // it came 100-200 ms after Home's first frame, decoded from disk (tablet, 2026-11-19).
+        io.github.pedrubik2000.kumapie.data.Backdrops.lastHero(this)?.let { image ->
+            val m = resources.displayMetrics
+            coil3.SingletonImageLoader.get(this).enqueue(coil3.request.ImageRequest.Builder(this).data(image)
+                .size(m.widthPixels, m.heightPixels).scale(coil3.size.Scale.FILL).build())
+        }
         Updater.repo = BuildConfig.UPDATE_REPO
         Updater.version = BuildConfig.VERSION_NAME
         Updater.asset = "kumapie-tv-"

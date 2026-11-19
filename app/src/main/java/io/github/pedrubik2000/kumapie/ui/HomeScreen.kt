@@ -340,7 +340,10 @@ private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Co
                 drawContent()
                 drawRect(Brush.verticalGradient(0.45f to Color.Black, 0.95f to Color.Transparent), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
             }) {
-            Cover(image.ifEmpty { e.thumb.ifEmpty { s.poster } }, s.title, Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null)
+            val picture = image.ifEmpty { e.thumb.ifEmpty { s.poster } }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            LaunchedEffect(picture) { io.github.pedrubik2000.kumapie.data.Backdrops.putHero(context, picture) }
+            Cover(picture, s.title, Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null)
             Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Colors.background.copy(alpha = 0.9f), 0.65f to Color.Transparent)))
             Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Colors.background.copy(alpha = 0.6f), 0.25f to Color.Transparent)))
         }

@@ -83,7 +83,16 @@ class JapaneseModel(private val context: Context) : Model {
     }
 
     /** Each text's words as a learner sees them ([join]): 届いた (届く), できない (できる), でも, 防御力. */
-    fun words(texts: List<String>): List<List<Token>> {
+    fun words(texts: List<String>, background: Boolean = false): List<List<Token>> {
+        if (!background) building.incrementAndGet()
+        try { return wordsOf(texts, background) } finally { if (!background) building.decrementAndGet() }
+    }
+
+    /**
+     * [words]: one line at a time under [SPLIT] (Sudachi isn't thread-safe; the warm-up and Home's [background] splits run
+     * beside a stream's); a [background] split waits while a stream's runs, so it never slows one.
+     */
+    private fun wordsOf(texts: List<String>, background: Boolean): List<List<Token>> {
         val s = splitter() ?: return parse(texts).map(::join)
         // An episode split before (reopened, resumed): its words from the device. The Chromecast splits ~20 ms a line
         // (Dandadan 9: 374 lines in 7.6-9.7 s of the 10.4 s to its words, 2026-11-19); the key changes with Jiten's files.
@@ -94,7 +103,10 @@ class JapaneseModel(private val context: Context) : Model {
         }
         val t = android.os.SystemClock.elapsedRealtime()
         var first = 0L
-        return texts.mapIndexed { i, x -> s.split(x).also { if (i == 0) first = android.os.SystemClock.elapsedRealtime() - t } }
+        return texts.mapIndexed { i, x ->
+            if (background) while (building.get() > 0) Thread.sleep(200)
+            synchronized(SPLIT) { s.split(x) }.also { if (i == 0) first = android.os.SystemClock.elapsedRealtime() - t }
+        }
             .also { if (texts.size > 1) android.util.Log.i("kumapie", "jiten split: ${texts.size} lines in ${android.os.SystemClock.elapsedRealtime() - t} ms (first $first)") }
             .also { words -> saved?.let { f -> runCatching { f.parentFile?.mkdirs(); f.writeText(encode(words)) } } }
     }
@@ -113,7 +125,7 @@ class JapaneseModel(private val context: Context) : Model {
         if (!splitterReady) return
         Thread {
             val t = android.os.SystemClock.elapsedRealtime()
-            splitter()?.split("あ")
+            splitter()?.let { s -> synchronized(SPLIT) { s.split("あ") } }
             android.util.Log.i("kumapie", "jiten splitter warm in ${android.os.SystemClock.elapsedRealtime() - t} ms")
         }.apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start()
     }
@@ -127,6 +139,9 @@ class JapaneseModel(private val context: Context) : Model {
     }
 
     companion object {
+        private val SPLIT = Any()
+        private val building = java.util.concurrent.atomic.AtomicInteger()
+
         /** [words]' file name for [texts] split with Jiten's files of [version]. */
         fun key(texts: List<String>, version: Long): String = java.security.MessageDigest.getInstance("SHA-1")
             .digest((version.toString() + "\n" + texts.joinToString("\n")).toByteArray()).joinToString("") { "%02x".format(it) }

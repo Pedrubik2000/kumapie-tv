@@ -17,7 +17,7 @@ import kotlinx.coroutines.delay
  */
 class AloneStream(
     private val prefs: SharedPreferences, private val addons: Addons?, player: ExoPlayer,
-    val id: String, val type: String, val show: String, val title: String, val video: String, file: String,
+    val id: String, val type: String, val show: String, val title: String, val video: String, private val file: String,
     onError: (String?) -> Unit,
 ) {
     private val t0 = android.os.SystemClock.elapsedRealtime()
@@ -80,6 +80,7 @@ class AloneStream(
         if (durationMs <= 0) return
         val at = place(positionMs / 1000.0, durationMs / 1000.0)
         addons?.played(id, at, durationMs / 1000.0) ?: prefs.edit().putFloat("alone_pos_$id", at.toFloat()).apply()
+        prefs.edit().putString(fileKey(id), file).apply() // [prefetch]'s guess for the title's next episode
     }
 
     /** The screen goes: a shift nudged before the words came is kept (after, the word player keeps its own). */
@@ -91,6 +92,26 @@ class AloneStream(
 
         /** The device's shift for a no-PC episode's lines (the word player's hand shifts add to it). */
         fun offKey(id: String) = "alone_off_" + id.removePrefix("alone:")
+
+        /** The last file played of [id]'s title (its release: what Jimaku's files are ranked against). */
+        fun fileKey(id: String) = "alone_file_" + io.github.pedrubik2000.kumapie.data.Addons.titleOf(id.removePrefix("alone:"))
+
+        /**
+         * Continue watching's episodes ([going], Home's row: the first [max]) split before they're opened: Jimaku's lines
+         * (ranked against the title's last file) and Jiten's split, both kept on the device, so opening one is a reopen
+         * (Chromecast: words 1.6 s instead of ~11). A background split waits while a stream's runs. Off the main thread.
+         */
+        fun prefetch(context: android.content.Context, prefs: SharedPreferences, going: List<Pair<io.github.pedrubik2000.kumapie.data.Show, io.github.pedrubik2000.kumapie.data.Episode>>, max: Int = 5) {
+            val key = prefs.getString("jimaku_key", "").orEmpty()
+            val model = JapaneseModel(context)
+            if (key.isBlank() || !model.splitterReady) return
+            for ((show, e) in going.take(max)) runCatching {
+                val t = android.os.SystemClock.elapsedRealtime()
+                val lines = kotlinx.coroutines.runBlocking { Jimaku.lines(key, show.title, null, episodeNumber(e.id), prefs.getString(fileKey(e.id), "").orEmpty()) }
+                if (lines.isNotEmpty()) model.words(lines.map { it.text }, background = true)
+                android.util.Log.i("kumapie", "prefetched ${show.title} ${e.id}: ${lines.size} lines in ${android.os.SystemClock.elapsedRealtime() - t} ms")
+            }
+        }
 
         fun episodeNumber(id: String) = id.substringAfterLast(':').toIntOrNull()
 

@@ -75,6 +75,9 @@ class MainActivity : ComponentActivity() {
         // Chromecast's cold start to Home settled (2026-11-19).
         if (settings.server.isBlank()) window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() }, 5000)
         window.decorView.postDelayed({ Thread { io.github.pedrubik2000.kumapie.data.Playable.device }.start() }, 3000) // a stream list's decoders (Playable.device)
+        // No PC: Continue watching's episodes split before they're opened (AloneStream.prefetch), after Jiten's warm-up.
+        if (settings.server.isBlank()) window.decorView.postDelayed({ Thread { io.github.pedrubik2000.kumapie.lang.AloneStream.prefetch(applicationContext, settings.prefs,
+            io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).goingNow()) }.apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start() }, 8000)
         io.github.pedrubik2000.kumapie.data.Jimaku.cache = cacheDir // an episode's lines kept for the next time it opens
         @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class) // LocalBringIntoViewSpec: the TV glide
         setContent { KumapieTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides io.github.pedrubik2000.kumapie.ui.TvScroll) { App(settings) } } }

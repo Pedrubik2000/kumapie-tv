@@ -160,6 +160,19 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
                     Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")))
                 }
             }
+            // As in the onboarding (it was only there): the screen restarts so every text redraws.
+            Heading(tr("Menu language"), Modifier.padding(top = 24.dp))
+            val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                listOf("" to tr("The TV's language"), "en" to "English", "es" to "Español").forEach { (code, label) ->
+                    Button(onClick = {
+                        if (code == settings.menuLanguage) return@Button
+                        settings.menuLanguage = code // shared with the phone
+                        if (code.isNotEmpty()) settings.speaks = code // meanings and the second line in it too
+                        activity?.recreate()
+                    }) { Text((if (settings.menuLanguage == code) "✓ " else "") + label) }
+                }
+            }
             Heading(tr("No spoilers"), Modifier.padding(top = 24.dp))
             var blur by remember { mutableStateOf(settings.blurUnwatched) }
             Button(onClick = { blur = !blur; settings.blurUnwatched = blur }) {

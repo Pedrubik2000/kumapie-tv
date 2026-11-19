@@ -176,7 +176,7 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
 private fun PosterCard(f: Found, modifier: Modifier, onClick: () -> Unit) = Column(modifier.clickable(onClick = onClick)) {
     AsyncImage(f.poster, f.name, contentScale = ContentScale.Crop,
         modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)).background(Colors.surface))
-    Text(f.name, color = Colors.text, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+    Text(f.shownName, color = Colors.text, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
     Text(f.year, color = Colors.dim, fontSize = 12.sp)
 }
 
@@ -214,7 +214,7 @@ private fun androidx.compose.foundation.layout.BoxScope.Backdrop(image: String) 
 private fun TitleLogo(f: Found) {
     if (f.logo.isNotEmpty()) AsyncImage(f.logo, f.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
         modifier = Modifier.height(64.dp).widthIn(max = 260.dp))
-    else Text(f.name, style = MaterialTheme.typography.headlineSmall, color = Colors.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    else Text(f.shownName, style = MaterialTheme.typography.headlineSmall, color = Colors.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
 }
 
 /**

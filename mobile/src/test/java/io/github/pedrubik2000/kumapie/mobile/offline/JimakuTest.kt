@@ -17,6 +17,12 @@ class JimakuTest {
     @Test fun theEpisodesOwnFileOfTheSameReleaseFirst() = assertEquals(listOf(files[1].first, files[0].first, "Frieren BD 1-28.zip"),
         Jimaku.rank(files, 7, "Sousou.no.Frieren.S01E07.1080p.NF.WEB-DL.mkv").map { it.first })
 
+    // Eden of the East (2026-11-19): Coalgirls' files ranked first by name but are 80 s off the [bonkai77] video; [gg]'s
+    // fitted ep 1, so ep 2 takes [gg]'s first.
+    @Test fun aReleaseThatFittedBeforeComesFirst() = assertEquals(listOf("[gg]_Higashi_no_Eden_-_02_[5A2E6B7C].ass", "[Coalgirls]_Eden_of_the_East_02_(1920x1080_Blu-Ray_FLAC)_[2C4E5B11].ass"),
+        Jimaku.rank(listOf("[Coalgirls]_Eden_of_the_East_02_(1920x1080_Blu-Ray_FLAC)_[2C4E5B11].ass", "[gg]_Higashi_no_Eden_-_02_[5A2E6B7C].ass").map { it to "" },
+            2, "[bonkai77] Eden of the East - 02 [1080p] [DUAL-AUDIO] [x265] [HEVC].mkv", "[gg]_Higashi_no_Eden_-_01_[1F3D9A20].ass").map { it.first })
+
     @Test fun episodeNumbers() = assertEquals(listOf(1 to 7, null to 7, null to 12, null to null),
         listOf("Show.S01E07.mkv", "[Group] Show - 07 [1080p].ass", "Show EP12.srt", "Show.srt").map(Jimaku::numbers))
 

@@ -136,7 +136,7 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
                     LazyVerticalGrid(GridCells.Adaptive(130.dp), contentPadding = PaddingValues(vertical = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         itemsIndexed(list!!.distinctBy { it.id }, key = { _, f -> f.id }) { i, f ->
-                            Poster(f.poster, f.name, f.year, null, if (i == 0) Modifier.focusRequester(first) else Modifier) { open = f }
+                            Poster(f.poster, f.shownName, f.year, null, if (i == 0) Modifier.focusRequester(first) else Modifier) { open = f }
                         }
                     }
                 }
@@ -173,7 +173,7 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
                             Heading(tr(name), Modifier.padding(start = RAIL, top = 16.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(start = RAIL, end = 48.dp, top = 8.dp, bottom = 8.dp)) {
                                 itemsIndexed(titles.distinctBy { it.id }, key = { _, f -> f.id }) { i, f ->
-                                    Poster(f.poster, f.name, f.year, null, (if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier)
+                                    Poster(f.poster, f.shownName, f.year, null, (if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier)
                                         .onFocusChanged { if (it.isFocused) { focused = f; row = r } }) { open = f }
                                 }
                             }
@@ -222,7 +222,7 @@ private fun androidx.compose.foundation.layout.BoxScope.Backdrop(image: String) 
 private fun TitleLogo(f: Found) {
     if (f.logo.isNotEmpty()) AsyncImage(f.logo, f.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
         modifier = Modifier.padding(top = 4.dp).height(64.dp).widthIn(max = 420.dp))
-    else Text(f.name, color = Color.White, fontSize = 38.sp, lineHeight = 44.sp, style = Arcade.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    else Text(f.shownName, color = Color.White, fontSize = 38.sp, lineHeight = 44.sp, style = Arcade.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
 
 /**

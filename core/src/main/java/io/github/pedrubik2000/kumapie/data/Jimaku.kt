@@ -40,8 +40,14 @@ object Jimaku {
         return fetch(key, show, season, episode, videoName).also { keep(show, season, episode, videoName, it) }
     }
 
-    /** [lines] become the episode's own on this device: [lines] answers with them from now on. */
-    fun keep(show: String, season: Int?, episode: Int?, videoName: String, lines: List<Line>) {
+    /**
+     * [lines] become the episode's own on this device: [lines] answers with them from now on. [fitted]: they are the
+     * file the stream switched to because it fits (the first ranked didn't): its release is remembered for [show], and
+     * its next episodes rank that release's files first ([rank]'s `release`; Eden of the East: Coalgirls' files are
+     * 80 s off this video, [gg]'s fit, 2026-11-19).
+     */
+    fun keep(show: String, season: Int?, episode: Int?, videoName: String, lines: List<Line>, fitted: Boolean = false) {
+        if (fitted && lastName.isNotEmpty()) releaseFile(show)?.let { f -> runCatching { f.parentFile?.mkdirs(); f.writeText(lastName) } }
         val saved = savedFile(show, season, episode, videoName)
         if (saved != null && lines.isNotEmpty()) runCatching {
             saved.parentFile?.mkdirs()
@@ -51,6 +57,13 @@ object Jimaku {
 
     private fun savedFile(show: String, season: Int?, episode: Int?, videoName: String) =
         cache?.let { java.io.File(it, "jimaku/" + "$show|$season|$episode|$videoName".hashCode().toUInt() + ".json") }
+
+    /** The show's release that fitted ([keep] `fitted`): a Jimaku file name. */
+    private fun releaseFile(show: String) = cache?.let { java.io.File(it, "jimaku/release-" + show.hashCode().toUInt() + ".txt") }
+    private fun release(show: String) = releaseFile(show)?.takeIf { it.exists() }?.let { runCatching { it.readText() }.getOrNull() }.orEmpty()
+
+    /** The file [fetch] read last ([keep] remembers its release when it fitted). */
+    @Volatile private var lastName = ""
 
     /** Where [lines] keeps each episode's lines (the app's cache folder; null: not kept). */
     @Volatile var cache: java.io.File? = null
@@ -62,8 +75,9 @@ object Jimaku {
         if (entries.length() == 0 && media != null) entries = JSONArray(String(get(search("query=${enc(media.second)}"), key)))
         if (entries.length() == 0) return emptyList()
         val files = JSONArray(String(get("$API/entries/${entries.getJSONObject(0).getInt("id")}/files", key)))
-        val best = rank((0 until files.length()).map { files.getJSONObject(it).let { f -> f.getString("name") to f.getString("url") } }, episode, videoName)
+        val best = rank((0 until files.length()).map { files.getJSONObject(it).let { f -> f.getString("name") to f.getString("url") } }, episode, videoName, release(show))
             .getOrNull(skip) ?: return emptyList()
+        lastName = best.first
         var name = best.first
         var data = get(best.second, key)
         if (name.lowercase().endsWith(".zip")) {
@@ -75,13 +89,20 @@ object Jimaku {
         return cues(name, data)
     }
 
-    /** Jimaku files for [episode], best first: its own files (else packs), subtitles over archives, then the most words shared with the video's name, .srt first. */
-    fun rank(files: List<Pair<String, String>>, episode: Int?, videoName: String = ""): List<Pair<String, String>> {
-        val words = Regex("[a-z0-9]+").findAll(videoName.lowercase()).map { it.value }.toSet()
+    /**
+     * Jimaku files for [episode], best first: its own files (else packs), subtitles over archives, then the most words
+     * shared with [release] (a file of the show that fitted before, [keep]), then with the video's name, .srt first.
+     * The phone's jimaku.py has no [release] (its episodes are built once, not streamed).
+     */
+    fun rank(files: List<Pair<String, String>>, episode: Int?, videoName: String = "", release: String = ""): List<Pair<String, String>> {
+        fun wordsOf(s: String) = Regex("[a-z0-9]+").findAll(s.lowercase()).map { it.value }.toSet()
+        val words = wordsOf(videoName)
+        val released = wordsOf(release.substringBeforeLast('.'))
         fun score(name: String): List<Int> {
             val n = name.lowercase()
             return listOf(if (episode == null || numbers(n).second == episode) 1 else 0, if (SUB_EXT.any(n::endsWith)) 1 else 0,
-                Regex("[a-z0-9]+").findAll(n).map { it.value }.toSet().intersect(words).size, if (n.endsWith(".srt")) 1 else 0)
+                wordsOf(n.substringBeforeLast('.')).intersect(released).size,
+                wordsOf(n).intersect(words).size, if (n.endsWith(".srt")) 1 else 0)
         }
         return files.filter { (n, _) -> n.lowercase().let { l -> l.endsWith(".zip") || (SUB_EXT.any(l::endsWith) && (episode == null || numbers(n).second == episode)) } }
             .sortedWith { a, b -> score(b.first).zip(score(a.first)).firstOrNull { it.first != it.second }?.let { it.first - it.second } ?: 0 }

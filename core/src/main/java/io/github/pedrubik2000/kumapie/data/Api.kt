@@ -454,6 +454,9 @@ data class Found(
     /** Its Japanese name (ダンダダン), "" when not known: Home shows it (no PC: [Addons.saved]). */
     val nameJa: String = "",
 ) {
+    /** The name on screen: the Japanese one when known ([name] stays what Stremio and Jimaku are asked with). */
+    val shownName get() = nameJa.ifEmpty { name }
+
     /** "2023-2024 · ★ 8.9 · 24 min · Adventure, Comedy" */
     val line get() = listOf(year, rating.takeIf { it.isNotEmpty() }?.let { "★ $it" }.orEmpty(), runtime, genres).filter { it.isNotEmpty() }.joinToString(" · ")
 }

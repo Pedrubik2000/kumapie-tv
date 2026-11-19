@@ -75,7 +75,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         val catalogs = manifests().flatMap { (b, m) -> m.optJSONArray("catalogs").objects().filter { needs(it).isEmpty() }.map { b to it } }
             .take(MAX_ROWS).map { (b, c) ->
                 async {
-                    val titles = runCatching { metas(get("$b/catalog/${c.getString("type")}/${c.getString("id")}.json")) }.getOrDefault(emptyList())
+                    val titles = runCatching { withJa(metas(get("$b/catalog/${c.getString("type")}/${c.getString("id")}.json"))) }.getOrDefault(emptyList())
                     if (titles.isEmpty()) null else (c.optString("name").ifEmpty { c.getString("id") } + " · " + c.getString("type")) to titles
                 }
             }
@@ -103,7 +103,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
             runCatching { metas(get("$b/catalog/${c.getString("type")}/${c.getString("id")}/search=${enc(q)}.json")) }
                 .getOrDefault(emptyList()).forEach { out.putIfAbsent(it.id, it) }
         }
-        return out.values.toList()
+        return withJa(out.values.toList())
     }
 
     override suspend fun discoverMeta(type: String, id: String): JSONObject {
@@ -191,6 +191,22 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
             .optJSONObject("titles")?.optString("ja_jp").orEmpty() }.getOrNull() ?: return ""
         store.edit().putString("alone_ja_$id", ja).apply()
         return ja
+    }
+
+    /**
+     * [titles] with Kitsu's Japanese names ([nameJa]'s ja_jp, kept the same way), asked 20 at a time: Discover's
+     * Kitsu rows were English (2026-11-19). Other ids, and titles Kitsu has no ja_jp for, stay as they were.
+     */
+    private suspend fun withJa(titles: List<Found>): List<Found> {
+        val ask = titles.map { it.id }.filter { id -> id.startsWith("kitsu:") && id.length > 6 && id.drop(6).all(Char::isDigit) && store.getString("alone_ja_$id", null) == null }.distinct()
+        for (chunk in ask.chunked(20)) runCatching {
+            val data = JSONObject(get("https://kitsu.app/api/edge/anime?filter%5Bid%5D=${chunk.joinToString(",") { it.drop(6) }}" +
+                "&fields%5Banime%5D=titles&page%5Blimit%5D=20", 15_000)).getJSONArray("data")
+            val ja = (0 until data.length()).map { data.getJSONObject(it) }
+                .associate { "kitsu:" + it.getString("id") to it.optJSONObject("attributes")?.optJSONObject("titles")?.optString("ja_jp").orEmpty() }
+            store.edit().also { e -> chunk.forEach { id -> e.putString("alone_ja_$id", ja[id].orEmpty()) } }.apply()
+        }.onFailure { android.util.Log.w("kumapie", "Kitsu ja names: $it") } // offline: asked again next time
+        return titles.map { f -> if (f.nameJa.isNotEmpty()) f else store.getString("alone_ja_${f.id}", null)?.takeIf { it.isNotEmpty() }?.let { f.copy(nameJa = it) } ?: f }
     }
 
     override suspend fun save(title: Found, on: Boolean): List<Found> {

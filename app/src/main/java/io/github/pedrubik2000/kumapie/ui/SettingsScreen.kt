@@ -150,9 +150,9 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             }
             Heading(tr("Jimaku"), Modifier.padding(top = 24.dp))
             Text(tr("Japanese subtitles for a stream that has none of its own: your free API key from jimaku.cc."), color = Colors.dim)
-            var key by remember(fromPhone) { mutableStateOf(settings.prefs.getString("jimaku_key", "").orEmpty()) }
+            var key by remember(fromPhone) { mutableStateOf(settings.jimakuKey) }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                fun keep() = settings.prefs.edit().putString("jimaku_key", key.trim()).apply()
+                fun keep() { settings.jimakuKey = key }
                 TvTextField(key, { key = it }, onDone = ::keep, modifier = Modifier.width(640.dp))
                 Button(onClick = ::keep) { Text(tr("Save")) }
             }

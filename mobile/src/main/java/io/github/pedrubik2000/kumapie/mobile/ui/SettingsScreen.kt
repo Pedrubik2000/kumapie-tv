@@ -51,8 +51,6 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.mobile.BuildConfig
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
-import io.github.pedrubik2000.kumapie.mobile.local.rdToken
-import io.github.pedrubik2000.kumapie.mobile.local.jimakuKey
 import io.github.pedrubik2000.kumapie.mobile.local.subFrom
 import io.github.pedrubik2000.kumapie.mobile.local.subTo
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
@@ -410,17 +408,14 @@ internal fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, 
             said = tr("Downloading from jiten.moe…")
             scope.launch {
                 said = runCatching {
-                    val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        jiten.words(top.toIntOrNull() ?: 0, sets.filterValues { it }.keys)
-                    }
-                    known.setImported(words); known.jitenChoice = (top.toIntOrNull() ?: 0) to sets.filterValues { it }.keys.toSet(); onImported()
-                    tr("%d words imported as known.", words.size)
+                    val n = known.importJiten(top.toIntOrNull() ?: 0, sets.filterValues { it }.keys.toSet()); onImported()
+                    tr("%d words imported as known.", n)
                 }.getOrElse { it.message ?: it.toString() }
                 busy = false
             }
         }) { Text(tr("Import")) }
         if (known.importedWords.isNotEmpty()) OutlinedButton(enabled = !busy, onClick = {
-            known.setImported(emptySet()); known.jitenChoice = null; said = ""; onImported()
+            known.removeImported(); said = ""; onImported()
         }) { Text(tr("Remove imported")) }
     }
     if (said.isNotEmpty()) Text(said, fontSize = 14.sp, color = Colors.dim)

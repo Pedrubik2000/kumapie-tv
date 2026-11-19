@@ -43,8 +43,6 @@ import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.JapaneseModel
 import io.github.pedrubik2000.kumapie.lang.YomitanDictionaries
-import io.github.pedrubik2000.kumapie.mobile.local.jimakuKey
-import io.github.pedrubik2000.kumapie.mobile.local.rdToken
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.launch
@@ -68,12 +66,12 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     var rd by remember { mutableStateOf(settings.rdToken) }
     var kitsu by remember { mutableStateOf(true) }
     var english by remember { mutableStateOf(true) }
-    var anilist by remember { mutableStateOf(settings.prefs.getString(Addons.ANILIST, "").orEmpty()) }
+    var anilist by remember { mutableStateOf(settings.anilist) }
     var anilistSaid by remember { mutableStateOf<String?>(null) }
     fun open(url: String) = runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     fun saveSources() {
-        settings.addons = (settings.addons + listOfNotNull(Addons.KITSU.takeIf { kitsu }, Addons.OPENSUBTITLES.takeIf { english }, rd.takeIf { it.isNotBlank() }?.let(Addons::torrentio))).distinct()
-        settings.prefs.edit().putString(Addons.ANILIST, anilist.trim()).apply()
+        settings.setSources(kitsu, english, rd) // shared with the TV's setup page
+        settings.anilist = anilist
     }
     // Jiten's known words (item 6) right after Languages, when this device learns Japanese.
     val keys = listOfNotNull("languages", "jiten".takeIf { "ja" in settings.learning() }, "jimaku", "sources", "downloads")

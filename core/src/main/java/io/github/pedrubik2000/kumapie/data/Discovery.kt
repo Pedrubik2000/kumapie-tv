@@ -291,6 +291,15 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         /** English subtitles by IMDb episode ([english]): offered in the setup with Kitsu (user 2026-11-17). */
         const val OPENSUBTITLES = "https://opensubtitles-v3.strem.io/manifest.json"
         fun torrentio(rdToken: String) = "https://torrentio.strem.fun/realdebrid=${rdToken.trim()}/manifest.json"
+
+        /**
+         * The addons after the setup's "What to watch": Kitsu and OpenSubtitles on or off as ticked, a new Real-Debrid
+         * token's Torrentio replacing the old one (blank: the old one stays), the user's other addons kept.
+         */
+        fun sources(current: List<String>, kitsu: Boolean, english: Boolean, rd: String): List<String> {
+            val kept = current.filterNot { it == KITSU || it == OPENSUBTITLES || (rd.isNotBlank() && "torrentio.strem.fun" in it) }
+            return (kept + listOfNotNull(KITSU.takeIf { kitsu }, OPENSUBTITLES.takeIf { english }, rd.takeIf { it.isNotBlank() }?.let(::torrentio))).distinct()
+        }
         private const val MAX_ROWS = 8
         private const val MAX_ENGLISH = 5
         private const val SAVED = "alone_saved"

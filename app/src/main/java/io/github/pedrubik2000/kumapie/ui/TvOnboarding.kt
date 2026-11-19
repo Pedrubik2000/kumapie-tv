@@ -128,15 +128,12 @@ internal fun TvJitenImport(settings: Settings) {
             busy = true
             said = tr("Downloading from jiten.moe…")
             scope.launch {
-                said = runCatching {
-                    val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { jiten.words(top, sets.filterValues { it }.keys) }
-                    known.setImported(words); known.jitenChoice = top to sets.filterValues { it }.keys.toSet()
-                    tr("%d words imported as known.", words.size)
-                }.getOrElse { it.message ?: it.toString() }
+                said = runCatching { tr("%d words imported as known.", known.importJiten(top, sets.filterValues { it }.keys.toSet())) }
+                    .getOrElse { it.message ?: it.toString() }
                 busy = false
             }
         }) { Text(tr("Import")) }
-        if (known.importedWords.isNotEmpty()) Button(onClick = { if (!busy) { known.setImported(emptySet()); known.jitenChoice = null; said = "" } }) { Text(tr("Remove imported")) }
+        if (known.importedWords.isNotEmpty()) Button(onClick = { if (!busy) { known.removeImported(); said = "" } }) { Text(tr("Remove imported")) }
     }
     if (said.isNotEmpty()) Text(said, color = Colors.text, fontSize = 18.sp)
 }
@@ -160,11 +157,11 @@ internal fun PhonePage(settings: Settings, onSaved: () -> Unit = {}) {
             @Suppress("UNUSED_EXPRESSION") saved
             val p = settings.prefs
             @Composable fun row(ok: Boolean, what: String) = Text((if (ok) "✓ " else "· ") + what, color = if (ok) Colors.text else Colors.dim, fontSize = 18.sp)
-            row(!p.getString("jimaku_key", "").isNullOrEmpty(), tr("Japanese subtitles (Jimaku)"))
+            row(settings.jimakuKey.isNotEmpty(), tr("Japanese subtitles (Jimaku)"))
             row(settings.addons.any { "torrentio.strem.fun" in it }, tr("Videos (Torrentio with Real-Debrid)"))
             row(Addons.KITSU in settings.addons, "Kitsu")
             row(Addons.OPENSUBTITLES in settings.addons, tr("English subtitles (OpenSubtitles)"))
-            row(!p.getString(Addons.ANILIST, "").isNullOrEmpty(), "AniList" + p.getString(Addons.ANILIST, "").orEmpty().let { if (it.isEmpty()) "" else ": $it" })
+            row(settings.anilist.isNotEmpty(), "AniList" + settings.anilist.let { if (it.isEmpty()) "" else ": $it" })
         }
     }
 }

@@ -46,6 +46,30 @@ class Settings(context: Context) {
         get() = prefs.getString("addons", "").orEmpty().lines().filter { it.isNotBlank() }
         set(value) = prefs.edit().putString("addons", value.joinToString("\n")).apply()
 
+    /** The Jimaku API key (jimaku.cc > Account) for Japanese subtitles, typed by the user, kept only here. */
+    var jimakuKey: String
+        get() = prefs.getString("jimaku_key", "").orEmpty()
+        set(value) = prefs.edit().putString("jimaku_key", value.trim()).apply()
+
+    /** The Real-Debrid API token (real-debrid.com/apitoken), typed by the user, kept only here. */
+    var rdToken: String
+        get() = prefs.getString("rd_token", "").orEmpty()
+        set(value) = prefs.edit().putString("rd_token", value.trim()).apply()
+
+    /** The AniList username whose lists head Discover ("" none). */
+    var anilist: String
+        get() = prefs.getString(Addons.ANILIST, "").orEmpty()
+        set(value) = prefs.edit().putString(Addons.ANILIST, value.trim()).apply()
+
+    /**
+     * The setup's "What to watch" (TV setup page, phone onboarding): [addons] with [Addons.sources]' rule, and a new
+     * Real-Debrid token kept.
+     */
+    fun setSources(kitsu: Boolean, english: Boolean, rd: String) {
+        if (rd.isNotBlank()) rdToken = rd
+        addons = Addons.sources(addons, kitsu, english, rd)
+    }
+
     /** Pause when a scene ends (true) or play on into the next one. */
     /** Primed Listening: each new scene waits on its start, its lines on screen, until play (read first, then hear). */
     var pauseAtSceneStart: Boolean

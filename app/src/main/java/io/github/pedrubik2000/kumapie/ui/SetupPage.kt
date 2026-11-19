@@ -57,13 +57,10 @@ class SetupPage(private val settings: Settings, private val onSaved: () -> Unit)
     }
 
     private fun save(f: Map<String, String>) {
-        f["jimaku"]?.takeIf { it.isNotEmpty() }?.let { settings.prefs.edit().putString("jimaku_key", it).apply() }
-        val add = listOfNotNull(Addons.KITSU.takeIf { f["kitsu"] == "on" }, Addons.OPENSUBTITLES.takeIf { f["english"] == "on" }, f["rd"]?.takeIf { it.isNotEmpty() }?.let(Addons::torrentio))
-        // A new Real-Debrid token replaces the old Torrentio link.
-        val kept = (if (f["rd"].isNullOrEmpty()) settings.addons else settings.addons.filterNot { "torrentio.strem.fun" in it })
-            .filterNot { it == Addons.KITSU || it == Addons.OPENSUBTITLES } // an unticked box (not posted) takes it off
-        settings.addons = (kept + add).distinct()
-        f["anilist"]?.let { settings.prefs.edit().putString(Addons.ANILIST, it).apply() }
+        f["jimaku"]?.takeIf { it.isNotEmpty() }?.let { settings.jimakuKey = it }
+        // An unticked box isn't posted: it takes its addon off. Shared with the phone's onboarding.
+        settings.setSources(kitsu = f["kitsu"] == "on", english = f["english"] == "on", rd = f["rd"].orEmpty())
+        f["anilist"]?.let { settings.anilist = it }
     }
 
     /** The page: keys are never sent back (a field already set says so). */
@@ -75,7 +72,7 @@ class SetupPage(private val settings: Settings, private val onSaved: () -> Unit)
         return """
             <h1>${tr("Set up kumapie")}</h1>
             <form method="post">
-            <h2>${tr("Japanese subtitles")}${set(!p.getString("jimaku_key", "").isNullOrEmpty())}</h2>
+            <h2>${tr("Japanese subtitles")}${set(settings.jimakuKey.isNotEmpty())}</h2>
             <p>${tr("kumapie shows each line in Japanese while you watch. They come from Jimaku, a free site of anime subtitles: make an account there, then copy your API key from Account.")}
             <a href="https://jimaku.cc/login" target="_blank">jimaku.cc</a></p>
             <input name="jimaku" placeholder="${tr("Jimaku API key")}" autocomplete="off">
@@ -86,7 +83,7 @@ class SetupPage(private val settings: Settings, private val onSaved: () -> Unit)
             <label><input type="checkbox" name="kitsu"${tick(Addons.KITSU)}> ${tr("Kitsu: anime titles, posters and episodes to pick from")}</label>
             <label><input type="checkbox" name="english"${tick(Addons.OPENSUBTITLES)}> ${tr("English under the lines: OpenSubtitles (free, no account)")}</label>
             <p>${tr("Your AniList lists (optional): what you're watching and plan to watch, at the top of Discover. Your profile must be public.")}</p>
-            <input name="anilist" placeholder="${tr("AniList username")}" value="${p.getString(Addons.ANILIST, "").orEmpty().replace("\"", "")}" autocomplete="off">
+            <input name="anilist" placeholder="${tr("AniList username")}" value="${settings.anilist.replace("\"", "")}" autocomplete="off">
             <button>${tr("Save")}</button>
             </form>""".trimIndent()
     }

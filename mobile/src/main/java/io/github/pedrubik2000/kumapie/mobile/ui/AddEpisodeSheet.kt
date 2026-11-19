@@ -24,8 +24,6 @@ import io.github.pedrubik2000.kumapie.mobile.local.Gemma
 import io.github.pedrubik2000.kumapie.mobile.local.ProcessWorker
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.mobile.local.englishSource
-import io.github.pedrubik2000.kumapie.mobile.local.jimakuKey
-import io.github.pedrubik2000.kumapie.mobile.local.rdToken
 import io.github.pedrubik2000.kumapie.mobile.local.sonioxKey
 import io.github.pedrubik2000.kumapie.mobile.local.transcriber
 import io.github.pedrubik2000.kumapie.mobile.local.videoHeight

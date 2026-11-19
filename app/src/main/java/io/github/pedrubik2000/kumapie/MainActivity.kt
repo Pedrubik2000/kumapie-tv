@@ -96,7 +96,7 @@ class MainActivity : ComponentActivity() {
         var any = false
         intent?.getStringExtra("server")?.let { settings.server = it; any = true }
         intent?.getStringExtra("addon")?.let { a -> settings.addons = if (a.isBlank()) emptyList() else (settings.addons + a.trim()).distinct(); any = true }
-        intent?.getStringExtra("jimaku")?.let { settings.prefs.edit().putString("jimaku_key", it.trim()).apply(); any = true }
+        intent?.getStringExtra("jimaku")?.let { settings.jimakuKey = it; any = true }
         return any
     }
 

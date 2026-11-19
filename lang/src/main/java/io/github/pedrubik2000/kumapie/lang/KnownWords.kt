@@ -94,6 +94,23 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         set(v) = settings.prefs.edit().putString("jiten_choice_${lang.code}", v?.let { "${it.first}|${it.second.joinToString(",")}" }).apply()
 
     /**
+     * Jiten's [top] most frequent words and its word [sets] imported as known (the TV's and the phone's Settings and
+     * onboarding), remembered as [jitenChoice]; the words marked known are kept apart, never touched. How many came.
+     */
+    suspend fun importJiten(top: Int, sets: Set<String>): Int {
+        val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Jiten.words(top, sets) }
+        setImported(words)
+        jitenChoice = top to sets
+        return words.size
+    }
+
+    /** No imported words any more (the marked ones stay). */
+    fun removeImported() {
+        setImported(emptySet())
+        jitenChoice = null
+    }
+
+    /**
      * The imported words for POST /api/tv/known_lists, which keeps the newest import of all the person's devices:
      * the words go only while the PC may not have them (marks sync through Anki, [useMarked]).
      */

@@ -94,7 +94,7 @@ suspend fun FocusRequester.focusSoon() {
 fun HomeScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, settings: Settings, profile: String, who: String, onShow: (Show) -> Unit,
                onPlay: (Show, Episode) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit,
                onReview: (String) -> Unit = {}, onDiscover: () -> Unit = {}, onDiscovered: (Found) -> Unit = {}) {
-    var shows by remember { mutableStateOf<List<Show>?>(null) }
+    var shows by remember { mutableStateOf<List<Show>?>(if (api is Api) null else emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(attempt) {
@@ -112,12 +112,17 @@ fun HomeScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, settings: Set
     LaunchedEffect(lang) { kept = if (lang == "ja") runCatching { api.saved() }.getOrDefault(emptyList()) else emptyList() }
     // Streamed titles in "Continue watching" too (the episode left partway, or the next one).
     // null while loading: the row waited for them, else it showed without them and reshuffled (focus on a card that moved).
-    var streams by remember { mutableStateOf<List<Pair<Show, Episode>>?>(null) }
+    // No PC: the row from this device's own data in Home's first frame (goingNow), and no shows to wait for. Without
+    // it the first frame was "Loading…" (~70 ms on the tablet) and the row was built twice (2026-11-19).
+    var streams by remember { mutableStateOf(if (api is Api) null else runCatching { api.goingNow() }.getOrNull()) }
+    var streamsLang by remember { mutableStateOf(if (streams != null) "ja" else null) }
     // Waits for the shows: before them lang is null, and an empty list here drew Home without the streams.
     LaunchedEffect(lang, shows == null) {
         if (shows == null) return@LaunchedEffect
-        streams = null
-        streams = if (lang == "ja") runCatching { api.going() }.getOrDefault(emptyList()) else emptyList()
+        if (streamsLang != lang) streams = null
+        val fresh = if (lang == "ja") runCatching { api.going() }.getOrDefault(emptyList()) else emptyList()
+        if (fresh != streams) streams = fresh // the same row: Home isn't built again
+        streamsLang = lang
     }
 
     // Review's count: due and new cards on the PC (the PC refuses a person whose cards aren't there: no button).
@@ -261,13 +266,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
                     val lines = kept.map { it.year } + rows.flatMap { (_, l) -> l.map(::levelLine) }
                     titles.joinToString("").toSet().joinToString("") to lines.joinToString("").toSet().joinToString("")
                 }
-                // A streamed title: its title page's picture (Backdrops), not the episode's frame.
-                val context = androidx.compose.ui.platform.LocalContext.current
-                var big by remember(s.id) { mutableStateOf(io.github.pedrubik2000.kumapie.data.Backdrops.saved(context, s.id)) }
-                if (s.kind == "stream" && api != null) LaunchedEffect(s.id) {
-                    if (big == null) big = io.github.pedrubik2000.kumapie.data.Backdrops.get(context, api, if (e.id == s.id) "movie" else "series", s.id)
-                }
-                Hero(s, e, header, stats, warm = warm, big.orEmpty(), Modifier.focusRequester(first).onFocusChanged { if (it.isFocused) scope.launch { list.animateScrollToItem(0) } }.focusProperties { if (more.isNotEmpty() || kept.isNotEmpty() || firstShelf >= 0) down = below },
+                Hero(s, e, header, stats, warm = warm, titlePicture(s, e, api).orEmpty(), Modifier.focusRequester(first).onFocusChanged { if (it.isFocused) scope.launch { list.animateScrollToItem(0) } }.focusProperties { if (more.isNotEmpty() || kept.isNotEmpty() || firstShelf >= 0) down = below },
                     onTop = { scope.launch { list.animateScrollToItem(0) } }, onShow = { onShow(s) }) { onPlay(s, e) }
             } ?: Column { header(); Box(Modifier.padding(horizontal = 32.dp)) { stats() } }
         }
@@ -278,7 +277,7 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
                 LazyRow(state = remember(streams) { androidx.compose.foundation.lazy.LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp),
                     contentPadding = PaddingValues(start = RAIL, end = 32.dp, top = 12.dp, bottom = 24.dp)) { // room for the focused card to grow 10%
                     itemsIndexed(more, key = { _, p -> p.second.id }) { i, (s, e) ->
-                        ResumeCard(s, e, if (i == 0) Modifier.focusRequester(below) else Modifier, width = 220.dp) { onPlay(s, e) }
+                        ResumeCard(s, e, if (i == 0) Modifier.focusRequester(below) else Modifier, width = 220.dp, picture = titlePicture(s, e, api)) { onPlay(s, e) }
                     }
                 }
             }
@@ -404,13 +403,25 @@ private fun GlyphWarm(titles: String, lines: String, modifier: Modifier) {
     }
 }
 
-/** An episode left partway: the show's poster cropped wide, then where it was left and how easy it is. */
+/** A streamed title's title-page picture (Backdrops: kept on the device, else asked once), or null (not streamed / none). */
 @Composable
-private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, onClick: () -> Unit) {
+private fun titlePicture(s: Show, e: Episode, api: io.github.pedrubik2000.kumapie.data.Discovery?): String? {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var big by remember(s.id) { mutableStateOf(io.github.pedrubik2000.kumapie.data.Backdrops.saved(context, s.id)) }
+    if (s.kind == "stream" && api != null) LaunchedEffect(s.id) {
+        if (big == null) big = io.github.pedrubik2000.kumapie.data.Backdrops.get(context, api, if (e.id == s.id) "movie" else "series", s.id)
+    }
+    return big
+}
+
+/** An episode left partway: its title page's picture ([picture], Pedro 2026-11-19; else the poster cropped wide), then
+ *  where it was left and how easy it is. */
+@Composable
+private fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, picture: String? = null, onClick: () -> Unit) {
     Column(Modifier.width(width)) {
         Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
             Box(Modifier.fillMaxSize()) {
-                Cover(s.poster, s.title, Modifier.fillMaxSize(), showTitle = false, alignment = Alignment.TopCenter)
+                Cover(picture ?: s.poster, s.title, Modifier.fillMaxSize(), showTitle = false, alignment = Alignment.TopCenter)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Colors.background.copy(alpha = 0.85f))))
                 if (e.duration > 0) ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp))
             }

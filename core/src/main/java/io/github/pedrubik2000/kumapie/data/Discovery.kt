@@ -37,6 +37,9 @@ interface Discovery {
     /** Home's "Continue watching" for streamed titles: one episode each (resume null: the next one, from the start). */
     suspend fun going(): List<Pair<Show, Episode>> = emptyList()
 
+    /** [going] at once from what's on the device (no network), for Home's first frame; null: only [going] knows. */
+    fun goingNow(): List<Pair<Show, Episode>>? = null
+
     /** A title object (also a meta answer). */
     fun found(o: JSONObject) = Found(o.optString("id"), o.optString("type", "series"), o.optString("name"), o.optString("poster"), o.optString("year"),
         o.optString("background"), o.optString("logo"), o.optString("description"), o.optString("genres"), o.optString("rating"), o.optString("runtime"), o.optString("name_ja"))
@@ -208,11 +211,17 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
      * ([played]; else the furthest one with a position, else the one after the furthest watched), the next one when
      * that was watched or left near its end (position 0), newest first.
      */
-    override suspend fun going(): List<Pair<Show, Episode>> {
+    override suspend fun going(): List<Pair<Show, Episode>> = going(saved())
+
+    /** Without asking Kitsu for a Japanese name not kept yet ([saved] does): Home's first frame has the row. */
+    override fun goingNow(): List<Pair<Show, Episode>> = going(JSONArray(store.getString(SAVED, "[]")).objects().map { found(it) }
+        .map { f -> if (f.nameJa.isNotEmpty()) f else f.copy(nameJa = store.getString("alone_ja_${f.id}", null).orEmpty()) })
+
+    private fun going(saved: List<Found>): List<Pair<Show, Episode>> {
         val seen = store.getStringSet(SEEN, emptySet()).orEmpty()
         val keys = store.all.keys
         fun n(id: String) = id.substringAfterLast(':').toIntOrNull() ?: 0
-        return saved().mapNotNull { t ->
+        return saved.mapNotNull { t ->
             val last = store.getString("alone_last_${t.id}", null)?.let { runCatching { JSONObject(it) }.getOrNull() }
             var id = last?.optString("id")?.takeIf { it.isNotEmpty() }
                 ?: keys.filter { it.startsWith("alone_pos_${t.id}:") }.map { it.removePrefix("alone_pos_") }.maxByOrNull(::n)

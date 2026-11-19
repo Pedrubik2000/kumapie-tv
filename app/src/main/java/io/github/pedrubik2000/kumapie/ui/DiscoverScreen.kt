@@ -242,10 +242,13 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
     val scope = rememberCoroutineScope()
     LaunchedEffect(title.id) { kept = runCatching { api.saved().any { it.id == title.id } }.getOrNull() }
     LaunchedEffect(title.id, reload) {
+        // Last time's answer at once (SavedMeta); the fresh one replaces it only if it differs (no redraw for nothing).
+        if (meta == null) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.data.SavedMeta.get(context, title.id) }?.let { meta = it }
         runCatching { api.discoverMeta(title.type, title.id) }.onSuccess {
-            meta = it
+            if (it.toString() != meta?.toString()) meta = it
+            io.github.pedrubik2000.kumapie.data.SavedMeta.put(context, title.id, it)
             io.github.pedrubik2000.kumapie.data.Backdrops.put(context, title.id, it.optString("background")) // Home's and Discover's hero
-        }.onFailure { error = it.message ?: it.toString() }
+        }.onFailure { if (meta == null) error = it.message ?: it.toString() }
     }
     LaunchedEffect(picking) {
         files = null

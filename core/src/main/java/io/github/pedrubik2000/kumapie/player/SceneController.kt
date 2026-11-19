@@ -122,6 +122,7 @@ class SceneController(
 
     init {
         player.setPlaybackSpeed(if (slow) 0.75f else 1f)
+        if (player is androidx.media3.exoplayer.ExoPlayer) player.addListener(AudioAwake()) // the phone/tablet and TV, not the PC app
     }
 
     /** The scene the episode was left in (the next one if that scene was finished), else the first. */
@@ -414,7 +415,10 @@ class SceneController(
     // ------------------------------------------------------------ helpers
 
     private fun seek(seconds: Double) {
-        player.seekTo((seconds * 1000).toLong())
+        // Already there (a line or scene that stopped at its end, then Right: the next starts 4-50 ms away): no seek. An
+        // exact seek, even of 12 ms, sends the player back to buffering: the next scene showed 0.9 s later on the tablet
+        // (2026-11-18).
+        if (kotlin.math.abs(player.currentPosition - (seconds * 1000).toLong()) >= 200) player.seekTo((seconds * 1000).toLong())
         position = seconds
     }
 

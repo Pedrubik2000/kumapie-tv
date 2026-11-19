@@ -81,7 +81,6 @@ internal val esSettings: Map<String, String> = mapOf(
     "English model" to "Modelo de inglés",
     "Japanese dictionary" to "Diccionario de japonés",
     "German words" to "Palabras en alemán",
-    "Read German cards now" to "Leer tarjetas de alemán ahora",
     "The German model (about 550 MB, once) finds each word's form like morphs on the PC." to
         "El modelo de alemán (unos 550 MB, una vez) encuentra la forma de cada palabra como morphs en la PC.",
     "Download the German model" to "Descargar el modelo de alemán",
@@ -99,10 +98,8 @@ internal val esSettings: Map<String, String> = mapOf(
     "Download the Japanese dictionary" to "Descargar el diccionario de japonés",
     "Download Jiten's word splitter from the PC" to "Descargar el divisor de palabras de Jiten desde la PC",
     "Splitting episodes again: %1\$d of %2\$d" to "Dividiendo episodios de nuevo: %1\$d de %2\$d",
-    "Read Japanese cards now" to "Leer tarjetas de japonés ahora",
     "English words" to "Palabras en inglés",
     "Download the English model (about 40 MB)" to "Descargar el modelo de inglés (unos 40 MB)",
-    "Read English cards now" to "Leer tarjetas de inglés ahora",
 
     // Yomitan dictionaries (%s = the language name, lowercase in Spanish)
     "German" to "Alemán",
@@ -121,7 +118,6 @@ internal val esSettings: Map<String, String> = mapOf(
     "Import a folder of %s dictionaries" to "Importar una carpeta de diccionarios de %s",
     "Download the recommended %s dictionaries" to "Descargar los diccionarios de %s recomendados",
     "Every dictionary is up to date." to "Todos los diccionarios están al día.",
-    "Check for updates now" to "Buscar actualizaciones ahora",
     "Dictionaries that can update themselves are checked weekly on Wi-Fi." to
         "Los diccionarios que se actualizan solos se revisan cada semana con Wi-Fi.",
     "Delete %s?" to "¿Borrar %s?",
@@ -142,8 +138,6 @@ internal val esSettings: Map<String, String> = mapOf(
         "Las palabras se leen con la grabación de una persona si Wikimedia Commons la tiene; si no, con esta voz.",
 
     // Unlock
-    "Unlock" to "Desbloqueo",
-    "Allow display over other apps" to "Permitir mostrar sobre otras apps",
     "If the separate Unlock Cards app is still on, turn it off so only one opens." to
         "Si la app Unlock Cards sigue activada, desactívala para que solo se abra una.",
 
@@ -185,7 +179,6 @@ internal val esSettings: Map<String, String> = mapOf(
         "Ninguno todavía. En Agregar un episodio, pega un video del canal, elige sus shorts o videos y activa Seguir.",
     "shorts" to "shorts",
     "videos" to "videos",
-    "%d a night" to "%d por noche",
     "checked %s" to "revisado %s",
     "downloads on %s" to "se descarga en %s",
     "not checked yet" to "aún sin revisar",

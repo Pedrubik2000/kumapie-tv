@@ -27,10 +27,7 @@ internal val esOther: Map<String, String> = mapOf(
     "Anki didn't add the note" to "Anki no agregó la nota",
     "Anki didn't add the note type %s" to "Anki no agregó el tipo de nota %s",
     "No kuma3 Anki on this device." to "No hay kuma3 Anki en este dispositivo.",
-    "Already in Anki." to "Ya está en Anki.",
-    "No note type \"%s\" in Anki." to "No hay tipo de nota \"%s\" en Anki.",
     "Adding %1\$d of %2\$d…" to "Agregando %1\$d de %2\$d…",
-    "Added: %1\$d. %2\$s (%3\$d notes)." to "Agregado: %1\$d. %2\$s (%3\$d notas).",
     "Anki wasn't read." to "Anki no se ha leído.",
     "Cutting the line…" to "Cortando la línea…",
     "Getting the recording…" to "Obteniendo la grabación…",
@@ -52,7 +49,6 @@ internal val esOther: Map<String, String> = mapOf(
     "The %s dictionary isn't downloaded yet." to "El diccionario (%s) aún no está descargado.",
     "The %s model isn't downloaded yet." to "El modelo de idioma (%s) aún no está descargado.",
     "Reading Anki…" to "Leyendo Anki…",
-    "No notes of type \"%s\" in Anki." to "No hay notas del tipo \"%s\" en Anki.",
     "Parsing %d notes…" to "Analizando %d notas…",
     "That Anki isn't set up yet: open it once, then read Anki again." to
         "Ese Anki aún no está configurado: ábrelo una vez y luego vuelve a leer Anki.",

@@ -6,7 +6,6 @@ internal val esAdd: Map<String, String> = mapOf(
     "YouTube, TikTok, AniWorld, magnet or Real-Debrid links (one or several)" to "Enlaces de YouTube, TikTok, AniWorld, magnet o Real-Debrid (uno o varios)",
     "AniWorld: the PC downloads the %s dub, transcribes it (Parakeet) and adds it to its shows, a few minutes an episode. A season link brings the whole season, the show's own link every season." to
         "AniWorld: el PC descarga el doblaje en %s, lo transcribe (Parakeet) y lo añade a sus series, unos minutos por episodio. Un enlace de temporada trae la temporada entera; el de la serie, todas las temporadas.",
-    "AniWorld links need the PC: Settings > server and whose device it is." to "Los enlaces de AniWorld necesitan el PC: Ajustes > servidor y de quién es el dispositivo.",
     "Make it on" to "Hacerlo en",
     "This device" to "Este dispositivo",
     "The PC" to "El PC",
@@ -38,7 +37,6 @@ internal val esAdd: Map<String, String> = mapOf(
     "Soniox (with the transcription)" to "Soniox (con la transcripción)",
     "Gemma (good, ~3 s a line)" to "Gemma (bueno, ~3 s por línea)",
     "Google's translator (instant)" to "Traductor de Google (instantáneo)",
-    "None (fastest)" to "Ninguno (lo más rápido)",
     "Video quality" to "Calidad de video",
     "For YouTube. Higher takes more space (roughly 5 / 8 / 15 / 30 MB a minute); YouTube has H.264 up to 1080p." to
         "Para YouTube. Más calidad ocupa más espacio (unos 5 / 8 / 15 / 30 MB por minuto); YouTube tiene H.264 hasta 1080p.",
@@ -106,9 +104,6 @@ internal val esAdd: Map<String, String> = mapOf(
     " episode %d" to ", episodio %d",
     "Fitting the subtitles to the audio…" to "Ajustando los subtítulos al audio…",
     "Transcribing with Soniox…" to "Transcribiendo con Soniox…",
-    "Translating to English with Gemma: %d%%" to "Traduciendo al inglés con Gemma: %d%%",
-    "Translating to English on the device…" to "Traduciendo al inglés en el dispositivo…",
-    "Translating to English: %d%%" to "Traduciendo al inglés: %d%%",
     "Finding the words…" to "Buscando las palabras…",
     "Done: %s" to "Listo: %s",
     " (subtitles %s)" to " (subtítulos %s)",
@@ -122,7 +117,6 @@ internal val esAdd: Map<String, String> = mapOf(
     "Done" to "Listo",
     // Parakeet, Gemma, subtitle sync
     "Reading the audio…" to "Leyendo el audio…",
-    "Finding speech…" to "Buscando voz…",
     "Transcribing on this device: %d%%" to "Transcribiendo en este dispositivo: %d%%",
     "File %1\$d of %2\$d" to "Archivo %1\$d de %2\$d",
     "the speech model (Parakeet)" to "el modelo de voz (Parakeet)",

@@ -13,10 +13,7 @@ internal val esTv: Map<String, String> = mapOf(
     "No words in this line" to "No hay palabras en esta línea",
     "Line %1\$d / %2\$d" to "Línea %1\$d / %2\$d",
     "pauses after each line" to "pausa después de cada línea",
-    "OK: play   hold OK: pick a word   ↑: replay line   Menu: options" to "OK: reproducir   mantén OK: elegir una palabra   ↑: repetir la línea   Menú: opciones",
     "no pause after each line" to "sin pausa después de cada línea",
-    "Skip nothing: %s" to "No saltar nada: %s",
-    "on, the whole episode" to "sí, el episodio entero",
     "←→ words   ↑↓ lines   OK: show the meaning   hold OK: replay line   hold ↓: known   hold ↑: add to Anki   Back: close" to
         "←→ palabras   ↑↓ líneas   OK: ver el significado   mantener OK: repetir   mantener ↓: conocida   mantener ↑: a Anki   Atrás: cerrar",
     "OK: hear (twice: definition)   ↑ into the definition   ←→ other words   hold OK: replay line   hold ↓: known   hold ↑: add to Anki" to
@@ -216,7 +213,6 @@ internal val esTv: Map<String, String> = mapOf(
     "Review" to "Repasar",
     "%1\$d left · %2\$d done" to "quedan %1\$d · %2\$d hechas",
     "All done for now" to "Todo repasado por ahora",
-    "My shows" to "Mis series",
     "Find something to watch in Discover: what you play shows up here." to "Busca algo para ver en Descubrir: lo que pongas aparece aquí.",
     "Add words while watching: tap one, then Mine." to "Agrega palabras mientras ves: toca una, luego Minar.",
     "Hold ↑ on a word while watching to add it here." to "Mantén ↑ sobre una palabra mientras ves algo para añadirla aquí.",
@@ -233,15 +229,12 @@ internal val esTv: Map<String, String> = mapOf(
     "The connection to the PC was cut." to "Se cortó la conexión con la PC.",
     "The PC took too long to answer." to "La PC tardó demasiado en responder.",
     "The PC didn't answer." to "La PC no respondió.",
-    "play them" to "reproducirlos",
-    "skip them" to "saltarlos",
     "This TV can't play this video (%s)." to "Esta tele no puede reproducir este video (%s).",
     // Without a PC server
     "No server? kumapie also works on its own." to "¿Sin servidor? kumapie también funciona solo.",
     "Use without a server" to "Usar sin servidor",
     "Set up from your phone (QR code)" to "Configurar desde tu celular (código QR)",
     "Hide the QR code" to "Ocultar el código QR",
-    "Nothing to watch yet." to "Aún no hay nada que ver.",
     "kumapie plays what your own Stremio addons give it. Add one in Settings, or the address of a kumapie server on a PC." to
         "kumapie reproduce lo que le dan tus propios addons de Stremio. Añade uno en Ajustes, o la dirección de un servidor kumapie en un PC.",
     "Stremio addons" to "Addons de Stremio",

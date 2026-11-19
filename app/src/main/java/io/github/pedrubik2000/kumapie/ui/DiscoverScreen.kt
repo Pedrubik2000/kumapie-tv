@@ -110,7 +110,17 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
     // onBackKey, not BackHandler: the first Back left Discover (Chromecast, 2026-11-17).
     Box(Modifier.fillMaxSize().onBackKey(searched.isNotEmpty()) { searched = ""; query = "" }) {
         val shown = focused ?: board?.firstOrNull()?.second?.firstOrNull()
-        if (searched.isEmpty() && shown != null) Backdrop(shown.background.ifEmpty { shown.poster })
+        // The title page's picture (Backdrops), asked once the focus rests on a title; the row's banner meanwhile.
+        val context = LocalContext.current
+        var big by remember { mutableStateOf<String?>(null) }
+        LaunchedEffect(shown?.id) {
+            big = shown?.let { io.github.pedrubik2000.kumapie.data.Backdrops.saved(context, it.id) }
+            val s = shown ?: return@LaunchedEffect
+            if (big != null) return@LaunchedEffect
+            kotlinx.coroutines.delay(400)
+            big = io.github.pedrubik2000.kumapie.data.Backdrops.get(context, api, s.type, s.id)
+        }
+        if (searched.isEmpty() && shown != null) Backdrop(big ?: shown.background.ifEmpty { shown.poster })
         // No side padding on the rows: it cut the posters with a straight line at both edges.
         Column(Modifier.fillMaxSize().padding(top = 24.dp, bottom = 4.dp)) {
             val list = found
@@ -229,7 +239,10 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
     val scope = rememberCoroutineScope()
     LaunchedEffect(title.id) { kept = runCatching { api.saved().any { it.id == title.id } }.getOrNull() }
     LaunchedEffect(title.id, reload) {
-        runCatching { api.discoverMeta(title.type, title.id) }.onSuccess { meta = it }.onFailure { error = it.message ?: it.toString() }
+        runCatching { api.discoverMeta(title.type, title.id) }.onSuccess {
+            meta = it
+            io.github.pedrubik2000.kumapie.data.Backdrops.put(context, title.id, it.optString("background")) // Home's and Discover's hero
+        }.onFailure { error = it.message ?: it.toString() }
     }
     LaunchedEffect(picking) {
         files = null

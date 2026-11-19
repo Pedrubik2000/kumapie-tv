@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.layout.layout
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -150,7 +151,7 @@ fun HomeScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, settings: Set
             error != null -> Column { header(); Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings) } }
             shows == null || streams == null -> Column { header(); Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
             lang == null -> Column { header(); Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
-            else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header, railFocus, toRows) {
+            else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header, railFocus, toRows, api = api) {
                 if (api is Api) LangCard(api, lang)
                 else if (kept.isEmpty()) Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim)
             }
@@ -232,7 +233,7 @@ private fun LangCard(api: Api, lang: String) {
 @Composable
 private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit,
                  kept: List<Found> = emptyList(), onDiscovered: (Found) -> Unit = {}, streams: List<Pair<Show, Episode>> = emptyList(),
-                 header: @Composable () -> Unit = {}, railFocus: Map<String, FocusRequester> = emptyMap(), first: FocusRequester = remember { FocusRequester() }, stats: @Composable () -> Unit = {}) {
+                 header: @Composable () -> Unit = {}, railFocus: Map<String, FocusRequester> = emptyMap(), first: FocusRequester = remember { FocusRequester() }, api: io.github.pedrubik2000.kumapie.data.Discovery? = null, stats: @Composable () -> Unit = {}) {
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows, streams)
     val more = going.drop(1) // the first is the picture at the top
     val other = shows.filter { s -> KINDS.none { it.first == s.kind } }
@@ -260,7 +261,13 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
                     val lines = kept.map { it.year } + rows.flatMap { (_, l) -> l.map(::levelLine) }
                     titles.joinToString("").toSet().joinToString("") to lines.joinToString("").toSet().joinToString("")
                 }
-                Hero(s, e, header, stats, warm = warm, Modifier.focusRequester(first).onFocusChanged { if (it.isFocused) scope.launch { list.animateScrollToItem(0) } }.focusProperties { if (more.isNotEmpty() || kept.isNotEmpty() || firstShelf >= 0) down = below },
+                // A streamed title: its title page's picture (Backdrops), not the episode's frame.
+                val context = androidx.compose.ui.platform.LocalContext.current
+                var big by remember(s.id) { mutableStateOf(io.github.pedrubik2000.kumapie.data.Backdrops.saved(context, s.id)) }
+                if (s.kind == "stream" && api != null) LaunchedEffect(s.id) {
+                    if (big == null) big = io.github.pedrubik2000.kumapie.data.Backdrops.get(context, api, if (e.id == s.id) "movie" else "series", s.id)
+                }
+                Hero(s, e, header, stats, warm = warm, big.orEmpty(), Modifier.focusRequester(first).onFocusChanged { if (it.isFocused) scope.launch { list.animateScrollToItem(0) } }.focusProperties { if (more.isNotEmpty() || kept.isNotEmpty() || firstShelf >= 0) down = below },
                     onTop = { scope.launch { list.animateScrollToItem(0) } }, onShow = { onShow(s) }) { onPlay(s, e) }
             } ?: Column { header(); Box(Modifier.padding(horizontal = 32.dp)) { stats() } }
         }
@@ -314,18 +321,26 @@ private fun Rows(shows: List<Show>, lang: String, onShow: (Show) -> Unit, onPlay
  */
 @Composable
 private fun Hero(s: Show, e: Episode, header: @Composable () -> Unit, stats: @Composable () -> Unit, warm: Pair<String, String>,
-                 modifier: Modifier, onTop: () -> Unit, onShow: () -> Unit, onPlay: () -> Unit) {
-    val height = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.54f).dp
+                 image: String, modifier: Modifier, onTop: () -> Unit, onShow: () -> Unit, onPlay: () -> Unit) {
+    val screen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+    val height = (screen * 0.54f).dp
     Box(Modifier.fillMaxWidth().height(height)) {
         GlyphWarm(warm.first, warm.second, Modifier.matchParentSize())
-        // The picture fades out to nothing at its bottom (to the page's backdrop, a gradient: fading to one colour left
-        // a hard edge across the screen, Chromecast 2026-11-17).
-        Box(Modifier.matchParentSize().graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen)
+        // The picture is a whole screen tall, as on the title page: it goes on under the first row (drawn over it) and
+        // fades out to nothing (to the page's backdrop, a gradient: fading to one colour left a hard edge across the
+        // screen, Chromecast 2026-11-17).
+        Box(Modifier.fillMaxWidth()
+            .layout { m, c ->
+                val h = screen.dp.roundToPx()
+                val p = m.measure(c.copy(minHeight = h, maxHeight = h))
+                layout(c.maxWidth, c.maxHeight) { p.place(0, 0) }
+            }
+            .graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen)
             .drawWithContent {
                 drawContent()
-                drawRect(Brush.verticalGradient(0.55f to Color.Black, 1f to Color.Transparent), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                drawRect(Brush.verticalGradient(0.45f to Color.Black, 0.95f to Color.Transparent), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
             }) {
-            Cover(e.thumb.ifEmpty { s.poster }, s.title, Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null)
+            Cover(image.ifEmpty { e.thumb.ifEmpty { s.poster } }, s.title, Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null)
             Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Colors.background.copy(alpha = 0.9f), 0.65f to Color.Transparent)))
             Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Colors.background.copy(alpha = 0.6f), 0.25f to Color.Transparent)))
         }

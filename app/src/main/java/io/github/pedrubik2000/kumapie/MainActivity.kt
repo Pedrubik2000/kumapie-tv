@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
         Updater.asset = "kumapie-tv-"
         val settings = Settings(this)
         fromAdb(intent, settings)
+        if (settings.server.isBlank()) io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() // no PC: streams' words
         @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class) // LocalBringIntoViewSpec: the TV glide
         setContent { KumapieTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides io.github.pedrubik2000.kumapie.ui.TvScroll) { App(settings) } } }
     }

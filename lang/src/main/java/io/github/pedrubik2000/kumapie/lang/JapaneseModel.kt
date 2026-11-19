@@ -83,11 +83,31 @@ class JapaneseModel(private val context: Context) : Model {
     }
 
     /** Each text's words as a learner sees them ([join]): 届いた (届く), できない (できる), でも, 防御力. */
-    fun words(texts: List<String>): List<List<Token>> = splitter()?.let { s -> texts.map(s::split) } ?: parse(texts).map(::join)
+    fun words(texts: List<String>): List<List<Token>> {
+        val s = splitter() ?: return parse(texts).map(::join)
+        val t = android.os.SystemClock.elapsedRealtime()
+        var first = 0L
+        return texts.mapIndexed { i, x -> s.split(x).also { if (i == 0) first = android.os.SystemClock.elapsedRealtime() - t } }
+            .also { android.util.Log.i("kumapie", "jiten split: ${texts.size} lines in ${android.os.SystemClock.elapsedRealtime() - t} ms (first $first)") }
+    }
 
     /** Jiten's splitter once its files are here (one per process: ~95 MB), else null. */
     fun splitter(): JitenSplitter? = if (!splitterReady) null else synchronized(Companion) {
         jiten ?: JitenSplitter(splitterFiles[0], dic, splitterFiles[1]).also { jiten = it }
+    }
+
+    /**
+     * No PC: Jiten's splitter loads in the background now. Its first split loads the lexicon: 22 s of the 27.5 s the
+     * Chromecast took to make a Frieren episode's words (2026-11-18, 228 lines; the other 227 took 5.5 s), paid when the
+     * first stream's words were made. Called when the app opens; the build waits on the same lock if it comes first.
+     */
+    fun warm() {
+        if (!splitterReady) return
+        Thread {
+            val t = android.os.SystemClock.elapsedRealtime()
+            splitter()?.split("あ")
+            android.util.Log.i("kumapie", "jiten splitter warm in ${android.os.SystemClock.elapsedRealtime() - t} ms")
+        }.apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start()
     }
 
     private fun tokenizer(): Tokenizer = synchronized(Companion) {

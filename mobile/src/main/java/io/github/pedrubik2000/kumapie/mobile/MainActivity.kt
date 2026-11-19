@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
         Updater.version = BuildConfig.VERSION_NAME
         Updater.asset = "kumapie-v" // kumapie-vX.Y.Z-mobile.apk (sorts after kumapie-tv-*, see release.yml)
         val settings = Settings(this)
+        if (settings.server.isBlank()) io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() // no PC: streams' words
         // Downloaded voices (Settings > Word audio) before the device's own: Thorsten (German), Michael (English).
         val voices = io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices(applicationContext)
         io.github.pedrubik2000.kumapie.lang.Voice.neural = { l, t, r, f -> voices.say(l, t, f, r) }

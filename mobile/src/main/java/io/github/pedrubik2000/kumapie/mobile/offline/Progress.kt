@@ -178,7 +178,6 @@ class Progress private constructor(context: Context, private val settings: Setti
         val watch = HashMap<String, Double>()
         val langWatch = HashMap<String, HashMap<String, Double>>()
         val lookups = HashMap<String, Int>()
-        val marked = HashMap<String, Pair<Boolean, Long>>()
         val gloss = HashMap<String, String>()
         val ranges = ArrayList<Map<String, Pair<Long, List<Span>>>>()
         val done = HashMap<String, Long>()
@@ -199,15 +198,9 @@ class Progress private constructor(context: Context, private val settings: Setti
                 for (l in o.keys()) o.getJSONObject(l).let { w -> val m = langWatch.getOrPut(l) { HashMap() }; for (k in w.keys()) m[k] = (m[k] ?: 0.0) + w.getDouble(k) }
             }
             p.optJSONObject("lookups")?.let { o -> for (k in o.keys()) lookups[k] = (lookups[k] ?: 0) + o.getInt(k) }
-            p.optJSONObject("marked")?.let { o ->
-                for (k in o.keys()) {
-                    val a = o.getJSONArray(k)
-                    if ((marked[k]?.second ?: -1) <= a.optLong(1)) marked[k] = a.getBoolean(0) to a.optLong(1)
-                }
-            }
             p.optJSONObject("gloss")?.let { o -> for (k in o.keys()) gloss[k] = o.getString(k) }
         }
-        return View(pos.mapValues { it.value.first }, watch, lookups, marked.filterValues { it.first }.keys, gloss, unwatched,
+        return View(pos.mapValues { it.value.first }, watch, lookups, io.github.pedrubik2000.kumapie.lang.LeavePc.newestMarks(parts), gloss, unwatched,
             pos.mapValues { it.value.second }, langWatch, stillWatched(ranges, unwatched),
             done.filter { (ep, at) -> at > (unwatched[ep] ?: -1) }.keys)
     }

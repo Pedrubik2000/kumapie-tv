@@ -101,20 +101,11 @@ class Library(context: Context, val settings: Settings) {
         sendWatch()
     }
 
-    /**
-     * Leaving the PC (Settings > Use without the PC, as on the TV): once more from it, each step's error stopping it so
-     * nothing changes: the cards and their reviews, the imported word lists, the marks and positions, the personal
-     * dictionary, and the anime streamed through it (kept titles, episodes watched, where each was left). Then no server.
-     */
+    /** Leaving the PC (lang/LeavePc.kt, shared with the TV; marks and positions through [progress]), then no server. */
     suspend fun leavePc() {
         val api = api
-        val cards = io.github.pedrubik2000.kumapie.lang.Cards.get(appContext).srs.takeFromPc(settings.server, settings.owner, languages.all)
-        progress.sync(api)
-        val marked = progress.merged.marked
-        languages.all.forEach { l -> l.known.useMarked(marked.mapNotNull(l::wordOfMark).toSet()) }
-        yomitan.personal.sync(api::personalDictionary)
-        io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).keepFromPc(api.saved(), api.going())
-        android.util.Log.i("kumapie", "left the PC: $cards cards, ${marked.size} marks")
+        io.github.pedrubik2000.kumapie.lang.LeavePc.run(appContext, api, settings.server, settings.owner, languages.all,
+            io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)) { progress.sync(api); progress.merged.marked }
         settings.server = ""
         settings.standalone = true
     }

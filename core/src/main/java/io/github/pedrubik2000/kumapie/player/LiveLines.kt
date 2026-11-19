@@ -64,6 +64,9 @@ class LiveLines(private val player: ExoPlayer, private val jimaku: suspend () ->
         canFit = tracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.length > 0 }
         dialogue(tracks)?.let { (g, i) -> if (!g.isTrackSelected(i)) player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setOverrideForType(androidx.media3.common.TrackSelectionOverride(g.mediaTrackGroup, i)).build() }
+        android.util.Log.i("LiveLines", "text tracks: " + tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }.joinToString { g ->
+            (0 until g.length).joinToString { "${g.getTrackFormat(it).language} '${g.getTrackFormat(it).label.orEmpty()}'" } } +
+            "; fit listens to " + dialogue(tracks)?.let { (g, i) -> "'${g.getTrackFormat(i).label.orEmpty()}'" })
         tracksKnown = true
         if (stopWhenKnown && !canFit) stop()
     }

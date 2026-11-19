@@ -18,15 +18,11 @@ import java.util.UUID
 /**
  * What Pedro did in kumapie (where each episode was left, scenes watched to the end, watch time per study day, words
  * looked up, words marked known), shared between his devices through the PC (`POST /api/tv/devices_progress`, since
- * 2026-11-16) and, while kuma3 is installed, also through its collection (AnkiWeb), as before:
- *
- * Anki syncs a collection's config as a whole (the newer side wins), so it lives in notes, which sync one by one: one
- * note per device (note type [NOTE_TYPE], its card suspended in the deck [DECK]), written only by that device, plus a
- * "pc" note with the PC's history (the TV). Every device reads all of them and merges: latest position, scenes seen
- * anywhere, time and lookups added up, the latest known/unknown mark. This device's own part is also kept in a file, so
- * a deleted note is simply written again.
+ * 2026-11-16; kuma3's notes no longer, 2026-11-19): one part per device, written only by that device, plus "pc" (the
+ * PC's history). Every device merges them: latest position, scenes seen anywhere, time and lookups added up, the latest
+ * known/unknown mark. This device's part is kept in a file, the others' as the PC last gave them.
  */
-class Progress private constructor(context: Context, private val settings: Settings, private val anki: AnkiCards = AnkiCards(context)) {
+class Progress private constructor(context: Context, private val settings: Settings) {
     private val mine = File(context.filesDir, "progress.json")
     private val othersFile = File(context.filesDir, "progress-others.json")
     private val lock = Mutex()
@@ -114,30 +110,22 @@ class Progress private constructor(context: Context, private val settings: Setti
     // ------------------------------------------------------------------ Anki and the PC
 
     /**
-     * Writes this device's note (when it changed), reads the other devices' notes, and refreshes the "pc" note from
-     * the PC when it answers. Quietly does nothing when Anki can't be reached.
+     * Sends this device's part to the PC and takes the other devices' parts and the PC's history ("pc") back. Without
+     * the PC (none set, or not answering) it keeps what it had: until 2026-11-19 a sync without the PC replaced the
+     * other devices' parts with kuma3's notes (0 of them on the tablet), and the PC's history, other devices' time and
+     * marks were gone (Home 30.6 h -> 13.5 h, 682 fewer words known). kuma3 is no longer used here (Pedro, 2026-11-19).
      */
     suspend fun sync(api: io.github.pedrubik2000.kumapie.data.Api?) = lock.withLock {
         runCatching {
-            val text = data.toString()
-            // The PC keeps each device's part (kumapie_plan.md "own Anki" 4e); kuma3 isn't needed for it any more.
+            if (settings.server.isEmpty()) return@withLock // no PC: nothing to send or take; what came from it stays
             val fromPc = api?.let { runCatching { it.devicesProgress(device, data) }.onFailure { Log.w("kumapie", "progress to the PC: $it") }.getOrNull() }
-            val pc = api?.let { runCatching { it.history() }.getOrNull() }
-            val pcText = pc?.let { JSONObject(it).toString() }
-            // Also kuma3's notes while a device without this build still writes only there (kuma3 Anki only: the Play
-            // Store AnkiDroid can't suspend the card, which would then come up for review).
-            val pkg = anki.installed().firstOrNull()?.takeIf { it != "com.ichi2.anki" && anki.hasPermission(it) }
-            val byDevice = pkg?.let { p -> runCatching { anki.notes(p, "\"note:$NOTE_TYPE\"").associateBy { it.fields["Device"] ?: "" } }.getOrNull() }.orEmpty()
-            if (pkg != null) runCatching {
-                if (pcText != null && byDevice["pc"]?.fields?.get("Data") != pcText) write(pkg, "pc", pcText, byDevice["pc"])
-                if (byDevice[device]?.fields?.get("Data") != text) write(pkg, device, text, byDevice[device])
-            }.onFailure { Log.w("kumapie", "progress to kuma3: $it") }
-            if (fromPc == null && pkg == null) return@withLock // neither reached: keep what we had
+                ?: return@withLock // the PC didn't answer: keep what we had
+            val pcText = runCatching { api.history() }.getOrNull()?.let { JSONObject(it).toString() }
             val o = JSONObject()
-            for ((dev, n) in byDevice) if (dev != device && dev.isNotEmpty()) runCatching { o.put(dev, JSONObject(n.fields["Data"] ?: "{}")) }
-            fromPc?.let { p -> p.keys().forEach { dev -> if (dev != device) o.put(dev, p.getJSONObject(dev)) } } // the PC's copy wins
-            if (pcText != null) o.put("pc", JSONObject(pcText))
-            Log.i("kumapie", "progress: ${fromPc?.length() ?: "no"} devices from the PC, ${byDevice.size} kuma3 notes")
+            fromPc.keys().forEach { dev -> if (dev != device) o.put(dev, fromPc.getJSONObject(dev)) }
+            // The PC's history: the new one, else the one we had (a failed read must not drop it).
+            (pcText?.let(::JSONObject) ?: others.optJSONObject("pc"))?.let { o.put("pc", it) }
+            Log.i("kumapie", "progress: ${fromPc.length()} devices from the PC")
             others = o
             othersFile.writeText(o.toString())
             merged = merge()
@@ -153,17 +141,6 @@ class Progress private constructor(context: Context, private val settings: Setti
         }.onFailure { Log.w("kumapie", "progress sync: $it") }
     }
 
-    private fun write(pkg: String, dev: String, text: String, existing: AnkiCards.Note?) {
-        if (existing != null) return anki.updateNote(pkg, existing.id, existing.tags, listOf(dev, text))
-        val mid = anki.noteType(pkg, listOf(NOTE_TYPE))?.first ?: anki.addNoteType(pkg, NOTE_TYPE, listOf("Device", "Data"))
-        val nid = anki.addNote(pkg, mid, listOf(dev, text), listOf("kumapie"), anki.deck(pkg, DECK))
-        try {
-            anki.suspendCards(pkg, nid)
-        } catch (e: Exception) { // an older kuma3 Anki: take the note out again rather than leave a card to review
-            anki.deleteNote(pkg, nid)
-            throw IllegalStateException(tr("kuma3 Anki is too old to keep kumapie's progress (update it)"), e)
-        }
-    }
 
     // ------------------------------------------------------------------ stats (the phone, and the TV without a PC)
 
@@ -222,8 +199,6 @@ class Progress private constructor(context: Context, private val settings: Setti
             one ?: Progress(context.applicationContext, Settings(context.applicationContext)).also { one = it }
         }
 
-        const val NOTE_TYPE = "🐻 kumapie progress"
-        const val DECK = "kumapie"
 
         private fun empty() = JSONObject().put("pos", JSONObject()).put("watch", JSONObject())
             .put("lookups", JSONObject()).put("marked", JSONObject())

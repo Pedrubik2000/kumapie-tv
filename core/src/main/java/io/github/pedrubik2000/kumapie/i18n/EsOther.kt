@@ -89,8 +89,6 @@ internal val esOther: Map<String, String> = mapOf(
     "the PC stopped answering" to "la PC dejó de responder",
     "The PC doesn't answer and this episode isn't downloaded." to "La PC no responde y este episodio no está descargado.",
     "Reading episodes %1\$d of %2\$d…" to "Leyendo episodios %1\$d de %2\$d…",
-    "kuma3 Anki is too old to keep kumapie's progress (update it)" to
-        "kuma3 Anki es demasiado antiguo para guardar el progreso de kumapie (actualízalo)",
 
     // Found missing by WordCheckTest (2026-11-18): TV streams, Discover, onboarding, voices, sync, AI meaning.
     "Open kumapie once and set the PC's address first" to "Abre kumapie una vez y pon primero la dirección del PC",

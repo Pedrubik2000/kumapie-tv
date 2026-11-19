@@ -110,7 +110,10 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
     var error by remember { mutableStateOf<String?>(null) }
     var open by remember { mutableStateOf(start) }
     LaunchedEffect(Unit) {
-        if (start == null) runCatching { library.discovery.board() }.onSuccess { rows = it }.onFailure { error = it.message ?: it.toString() }
+        if (start == null) {
+            if (rows == null) rows = (library.discovery as? io.github.pedrubik2000.kumapie.data.Addons)?.lastBoard() // last time's rows at once (as the TV)
+            runCatching { library.discovery.board() }.onSuccess { rows = it }.onFailure { if (rows == null) error = it.message ?: it.toString() }
+        }
     }
     LaunchedEffect(searched) {
         found = null

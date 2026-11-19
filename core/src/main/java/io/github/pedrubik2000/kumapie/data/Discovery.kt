@@ -2,6 +2,8 @@ package io.github.pedrubik2000.kumapie.data
 
 import android.content.SharedPreferences
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -52,27 +54,44 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
     private val manifests = java.util.concurrent.ConcurrentHashMap<String, JSONObject>()
 
     /** The addons that answer; one that didn't is asked again next time. */
-    private suspend fun manifests(): List<Pair<String, JSONObject>> = bases.mapNotNull { b ->
-        (manifests[b] ?: runCatching { JSONObject(get("$b/manifest.json")) }.getOrNull()?.also { manifests[b] = it })?.let { b to it }
+    private suspend fun manifests(): List<Pair<String, JSONObject>> = kotlinx.coroutines.coroutineScope {
+        bases.map { b ->
+            async { (manifests[b] ?: runCatching { JSONObject(get("$b/manifest.json")) }.getOrNull()?.also { manifests[b] = it })?.let { b to it } }
+        }.awaitAll().filterNotNull()
     }
 
     /** The addons' names, for Settings ("" for one that doesn't answer). */
     suspend fun names(): List<String> = manifests().let { all -> bases.map { b -> all.firstOrNull { it.first == b }?.second?.optString("name").orEmpty() } }
 
-    override suspend fun board(): List<Pair<String, List<Found>>> {
-        val rows = ArrayList<Pair<String, List<Found>>>()
+    // All asked at once (one after another, AniList and up to 8 catalogs added up: Discover took ~2 s, 2026-11-18).
+    override suspend fun board(): List<Pair<String, List<Found>>> = kotlinx.coroutines.coroutineScope {
         // The user's AniList lists first (Watching, Planning), when they gave their username in the onboarding.
-        store.getString(ANILIST, "").orEmpty().takeIf { it.isNotBlank() }?.let { user ->
-            rows += runCatching { AniList.rows(user, store) }.onFailure { android.util.Log.w("kumapie", "AniList rows: $it") }.getOrDefault(emptyList())
+        val anilist = store.getString(ANILIST, "").orEmpty().takeIf { it.isNotBlank() }?.let { user ->
+            async { runCatching { AniList.rows(user, store) }.onFailure { android.util.Log.w("kumapie", "AniList rows: $it") }.getOrDefault(emptyList()) }
         }
-        for ((b, m) in manifests()) for (c in m.optJSONArray("catalogs").objects()) {
-            if (rows.size >= MAX_ROWS || needs(c).isNotEmpty()) continue
-            val titles = runCatching { metas(get("$b/catalog/${c.getString("type")}/${c.getString("id")}.json")) }.getOrDefault(emptyList())
-            if (titles.isNotEmpty()) rows += (c.optString("name").ifEmpty { c.getString("id") } + " · " + c.getString("type")) to titles
-        }
+        val catalogs = manifests().flatMap { (b, m) -> m.optJSONArray("catalogs").objects().filter { needs(it).isEmpty() }.map { b to it } }
+            .take(MAX_ROWS).map { (b, c) ->
+                async {
+                    val titles = runCatching { metas(get("$b/catalog/${c.getString("type")}/${c.getString("id")}.json")) }.getOrDefault(emptyList())
+                    if (titles.isEmpty()) null else (c.optString("name").ifEmpty { c.getString("id") } + " · " + c.getString("type")) to titles
+                }
+            }
+        val rows = (anilist?.await().orEmpty() + catalogs.awaitAll().filterNotNull()).take(MAX_ROWS)
         if (rows.isEmpty()) error(tr(if (bases.isEmpty()) NO_ADDON else "None of your addons has a catalog: add one that lists titles (Cinemeta, Kitsu…)"))
-        return rows
+        store.edit().putString(BOARD, JSONArray(rows.map { (name, titles) ->
+            JSONObject().put("name", name).put("titles", JSONArray(titles.map { f ->
+                JSONObject().put("id", f.id).put("type", f.type).put("name", f.name).put("poster", f.poster).put("year", f.year)
+                    .put("background", f.background).put("logo", f.logo).put("description", f.description).put("genres", f.genres)
+                    .put("rating", f.rating).put("runtime", f.runtime).put("name_ja", f.nameJa)
+            }))
+        }).toString()).apply()
+        rows
     }
+
+    /** The rows [board] gave last time, shown at once while it asks again; null before the first. */
+    fun lastBoard(): List<Pair<String, List<Found>>>? = runCatching {
+        JSONArray(store.getString(BOARD, null)!!).objects().map { r -> r.getString("name") to r.getJSONArray("titles").objects().map(::found) }
+    }.getOrNull()
 
     override suspend fun discover(q: String): List<Found> {
         val out = LinkedHashMap<String, Found>()
@@ -267,6 +286,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         private const val MAX_ENGLISH = 5
         private const val SAVED = "alone_saved"
         private const val SEEN = "alone_seen"
+        private const val BOARD = "discover_board"
 
         /** The title of an episode id: kitsu:48269:5 -> kitsu:48269, tt0388629:1:5 -> tt0388629 (as discover.py). */
         fun titleOf(id: String) = id.split(':').take(if (id.startsWith("kitsu:")) 2 else 1).joinToString(":")

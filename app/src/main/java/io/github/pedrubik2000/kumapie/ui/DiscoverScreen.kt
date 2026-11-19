@@ -90,7 +90,10 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
     var attempt by remember { mutableStateOf(0) } // Try again after a failed load (a bare message had no way out)
     LaunchedEffect(attempt) {
         error = null
-        if (start == null) runCatching { api.board() }.onSuccess { rows = it }.onFailure { error = it.message ?: it.toString() }
+        if (start == null) {
+            if (rows == null) rows = (api as? io.github.pedrubik2000.kumapie.data.Addons)?.lastBoard() // last time's rows at once; the fresh ones replace them
+            runCatching { api.board() }.onSuccess { rows = it }.onFailure { if (rows == null) error = it.message ?: it.toString() }
+        }
     }
     LaunchedEffect(searched, attempt) {
         found = null

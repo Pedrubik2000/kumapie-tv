@@ -41,7 +41,7 @@ internal fun japaneseKnown(context: Context, settings: Settings) = TvMining.lang
 internal fun tvLanguages(context: Context, settings: Settings) = TvMining.languages(context, settings)
 
 internal object TvMining {
-    private var kit: LangKit? = null
+    @Volatile private var kit: LangKit? = null
     private val ready: LangKit get() = requireNotNull(kit) { "TvMining.languages(context, settings) first" }
     val languages: Languages get() = ready.languages
     val yomitan: YomitanDictionaries get() = ready.yomitan
@@ -105,7 +105,7 @@ fun dictionariesState(context: Context, settings: Settings): String {
     return tr("Couldn't download them (%s). Trying again…", why)
 }
 
-fun startJapaneseDictionaries(context: Context, settings: Settings) {
+suspend fun startJapaneseDictionaries(context: Context, settings: Settings) = withContext(Dispatchers.IO) {
     TvMining.languages(context, settings)
     if (TvMining.yomitan.of(Lang.JAPANESE).isEmpty()) TvMining.fetchJapanese(context, settings)
 }

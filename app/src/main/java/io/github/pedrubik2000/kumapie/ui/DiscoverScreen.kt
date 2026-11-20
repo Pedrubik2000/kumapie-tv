@@ -249,8 +249,8 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
         // Last time's answer at once (SavedMeta); the fresh one replaces it only if it differs (no redraw for nothing).
         if (meta == null) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.data.SavedMeta.get(context, title.id) }?.let { meta = it }
         runCatching { api.discoverMeta(title.type, title.id) }.onSuccess {
-            if (it.toString() != meta?.toString()) meta = it
-            io.github.pedrubik2000.kumapie.data.SavedMeta.put(context, title.id, it)
+            val old = meta; if (kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { it.toString() != old?.toString() }) meta = it
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.data.SavedMeta.put(context, title.id, it) }
             io.github.pedrubik2000.kumapie.data.Backdrops.put(context, title.id, it.optString("background")) // Home's and Discover's hero
         }.onFailure { if (meta == null) error = it.message ?: it.toString() }
     }

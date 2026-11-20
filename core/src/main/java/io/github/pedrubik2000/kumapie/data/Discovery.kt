@@ -82,12 +82,12 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         return withJa(out.values.toList())
     }
 
-    override suspend fun discoverMeta(type: String, id: String): JSONObject {
+    override suspend fun discoverMeta(type: String, id: String): JSONObject = withContext(Dispatchers.Default) {
         val seen = store.getStringSet(SEEN, emptySet()).orEmpty()
         for ((b, m) in manifests()) {
             if (!gives(m, "meta", type, id)) continue
             val meta = runCatching { JSONObject(get("$b/meta/$type/${enc(id)}.json")).optJSONObject("meta") }.getOrNull() ?: continue
-            return title(meta, seen)
+            return@withContext title(meta, seen)
         }
         error(tr("None of your addons knows this title"))
     }

@@ -98,7 +98,7 @@ fun SearchScreen(library: Library, onBack: () -> Unit) {
             }
             if (said.isNotEmpty()) Text(said, fontSize = 12.sp, color = Colors.dim)
             // The picked word's rows (as in the word card): forms with a card only.
-            if (forms.isNotEmpty()) RatingRows(ja.known, library.settings.prefs, japaneseRateForms(forms), ratings, scope, busy)
+            if (forms.isNotEmpty()) RatingRows(ja.known, remember(ja) { io.github.pedrubik2000.kumapie.lang.RateFlow(ja.known, library.miner) }, library.settings.prefs, japaneseRateForms(forms), ratings, scope, busy)
             headwords?.let { YomitanPopup(library, Lang.JAPANESE, it, onSpeak = ja::say) }
         }
     }

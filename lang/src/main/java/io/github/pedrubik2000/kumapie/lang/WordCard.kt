@@ -67,6 +67,28 @@ object WordCard {
         return Miner.Word(surface, key, lemma, pick?.gloss.orEmpty(), pick?.example, def, mono = c.monos.firstOrNull()?.gloss)
     }
 
+    suspend fun japaneseHeadword(japanese: Japanese, text: String, offset: Int, word: String, reading: String): Headword? =
+        headword(if (japanese.model.isReady) runCatching { japanese.forms(text, offset) }.getOrDefault(emptyList()) else emptyList(), reading) {
+            japanese.yomitan.query(Lang.JAPANESE, word)
+        }
+
+    suspend fun japaneseWord(japanese: Japanese, text: String, offset: Int, surface: String, key: String, word: String, reading: String, english: String?): Miner.Word =
+        japaneseHeadword(japanese, text, offset, word, reading)?.let { japanese(japanese.yomitan, it, surface, key, null, null, english) }
+            ?: Miner.Word(surface, key, word, "")
+
+    /**
+     * The headword a Japanese word card is made for, the TV's and the phone's (core plan step 5): the first rating row's
+     * ([forms]: your own word, a name, the dictionary form covering the whole word, お料理 as 料理), else the episode's
+     * dictionary form as the dictionaries have it ([entries], read [reading] first: もらえるでしょ is 貰える). Never a
+     * shorter piece the scan finds (ドラート is not ドラー, item 26): then no headword, a card without a meaning.
+     */
+    fun headword(forms: List<JapaneseLookup.Form>, reading: String, entries: () -> List<YomitanDictionaries.Term>): Headword? {
+        forms.firstNotNullOfOrNull { it.head }?.let { return it }
+        val terms = entries()
+        val first = terms.firstOrNull { reading.isNotBlank() && JapaneseLookup.hiragana(it.reading) == reading } ?: terms.firstOrNull() ?: return null
+        return Headword(first.expression, JapaneseLookup.hiragana(first.reading), terms.filter { it.expression == first.expression && it.reading == first.reading })
+    }
+
     /**
      * A Japanese headword's meanings: from the bilingual dictionaries (else every one but monolingual and forms ones),
      * the personal dictionary's as written; the one that fits [english] (the line's English) chosen and marked; and

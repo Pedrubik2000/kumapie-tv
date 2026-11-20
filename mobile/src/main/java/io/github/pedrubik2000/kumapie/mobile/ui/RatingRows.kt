@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.KnownWords
 import io.github.pedrubik2000.kumapie.lang.Miner
-import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.lang.Progress
 import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.CoroutineScope
@@ -39,22 +38,11 @@ import kotlinx.coroutines.launch
  */
 class RateForm(val key: String, val label: String?)
 
-/**
- * A rating, its "Answered: …" line, and where it was made ([at]: the player's line, null elsewhere). The rated word's
- * own card takes that scene when you leave it ([recontext], kumapie_plan.md 37b).
- */
-class Rating(val rated: KnownWords.Rated, val label: String, val at: Miner.Request?)
+/** A rating and its "Answered: …" line (the card takes its scene in [io.github.pedrubik2000.kumapie.lang.RateFlow.leave]). */
+class Rating(val rated: KnownWords.Rated, val label: String)
 
 /** The ratings per form key. */
 typealias Ratings = MutableMap<String, Rating>
-
-/** Leaving a scene (or the player) you rated words in: each rated word's own card takes the scene it was rated in. */
-suspend fun recontext(library: Library, ratings: Collection<Rating>) {
-    for (r in ratings) {
-        val at = r.at ?: continue
-        runCatching { library.miner.recontext(r.rated.notes, at) }.onFailure { android.util.Log.w("kumapie", "recontext: $it") }
-    }
-}
 
 /**
  * Again / Hard / Good / Easy for each form's own cards (kumapie's store): one rating answers every card of the form due
@@ -63,9 +51,9 @@ suspend fun recontext(library: Library, ratings: Collection<Rating>) {
  * player's read runs ([busy], in [scope], which outlives the rows) no button works.
  */
 @Composable
-fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, forms: List<RateForm>, ratings: Ratings,
+fun RatingRows(known: KnownWords, flow: io.github.pedrubik2000.kumapie.lang.RateFlow, prefs: android.content.SharedPreferences, forms: List<RateForm>, ratings: Ratings,
                scope: CoroutineScope, busy: MutableState<Boolean>,
-               /** The player's line ([Rating.at]); null in the dictionary screen. */
+               /** The player's line (its card moves there, [io.github.pedrubik2000.kumapie.lang.RateFlow.leave]); null in the dictionary screen. */
                at: Miner.Request? = null,
                /** Where it was rated (kumapie's own cards keep it); null in the dictionary screen. */
                watch: io.github.pedrubik2000.kumapie.lang.Srs.Watch? = null,
@@ -108,8 +96,8 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
                     Button(enabled = !busy.value, contentPadding = PaddingValues(horizontal = 4.dp), modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color(0xFF1E1B26)), onClick = {
                         rating {
-                            val done = known.rate(f.key, i + 1, System.currentTimeMillis() - opened, watch)
-                            if (done != null) { ratings[f.key] = Rating(done, tr("Answered: %s", tr(label)), at); count(done.cards); said.remove(f.key) }
+                            val done = flow.rate(f.key, i + 1, System.currentTimeMillis() - opened, watch, at)
+                            if (done != null) { ratings[f.key] = Rating(done, tr("Answered: %s", tr(label))); count(done.cards); said.remove(f.key) }
                             else said[f.key] = tr("The rating didn't go in.")
                         }
                     }) { Text(tr(label), fontSize = 14.sp, maxLines = 1) }
@@ -118,7 +106,7 @@ fun RatingRows(known: KnownWords, prefs: android.content.SharedPreferences, form
                 Text(answered, color = Colors.dim, fontSize = 14.sp)
                 TextButton(enabled = !busy.value, onClick = {
                     rating {
-                        if (known.undo(r)) { count(-r.cards); ratings.remove(f.key); said.remove(f.key) }
+                        if (flow.undo(r)) { count(-r.cards); ratings.remove(f.key); said.remove(f.key) }
                         else said[f.key] = tr("Couldn't undo it (something else was done since?).")
                     }
                 }) { Text(tr("Undo")) }

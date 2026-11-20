@@ -149,14 +149,12 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
 
     companion object {
         /**
-         * A dictionary entry's text as its senses, each short: split at the sense numbers ("…slightly.; 2 just a minute",
-         * "①…"), examples (after ► or ・) dropped, headword and tags out ([meaning]), at most 90 characters.
+         * English meanings only: no Japanese example lines, no English example sentences ("What will be the end of all this?").
+         * The English Sankoku/Daijirin: "ゆ きり ［湯切 り ］ ｟名 ・他サ ｠; 〘料 〙 The act of draining〔＝よけいな…〕 hot water…":
+         * its part of speech ｟…｠ holds a " ・" (an example's start for [meanings]) and its 〔…〕 notes sit inside the English.
+         * Daijirin's 〖cacao〗 is the word's origin, the meaning only when there is no other (〖archives〗 for アーカイブス); its
+         * （名 sust.） is the part of speech.
          */
-        /** English meanings only: no Japanese example lines, no English example sentences ("What will be the end of all this?"). */
-        // The English Sankoku/Daijirin: "ゆ きり ［湯切 り ］ ｟名 ・他サ ｠; 〘料 〙 The act of draining〔＝よけいな…〕 hot water…":
-        // its part of speech ｟…｠ holds a " ・" (an example's start for [meanings]) and its 〔…〕 notes sit inside the English.
-        // Daijirin's 〖cacao〗 is the word's origin, the meaning only when there is no other (〖archives〗 for アーカイブス); its
-        // （名 sust.） is the part of speech.
         fun bilingualMeanings(entry: String): List<String> = meanings(entry.replace(Regex("""｟[^｠]*｠|〔[^〕]*〕|〖[^〗]*〗|（[぀-ヿ㐀-鿿][^）]*）"""), ""), Int.MAX_VALUE).filter { m ->
             m.any { it in 'a'..'z' } && !(m.first().isUpperCase() && m.count { it == ' ' } >= 4 && m.trimEnd().last() in ".?!")
         }.flatMap { m ->
@@ -218,6 +216,10 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
                 .substringBefore('「').substringBefore('；').trim(' ', ';', '：', ':', '・') }
             .firstOrNull { d -> d.count { it.code in 0x3040..0x30FF || it.code in 0x3400..0x9FFF } >= 4 }
 
+        /**
+         * A dictionary entry's text as its senses, each short: split at the sense numbers ("…slightly.; 2 just a minute",
+         * "①…"), examples (after ► or ・) dropped, headword and tags out ([meaning]), at most 90 characters.
+         */
         fun meanings(entry: String, max: Int = 90): List<String> =
             entry.split(Regex("""(?:^|[;；。\s])\s*(?:\d{1,2}|[①-⑳])\s+(?=\S)"""))
                 // Before the first sense number: the headword ("ちょっと"), unless it is a meaning in English.

@@ -22,7 +22,9 @@ val RATINGS = listOf("Again", "Hard", "Good", "Easy")
 val RATEABLE = setOf("d", "b", "k")
 
 class TvRating {
-    val moves = ArrayList<Pair<KnownWords.Rated, Miner.Request>>()
+    var flow: io.github.pedrubik2000.kumapie.lang.RateFlow? = null
+    fun flow(context: Context, settings: Settings, lang: Lang) = flow ?: io.github.pedrubik2000.kumapie.lang.RateFlow(
+        TvMining.languages(context, settings).of(lang).known, TvMining.miner(context, settings)).also { flow = it }
     var open by mutableStateOf(false)
     var last by mutableStateOf<Pair<String, KnownWords.Rated>?>(null)
     var fresh by mutableStateOf(false)
@@ -82,11 +84,11 @@ fun rateWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
     rating.busy = true
     scope.launch {
         try {
-            val done = language.known.rate(form, ease, ms, io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.ms, settings.subtitles.name.lowercase(), null, ctl.speed.toDouble()))
+            val frame = runCatching { screenFrame(view, context.cacheDir, "rated-${System.nanoTime()}.webp") }.getOrNull()
+            val done = rating.flow(context, settings, ctl.lang).rate(form, ease, ms, io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.ms,
+                settings.subtitles.name.lowercase(), null, ctl.speed.toDouble()), Miner.Request(ctl.episode, scene, line, Miner.Word(surface, form, null, ""), frame))
             if (done == null) say(tr("The rating didn't go in."))
             else {
-                val frame = runCatching { screenFrame(view, context.cacheDir, "rated-${System.nanoTime()}.webp") }.getOrNull()
-                rating.moves += done to Miner.Request(ctl.episode, scene, line, Miner.Word(surface, form, null, ""), frame)
                 rating.last = form to done
                 rating.said = tr(RATINGS[ease - 1])
                 rating.fresh = true
@@ -125,12 +127,10 @@ fun undoRating(context: Context, api: io.github.pedrubik2000.kumapie.data.Backen
     rating.busy = true
     scope.launch {
         try {
-            if (language.known.undo(rated)) {
-                rating.moves.removeAll { it.first === rated }
+            if (rating.flow(context, settings, ctl.lang).undo(rated)) {
                 rating.last = null
                 rating.fresh = false
                 rating.count(settings, -rated.cards)
-                language.known.refreshDue(force = true)
                 repaint(language, ctl)
                 say(tr("Undone: %s is due again", form))
             } else say(tr("Couldn't undo it (something else was done since?)."))

@@ -62,6 +62,10 @@ val slopForbidden = listOf(
         "use StreamStart.picked(): a picked addon link puts its title on Home there", listOf("app", "mobile")),
     Forbidden(".ended( / nextId(", Regex("""\.ended\(|\bnextId\("""), emptyList(),
         "use nextQuery() / Addons.next(query) (core data/Streaming.kt): the next episode's query is built there once", listOf("app", "mobile")),
+    Forbidden("fun japaneseWord( / tvHeadword", Regex("""\bfun japaneseWord\(|\btvHeadword\b"""), emptyList(),
+        "use WordCard.japaneseHeadword() / WordCard.japaneseWord() (lang WordCard.kt): the TV and the phone made different cards of one word", listOf("app", "mobile")),
+    Forbidden("known.rate( / known.undo( / miner.recontext(", Regex("""\bknown\.(rate|undo)\(|\bminer\.recontext\("""), listOf("/mobile/WordColours.kt"),
+        "use RateFlow (lang RateFlow.kt): rate -> undo -> the due queue -> recontext is one path for both apps (WordColours: the readers' provider, no scene)", listOf("app", "mobile")),
 )
 
 /** [src] with comments removed and string contents blanked (newlines kept), and its number of comments. */

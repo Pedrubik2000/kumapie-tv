@@ -60,14 +60,6 @@ internal fun fitsThisLine(library: Library, hw: io.github.pedrubik2000.kumapie.l
     return if (c.fits) c.choices.getOrNull(c.chosen)?.gloss else null
 }
 
-/**
- * A Japanese rating row's card ([io.github.pedrubik2000.kumapie.lang.JapaneseLookup.forms]): the form with its reading,
- * its headword's meaning that fits the line ([english]; null: the first), "form of 気にする" for a conjugated form, pitch
- * only for the headword itself; no meaning (and no "form of") when the dictionaries have none.
- */
-internal fun japaneseWord(library: Library, f: io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form, english: String?): Miner.Word =
-    WordCard.japanese(library.yomitan, f.head, f.surface, null, f.written, f.reading, english)
-
 /** Japanese rows ([io.github.pedrubik2000.kumapie.lang.JapaneseLookup.forms]) as [RateForm]s (only forms with a card show). */
 internal fun japaneseRateForms(forms: List<io.github.pedrubik2000.kumapie.lang.JapaneseLookup.Form>) = forms.map { f ->
     val kana = f.reading.isEmpty() || io.github.pedrubik2000.kumapie.lang.JapaneseLookup.hiragana(f.written) == f.reading
@@ -209,9 +201,11 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
     // longer match's (気にしない: 気にする). Not the lookup's first headword, which can be a monolingual-only form.
     val heads = forms.mapNotNull { it.head }.distinctBy { it.expression to it.reading }
     LaunchedEffect(segment?.text) {
-        if (segment?.word == null) return@LaunchedEffect
+        val key = segment?.word ?: return@LaunchedEffect
         forms = runCatching { library.languages.japanese.forms(cue.text, offset) }.getOrDefault(emptyList())
-        headword = forms.mapNotNull { it.head }.firstOrNull()
+        val w = ctl.words[key]
+        val word = scene.def(line, key)?.lemma?.takeIf { it.isNotBlank() } ?: w?.lemma?.takeIf { it.isNotBlank() } ?: key
+        headword = WordCard.headword(forms, w?.reading.orEmpty()) { japanese.yomitan.query(ja, word) }
         if (headword == null) looked = true // no headword covers the word: a card without a meaning, or a sentence card
     }
     LaunchedEffect(headword) {

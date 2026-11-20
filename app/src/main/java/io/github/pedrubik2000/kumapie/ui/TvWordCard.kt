@@ -84,7 +84,7 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
         val offset = cue.segments.take(picker.seg).sumOf { it.text.length }
         val word = ctl.words[key]
         val lemma = ctl.scene.def(picker.line, key)?.lemma?.takeIf { it.isNotBlank() } ?: word?.lemma?.takeIf { it.isNotBlank() }
-        val found = withContext(Dispatchers.IO) { tvHeadword(y, cue.text, offset, lemma, word?.reading.orEmpty()) }
+        val found = withContext(Dispatchers.IO) { io.github.pedrubik2000.kumapie.lang.WordCard.japaneseHeadword(TvMining.languages.japanese, cue.text, offset, lemma ?: key, word?.reading.orEmpty()) }
         hw = found
         html = if (found == null) "" else withContext(Dispatchers.IO) {
             val byDict = LinkedHashMap<String, MutableList<String>>()

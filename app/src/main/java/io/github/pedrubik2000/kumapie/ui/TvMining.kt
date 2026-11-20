@@ -16,11 +16,9 @@ import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
-import io.github.pedrubik2000.kumapie.lang.Headword
 import io.github.pedrubik2000.kumapie.lang.Japanese
 import io.github.pedrubik2000.kumapie.lang.LangKit
 import io.github.pedrubik2000.kumapie.lang.Language
-import io.github.pedrubik2000.kumapie.lang.JapaneseLookup
 import io.github.pedrubik2000.kumapie.lang.Languages
 import io.github.pedrubik2000.kumapie.lang.Miner
 import io.github.pedrubik2000.kumapie.lang.SensePick
@@ -110,19 +108,6 @@ suspend fun startJapaneseDictionaries(context: Context, settings: Settings) = wi
     if (TvMining.yomitan.of(Lang.JAPANESE).isEmpty()) TvMining.fetchJapanese(context, settings)
 }
 
-internal fun japaneseWord(y: YomitanDictionaries, text: String, offset: Int, surface: String, key: String, lemma: String?, reading: String,
-                         english: String): Miner.Word {
-    val hw = tvHeadword(y, text, offset, lemma, reading) ?: return Miner.Word(surface, key, lemma ?: surface, "")
-    return io.github.pedrubik2000.kumapie.lang.WordCard.japanese(y, hw, surface, key, null, null, english)
-}
-
-internal fun tvHeadword(y: YomitanDictionaries, text: String, offset: Int, lemma: String?, reading: String): Headword? {
-    val ja = Lang.JAPANESE
-    val terms = lemma?.let { y.query(ja, it) }.orEmpty().ifEmpty { y.scan(ja, text.substring(offset.coerceIn(0, text.length))).map { it.second } }
-    val first = terms.firstOrNull { reading.isNotBlank() && JapaneseLookup.hiragana(it.reading) == reading } ?: terms.firstOrNull() ?: return null
-    return Headword(first.expression, first.reading, terms.filter { it.expression == first.expression && it.reading == first.reading })
-}
-
 internal suspend fun screenFrame(view: PlayerView?, dir: File, name: String = "tv-shot.webp"): File? {
     val surface = view?.videoSurfaceView as? SurfaceView ?: return null
     val main = surface.handler ?: return null
@@ -190,7 +175,7 @@ fun mineWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
             val w = if (japanese) {
                 val cue = scene.cues[line]
                 val offset = cue.segments.take(picker.seg).sumOf { it.text.length }
-                withContext(Dispatchers.IO) { japaneseWord(TvMining.yomitan, cue.text, offset, segment.text, key, lemma, word?.reading.orEmpty(), SensePick.english(scene, line)) }
+                withContext(Dispatchers.IO) { io.github.pedrubik2000.kumapie.lang.WordCard.japaneseWord(TvMining.languages.japanese, cue.text, offset, segment.text, key, lemma ?: key, word?.reading.orEmpty(), SensePick.english(scene, line)) }
             } else withContext(Dispatchers.IO) {
                 io.github.pedrubik2000.kumapie.lang.WordCard.auto(TvMining.languages.of(ctl.lang), TvMining.yomitan, ctl, line, segment.text, key)
             }
@@ -245,15 +230,9 @@ suspend fun syncAnki(context: Context, settings: Settings, ctl: SceneController,
     if (synced && !busy()) paintCards(context, settings, ctl)
 }
 
-fun moveRated(context: Context, settings: Settings, rating: TvRating) {
-    if (rating.moves.isEmpty()) return
-    val moves = rating.moves.toList()
-    rating.moves.clear()
-    val app = context.applicationContext
-    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-        val miner = TvMining.miner(app, settings)
-        for ((rated, at) in moves) runCatching { miner.recontext(rated.notes, at) }.onFailure { Log.w("kumapie", "recontext: $it") }
-    }
+fun moveRated(rating: TvRating) {
+    val flow = rating.flow ?: return
+    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { flow.leave() }
 }
 
 fun syncAnkiLater(context: Context, settings: Settings, ctl: SceneController) {

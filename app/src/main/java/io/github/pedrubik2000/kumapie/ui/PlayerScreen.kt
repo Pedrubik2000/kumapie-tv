@@ -252,7 +252,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
             ctl.tick()
             ctl.report()
             picker.release() // the player: rememberPlayer's dispose, after this one
-            moveRated(context, settings, rating) // every rated word's card, now that the stream stopped
+            moveRated(rating) // every rated word's card, now that the stream stopped
             syncAnkiLater(context, settings, ctl) // what was mined and rated here
             view.keepScreenOn = false
         }

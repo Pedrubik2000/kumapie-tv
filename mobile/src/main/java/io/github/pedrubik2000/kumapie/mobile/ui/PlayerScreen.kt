@@ -246,18 +246,16 @@ internal fun ScenePlayer(
     // kuma3's whole queue read again after a rating, in the background (big collections: seconds); not cancelled with the word card.
     val queueScope = rememberCoroutineScope()
     val queueBusy = remember { mutableStateOf(false) } // while it runs, no rating (it would read a queue from before)
-    // Rated cards waiting to take the line they were rated on ([recontext]): when the player closes, not at each scene,
+    // Rated cards waiting to take the line they were rated on (RateFlow.leave): when the player closes, not at each scene,
     // as on the TV: each move cuts the line's audio from the stream playing, and that broke a stream (Chromecast, 2026-11-19).
-    val moves = remember { ArrayList<Rating>() }
+    val rateFlow = remember { io.github.pedrubik2000.kumapie.lang.RateFlow(library.languages.of(ctl.lang).known, library.miner) }
     // Leaving a scene you rated in: the due queue read once (a card may come back); its ratings' Undo ends there.
     LaunchedEffect(ctl.scene.index) {
         if (ratings.isEmpty()) return@LaunchedEffect
-        moves += ratings.values
         ratings.clear()
-        val known = library.languages.of(ctl.lang).known
         queueBusy.value = true
         queueScope.launch {
-            try { known.refreshDue(force = true); repaintWords(ctl, known) } finally { queueBusy.value = false }
+            try { rateFlow.sceneLeft(); repaintWords(ctl, library.languages.of(ctl.lang).known) } finally { queueBusy.value = false }
         }
     }
     var menuUntil by remember { mutableLongStateOf(SystemClock.uptimeMillis() + 3_000) } // a novel's bar
@@ -273,9 +271,8 @@ internal fun ScenePlayer(
             if (ownsPlayer) player.release()
             bgm?.release()
             // Leaving the player: every rated card takes its line (kumapie_plan.md 37b), now that the stream stopped.
-            val rated = moves + ratings.values
             // ponytail: fire-and-forget scope; if the app is killed within those seconds the card keeps its old scene.
-            if (rated.isNotEmpty()) kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { recontext(library, rated) }
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { rateFlow.leave() }
         }
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -439,7 +436,7 @@ internal fun ScenePlayer(
             // Landscape with dictionaries: two columns, twice as wide (ratings and buttons left, meanings right).
             val twoColumns = dictionaries && androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
             val actions = @Composable {
-                RatingRow(library, ctl, picker, ratings, queueScope, queueBusy)
+                RatingRow(library, ctl, picker, ratings, rateFlow, queueScope, queueBusy)
                 CardButtons(ctl, picker, onMine = { mining = true })
             }
             MeaningCard(ctl, picker, it, maxWidth = library.settings.popupWidth.dp * if (twoColumns) 2 else 1, onTapDef = picker::tapInDef,
@@ -702,7 +699,7 @@ private fun OptionRow(label: String, on: Boolean, toggle: () -> Unit) {
  */
 @Composable
 private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Library, ctl: SceneController, picker: WordPicker,
-                      ratings: Ratings, queueScope: kotlinx.coroutines.CoroutineScope, queueBusy: androidx.compose.runtime.MutableState<Boolean>) {
+                      ratings: Ratings, rateFlow: io.github.pedrubik2000.kumapie.lang.RateFlow, queueScope: kotlinx.coroutines.CoroutineScope, queueBusy: androidx.compose.runtime.MutableState<Boolean>) {
     val segment = picker.selectedInDef ?: picker.selected
     val key = segment?.word ?: return
     ctl.words[key] // read: the word's recolouring (a card mined meanwhile) redraws the rows below
@@ -722,7 +719,7 @@ private fun RatingRow(library: io.github.pedrubik2000.kumapie.mobile.offline.Lib
         io.github.pedrubik2000.kumapie.lang.Miner.Word(segment.text, key, null, ""))
     // Rows show after a word was opened: looked up.
     val watch = io.github.pedrubik2000.kumapie.lang.Srs.Watch(ctl.episode.id, ctl.scene.ms, library.settings.subtitles.name.lowercase(), true, ctl.speed.toDouble())
-    RatingRows(language.known, library.settings.prefs, forms, ratings, queueScope, queueBusy, at, watch) { repaintWords(ctl, language.known) }
+    RatingRows(language.known, rateFlow, library.settings.prefs, forms, ratings, queueScope, queueBusy, at, watch) { repaintWords(ctl, language.known) }
 }
 
 /** Mining: a pickaxe (Material has none). Handle up to the right, the curved head across its top. */

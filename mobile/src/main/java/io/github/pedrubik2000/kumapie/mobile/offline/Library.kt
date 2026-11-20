@@ -195,6 +195,8 @@ class Library(context: Context, val settings: Settings) {
         addonsFor?.takeIf { it.first == urls }?.second ?: io.github.pedrubik2000.kumapie.data.Addons(urls, settings.prefs).also { addonsFor = urls to it }
     }
 
+    private fun playableHere(shows: List<Show>) = if (settings.server.isNotEmpty()) shows else shows.map { s -> s.copy(episodes = s.episodes.filter { e ->
+        s.kind == "visual_novels" || if (LocalEpisodes.isLocal(e.id)) local.video(e.id).exists() else downloads.isComplete(e.id) }) }.filter { it.episodes.isNotEmpty() }
     /** The shows, and whether they came from the saved copy (offline); [saved]: the saved copy at once, without the PC. */
     suspend fun shows(saved: Boolean = false): Pair<List<Show>, Boolean> {
         showMeta // starts the YouTube pictures fill once
@@ -218,14 +220,12 @@ class Library(context: Context, val settings: Settings) {
         val pcOwn = pc.map { s -> s.copy(episodes = s.episodes.filterNot { LocalEpisodes.isLocal(it.id) }) }.filter { it.episodes.isNotEmpty() }
         // A device-made show without a match of its own: the PC's poster (the PC looks every show up).
         val pcPoster = pc.flatMap { s -> s.episodes.map { it.id to s.poster } }.toMap()
-        // Its easy scenes too: only the PC counts them (against the known words this phone sent); the device's list has 0.
-        // Its lines too: the device's own list counts what its file holds (scenes, for one made before 2026-11-17),
-        // and easy lines over that showed "316% easy".
+        // Easy scenes and lines: the PC's count (the device's list has 0 easy scenes; its own lines over that showed "316% easy").
         val pcCount = pc.flatMap { s -> s.episodes.map { it.id to it } }.toMap()
         val mineShown = mine.map { s -> s.copy(episodes = s.episodes.map { e -> pcCount[e.id]?.let { p -> e.copy(easy = p.easy, scenes = p.scenes, seen = p.seen, watchedFlag = p.watchedFlag) } ?: e }) }
             .map { s -> if (s.poster.isNotEmpty()) s else s.copy(poster = s.episodes.firstNotNullOfOrNull { pcPoster[it.id]?.ifEmpty { null } } ?: "") }
         val m = progress.merged
-        return (mineShown + pcOwn).also { lastShows = it }.map { s ->
+        return withContext(Dispatchers.IO) { playableHere(mineShown + pcOwn) }.also { lastShows = it }.map { s ->
             // A "not watched" mark: the PC's own count is from before it, only the merged scenes count.
             s.copy(episodes = s.episodes.map { e -> e.copy(resume = m.pos[e.id] ?: e.resume, resumedAt = maxOf(e.resumedAt, m.posAt[e.id] ?: 0),
                 // Lines heard: the PC's count; after a "not watched" here it may still be the old one until the PC knows.

@@ -30,6 +30,7 @@ internal val esCore: Map<String, String> = mapOf(
     "%d days" to "%d días",
     // Server and updates
     "HTTP %1\$d for %2\$s" to "HTTP %1\$d para %2\$s",
+    "No PC for %s" to "Sin PC para %s",
     "GitHub answered %d" to "GitHub respondió %d",
     "download failed: HTTP %d" to "falló la descarga: HTTP %d",
     "status %d" to "estado %d",

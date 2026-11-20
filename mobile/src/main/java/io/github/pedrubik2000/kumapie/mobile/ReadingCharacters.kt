@@ -34,6 +34,7 @@ object ReadingCharacters {
 
     /** Sends the titles, then imports a newer characters' dictionary if the PC has one. Blocking: call off the UI thread. */
     fun sync(context: Context, settings: Settings) = runCatching {
+        if (settings.server.isEmpty()) return@runCatching
         val works = settings.prefs.getStringSet(WORKS, emptySet()).orEmpty()
         if (works.isNotEmpty()) post("${settings.server}/api/characters/works", JSONObject().put("works", JSONArray(works.toList())).toString())
         // Shared steps with the TV's dictionaries (YomitanDictionaries.pcJapanese / importFromPc).

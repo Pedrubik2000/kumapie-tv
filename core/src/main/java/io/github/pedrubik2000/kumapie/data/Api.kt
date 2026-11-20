@@ -17,7 +17,6 @@ import java.net.URL
 class Api(private val base: String, private val person: String = "") : Backend, Discovery {
     private val whose get() = if (person.isEmpty()) "" else "?person=$person"
 
-
     /** A server path ("/api/tv/thumb/abc.jpg") as a full URL. */
     fun url(path: String): String = if (path.startsWith("http")) path else base + path
 
@@ -359,7 +358,7 @@ class Api(private val base: String, private val person: String = "") : Backend, 
         withContext(Dispatchers.IO) {
             val path = "/api/aniworld/upload/$id/" + java.net.URLEncoder.encode(name, "UTF-8").replace("+", "%20")
             fun put(offset: Long, buf: ByteArray, n: Int): Long {
-                val conn = URL(url("$path?offset=$offset&total=$size")).openConnection() as HttpURLConnection
+                val conn = open("$path?offset=$offset&total=$size")
                 conn.connectTimeout = 8_000
                 conn.readTimeout = 60_000
                 conn.requestMethod = "PUT"
@@ -392,8 +391,9 @@ class Api(private val base: String, private val person: String = "") : Backend, 
             "$id/$name"
         }
 
+    private fun open(path: String) = if (base.isEmpty() && !path.startsWith("http")) throw NoPc(path) else URL(url(path)).openConnection() as HttpURLConnection
     private suspend fun post(path: String, body: String, readTimeout: Int = 20_000): String = withContext(Dispatchers.IO) {
-        val conn = URL(url(path)).openConnection() as HttpURLConnection
+        val conn = open(path)
         conn.connectTimeout = 8_000
         conn.readTimeout = readTimeout
         conn.setRequestProperty("Connection", "close")
@@ -417,7 +417,7 @@ class Api(private val base: String, private val person: String = "") : Backend, 
 
     private suspend fun getOnce(path: String, readTimeout: Int): String = withContext(Dispatchers.IO) {
         val started = System.currentTimeMillis()
-        val conn = URL(url(path)).openConnection() as HttpURLConnection
+        val conn = open(path)
         conn.connectTimeout = 8_000
         conn.readTimeout = readTimeout
         conn.setRequestProperty("Connection", "close") // the PC closes every connection (HTTP/1.0): a pooled one came back dead ("unexpected end of stream")

@@ -81,8 +81,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import io.github.pedrubik2000.kumapie.data.ended
 import io.github.pedrubik2000.kumapie.data.watchReady
+import io.github.pedrubik2000.kumapie.data.StreamStart
+import io.github.pedrubik2000.kumapie.data.next
+import io.github.pedrubik2000.kumapie.data.nextQuery
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.objects
@@ -227,7 +229,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
     fun play(e: JSONObject) {
         val name = "${title.name} ${e.optInt("number")}"
         // The PC got a file ready for it: no file list, it starts at once.
-        if (e.optBoolean("ready")) onWatch(mapOf("lang" to "ja", "type" to title.type, "id" to e.getString("id"), "title" to name, "show" to title.name))
+        if (e.optBoolean("ready")) onWatch(StreamStart.ready(title, e.getString("id"), name))
         else picking = e.getString("id") to name
     }
     Box(Modifier.fillMaxSize().background(Colors.background)) {
@@ -332,13 +334,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
             Files(library, title.type, id) { f ->
                 picking = null
                 // An addon's link (no PC): it plays as it is, its Japanese lines live, its words made on the phone.
-                // Its title goes on Home, to come back to (as the TV).
-                if (f.has("url") && kept != true) scope.launch { runCatching { library.discovery.save(title, true) } }
-                if (f.has("url")) return@Files onWatch(mapOf("lang" to "ja", "type" to title.type, "id" to id, "url" to f.getString("url"),
-                    "file" to f.optString("file"), "title" to name, "show" to title.name))
-                onWatch(mapOf("lang" to "ja", "type" to title.type, "id" to id, "hash" to f.getString("hash"),
-                    "file" to f.getString("file"), "idx" to f.optInt("idx", -1).toString(), "title" to name, "show" to title.name,
-                    "label" to f.optString("short")))
+                scope.launch { onWatch(StreamStart.picked(library.discovery, title, id, name, f, kept).first) }
             }
         }
     }
@@ -399,13 +395,13 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     }
     DisposableEffect(Unit) { onDispose { player.release() } } // after ScenePlayer's own dispose (ownsPlayer = false)
     // An addon's link (no PC, kumapie for other people): no polling; Jimaku is asked on the phone with the user's key.
-    val alone = query["url"].orEmpty()
+    val alone = remember { StreamStart.of(query, library.settings.prefs) as? StreamStart.Alone }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // No PC: lines, words at once, the late fit, the shift and the place, shared with the TV (AloneStream).
     val s = remember {
-        if (alone.isEmpty()) null else io.github.pedrubik2000.kumapie.lang.AloneStream(library.settings.prefs,
+        alone?.let { io.github.pedrubik2000.kumapie.lang.AloneStream(library.settings.prefs,
             library.discovery as? io.github.pedrubik2000.kumapie.data.Addons, player, query["id"].orEmpty(), query["type"] ?: "series",
-            query["show"].orEmpty(), query["title"].orEmpty(), alone, file) { error = it }
+            query["show"].orEmpty(), query["title"].orEmpty(), it.url, file) { e -> error = e } }
     }
     val live = remember { s?.live ?: LiveLines(player) { library.api.discoverSubs(query["type"].orEmpty(), query["id"].orEmpty(), file) } }
     DisposableEffect(Unit) { onDispose { s?.leave() } }
@@ -414,21 +410,13 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     DisposableEffect(Unit) {
         val ended = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                // No PC: the next episode's file from the addons (the same release group if there is one).
-                if (state == Player.STATE_ENDED && alone.isNotEmpty()) scope.launch {
-                    val addons = library.discovery as? io.github.pedrubik2000.kumapie.data.Addons ?: return@launch
-                    // Shared with the TV (core data/Streaming.kt): a movie or a whole title has no next (it said "No files found").
-                    runCatching { addons.ended(query["type"].orEmpty(), query["id"].orEmpty(), file) { step = tr("Next: episode %1\$d…", it) } }.onSuccess { e ->
-                        val n = e?.next
-                        if (e == null) return@onSuccess
-                        if (n == null) error = tr("No files found for episode %1\$d", e.n) else onNext(mapOf("lang" to (query["lang"] ?: "ja"), "type" to query["type"].orEmpty(),
-                            "id" to n.first, "url" to n.second.getString("url"), "file" to n.second.optString("file"), "show" to query["show"].orEmpty(),
-                            "title" to "${query["show"].orEmpty()} ${e.n}"))
-                    }.onFailure { error = it.message ?: it.toString() }
+                if (state != Player.STATE_ENDED) return
+                // No PC: the next episode's file from the addons (core data/Streaming.kt, shared with the TV); with a PC, its next.
+                if (alone == null) { nextQuery(query, next)?.let(onNext); return }
+                val addons = library.discovery as? io.github.pedrubik2000.kumapie.data.Addons ?: return
+                scope.launch {
+                    runCatching { addons.next(query) { step = tr("Next: episode %1\$d…", it) } }.onSuccess { it?.let(onNext) }.onFailure { error = it.message ?: it.toString() }
                 }
-                if (state == Player.STATE_ENDED && next.isNotEmpty()) onNext(mapOf("lang" to (query["lang"] ?: "ja"),
-                    "type" to query["type"].orEmpty(), "id" to next, "show" to query["show"].orEmpty(),
-                    "title" to "${query["show"].orEmpty()} ${next.substringAfterLast(':')}"))
             }
 
             // Plain playback had no word of it: the video just stood still under "Words coming".
@@ -443,15 +431,12 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     if (s != null) {
         LaunchedEffect(Unit) {
             // Where it was left on this device (no PC to keep it), as the TV does.
-            player.setMediaItem(MediaItem.fromUri(alone), ((io.github.pedrubik2000.kumapie.lang.AloneStream.resume(library.settings.prefs, s.id) ?: 0.0) * 1000).toLong())
+            player.setMediaItem(MediaItem.fromUri(s.video), ((alone?.resumeAt ?: 0.0) * 1000).toLong())
             player.prepare()
             player.play()
             playing = true
             step = tr("Japanese lines from Jimaku…")
-            while (true) { // saved as it plays: the word player takes this player over, and releases it
-                delay(5_000)
-                s.savePlace(player.currentPosition, player.duration)
-            }
+            s.keepPlace() // saved as it plays: the word player takes this player over, and releases it
         }
         // Jimaku's lines are all there: the episode is made at once ([AloneStream.build]); the late fit moves its lines.
         LaunchedEffect(live.lines) {

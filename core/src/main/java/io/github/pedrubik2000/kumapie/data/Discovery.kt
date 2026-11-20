@@ -104,15 +104,6 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         return out
     }
 
-    suspend fun next(type: String, id: String, file: String): Pair<String, JSONObject>? {
-        val next = nextId(type, id) ?: return null
-        val files = discoverStreams(type, next).objects()
-        val plays = files.filter { Playable.missing(it.optString("label") + " " + it.optString("about") + " " + it.optString("file")).isEmpty() }
-        val group = Regex("""^\[[^\]]+\]""").find(file)?.value
-        val f = plays.firstOrNull { group != null && it.optString("file").startsWith(group, ignoreCase = true) } ?: plays.firstOrNull() ?: files.firstOrNull()
-        return f?.let { next to it }
-    }
-
     suspend fun english(type: String, id: String, japanese: List<Double>): List<Jimaku.Line> = fitEnglish(englishFiles(type, id), japanese)
 
     suspend fun englishFiles(type: String, id: String): List<List<Jimaku.Line>> {

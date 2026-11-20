@@ -1,6 +1,6 @@
 # slopCheck's baseline (build.gradle.kts): shrinks, never grows. Rewritten by `gradlew slopCheck -PslopBaseline`.
 comments :lang 2115
-comments :mobile 811
+comments :mobile 809
 comments app/src/main/java/io/github/pedrubik2000/kumapie/data/KeySettings.kt 1
 comments app/src/main/java/io/github/pedrubik2000/kumapie/player/PlayerKeys.kt 23
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/Arcade.kt 45
@@ -65,7 +65,7 @@ forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/Settings.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/ShowLevel.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/player/LiveLines.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/ui/Subtitles.kt 1
-lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 425
+lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 414
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 467
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 526
 lines core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 720
@@ -75,7 +75,7 @@ lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/KnownWords.kt 677
 lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Miner.kt 582
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/local/ProcessWorker.kt 718
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/offline/Library.kt 416
-lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/DiscoverScreen.kt 562
+lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/DiscoverScreen.kt 547
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/HomeScreen.kt 624
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/PlayerScreen.kt 734
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/SettingsScreen.kt 951

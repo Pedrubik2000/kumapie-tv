@@ -165,9 +165,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
             onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e ->
                 when (val r = io.github.pedrubik2000.kumapie.data.route(s, e, hasPc = true)) {
                     io.github.pedrubik2000.kumapie.data.Route.Player -> stack.add(Screen.Player(s, e))
-                    is io.github.pedrubik2000.kumapie.data.Route.Watch -> context.startActivity(android.content.Intent(context, StreamActivity::class.java).setData(
-                        r.query.entries.fold(android.net.Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) ->
-                            b.appendQueryParameter(k, v) }.build()))
+                    is io.github.pedrubik2000.kumapie.data.Route.Watch -> context.startActivity(StreamActivity.intent(context, r.query))
                     is io.github.pedrubik2000.kumapie.data.Route.Discover -> stack.add(Screen.Discover(r.found))
                 }
             },

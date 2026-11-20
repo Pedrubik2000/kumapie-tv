@@ -31,7 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.pedrubik2000.kumapie.data.Api
-import io.github.pedrubik2000.kumapie.data.ended
+import io.github.pedrubik2000.kumapie.data.StreamStart
+import io.github.pedrubik2000.kumapie.data.next
+import io.github.pedrubik2000.kumapie.data.nextQuery
 import io.github.pedrubik2000.kumapie.data.watchReady
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
@@ -57,16 +59,17 @@ class StreamActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val settings = Settings(this)
         val video = intent.data?.toString()
-        if (video != null && Uri.parse(video).let { it.scheme == "kumapie" && it.host == "play" }) {
+        val start = video?.let(Uri::parse)?.takeIf { it.scheme == "kumapie" && it.host in setOf("play", "watch") }?.let { StreamStart.of(query(it), settings.prefs) }
+        if (start is StreamStart.Alone) {
             Tr.use(if (settings.server.isEmpty()) settings.menuLanguage else settings.speaks)
-            return setContent { KumapieTheme { Alone(settings, Uri.parse(video)) } }
+            return setContent { KumapieTheme { Alone(settings, Uri.parse(video), start) } }
         }
         if (video == null || settings.server.isEmpty()) {
             Toast.makeText(this, tr("Open kumapie once and set the PC's address first"), Toast.LENGTH_LONG).show()
             return finish()
         }
         Tr.use(settings.speaks)
-        setContent { KumapieTheme { Stream(settings, video) } }
+        setContent { KumapieTheme { Stream(settings, video, start as? StreamStart.Pc) } }
     }
 
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
@@ -81,7 +84,7 @@ class StreamActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Stream(settings: Settings, video: String) {
+    private fun Stream(settings: Settings, video: String, pc: StreamStart.Pc?) {
         val api = remember { Api(settings.server, settings.profile) }
         var detail by remember { mutableStateOf<EpisodeDetail?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
@@ -94,7 +97,7 @@ class StreamActivity : ComponentActivity() {
         LaunchedEffect(Unit) {
             personal.sync(api::personalDictionary)
             runCatching {
-                if (link.host == "watch") return@runCatching watched(api, link, { step = it }, { if (url == null) url = it }, { next = it })
+                if (pc != null) return@runCatching watched(api, pc.query, { step = it }, { if (url == null) url = it }, { next = it })
                 if (link.scheme?.startsWith("kumapie") == true) return@runCatching prepared(api, link) { step = it }
                 val subs = subtitles()
                 val (lang, spoken) = SPOKEN.firstNotNullOfOrNull { l -> subs[l]?.let { l to it } }
@@ -126,7 +129,7 @@ class StreamActivity : ComponentActivity() {
     }
 
     private suspend fun prepared(api: Api, link: Uri, shown: (String) -> Unit): EpisodeDetail {
-        val query = link.queryParameterNames.associateWith { link.getQueryParameter(it).orEmpty() }
+        val query = query(link)
         while (true) {
             val r = api.prepare(query)
             when (r.optString("state")) {
@@ -138,8 +141,7 @@ class StreamActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun watched(api: Api, link: Uri, shown: (String) -> Unit, video: (String) -> Unit, onNext: (String) -> Unit): EpisodeDetail {
-        val query = link.queryParameterNames.associateWith { link.getQueryParameter(it).orEmpty() }
+    private suspend fun watched(api: Api, query: Map<String, String>, shown: (String) -> Unit, video: (String) -> Unit, onNext: (String) -> Unit): EpisodeDetail {
         watchFile = query["file"].orEmpty()
         val r = api.watchReady(query, shown, video, onNext) { watchFile = it }
         val d = api.episode(r.getString("id"))
@@ -160,13 +162,8 @@ class StreamActivity : ComponentActivity() {
                 }
 
                 override fun onPlaybackStateChanged(state: Int) {
-                    if (state != Player.STATE_ENDED || upcoming.isEmpty()) return
-                    val show = link.getQueryParameter("show").orEmpty()
-                    startActivity(Intent(this@StreamActivity, StreamActivity::class.java).setData(Uri.parse("kumapie://watch").buildUpon()
-                        .appendQueryParameter("lang", link.getQueryParameter("lang") ?: "ja").appendQueryParameter("type", link.getQueryParameter("type"))
-                        .appendQueryParameter("id", upcoming).appendQueryParameter("show", show)
-                        .appendQueryParameter("title", "$show ${upcoming.substringAfterLast(':')}").build()))
-                    finish()
+                    if (state != Player.STATE_ENDED) return
+                    nextQuery(query(link), upcoming)?.let { startActivity(intent(this@StreamActivity, it)); finish() }
                 }
             }
             p.addListener(ended)
@@ -191,17 +188,17 @@ class StreamActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Alone(settings: Settings, link: Uri) {
+    private fun Alone(settings: Settings, link: Uri, start: StreamStart.Alone) {
         val id = link.getQueryParameter("id").orEmpty()
         val show = link.getQueryParameter("show").orEmpty()
         val scope = androidx.compose.runtime.rememberCoroutineScope()
-        val p = rememberPlayer(link.getQueryParameter("url").orEmpty(), remember { io.github.pedrubik2000.kumapie.lang.AloneStream.resume(settings.prefs, id) }, "ja")
+        val p = rememberPlayer(start.url, start.resumeAt, "ja")
         remember(p) { player = p; p.playWhenReady = true }
         var note by remember { mutableStateOf<String?>(null) }
         val s = remember(p) {
             io.github.pedrubik2000.kumapie.lang.AloneStream(settings.prefs, io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs), p, id,
                 link.getQueryParameter("type") ?: "series", show, link.getQueryParameter("title") ?: show,
-                link.getQueryParameter("url").orEmpty(), link.getQueryParameter("file").orEmpty()) { note = it }
+                start.url, link.getQueryParameter("file").orEmpty()) { note = it }
         }
         val live = s.live
         DisposableEffect(p) {
@@ -211,18 +208,18 @@ class StreamActivity : ComponentActivity() {
                 }
 
                 override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_ENDED) scope.launch { playNext(settings, link) { note = it } }
+                    if (state == Player.STATE_ENDED) scope.launch { playNext(settings, query(link)) { note = it } }
                 }
             }
             p.addListener(listener)
             onDispose {
                 p.removeListener(listener)
-                s.savePlace(p.currentPosition, p.duration)
                 s.leave()
                 alone = null; aloneView = null
             }
         }
         remember(live) { alone = live }
+        LaunchedEffect(s) { s.keepPlace() }
         LaunchedEffect(live) { live.run() }
         LaunchedEffect(live.noLines) { if (live.noLines && note == null) note = tr("No Japanese subtitles: none in this file, none on Jimaku") }
         val label = shiftLabel(live)
@@ -270,18 +267,10 @@ class StreamActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun playNext(settings: Settings, link: Uri, say: (String) -> Unit) {
-        val id = link.getQueryParameter("id").orEmpty()
-        val type = link.getQueryParameter("type") ?: "series"
+    private suspend fun playNext(settings: Settings, query: Map<String, String>, say: (String) -> Unit) {
         val addons = io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)
-        val e = runCatching { addons.ended(type, id, link.getQueryParameter("file").orEmpty()) { say(tr("Next: episode %1\$d…", it)) } }
-            .getOrElse { return say(it.message ?: it.toString()) } ?: return
-        val (next, f) = e.next ?: return say(tr("No files found for episode %1\$d", e.n))
-        val show = link.getQueryParameter("show").orEmpty()
-        startActivity(Intent(this, StreamActivity::class.java).setData(Uri.parse("kumapie://play").buildUpon().apply {
-            listOf("url" to f.getString("url"), "type" to type, "id" to next, "title" to "$show ${e.n}",
-                "show" to show, "file" to f.optString("file")).forEach { (k, v) -> appendQueryParameter(k, v) }
-        }.build()))
+        val next = runCatching { addons.next(query) { say(tr("Next: episode %1\$d…", it)) } }.getOrElse { return say(it.message ?: it.toString()) } ?: return
+        startActivity(intent(this, next))
         finish()
     }
 
@@ -315,9 +304,13 @@ class StreamActivity : ComponentActivity() {
         String(bytes, Charsets.UTF_8)
     }
 
-    private companion object {
-        val SPOKEN = listOf("ja", "de", "en")
-        val CODES = mapOf(
+    companion object {
+        fun intent(context: android.content.Context, query: Map<String, String>): Intent = Intent(context, StreamActivity::class.java)
+            .setData(query.entries.fold(Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) -> b.appendQueryParameter(k, v) }.build())
+
+        private fun query(link: Uri) = link.queryParameterNames.associateWith { link.getQueryParameter(it).orEmpty() }
+        private val SPOKEN = listOf("ja", "de", "en")
+        private val CODES = mapOf(
             "ja" to setOf("ja", "jp", "jpn", "japanese"), "de" to setOf("de", "ger", "deu", "german"),
             "en" to setOf("en", "eng", "english"), "es" to setOf("es", "spa", "spanish"),
         )

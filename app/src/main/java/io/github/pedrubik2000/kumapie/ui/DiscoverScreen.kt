@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -62,6 +60,7 @@ import coil3.compose.AsyncImage
 import io.github.pedrubik2000.kumapie.StreamActivity
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Found
+import io.github.pedrubik2000.kumapie.data.StreamStart
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.launch
@@ -269,9 +268,7 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
     fun play(e: JSONObject) {
         val name = "${title.name} ${e.optInt("number")}"
         // The PC got a file ready for it: no file list, it starts at once.
-        if (e.optBoolean("ready")) context.startActivity(Intent(context, StreamActivity::class.java).setData(Uri.parse("kumapie://watch").buildUpon()
-            .appendQueryParameter("lang", "ja").appendQueryParameter("type", title.type).appendQueryParameter("id", e.getString("id"))
-            .appendQueryParameter("title", name).appendQueryParameter("show", title.name).build()))
+        if (e.optBoolean("ready")) context.startActivity(StreamActivity.intent(context, StreamStart.ready(title, e.getString("id"), name)))
         else picking = e.getString("id") to name
     }
     // The files or an episode's menu on the right; else the episodes as a row of wide cards at the bottom (mockups 2026-11-18).
@@ -340,19 +337,11 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
                                 Line(i, f.optString("label"), f.optString("about"), null) {
                                     // An addon's stream (no PC): a link that plays as it is, with its live Japanese lines.
                                     // Its title goes on Home, to come back to (no PC keeps "Continue watching").
-                                    if (f.has("url") && kept != true) scope.launch { runCatching { api.save(title, true) }.onSuccess { l -> kept = l.any { it.id == title.id } } }
-                                    if (f.has("url")) return@Line context.startActivity(Intent(context, StreamActivity::class.java).setData(
-                                        Uri.parse("kumapie://play").buildUpon().apply {
-                                            listOf("url" to f.getString("url"), "type" to title.type, "id" to pick.first, "title" to pick.second,
-                                                "show" to title.name, "file" to f.optString("file")).forEach { (k, v) -> appendQueryParameter(k, v) }
-                                        }.build()))
-                                    val link = Uri.parse("kumapie://watch").buildUpon().apply {
-                                        listOf("lang" to "ja", "type" to title.type, "id" to pick.first, "hash" to f.getString("hash"),
-                                            "file" to f.getString("file"), "idx" to f.optInt("idx", -1).toString(), "title" to pick.second, "show" to title.name,
-                                            "label" to f.optString("short"))
-                                            .forEach { (k, v) -> appendQueryParameter(k, v) }
-                                    }.build()
-                                    context.startActivity(Intent(context, StreamActivity::class.java).setData(link))
+                                    scope.launch {
+                                        val (query, list) = StreamStart.picked(api, title, pick.first, pick.second, f, kept)
+                                        list?.let { l -> kept = l.any { it.id == title.id } }
+                                        context.startActivity(StreamActivity.intent(context, query))
+                                    }
                                 }
                             }
                         }

@@ -54,6 +54,14 @@ val slopForbidden = listOf(
     Forbidden("duration * 0.95", Regex("""duration\s*\*\s*0\.9"""), emptyList(), "use partway() / nextUp() (core data/ShowLevel.kt): partway = over 20 s in and over 2 min left", listOf("app", "mobile")),
     Forbidden("- 120 / > 120 partway test", Regex("""(duration\s*-.*[<>]=?\s*120\b)|(\b120\s*[<>])"""), listOf("/data/ShowLevel.kt"),
         "use partway() / finished() (core data/ShowLevel.kt): \"under 2 min left = watched\" lives there once", listOf("app", "mobile", "core")),
+    Forbidden("AloneStream.resume(", Regex("""AloneStream\.resume\("""), emptyList(),
+        "use StreamStart (core data/Streaming.kt): Alone(url, resumeAt) or Pc(query) is decided there once", listOf("app", "mobile")),
+    Forbidden("savePlace(", Regex("""\bsavePlace\("""), emptyList(),
+        "use StreamStart: AloneStream.keepPlace() saves the place every 5 s and leave() on the way out, one saver for both players", listOf("app", "mobile")),
+    Forbidden(".save(title, true)", Regex("""\.save\(\s*title\s*,\s*true\s*\)"""), emptyList(),
+        "use StreamStart.picked(): a picked addon link puts its title on Home there", listOf("app", "mobile")),
+    Forbidden(".ended( / nextId(", Regex("""\.ended\(|\bnextId\("""), emptyList(),
+        "use nextQuery() / Addons.next(query) (core data/Streaming.kt): the next episode's query is built there once", listOf("app", "mobile")),
 )
 
 /** [src] with comments removed and string contents blanked (newlines kept), and its number of comments. */

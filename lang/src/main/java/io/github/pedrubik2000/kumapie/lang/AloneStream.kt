@@ -10,7 +10,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 
 class AloneStream(
-    private val prefs: SharedPreferences, private val addons: Addons?, player: ExoPlayer,
+    private val prefs: SharedPreferences, private val addons: Addons?, private val player: ExoPlayer,
     val id: String, val type: String, val show: String, val title: String, val video: String, private val file: String,
     onError: (String?) -> Unit,
 ) {
@@ -74,10 +74,17 @@ class AloneStream(
         prefs.edit().putString(fileKey(id), file).apply()
     }
 
-    fun leave() { if (built == null) saveOffset() }
+    suspend fun keepPlace() {
+        while (true) { delay(PLACE_EVERY); savePlace(player.currentPosition, player.duration) }
+    }
+
+    fun leave() {
+        savePlace(player.currentPosition, player.duration)
+        if (built == null) saveOffset()
+    }
 
     companion object {
-        fun resume(prefs: SharedPreferences, id: String): Double? = prefs.getFloat("alone_pos_$id", 0f).toDouble().takeIf { it > 5 }
+        const val PLACE_EVERY = 5_000L
 
         fun offKey(id: String) = "alone_off_" + id.removePrefix("alone:")
 

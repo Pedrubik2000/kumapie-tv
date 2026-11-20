@@ -211,7 +211,7 @@ private fun androidx.compose.foundation.layout.BoxScope.Backdrop(image: String) 
     // Picture and gradients drawn once into a layer: two full-screen gradients redrawn on every frame took the
     // Chromecast's GPU 33-76 ms a frame while the stream list came in (10-30 without them, 2026-11-19).
     Box(Modifier.matchParentSize().graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen)) {
-        AsyncImage(image, null, contentScale = ContentScale.Crop, alignment = Alignment.TopEnd, modifier = Modifier.matchParentSize())
+        CoverPicture(image, Modifier.matchParentSize())
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Colors.background, 0.6f to Colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 0.75f to Colors.background)))
     }

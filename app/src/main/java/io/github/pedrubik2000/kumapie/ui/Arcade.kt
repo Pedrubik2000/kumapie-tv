@@ -130,6 +130,15 @@ fun Modifier.fadeTop(until: Float = 0.08f): Modifier = graphicsLayer { compositi
             blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
     }
 
+val glowCovered = androidx.compose.runtime.mutableStateOf(false)
+
+@androidx.compose.runtime.Composable
+fun CoverPicture(image: String, modifier: Modifier) {
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { glowCovered.value = false } }
+    coil3.compose.AsyncImage(image, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = androidx.compose.ui.Alignment.TopEnd,
+        modifier = modifier, onLoading = { glowCovered.value = false }, onSuccess = { glowCovered.value = true }, onError = { glowCovered.value = false })
+}
+
 /** Behind the menus: the page with a faint light from the top left (the old diagonal band is gone). */
 fun Modifier.arcadeBackdrop(): Modifier =
     // The glow painted once at a quarter size and stretched: a radial gradient over the whole screen on every frame
@@ -144,7 +153,7 @@ fun Modifier.arcadeBackdrop(): Modifier =
                 center = Offset(w * 0.15f, 0f), radius = w * 0.7f))
         }
         onDrawBehind {
-            drawImage(glow, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()),
+            if (!glowCovered.value) drawImage(glow, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()),
                 filterQuality = androidx.compose.ui.graphics.FilterQuality.Low)
         }
     }

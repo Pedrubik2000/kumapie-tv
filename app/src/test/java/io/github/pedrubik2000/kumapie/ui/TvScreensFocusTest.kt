@@ -161,6 +161,17 @@ class TvOnboardingTest {
         assertEquals(false, activity.isFinishing)
     }
 
+    @Test fun noJimakuKeyNoNextPastThePhoneStep() {
+        rule.setContent { TvOnboarding(Settings(LocalContext.current).apply { jimakuKey = "" }, onDone = {}) }
+        repeat(3) {
+            rule.onNodeWithText("Next").requestFocus()
+            rule.press(Key.DirectionCenter)
+            rule.waitForIdle()
+        }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Step 3 of 4").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Add your Jimaku key from your phone first: without it, streams get no Japanese lines.").assertExists()
+    }
+
     @Test fun aFailedDictionaryDownloadSaysSo() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()
         TvMining.fetching = null

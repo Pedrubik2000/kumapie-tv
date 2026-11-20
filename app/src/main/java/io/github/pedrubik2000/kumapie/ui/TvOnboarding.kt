@@ -45,6 +45,7 @@ const val ALONE_LANG = "alone_lang"
 fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
     var step by remember { mutableIntStateOf(0) }
     var lang by remember { mutableStateOf(settings.menuLanguage) }
+    var needKey by remember { mutableStateOf(false) }
     remember(lang) { Tr.use(lang) }
     val first = remember { FocusRequester() }
     Column(Modifier.fillMaxSize().padding(48.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -65,12 +66,21 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
                 }
             }
             1 -> TvJitenImport(settings)
-            2 -> PhonePage(settings)
+            2 -> {
+                PhonePage(settings, onSaved = { if (settings.jimakuKey.isNotBlank()) needKey = false })
+                if (needKey) Text(tr("Add your Jimaku key from your phone first: without it, streams get no Japanese lines."), color = Colors.accent, fontSize = 18.sp)
+            }
             else -> TvDownloads(settings)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (step > 0) Button(onClick = { step-- }) { Text(tr("Back")) }
-            Button(onClick = { if (step < STEPS - 1) step++ else { settings.prefs.edit().putBoolean(TV_ONBOARDED, true).apply(); onDone() } },
+            Button(onClick = {
+                when {
+                    step == PHONE_STEP && settings.jimakuKey.isBlank() -> needKey = true
+                    step < STEPS - 1 -> step++
+                    else -> { settings.prefs.edit().putBoolean(TV_ONBOARDED, true).apply(); onDone() }
+                }
+            },
                 modifier = if (step > 0) Modifier.focusRequester(first) else Modifier) {
                 Text((if (step < STEPS - 1) tr("Next") else tr("Start watching")))
             }
@@ -81,6 +91,7 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
 }
 
 private const val STEPS = 4
+private const val PHONE_STEP = 2
 
 @Composable
 internal fun TvJitenImport(settings: Settings) {

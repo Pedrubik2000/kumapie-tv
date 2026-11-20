@@ -94,6 +94,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                     Text(tr("kumapie shows each line in Japanese while you watch. They come from Jimaku, a free site of anime subtitles: make an account there, then copy your API key from Account."))
                     OutlinedButton(onClick = { open("https://jimaku.cc/login") }) { Text(tr("Open jimaku.cc")) }
                     KeyField(jimaku, { jimaku = it; settings.jimakuKey = it }, tr("Jimaku API key"), KeyService.JIMAKU)
+                    if (jimaku.isBlank()) Text(tr("Needed: without it, streams get no Japanese lines."), color = Colors.dim, fontSize = 14.sp)
                 }
                 "sources" -> {
                     Text(tr("What to watch"), fontSize = 22.sp)
@@ -125,7 +126,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (step > 0) OutlinedButton(onClick = { step-- }) { Text(tr("Back")) }
                 Spacer(Modifier.weight(1f))
-                Button(onClick = {
+                Button(enabled = keys[step] != "jimaku" || jimaku.isNotBlank(), onClick = {
                     if (keys[step] == "sources") saveSources()
                     if (step < steps - 1) step++ else { settings.prefs.edit().putBoolean(ONBOARDED, true).apply(); onDone() }
                 }) { Text(if (step < steps - 1) tr("Next") else tr("Start watching")) }

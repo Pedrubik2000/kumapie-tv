@@ -89,6 +89,8 @@ internal val esTv: Map<String, String> = mapOf(
     "There: your Jimaku key, your Real-Debrid token, Kitsu and your AniList username." to
         "Allí: tu clave de Jimaku, tu token de Real-Debrid, Kitsu y tu usuario de AniList.",
     "Japanese subtitles (Jimaku)" to "Subtítulos en japonés (Jimaku)",
+    "Add your Jimaku key from your phone first: without it, streams get no Japanese lines." to "Primero agrega tu clave de Jimaku desde el teléfono: sin ella, los videos no tienen las líneas en japonés.",
+    "Needed: without it, streams get no Japanese lines." to "Necesaria: sin ella, los videos no tienen las líneas en japonés.",
     "Videos (Torrentio with Real-Debrid)" to "Videos (Torrentio con Real-Debrid)",
     "Saved" to "Guardado",
     "Ideas and bugs" to "Ideas y errores",

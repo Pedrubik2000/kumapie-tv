@@ -403,7 +403,7 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
     // Streamed titles too (Japanese, as Discover), merged by when they were played.
     val ja = shows.any { it.lang == "ja" }
     var streams by remember { mutableStateOf(emptyList<Pair<Show, Episode>>()) }
-    LaunchedEffect(ja) { streams = if (ja) runCatching { library.api.going() }.getOrDefault(emptyList()) else emptyList() }
+    LaunchedEffect(ja) { streams = if (ja) runCatching { library.discovery.going() }.getOrDefault(emptyList()) else emptyList() }
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows, streams) // novels are read, not watched: they count too
     // Resume column beside the library only at expanded width (a tablet on its side); upright it's one column.
     val split = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840

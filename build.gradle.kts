@@ -37,9 +37,9 @@ listOf(":app", ":core").forEach { path ->
 // slopCheck: what detekt can't do, against slop.baseline (`gradlew slopCheck -PslopBaseline` rewrites it, on purpose only).
 // :app/:core src/main: no comments (a file may only lose them); :lang/:mobile: the comment count may not grow; a new file
 // is 400 lines at most and one already over may not grow (lang/jiten exempt: rule tables); no new file name ending in a
-// digit; the forbidden text below in :app/:core (detekt's ForbiddenImport misses a fully qualified name). Comments and
+// digit; the forbidden text below in its modules, :app/:core unless it names others (detekt's ForbiddenImport misses a fully qualified name). Comments and
 // strings are skipped when matching.
-data class Forbidden(val text: String, val re: Regex, val allowedIn: List<String>, val why: String)
+data class Forbidden(val text: String, val re: Regex, val allowedIn: List<String>, val why: String, val modules: List<String> = listOf("app", "core"))
 val slopForbidden = listOf(
     Forbidden("!!", Regex("!!"), emptyList(), "?.let { }, ?: return, or requireNotNull(x) { \"why\" }: a !! is a TV crash nobody can read"),
     Forbidden("Locale.getDefault(", Regex("""Locale\.getDefault\("""), listOf("/data/Settings.kt", "/i18n/"),
@@ -48,6 +48,8 @@ val slopForbidden = listOf(
     Forbidden("android.speech.tts.TextToSpeech", Regex("""^(?!import ).*\bandroid\.speech\.tts\.TextToSpeech\b"""), emptyList(), "one TextToSpeech per stream leaked: speak through Languages.of(lang).voice"),
     Forbidden("android.os.Handler", Regex("""^(?!import ).*\bandroid\.os\.Handler\b"""), emptyList(), "post and postDelayed outlive the screen: use LaunchedEffect / delay in a coroutine"),
     Forbidden("kotlinx.coroutines.runBlocking", Regex("""^(?!import ).*\bkotlinx\.coroutines\.runBlocking\b"""), emptyList(), "it freezes the main thread: use a coroutine scope"),
+    Forbidden("e.ready ->", Regex("""\be\.ready\s*->"""), emptyList(),
+        "use route() (core data/ShowLevel.kt): a Home card's Player / Watch / Discover is decided there once (no-PC Continue cards opened \"No PC for /api/tv/watch\")", listOf("app", "mobile")),
 )
 
 /** [src] with comments removed and string contents blanked (newlines kept), and its number of comments. */
@@ -111,11 +113,11 @@ tasks.register("slopCheck") {
                 val (code, comments) = kotlinCode(src)
                 if (m == "app" || m == "core") {
                     over("comments $rel", comments) { was -> "$rel: $comments comment(s), was $was. No comments in :app/:core src/main: the why goes in the commit message or kumapie_plan.md \"Decisions in force\", a rule the code must follow in detekt.yml or slopCheck." }
-                    val hits = code.lines().withIndex().flatMap { (n, line) ->
-                        slopForbidden.filter { it.re.containsMatchIn(line) && it.allowedIn.none { a -> a in rel } }.map { "$rel:${n + 1}: `${it.text}`: ${it.why}" }
-                    }
-                    over("forbid $rel", hits.size) { was -> "forbidden text ($was allowed in this file by the baseline):\n    " + hits.joinToString("\n    ") }
                 } else moduleComments.merge(":$m", comments, Int::plus)
+                val hits = code.lines().withIndex().flatMap { (n, line) ->
+                    slopForbidden.filter { m in it.modules && it.re.containsMatchIn(line) && it.allowedIn.none { a -> a in rel } }.map { "$rel:${n + 1}: `${it.text}`: ${it.why}" }
+                }
+                over("forbid $rel", hits.size) { was -> "forbidden text ($was allowed in this file by the baseline):\n    " + hits.joinToString("\n    ") }
                 if ("/lang/jiten/" !in rel) {
                     val lines = src.trimEnd().lines().size
                     over("lines $rel", lines, 400) { was ->

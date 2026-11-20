@@ -87,3 +87,15 @@ fun resumeLine(e: Episode): String {
     val easy = if (e.easy > 0 && e.scenes > 0) e.easy * 100 / e.scenes else null
     return easy?.let { "$left · " + tr("%d%% easy", it) } ?: left
 }
+
+sealed interface Route {
+    data object Player : Route
+    data class Watch(val query: Map<String, String>) : Route
+    data class Discover(val found: Found) : Route
+}
+
+fun route(show: Show, episode: Episode, hasPc: Boolean): Route = when {
+    show.kind != "stream" -> Route.Player
+    hasPc && episode.ready -> Route.Watch(streamQuery(show, episode))
+    else -> Route.Discover(streamFound(show, episode))
+}

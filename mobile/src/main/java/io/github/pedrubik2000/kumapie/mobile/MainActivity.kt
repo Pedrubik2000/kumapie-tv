@@ -235,10 +235,10 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
                     else s.episodes.firstOrNull()?.let { e -> stack += Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e)) }
                 },
                 onPlay = { s, e ->
-                    stack += when { // a streamed card: its prepared file, else its page to pick one
-                        s.kind != "stream" -> Screen.Player(s, e)
-                        e.ready -> Screen.Watch(io.github.pedrubik2000.kumapie.data.streamQuery(s, e))
-                        else -> Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e))
+                    stack += when (val r = io.github.pedrubik2000.kumapie.data.route(s, e, server.isNotEmpty())) {
+                        io.github.pedrubik2000.kumapie.data.Route.Player -> Screen.Player(s, e)
+                        is io.github.pedrubik2000.kumapie.data.Route.Watch -> Screen.Watch(r.query)
+                        is io.github.pedrubik2000.kumapie.data.Route.Discover -> Screen.Discover(r.found)
                     }
                 },
                 onStats = { stack += Screen.Stats },

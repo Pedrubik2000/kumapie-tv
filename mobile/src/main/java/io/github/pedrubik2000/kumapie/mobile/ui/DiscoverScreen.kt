@@ -240,7 +240,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
             androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (m != null) {
-                    val first = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
+                    val first = remember(title.id) { library.discovery.goingNow()?.firstOrNull { it.first.id == title.id }?.second?.id }.let { g -> eps.firstOrNull { it.optString("id") == g } } ?: io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
                     Pill(if (first != null) tr("Episode %1\$d", first.optInt("number")) +
                         (if (first.optBoolean("ready") && first.optString("source").isNotEmpty()) " · " + first.optString("source") else "") else tr("Watch"),
                         { if (first != null) play(first) else picking = title.id to title.name }, primary = true, icon = Icons.Default.PlayArrow)

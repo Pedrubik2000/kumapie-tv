@@ -489,7 +489,7 @@ data class Episode(
     /** When [resume] was saved (epoch seconds, 0 = never): "Continue watching" lists the newest first. */
     val resumedAt: Long = 0,
     /** A streamed episode ([Show.kind] "stream", [Api.going]): the PC has a file ready, it plays at once. */
-    val ready: Boolean = true,
+    val ready: Boolean = false,
     /** Its spoken lines all played, by watched time ranges ([Ranges.watched]; the PC or the device's progress says so). */
     val watchedFlag: Boolean = false,
 ) {

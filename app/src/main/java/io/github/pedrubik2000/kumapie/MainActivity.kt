@@ -163,12 +163,12 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
     } else when (screen) {
         Screen.Home -> HomeScreen(api, settings, profile?.id.orEmpty(), profile?.name.orEmpty(),
             onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e ->
-                when {
-                    s.kind != "stream" -> stack.add(Screen.Player(s, e))
-                    e.ready -> context.startActivity(android.content.Intent(context, StreamActivity::class.java).setData(
-                        io.github.pedrubik2000.kumapie.data.streamQuery(s, e).entries.fold(android.net.Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) ->
+                when (val r = io.github.pedrubik2000.kumapie.data.route(s, e, hasPc = true)) {
+                    io.github.pedrubik2000.kumapie.data.Route.Player -> stack.add(Screen.Player(s, e))
+                    is io.github.pedrubik2000.kumapie.data.Route.Watch -> context.startActivity(android.content.Intent(context, StreamActivity::class.java).setData(
+                        r.query.entries.fold(android.net.Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) ->
                             b.appendQueryParameter(k, v) }.build()))
-                    else -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e)))
+                    is io.github.pedrubik2000.kumapie.data.Route.Discover -> stack.add(Screen.Discover(r.found))
                 }
             },
             onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },

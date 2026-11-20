@@ -263,6 +263,9 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
     if (menu != null && picking == null) BackHandler { menu = null }
     val t = meta?.let { api.found(it) } ?: title
     val eps = meta?.optJSONArray("episodes")?.objects().orEmpty()
+    // ▶ and the shelf's start. No PC: the episode Home's Continue watching shows (Eden of the East: Home said 2, ▶ played 1, 2026-11-19).
+    val going = remember(title.id) { api.goingNow()?.firstOrNull { it.first.id == title.id }?.second?.id }
+    val next = io.github.pedrubik2000.kumapie.data.nextUp(eps, going)
     fun play(e: JSONObject) {
         val name = "${title.name} ${e.optInt("number")}"
         // The PC got a file ready for it: no file list, it starts at once.
@@ -283,9 +286,6 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
             Text(t.line, color = Colors.text, fontSize = 16.sp, modifier = Modifier.padding(top = 6.dp))
             Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (meta != null) {
-                    // No PC: the episode Home's Continue watching shows (Eden of the East: Home said 2, ▶ played 1, 2026-11-19).
-                    val going = remember(title.id) { api.goingNow()?.firstOrNull { it.first.id == title.id }?.second?.id }
-                    val next = eps.firstOrNull { it.optString("id") == going } ?: io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
                     Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }, modifier = Modifier.focusRequester(main).focusProperties { if (!side) down = toEps }) {
                         Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) +
                             (if (next.optBoolean("ready") && next.optString("source").isNotEmpty()) " · " + next.optString("source") else "") else tr("Watch")))
@@ -366,7 +366,7 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
         if (!side) Column(Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp)) {
             Heading(tr("Episodes"), Modifier.padding(start = RAIL))
             // The row starts at the next episode (▶'s), which Down from the hero focuses.
-            val at = remember(m) { eps.indexOf(io.github.pedrubik2000.kumapie.data.nextEpisode(eps)).coerceAtLeast(0) }
+            val at = remember(m) { eps.indexOf(next).coerceAtLeast(0) }
             LazyRow(state = androidx.compose.foundation.lazy.rememberLazyListState(at), horizontalArrangement = Arrangement.spacedBy(20.dp),
                 contentPadding = PaddingValues(start = RAIL, end = 32.dp, top = 8.dp, bottom = 8.dp)) {
                 if (eps.isEmpty()) item { EpisodeCard(tr("Watch"), m.optString("year"), null, "", Modifier.focusRequester(toEps)) { picking = title.id to title.name } }

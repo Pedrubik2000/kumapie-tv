@@ -29,17 +29,33 @@ fun levelLine(s: Show): String {
  */
 fun continueRow(shows: List<Show>, streams: List<Pair<Show, Episode>> = emptyList()): List<Pair<Show, Episode>> =
     (shows.filter { it.kind != "reels" }.mapNotNull { s ->
-        val partway = s.episodes.filter { e ->
-            val at = e.resume ?: 0.0
-            !e.watched && e.duration > 0 && at > 20 && e.duration - at > 120
-        }.maxByOrNull { it.resumedAt }
+        val partway = s.episodes.filter { !it.watched && partway(it.resume, it.duration) }.maxByOrNull { it.resumedAt }
         val last = s.episodes.filter { it.resumedAt > 0 }.maxByOrNull { it.resumedAt }
-        val done = last != null && last !== partway && (last.watched || last.duration > 0 && last.duration - (last.resume ?: 0.0) <= 120)
+        val done = last != null && last !== partway && finished(last.watched, last.resume, last.duration)
         val next = if (done) s.episodes.drop(s.episodes.indexOf(last) + 1).firstOrNull { !it.watched } else null
         // The next one from the start, unless it was left partway itself.
-        (next?.let { n -> n.copy(resume = n.resume?.takeIf { it > 20 && n.duration - it > 120 }, resumedAt = last!!.resumedAt) } ?: partway)
+        (next?.let { n -> n.copy(resume = n.resume?.takeIf { partway(it, n.duration) }, resumedAt = last!!.resumedAt) } ?: partway)
             ?.let { s to it }
     } + streams).sortedByDescending { it.second.resumedAt }
+
+fun partway(at: Double?, duration: Double) = at != null && duration > 0 && at > 20 && duration - at > 120
+
+fun finished(watched: Boolean, at: Double?, duration: Double) = watched || at != null && duration > 0 && duration - at <= 120
+
+data class Watching(val id: String, val watched: Boolean, val resume: Double?, val duration: Double, val resumedAt: Long)
+
+fun <T> nextUp(eps: List<T>, going: String?, w: (T) -> Watching): T? {
+    val all = eps.map { it to w(it) }
+    return (all.firstOrNull { it.second.id == going }
+        ?: all.filter { !it.second.watched && partway(it.second.resume, it.second.duration) }.maxByOrNull { it.second.resumedAt }
+        ?: all.firstOrNull { (_, e) -> !finished(e.watched, e.resume, e.duration) })?.first ?: eps.firstOrNull()
+}
+
+fun nextUp(eps: List<Episode>, going: String?): Episode? = nextUp(eps, going) { Watching(it.id, it.watched, it.resume, it.duration, it.resumedAt) }
+
+@JvmName("nextUpJson")
+fun nextUp(eps: List<org.json.JSONObject>, going: String?): org.json.JSONObject? =
+    nextUp(eps, going) { Watching(it.optString("id"), it.optBoolean("watched"), null, 0.0, 0) }
 
 /** Home's categories, in this order (the PC's library folders). Reels (YouTube shorts made on a phone) are feed-only. */
 val KINDS = listOf("anime" to "Anime", "shows" to "Shows", "movies" to "Movies", "youtube" to "YouTube", "visual_novels" to "Visual novels")

@@ -16,7 +16,7 @@ comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/StatsScreen.kt 7
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/Theme.kt 9
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/UpdateDialog.kt 4
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/AniList.kt 7
-comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 118
+comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 117
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Backdrops.kt 5
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Backend.kt 8
 comments core/src/main/java/io/github/pedrubik2000/kumapie/data/Jimaku.kt 25
@@ -68,7 +68,7 @@ forbid core/src/main/java/io/github/pedrubik2000/kumapie/ui/Subtitles.kt 1
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 425
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 467
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 526
-lines core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 726
+lines core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 720
 lines core/src/main/java/io/github/pedrubik2000/kumapie/player/SceneController.kt 453
 lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Hoshidicts.kt 630
 lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/KnownWords.kt 677
@@ -79,4 +79,4 @@ lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/DiscoverScre
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/HomeScreen.kt 624
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/PlayerScreen.kt 734
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/SettingsScreen.kt 951
-lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/ShowScreen.kt 405
+lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/ShowScreen.kt 402

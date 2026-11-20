@@ -11,7 +11,7 @@ import org.junit.Test
 class StreamFixesTest {
     @Test fun movieHasNoNext() = assertEquals(null, Addons.nextId("movie", "kitsu:12345"))
     @Test fun wholeTitleHasNoNext() = assertEquals(null, Addons.nextId("series", "kitsu:12345"))
-    @Test fun nextEpisode() = assertEquals("kitsu:1:6", Addons.nextId("series", "kitsu:1:5"))
+    @Test fun nextId() =assertEquals("kitsu:1:6", Addons.nextId("series", "kitsu:1:5"))
     @Test fun nextImdb() = assertEquals("tt1:1:3", Addons.nextId("series", "tt1:1:2"))
 
     @Test fun vttWithoutHours() {

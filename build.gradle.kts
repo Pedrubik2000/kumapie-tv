@@ -50,6 +50,10 @@ val slopForbidden = listOf(
     Forbidden("kotlinx.coroutines.runBlocking", Regex("""^(?!import ).*\bkotlinx\.coroutines\.runBlocking\b"""), emptyList(), "it freezes the main thread: use a coroutine scope"),
     Forbidden("e.ready ->", Regex("""\be\.ready\s*->"""), emptyList(),
         "use route() (core data/ShowLevel.kt): a Home card's Player / Watch / Discover is decided there once (no-PC Continue cards opened \"No PC for /api/tv/watch\")", listOf("app", "mobile")),
+    Forbidden("nextEpisode(", Regex("""\bnextEpisode\("""), emptyList(), "use nextUp() (core data/ShowLevel.kt): which episode is next is one rule", listOf("app", "mobile", "core")),
+    Forbidden("duration * 0.95", Regex("""duration\s*\*\s*0\.9"""), emptyList(), "use partway() / nextUp() (core data/ShowLevel.kt): partway = over 20 s in and over 2 min left", listOf("app", "mobile")),
+    Forbidden("- 120 / > 120 partway test", Regex("""(duration\s*-.*[<>]=?\s*120\b)|(\b120\s*[<>])"""), listOf("/data/ShowLevel.kt"),
+        "use partway() / finished() (core data/ShowLevel.kt): \"under 2 min left = watched\" lives there once", listOf("app", "mobile", "core")),
 )
 
 /** [src] with comments removed and string contents blanked (newlines kept), and its number of comments. */

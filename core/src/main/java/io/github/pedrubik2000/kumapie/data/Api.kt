@@ -716,11 +716,5 @@ fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObje
 
 fun JSONObject.optIntOrNull(name: String): Int? = if (isNull(name)) null else optInt(name)
 
-/** A Discover title's ▶ episode: the one after the last watched, else the first the PC got ready, else the first. */
-fun nextEpisode(eps: List<JSONObject>): JSONObject? {
-    val last = eps.indexOfLast { it.optBoolean("watched") }
-    return if (last >= 0) eps.getOrNull(last + 1) ?: eps.last() else eps.firstOrNull { it.optBoolean("ready") } ?: eps.firstOrNull()
-}
-
 /** The PC names untitled episodes "Episode 3": in the menu language here (the parents' profiles are Spanish). */
 fun episodeTitle(t: String): String = Regex("""Episode (\d+)""").matchEntire(t)?.let { tr("Episode %d", it.groupValues[1].toInt()) } ?: t

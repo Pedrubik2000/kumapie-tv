@@ -38,6 +38,8 @@ import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
+import io.github.pedrubik2000.kumapie.data.continueRow
+import io.github.pedrubik2000.kumapie.data.nextUp
 import androidx.compose.ui.draw.blur
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -46,7 +48,7 @@ import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.launch
 
 /**
- * A show's poster and its episodes. Focus starts on the episode played most recently (or the first one). Holding OK on
+ * A show's poster and its episodes. Focus starts on the next episode ([nextUp]). Holding OK on
  * an episode: mark it, or its whole season, watched or not watched (every device).
  */
 @Composable
@@ -59,7 +61,7 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
         runCatching { api.shows() }.getOrNull()?.firstOrNull { it.id == initial.id }?.let { show = it }
     }
     val episodes = show.episodes.filter { it.scenes > 0 } // nothing to play scene by scene (a reel without speech)
-    val start = episodes.indices.filter { episodes[it].resume != null }.maxByOrNull { episodes[it].resumedAt } ?: 0
+    val start = episodes.indexOf(nextUp(episodes, continueRow(listOf(show)).firstOrNull()?.second?.id)).coerceAtLeast(0)
     val focus = remember { FocusRequester() }
     val list = rememberLazyListState()
 

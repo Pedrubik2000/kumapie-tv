@@ -107,11 +107,9 @@ fun ShowScreen(library: Library, initial: Show, onPlay: (Episode) -> Unit, onBac
     fun hasCopy(ep: Episode) = library.local.video(ep.id).exists()
     fun playable(ep: Episode) = !offline || states[ep.id] == DownloadState.Done ||
         (io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes.isLocal(ep.id) && hasCopy(ep))
-    // Play: the episode left partway most recently, else the first not watched to the end, else the first.
-    val next = show.episodes.filter(::playable).let { eps ->
-        eps.filter { e -> !e.watched && (e.resume ?: 0.0).let { it > 20 && it < e.duration * 0.95 } }.maxByOrNull { it.resumedAt }
-            ?: eps.firstOrNull { it.seen < it.scenes } ?: eps.firstOrNull()
-    }
+    // Play: the next one of those this device can play ([nextUp]: Home's Continue one first).
+    val next = io.github.pedrubik2000.kumapie.data.nextUp(show.episodes.filter(::playable),
+        io.github.pedrubik2000.kumapie.data.continueRow(listOf(show)).firstOrNull()?.second?.id)
     val header = @Composable { modifier: Modifier ->
         ShowHeader(library, show, meta, next, wide, onBack, onPlay, modifier,
             onFix = { fixing = true }.takeIf { !offline }) // device shows: kept here; PC shows: on the PC
@@ -278,8 +276,7 @@ private fun ShowHeader(library: Library, show: Show, meta: org.json.JSONObject?,
                     modifier = Modifier.clickable { all = !all })
             }
             if (next != null) {
-                val partway = (next.resume ?: 0.0).let { it > 20 && it < next.duration * 0.95 }
-                Pill(if (partway || next != show.episodes.first()) tr("Continue: %s", next.title) else tr("Play"), { onPlay(next) },
+                Pill(if (io.github.pedrubik2000.kumapie.data.partway(next.resume, next.duration) || next != show.episodes.first()) tr("Continue: %s", next.title) else tr("Play"), { onPlay(next) },
                     Modifier.padding(top = 6.dp), primary = true, icon = Icons.Default.PlayArrow)
             }
         }

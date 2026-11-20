@@ -246,10 +246,11 @@ fun HomeScreen(
     val (main, extra) = destinations(homeLang, onDiscover, onFeed, onDownloads, onStats, onImprove, onSearch, onReview) { onSettings(null) }
 
     val all = shows.orEmpty()
-    val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { l -> all.any { it.lang == l.code } }
+    val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { l -> all.any { it.lang == l.code } || (l.code == "ja" && library.settings.server.isEmpty()) }
     // The chosen language without shows (a parent's phone has only English; the default is German): the first that has some.
     val lang = if (shows == null || all.any { it.lang == homeLang }) homeLang else langs.firstOrNull()?.code ?: homeLang
     LaunchedEffect(lang) { if (lang != homeLang) onHomeLang(lang) }
+    val streams by androidx.compose.runtime.produceState(emptyList<Pair<Show, Episode>>(), lang) { value = if (lang == "ja") runCatching { library.discovery.going() }.getOrDefault(emptyList()) else emptyList() }
 
     // Glass (tablet): the bear and the language pill sit on the top picture and scroll away with it.
     val top = @Composable {
@@ -289,7 +290,7 @@ fun HomeScreen(
                     }
                     shows == null -> CircularProgressIndicator(Modifier.align(Alignment.Center).then(edge))
                     // Without a PC there are no episodes: what was kept from Discover, and Discover to find more.
-                    all.isEmpty() && library.settings.server.isEmpty() -> Column(Modifier.fillMaxSize().then(edge)) {
+                    all.isEmpty() && library.settings.server.isEmpty() && streams.isEmpty() -> Column(Modifier.fillMaxSize().then(edge)) {
                         Streaming(library, onDiscovered)
                         Column(Modifier.fillMaxWidth().weight(1f).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
@@ -298,13 +299,13 @@ fun HomeScreen(
                             TextButton(onClick = { adding = true }) { Text(tr("Add an episode")) }
                         }
                     }
-                    all.isEmpty() -> Column(Modifier.align(Alignment.Center).then(edge).padding(24.dp),
+                    all.isEmpty() && library.settings.server.isNotEmpty() -> Column(Modifier.align(Alignment.Center).then(edge).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(tr("No episodes yet"), style = MaterialTheme.typography.titleLarge)
                         Text(tr("Add a YouTube link or a video file."), color = Colors.dim, style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = { adding = true }) { Text(tr("Add an episode")) }
                     }
-                    else -> Rows(library, all.filter { it.lang == lang }, states, wide, onShow, onPlay,
+                    else -> Rows(library, all.filter { it.lang == lang }, streams, states, wide, onShow, onPlay,
                         streaming = { if (lang == "ja") Streaming(library, onDiscovered) }, top = top) { LangCard(library, lang, all, wide, onStats) }
                 }
             }
@@ -396,14 +397,10 @@ private fun HomeBar(onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Rows(library: Library, shows: List<Show>, states: Map<String, DownloadState>, wide: Boolean,
+private fun Rows(library: Library, shows: List<Show>, streams: List<Pair<Show, Episode>>, states: Map<String, DownloadState>, wide: Boolean,
                  onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit,
                  /** Discover titles kept on Home: after the episodes in progress (Home is for resuming fast). */
                  streaming: @Composable () -> Unit = {}, top: @Composable () -> Unit = {}, header: @Composable () -> Unit) {
-    // Streamed titles too (Japanese, as Discover), merged by when they were played.
-    val ja = shows.any { it.lang == "ja" }
-    var streams by remember { mutableStateOf(emptyList<Pair<Show, Episode>>()) }
-    LaunchedEffect(ja) { streams = if (ja) runCatching { library.discovery.going() }.getOrDefault(emptyList()) else emptyList() }
     val going = io.github.pedrubik2000.kumapie.data.continueRow(shows, streams) // novels are read, not watched: they count too
     // Resume column beside the library only at expanded width (a tablet on its side); upright it's one column.
     val split = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
@@ -441,7 +438,7 @@ private fun Rows(library: Library, shows: List<Show>, states: Map<String, Downlo
             }
         }
         item(key = "streaming") { Box(Modifier.padding(start = GUTTER - 16.dp)) { streaming() } }
-        item(key = "tabs") {
+        if (kinds.isNotEmpty()) item(key = "tabs") {
             Row(Modifier.fillMaxWidth().padding(end = 24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Section(tr("Your shows"))
                 if (kinds.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 28.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -550,7 +547,7 @@ private fun WideTile(library: Library, s: Show, e: Episode, onPlay: () -> Unit) 
 @Composable
 private fun Streaming(library: Library, onOpen: (io.github.pedrubik2000.kumapie.data.Found) -> Unit) {
     var kept by remember { mutableStateOf(emptyList<io.github.pedrubik2000.kumapie.data.Found>()) }
-    LaunchedEffect(Unit) { runCatching { library.api.saved() }.onSuccess { kept = it } }
+    LaunchedEffect(Unit) { runCatching { library.discovery.saved() }.onSuccess { kept = it } }
     if (kept.isEmpty()) return
     Column(Modifier.padding(top = 20.dp)) {
         Text(tr("Streaming"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))

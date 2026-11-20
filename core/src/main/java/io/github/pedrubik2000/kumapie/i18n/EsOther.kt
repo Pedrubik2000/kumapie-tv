@@ -162,4 +162,25 @@ internal val esOther: Map<String, String> = mapOf(
     "%1\$s: %2\$d lists for Discover." to "%1\$s: %2\$d listas para Descubrir.",
     "Couldn't read %s's lists: check the username, and that the profile is public." to
         "No se pudieron leer las listas de %s: revisa el usuario, y que el perfil sea público.",
+    "Planning" to "Planeado",
+    "Completed" to "Completado",
+    "Rewatching" to "Volviendo a ver",
+    "Paused" to "En pausa",
+    "Dropped" to "Abandonado",
+    "Not on your list" to "No está en tu lista",
+    "Score (0-%d)" to "Nota (0-%d)",
+    "Rewatches" to "Veces vuelto a ver",
+    "Started on" to "Empezado el",
+    "Finished on" to "Terminado el",
+    "Currently watching" to "Viendo",
+    "Score: a number from 0 to %d" to "Nota: un número del 0 al %d",
+    "Episodes and rewatches: whole numbers" to "Episodios y veces vuelto a ver: números enteros",
+    "Dates: year-month-day, e.g. %s" to "Fechas: año-mes-día, p. ej. %s",
+    "✓ AniList: %s" to "✓ AniList: %s",
+    "Log out" to "Cerrar sesión",
+    "AniList stopped accepting your login (it lasts a year): log in again." to
+        "AniList ya no acepta tu inicio de sesión (dura un año): vuelve a iniciar sesión.",
+    "Optional: log in with AniList to rate each anime and keep your list up to date as you watch." to
+        "Opcional: inicia sesión con AniList para puntuar cada anime y mantener tu lista al día mientras ves.",
+    "Log in with AniList" to "Iniciar sesión con AniList",
 )

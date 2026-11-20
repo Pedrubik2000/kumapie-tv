@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity() {
             ?.let { u -> u.queryParameterNames.associateWith { u.getQueryParameter(it).orEmpty() } }
         // A link shared to kumapie, or a magnet link opened in the browser, opens "Add an episode" with it.
         val shared = intent?.takeIf { it.action == android.content.Intent.ACTION_SEND }?.getStringExtra(android.content.Intent.EXTRA_TEXT)
-            ?: intent?.takeIf { it.action == android.content.Intent.ACTION_VIEW && prepare == null }?.dataString
+            ?: intent?.takeIf { it.action == android.content.Intent.ACTION_VIEW && prepare == null && !aniListLogin(it) }?.dataString
         // Japanese text to look up (other apps' "share" or `am start ... --es search 本当に`): opens the dictionary search.
         val search = intent?.getStringExtra("search")
             ?: intent?.takeIf { it.action == android.content.Intent.ACTION_PROCESS_TEXT }?.getCharSequenceExtra(android.content.Intent.EXTRA_PROCESS_TEXT)?.toString()
@@ -116,9 +116,22 @@ class MainActivity : ComponentActivity() {
         setContent { MobileTheme { App(library, shared, openSearch = search != null, openImprove = improve != 0L || improveWord != null, prepare = prepare) } }
     }
 
+    private fun aniListLogin(intent: android.content.Intent): Boolean {
+        val data = intent.data?.takeIf { it.host == "anilist-auth" } ?: return false
+        val token = io.github.pedrubik2000.kumapie.data.AniList.tokenOf(data.toString()) ?: return true
+        val settings = Settings(this)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            val said = runCatching { settings.logInAniList(token) }.fold({ tr("✓ AniList: %s", it) }, { it.message ?: it.toString() })
+            android.widget.Toast.makeText(applicationContext, said, android.widget.Toast.LENGTH_LONG).show()
+            io.github.pedrubik2000.kumapie.mobile.ui.aniListLogins.intValue++
+        }
+        return true
+    }
+
     /** A server address sent while the app is already open: save it and start over with it. A prepare link too. */
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        if (aniListLogin(intent)) return
         if (intent.data?.host == "prepare") {
             setIntent(intent)
             recreate()

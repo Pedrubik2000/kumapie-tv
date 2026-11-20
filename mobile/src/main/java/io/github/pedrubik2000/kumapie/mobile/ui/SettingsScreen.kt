@@ -2,7 +2,6 @@ package io.github.pedrubik2000.kumapie.mobile.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import io.github.pedrubik2000.kumapie.data.KeyService
-import io.github.pedrubik2000.kumapie.data.checkKey
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,9 +18,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -589,6 +585,7 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
     KeyField(rd, { rd = it; library.settings.rdToken = it }, tr("Real-Debrid token (real-debrid.com/apitoken)"), KeyService.REAL_DEBRID)
     if ("ja" in learning) KeyField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles"), KeyService.JIMAKU)
     if (library.settings.server.isEmpty()) AddonsField(library.settings)
+    AniListLogin(library.settings)
     // Japanese YouTube without Japanese subtitles: transcribed on the device.
     if ("ja" in learning) when {
         parakeetJaReady -> Text(tr("Japanese YouTube: Parakeet ja ready (free, offline). About 1 character in 6 differs from people's subtitles."),
@@ -889,37 +886,6 @@ private fun PopupSize(settings: Settings) {
     if ((w.toIntOrNull() ?: 0) < 240 || (h.toIntOrNull() ?: 0) < 300)
         Text(tr("At least 240 wide and 300 high; until then the popup keeps %1\$d × %2\$d.", settings.popupWidth, settings.popupHeight),
             fontSize = 13.sp, color = Colors.unknown)
-}
-
-/**
- * A key or token: saved as typed (spaces and line breaks from a paste trimmed), hidden unless shown, and checked
- * against its service when the field is left, so a wrong key shows up here and not as a failed episode later.
- */
-@Composable
-internal fun KeyField(value: String, onChange: (String) -> Unit, label: String, service: KeyService) {
-    val scope = rememberCoroutineScope()
-    var shown by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<String?>(null) } // null: not checked; "checking"; checkKey's answers
-    var checked by remember { mutableStateOf<String?>(null) } // the key the result is for
-    fun check() {
-        if (value.isBlank() || value == checked) return
-        checked = value; result = "checking"
-        scope.launch { result = checkKey(service, value) }
-    }
-    OutlinedTextField(value, { v -> onChange(v.trim()); if (v.trim() != checked) result = null },
-        label = { Text(label) }, singleLine = true, isError = result == "rejected",
-        visualTransformation = if (shown) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
-        trailingIcon = { IconButton(onClick = { shown = !shown }) {
-            Icon(if (shown) Icons.Default.VisibilityOff else Icons.Default.Visibility, if (shown) tr("Hide") else tr("Show"))
-        } },
-        supportingText = result?.let { r -> { Text(when {
-            r == "checking" -> tr("Checking with %s…", service.label)
-            r == "ok" -> tr("✓ %s accepted it.", service.label)
-            r == "rejected" -> tr("%1\$s didn't accept this key. Copy it again from %2\$s.", service.label, service.where)
-            r == "offline" -> tr("Couldn't reach %s to check it. It's saved and will be tried when you make an episode.", service.label)
-            else -> tr("%1\$s answered %2\$s. It's saved; try again later.", service.label, r.removePrefix("http "))
-        }, color = if (r == "rejected") Colors.unknown else Colors.dim) } },
-        modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused) check() })
 }
 
 /** An hour of the day: free to clear and retype; saved only when it is a valid hour, else says so. */

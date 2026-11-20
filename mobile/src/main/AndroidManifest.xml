@@ -60,6 +60,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="${prepareScheme}" android:host="prepare" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${prepareScheme}" android:host="anilist-auth" />
+            </intent-filter>
         </activity>
 
         <!-- Condensed listening: the episode's speech without the gaps, screen off. -->

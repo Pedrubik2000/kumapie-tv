@@ -71,7 +71,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     fun open(url: String) = runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     fun saveSources() {
         settings.setSources(kitsu, english, rd) // shared with the TV's setup page
-        settings.anilist = anilist
+        if (anilist.isNotBlank() || settings.anilistToken.isEmpty()) settings.anilist = anilist
     }
     // Jiten's known words (item 6) right after Languages, when this device learns Japanese.
     val keys = listOfNotNull("languages", "jiten".takeIf { "ja" in settings.learning() }, "jimaku", "sources", "downloads")
@@ -120,6 +120,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                                 .fold({ r -> tr("✓ %d titles in your lists", r.sumOf { it.second.size }) }, { it.message ?: it.toString() })
                         }
                     }) { Text(tr("Check")) }
+                    AniListLogin(settings)
                 }
                 else -> Downloads(library)
             }

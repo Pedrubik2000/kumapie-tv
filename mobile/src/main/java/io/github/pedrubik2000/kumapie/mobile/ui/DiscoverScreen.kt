@@ -7,12 +7,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
 import io.github.pedrubik2000.kumapie.player.LiveLines
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.media3.ui.PlayerView
@@ -202,27 +199,12 @@ private fun Hero(titles: List<Found>, onOpen: (Found) -> Unit) {
     }
 }
 
-/** A backdrop fading into the page at the bottom. */
-@Composable
-private fun androidx.compose.foundation.layout.BoxScope.Backdrop(image: String) {
-    AsyncImage(image, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize().background(Colors.surface))
-    Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Colors.background)))
-}
-
-/** The title's logo (fanart.tv), else its name. */
-@Composable
-private fun TitleLogo(f: Found) {
-    if (f.logo.isNotEmpty()) AsyncImage(f.logo, f.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
-        modifier = Modifier.height(64.dp).widthIn(max = 260.dp))
-    else Text(f.shownName, style = MaterialTheme.typography.headlineSmall, color = Colors.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
-}
-
 /**
  * A title, Stremio's way: its backdrop with logo, rating, runtime and genres; ▶ (the episode after the last watched,
  * else the first the PC got ready, else the first one's files), + Home and its text; then the episodes. An episode
  * (or the movie) opens its files; a long press offers other files and watched / not watched (✓).
  */
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, String>) -> Unit, onBack: () -> Unit) {
     var meta by remember { mutableStateOf<JSONObject?>(null) }
@@ -237,6 +219,11 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
         runCatching { library.discovery.discoverMeta(title.type, title.id) }.onSuccess { meta = it }.onFailure { error = it.message ?: it.toString() }
     }
     LaunchedEffect(title.id) { kept = runCatching { library.discovery.saved().any { it.id == title.id } }.getOrNull() }
+    var media by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(title.id, aniListLogins.intValue) {
+        if (library.settings.anilistToken.isNotEmpty() && title.id.startsWith("kitsu:"))
+            media = runCatching { io.github.pedrubik2000.kumapie.data.AniList.idOfKitsu(title.id, library.settings.prefs) }.getOrNull()
+    }
     fun play(e: JSONObject) {
         val name = "${title.name} ${e.optInt("number")}"
         // The PC got a file ready for it: no file list, it starts at once.
@@ -250,7 +237,8 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
         val wide = wide()
         // The logo, line, ▶ and + Home, the text, then "Episodes". A tablet: left column over the dimmed backdrop.
         val info = @Composable {
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (m != null) {
                     val first = io.github.pedrubik2000.kumapie.data.nextEpisode(eps)
                     Pill(if (first != null) tr("Episode %1\$d", first.optInt("number")) +
@@ -262,6 +250,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                         scope.launch { runCatching { library.discovery.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } }
                     })
                 }
+                AniListPill(library.settings, media)
             }
             Text(t.description, color = Colors.text, fontSize = 15.sp, maxLines = if (more) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.clickable { more = !more }.padding(horizontal = 16.dp, vertical = 4.dp))

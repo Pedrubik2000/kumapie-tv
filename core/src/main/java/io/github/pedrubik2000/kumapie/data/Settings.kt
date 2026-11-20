@@ -61,6 +61,30 @@ class Settings(context: Context) {
         get() = prefs.getString(Addons.ANILIST, "").orEmpty()
         set(value) = prefs.edit().putString(Addons.ANILIST, value.trim()).apply()
 
+    var anilistToken: String
+        get() = prefs.getString("anilist_token", "").orEmpty()
+        set(value) = prefs.edit().putString("anilist_token", value.trim()).putBoolean("anilist_logged_out", false).apply()
+
+    var anilistFormat: String
+        get() = prefs.getString("anilist_format", "POINT_10").orEmpty()
+        set(value) = prefs.edit().putString("anilist_format", value).apply()
+
+    val anilistLoggedOut: Boolean get() = prefs.getBoolean("anilist_logged_out", false)
+
+    suspend fun <T> withAniList(block: suspend (String) -> T): T? {
+        val token = anilistToken.ifEmpty { return null }
+        return try { block(token) } catch (e: AniList.LoggedOut) {
+            prefs.edit().putString("anilist_token", "").putBoolean("anilist_logged_out", true).apply()
+            throw e
+        }
+    }
+
+    suspend fun logInAniList(token: String): String {
+        val (name, format) = AniList.viewer(token)
+        anilistToken = token; anilistFormat = format; anilist = name
+        return name
+    }
+
     /**
      * The setup's "What to watch" (TV setup page, phone onboarding): [addons] with [Addons.sources]' rule, and a new
      * Real-Debrid token kept.

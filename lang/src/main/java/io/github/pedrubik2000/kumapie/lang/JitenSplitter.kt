@@ -82,7 +82,7 @@ class JitenSplitter(private val lexicon: File, private val systemDic: File, priv
         JapaneseModel.join(JapaneseModel.tokens(sudachi(), piece)).forEach { out += it.copy(begin = it.begin + from) }
     }
 
-    private fun sudachi() = sudachi ?: DictionaryFactory().create(Config.defaultConfig().systemDictionary(systemDic.toPath())).create()
+    private fun sudachi() = sudachi ?: DictionaryFactory().create(Config.defaultConfig().systemDictionary(SudachiSystem.of(systemDic.toPath()))).create()
         .also { sudachi = it }
 
     /**

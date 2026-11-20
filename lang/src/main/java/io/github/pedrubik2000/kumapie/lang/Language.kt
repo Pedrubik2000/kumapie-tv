@@ -235,7 +235,7 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
     /**
      * Faces and pictures of this app run, "work|word" (pictures "|pic|word") -> the small picture or null (none): a
      * dictionary look-up and its media were ~330 ms a face on the Chromecast (Dandadan 10's 9 faces: 3 s of its open,
-     * 2026-11-19); Home's prefetch fills it ahead ([warmFaces]). At most [FACES] kept.
+     * 2026-11-19). At most [FACES] kept.
      */
     private val faces = object : LinkedHashMap<String, androidx.compose.ui.graphics.ImageBitmap>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, androidx.compose.ui.graphics.ImageBitmap>) = size > FACES
@@ -252,17 +252,6 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
 
     private fun face(word: String, work: String?) = cached("${work.orEmpty()}|$word") { yomitan.characterPortrait(lang, word, work) }
     private fun picture(word: String) = cached("|pic|$word") { yomitan.wordPicture(lang, word) }
-
-    /**
-     * Faces and pictures for [words] (an episode's, split ahead on Home: [AloneStream.prefetch]) into [faces], so its
-     * open finds them ready. Characters as [joinNames] asks ([autoKnown] keeps its answers); pictures for words not known.
-     */
-    fun warmFaces(words: Set<String>) {
-        for (k in words) {
-            if (yomitan.isCharacter(lang, k)) { if (if (model.isReady) autoKnown(k) else yomitan.characterName(lang, k) != null) face(k, "") }
-            else if (known.status(k) != "k") picture(k)
-        }
-    }
 
     /** A face or picture decoded at 128-255 px (drawn about a line high), not the dictionary's full size. */
     private fun small(bytes: ByteArray): android.graphics.Bitmap? {

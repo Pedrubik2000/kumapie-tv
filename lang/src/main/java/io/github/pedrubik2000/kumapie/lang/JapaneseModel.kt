@@ -125,7 +125,7 @@ class JapaneseModel(private val context: Context) : Model {
         if (!splitterReady) return
         Thread {
             val t = android.os.SystemClock.elapsedRealtime()
-            splitter()?.let { s -> synchronized(SPLIT) { s.split("あ") } }
+            runCatching { splitter()?.let { s -> synchronized(SPLIT) { s.split("あ") } } }.onFailure { android.util.Log.w("kumapie", "jiten splitter warm failed: $it") }
             android.util.Log.i("kumapie", "jiten splitter warm in ${android.os.SystemClock.elapsedRealtime() - t} ms")
         }.apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start()
     }
@@ -133,7 +133,7 @@ class JapaneseModel(private val context: Context) : Model {
     private fun tokenizer(): Tokenizer = synchronized(Companion) {
         loaded?.takeIf { it.first == dic.path }?.second ?: run {
             check(isReady) { tr("The Japanese dictionary isn't downloaded yet.") }
-            val d: Dictionary = Dictionary.load(Config.defaultConfig().systemDictionary(dic.toPath()))
+            val d: Dictionary = Dictionary.load(Config.defaultConfig().systemDictionary(SudachiSystem.of(dic.toPath())))
             d.tokenizer().also { loaded = dic.path to it }
         }
     }

@@ -95,7 +95,7 @@ class MorphologicalAnalyser(
     private fun createDictionary(withUserDictionary: Boolean): Dictionary {
         val dic = requireNotNull(systemDictionary) { "MorphologicalAnalyser needs the Sudachi system dictionary path" }
         val config = Config.fromJsonString(SudachiJson, PathAnchor.classpath(MorphologicalAnalyser::class.java.classLoader))
-            .systemDictionary(dic)
+            .systemDictionary(io.github.pedrubik2000.kumapie.lang.SudachiSystem.of(dic))
         if (withUserDictionary) userDictionary?.let { config.addUserDictionary(it) }
         return DictionaryFactory().create(config)
     }

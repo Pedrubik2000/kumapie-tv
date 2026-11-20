@@ -96,10 +96,7 @@ class AloneStream(
             for ((show, e) in going.take(max)) runCatching {
                 val t = android.os.SystemClock.elapsedRealtime()
                 val lines = kotlinx.coroutines.runBlocking { Jimaku.lines(key, show.title, null, episodeNumber(e.id), prefs.getString(fileKey(e.id), "").orEmpty()) }
-                if (lines.isNotEmpty()) model.words(lines.map { it.text }, background = true).let { tokens ->
-                    LangKit.get(context, io.github.pedrubik2000.kumapie.data.Settings(context)).languages.japanese
-                        .warmFaces(tokens.flatten().filter { it.isWord }.map { it.base }.toSet())
-                }
+                if (lines.isNotEmpty()) model.words(lines.map { it.text }, background = true)
                 android.util.Log.i("kumapie", "prefetched ${show.title} ${e.id}: ${lines.size} lines in ${android.os.SystemClock.elapsedRealtime() - t} ms")
             }
         }

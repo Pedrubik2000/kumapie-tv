@@ -66,6 +66,8 @@ val slopForbidden = listOf(
         "use WordCard.japaneseHeadword() / WordCard.japaneseWord() (lang WordCard.kt): the TV and the phone made different cards of one word", listOf("app", "mobile")),
     Forbidden("known.rate( / known.undo( / miner.recontext(", Regex("""\bknown\.(rate|undo)\(|\bminer\.recontext\("""), listOf("/mobile/WordColours.kt"),
         "use RateFlow (lang RateFlow.kt): rate -> undo -> the due queue -> recontext is one path for both apps (WordColours: the readers' provider, no scene)", listOf("app", "mobile")),
+    Forbidden("pos/saved/resume?.takeIf { > N }", Regex("""\b(pos|saved|resume)\w*\??\.takeIf \{ (\w+ -> )?\w+ > [1-9]"""), emptyList(),
+        "use RESUME_AFTER_S / partway() (core data/ShowLevel.kt): a place resumes over 20 s, one number (no-PC streams resumed over 5 s, Home over 20 s)", listOf("app", "mobile", "core")),
 )
 
 /** [src] with comments removed and string contents blanked (newlines kept), and its number of comments. */

@@ -38,7 +38,9 @@ fun continueRow(shows: List<Show>, streams: List<Pair<Show, Episode>> = emptyLis
             ?.let { s to it }
     } + streams).sortedByDescending { it.second.resumedAt }
 
-fun partway(at: Double?, duration: Double) = at != null && duration > 0 && at > 20 && duration - at > 120
+const val RESUME_AFTER_S = 20.0
+
+fun partway(at: Double?, duration: Double) = at != null && duration > 0 && at > RESUME_AFTER_S && duration - at > 120
 
 fun finished(watched: Boolean, at: Double?, duration: Double) = watched || at != null && duration > 0 && duration - at <= 120
 

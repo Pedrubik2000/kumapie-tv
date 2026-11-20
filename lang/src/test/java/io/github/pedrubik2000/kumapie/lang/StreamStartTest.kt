@@ -33,8 +33,9 @@ class StreamStartTest {
     @Test fun resumeRule() {
         assertNull("nothing saved", (StreamStart.of(alone, null) as StreamStart.Alone).resumeAt)
         assertNull("0 = start over (it was played to its end)", (StreamStart.of(alone, 0.0) as StreamStart.Alone).resumeAt)
-        assertNull("5 s in is the start", (StreamStart.of(alone, 5.0) as StreamStart.Alone).resumeAt)
-        assertEquals(5.5, (StreamStart.of(alone, 5.5) as StreamStart.Alone).resumeAt)
+        assertNull("10 s in is the start", (StreamStart.of(alone, 10.0) as StreamStart.Alone).resumeAt)
+        assertNull("20 s in is the start too (Home's partway is over 20 s)", (StreamStart.of(alone, 20.0) as StreamStart.Alone).resumeAt)
+        assertEquals(25.0, (StreamStart.of(alone, 25.0) as StreamStart.Alone).resumeAt)
     }
 
     @Test fun noLinkGoesToThePc() {

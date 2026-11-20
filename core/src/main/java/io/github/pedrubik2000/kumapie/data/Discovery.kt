@@ -189,7 +189,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
                 ?: seen.filter { it.startsWith("${t.id}:") }.maxByOrNull(::n)
                 ?: return@mapNotNull null
             val pos = if (store.contains("alone_pos_$id")) store.getFloat("alone_pos_$id", 0f).toDouble() else null
-            var resume = pos?.takeIf { it > 20 }
+            var resume = pos?.takeIf { it > RESUME_AFTER_S }
             if (id in seen || pos == 0.0) {
                 id = nextId(t.type, id)?.takeIf { it !in seen } ?: return@mapNotNull null
                 resume = null

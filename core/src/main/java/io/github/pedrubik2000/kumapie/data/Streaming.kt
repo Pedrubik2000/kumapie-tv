@@ -32,7 +32,7 @@ fun resumeAt(at: Double, saved: Double?): Double? = if (at > 1 && at >= (saved ?
 
 /**
  * Starting a Discover episode, the TV's and the phone's: an addon's link ("url") plays on this device from its saved
- * place (over 5 s in), anything else goes to the PC ([watchReady]). [ready] is the PC's ready file, [picked] a file from
+ * place (over 20 s in, [RESUME_AFTER_S]), anything else goes to the PC ([watchReady]). [ready] is the PC's ready file, [picked] a file from
  * the list: an addon's link also puts the title on Home (no PC keeps "Continue watching"), answering the new list.
  */
 sealed interface StreamStart {
@@ -41,7 +41,7 @@ sealed interface StreamStart {
 
     companion object {
         fun of(query: Map<String, String>, saved: Double?): StreamStart =
-            query["url"]?.takeIf { it.isNotEmpty() }?.let { Alone(it, saved?.takeIf { s -> s > 5 }) } ?: Pc(query)
+            query["url"]?.takeIf { it.isNotEmpty() }?.let { Alone(it, saved?.takeIf { s -> s > RESUME_AFTER_S }) } ?: Pc(query)
 
         fun of(query: Map<String, String>, prefs: android.content.SharedPreferences): StreamStart =
             of(query, prefs.getFloat("alone_pos_${query["id"]}", 0f).toDouble())

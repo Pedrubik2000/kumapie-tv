@@ -91,6 +91,7 @@ internal val esTv: Map<String, String> = mapOf(
     "Japanese subtitles (Jimaku)" to "Subtítulos en japonés (Jimaku)",
     "Add your Jimaku key from your phone first: without it, streams get no Japanese lines." to "Primero agrega tu clave de Jimaku desde el teléfono: sin ella, los videos no tienen las líneas en japonés.",
     "Needed: without it, streams get no Japanese lines." to "Necesaria: sin ella, los videos no tienen las líneas en japonés.",
+    "This episode's video isn't on this device any more, and there's no PC to play it from." to "El video de este episodio ya no está en este dispositivo y no hay una PC desde donde reproducirlo.",
     "Videos (Torrentio with Real-Debrid)" to "Videos (Torrentio con Real-Debrid)",
     "Saved" to "Guardado",
     "Ideas and bugs" to "Ideas y errores",

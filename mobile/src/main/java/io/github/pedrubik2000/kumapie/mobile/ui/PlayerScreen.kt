@@ -118,7 +118,7 @@ fun PlayerScreen(library: Library, show: Show, episode: Episode, startAt: Double
     val context = LocalContext.current
     LaunchedEffect(attempt) {
         error = null
-        runCatching { library.episode(episode.id) }
+        runCatching { library.episode(episode.id).also { check(it.video.isNotBlank()) { tr("This episode's video isn't on this device any more, and there's no PC to play it from.") } } }
             .onSuccess { detail = if (startAt != null) it.copy(resume = startAt + 0.05) else it }.onFailure { error = it.message ?: it.toString() }
     }
     BackHandler(onBack = onBack)

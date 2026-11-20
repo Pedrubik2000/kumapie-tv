@@ -250,7 +250,7 @@ class Library(context: Context, val settings: Settings) {
             val detail = parse(json) { d -> local.meta(local.showId(d.show))?.optJSONObject("title")?.optString("ja").orEmpty() }
             // Its copy deleted here: streamed from the PC (sync keeps every device episode there).
             val video = local.video(id).takeIf { it.exists() }?.let { Uri.fromFile(it).toString() }
-                ?: "${settings.server}/api/sync/${settings.owner}/$id/video.mp4"
+                ?: settings.server.takeIf { it.isNotBlank() }?.let { "$it/api/sync/${settings.owner}/$id/video.mp4" }.orEmpty()
             return detail.copy(video = video, resume = progress.merged.pos[id])
         }
         val downloaded = downloads.isComplete(id)

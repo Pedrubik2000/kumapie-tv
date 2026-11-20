@@ -34,4 +34,14 @@ class ContinueRowTest {
         val stream = show("k", ep("k:2", null, 60)).let { it to it.episodes[0] }
         assertEquals(listOf("k:2", "l1"), continueRow(listOf(show("lucky", ep("l1", 300.0, 35))), listOf(stream)).map { it.second.id })
     }
+
+    @Test fun shortsNeverInContinue() {
+        val reels = Show("r", "r", "reels", "", listOf(ep("r1", 30.0, 90)))
+        assertEquals(listOf("l1"), continueRow(listOf(reels, show("lucky", ep("l1", 300.0, 35)))).map { it.second.id })
+    }
+
+    @Test fun aWatchedEpisodeIsNotInContinue() {
+        val marked = ep("e1", 600.0, 10).copy(watchedFlag = true)
+        assertEquals(emptyList<String>(), continueRow(listOf(show("s", marked))).map { it.second.id })
+    }
 }

@@ -27,6 +27,13 @@ object Colors {
     val levelOne = Color(0xFFE6C463)
 }
 
+fun wordColor(state: String?, known: Color = Colors.text): Color = when (state) {
+    "u", "l" -> Colors.unknown
+    "d" -> Colors.due
+    "b" -> Colors.mined
+    else -> known
+}
+
 /** A Stats heatmap day ([seconds] watched): no time grey, then brighter with the minutes (5, 15, 30, 60). Both apps. */
 fun heat(seconds: Double): Color {
     val m = seconds / 60

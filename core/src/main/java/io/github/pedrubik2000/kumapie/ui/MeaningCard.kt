@@ -155,12 +155,7 @@ private fun segmentAt(l: TextLayoutResult, p: Offset, def: LineDef): Int? {
 /** The German definition, its words coloured like the subtitles (red new, green due), [selected] highlighted. */
 private fun coloredDefinition(def: LineDef, words: Map<String, Word>, selected: Int, plain: Boolean = false): AnnotatedString = buildAnnotatedString {
     def.target.forEachIndexed { i, seg ->
-        val color = when (if (plain) "k" else seg.word?.let { words[it]?.shown ?: "u" }) {
-            "u", "l" -> Colors.unknown
-            "d" -> Colors.due
-            "b" -> Colors.mined
-            else -> Colors.text
-        }
+        val color = wordColor(if (plain) "k" else seg.word?.let { words[it]?.shown ?: "u" })
         withStyle(if (i == selected) pickedStyle(color) else SpanStyle(color = color)) {
             append(seg.text)
         }

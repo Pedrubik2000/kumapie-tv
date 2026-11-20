@@ -356,12 +356,8 @@ private fun colored(cue: Cue, words: Map<String, Word>, dim: Boolean, selected: 
         val base = if (dim) Colors.dim else Colors.text
         cue.segments.forEachIndexed { i, seg ->
             if (seg.word in faces) appendInlineContent(seg.word!!, FACE)
-            val color = when (if (plain) "k" else seg.word?.let { words[it]?.shownFor(seg.text) ?: "u" }) {
-                "u", "l" -> if (dim) Colors.unknown.copy(alpha = 0.7f) else Colors.unknown
-                "d" -> if (dim) Colors.due.copy(alpha = 0.7f) else Colors.due
-                "b" -> if (dim) Colors.mined.copy(alpha = 0.7f) else Colors.mined
-                else -> base
-            }
+            val shown = wordColor(if (plain) "k" else seg.word?.let { words[it]?.shownFor(seg.text) ?: "u" }, base)
+            val color = if (dim && shown != base) shown.copy(alpha = 0.7f) else shown
             val style = if (i == selected) pickedStyle(color) else SpanStyle(color = color)
             withStyle(style) { append(seg.text) }
         }

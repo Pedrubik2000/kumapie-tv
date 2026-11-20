@@ -48,3 +48,15 @@ should be made up.
 3. Offline is normal, not an error.
 4. One design for phone, tablet and TV, adapted to each input (touch vs. D-pad focus).
 5. Plain for the parents: big targets, short Spanish labels, no jargon.
+
+## Feature map (TV, no PC)
+What the TV does for someone with no PC, in their words. Each line is proved on the TV emulator by
+`C:\dojo\work\kumapie\proof.sh <feature>` (screenshot in `proof\<feature>.png`); `proof.sh all` runs them all.
+1. `language`: choose a language with no PC and reach Home.
+2. `back`: Back in onboarding goes one step back (the remote's Back and the Back button).
+3. `settings`: Settings opens with a Torrentio URL that has options.
+4. `show`: open a show and see the words coloured.
+5. `word`: pause, open a word, rate it.
+6. `undo`: undo a rating, and the word is back as it was.
+7. `home`: Back from the player goes to Home.
+8. `next`: the episode ends and the next one starts.

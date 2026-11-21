@@ -276,4 +276,6 @@ internal val esSettings: Map<String, String> = mapOf(
     "Also while kumapie is closed (a notification; Wi-Fi only)" to "También con kumapie cerrado (una notificación; solo Wi-Fi)",
     "✓ Also while kumapie is closed (a notification; Wi-Fi only)" to "✓ También con kumapie cerrado (una notificación; solo Wi-Fi)",
     "Allow %1\$s (code %2\$s)" to "Permitir %1\$s (código %2\$s)",
+    "Words with a card on another device" to "Palabras con tarjeta en otro dispositivo",
+    "Already a card on %s. Mine it again to make one here too." to "Ya tiene tarjeta en %s. Vuelve a añadirla para tener una aquí también.",
 )

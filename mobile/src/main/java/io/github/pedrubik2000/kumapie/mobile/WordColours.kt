@@ -216,7 +216,7 @@ class WordColours : ContentProvider() {
         }
         // Already a card of that word ("Already in your reviews"): its note, flagged, not a crash in the calling app.
         val nid = try { srs.mine(lang, fields, extras.getString("tags").orEmpty()) } catch (e: IllegalStateException) {
-            out.putBoolean("exists", true)
+            out.putBoolean("exists", true); out.putString("message", e.message)
             srs.existing(lang, fields)?.let { out.putLong("note", it) }
             return out
         }

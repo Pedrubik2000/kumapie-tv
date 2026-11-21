@@ -203,6 +203,7 @@ class SrsCards(private val context: Context) : Cards {
         val s = requireNotNull(store(lang)) { "no person on this device" }
         // One card per word: the same word mined again made 37 duplicates (まひ three times; user, 2026-11-17).
         check(existing(lang, f) == null) { io.github.pedrubik2000.kumapie.i18n.tr("Already in your reviews") }
+        WordSync.refusal(lang.code, DeviceFile.wordKey(lang.code, text(f["Word"]), rest(f)))?.let { error(it) }
         return s.addCard(text(f["Word"]), text(f["Sentence"]), text(f[KnownWords.DEF_BI]), ctx?.groupValues?.get(1)?.unescape(),
             ctx?.groupValues?.get(2)?.unescape(), ctx?.let(::place), rest(f), tags).id.also { syncSoon(lang) }
     }

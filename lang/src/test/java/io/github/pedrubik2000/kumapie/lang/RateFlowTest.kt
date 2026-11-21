@@ -64,4 +64,18 @@ class RateFlowTest {
         s.flow.leave()
         assertEquals("moved once", 1, s.moved.size)
     }
+
+    @Test fun aWordWithACardOnlyOnAnotherDeviceGetsOneHereAndIsRated() = runBlocking {
+        val cards = mutableSetOf<String>()
+        val mined = mutableListOf<Int>()
+        val flow = RateFlow(
+            answer = { form, _, _, _ -> if (form in cards) KnownWords.Rated(listOf(1L), 1, "Undo $form") else null },
+            takeBack = { false }, refreshDue = {}, recontext = { _, _ -> },
+            elsewhere = { it == "森" }, mineHere = { at -> mined += at.line; cards += "森" },
+        )
+        assertEquals(1, flow.rate("森", 3, 2_000, watch, Miner.Request(episode, scene(2), 4))?.cards)
+        assertEquals("this device's own card of that line", listOf(4), mined)
+        assertNull("no card anywhere: nothing made", flow.rate("川", 3, 2_000, watch, Miner.Request(episode, scene(2), 5)))
+        assertEquals(listOf(4), mined)
+    }
 }

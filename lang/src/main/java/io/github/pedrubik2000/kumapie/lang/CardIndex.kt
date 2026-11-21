@@ -4,7 +4,7 @@ package io.github.pedrubik2000.kumapie.lang
  * Each word form -> its own word cards in kuma3 (kumapie_anki_review_plan.md): notes with a Word field (Core 1000,
  * mined words), matched by the exact form ("gehst" is not gehen's card), and which of them kuma3 shows today.
  */
-class CardIndex {
+class CardIndex(private val lang: String = "") {
     @Volatile private var byForm: Map<String, List<AnkiCards.Card>> = emptyMap()
     /** Card id -> "new" | "learn" | "review": kuma3's queue today; null = not known (an Anki without `kuma3/due`). */
     @Volatile var due: Map<Long, String>? = null
@@ -42,7 +42,7 @@ class CardIndex {
      */
     fun state(form: String, nowSecs: Long = System.currentTimeMillis() / 1000): String? {
         val due = due ?: return null
-        val own = byForm[form.lowercase()] ?: return "u"
+        val own = byForm[form.lowercase()] ?: return WordSync.state(lang, form.lowercase()) ?: "u"
         return when {
             // A learning step later today (due in epoch seconds, not a day number) isn't green yet: Again kept it green (user, 2026-11-08).
             own.any { due[it.id] == "review" || due[it.id] == "learn" && (it.due < 1_000_000_000 || it.due <= nowSecs) } -> "d"

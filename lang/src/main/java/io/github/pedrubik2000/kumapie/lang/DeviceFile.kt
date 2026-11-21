@@ -22,11 +22,11 @@ object DeviceFile {
 
     class Mine(val device: String, val parts: JSONObject, val known: Map<String, Pair<Long, Set<String>>>,
                val personal: List<PersonalDictionary.Entry>, val streams: Map<String, Any?>, val events: JSONArray, val backup: JSONObject?,
-               val person: String = SrsCards.LOCAL)
+               val carded: JSONObject = JSONObject(), val person: String = SrsCards.LOCAL)
 
     class Plan(val from: String, val person: String, val counts: List<Count>, val others: JSONObject,
                val known: Map<String, Pair<Long, Set<String>>>, val personal: List<PersonalDictionary.Entry>,
-               val streams: Map<String, Any>, val events: JSONArray, val backup: Boolean) {
+               val streams: Map<String, Any>, val events: JSONArray, val backup: Boolean, val carded: JSONObject = JSONObject()) {
         val changes: Boolean get() = counts.any { it.add + it.change > 0 }
     }
 
@@ -94,6 +94,7 @@ object DeviceFile {
         val titles = savedIds(mine.streams[SAVED])
         val lastKeys = mine.streams.keys.filter { it.startsWith(LAST) }.toSet()
         val lastTaken = streams.keys.filter { it.startsWith(LAST) }
+        val carded = WordSync.carded(mine.carded, file.optJSONObject("carded"), mine.device)
 
         return Plan(from, person, listOf(
             Count(tr("Cards backed up"), if (backup) (cards.keys - previous.keys).size else 0,
@@ -108,7 +109,8 @@ object DeviceFile {
             Count(tr("Personal dictionary"), personal.count { (it.lang to it.text) !in old },
                 personal.count { e -> old[e.lang to e.text]?.let { it != e } == true }, personal.count { e -> old[e.lang to e.text] == e }),
             sets(tr("Kept titles"), titles, streams[SAVED]?.let(savedIds) ?: titles),
-        ), others, known, personal, streams, events, backup)
+            WordSync.count(mine.carded, carded, mine.device),
+        ), others, known, personal, streams, events, backup, carded)
     }
 
     fun streams(mine: Map<String, Any?>, theirs: JSONObject): Map<String, Any> {
@@ -177,6 +179,7 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
     private val personal = PersonalDictionary.get(context)
     private val dir = File(context.filesDir, "devices").apply { mkdirs() }
     private val eventsFile = File(dir, "events.json")
+    private val cardedFile = File(dir, "carded.json")
     private val shared: File? get() = context.getExternalFilesDir(null)
 
     class Exported(val file: File, val cards: Int, val reviews: Int, val mediaFiles: Int, val mediaBytes: Long) {
@@ -206,6 +209,7 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
             .put("personal", personal.entries())
             .put("streams", JSONObject().apply { streams().forEach { (k, v) -> put(k, if (v is Set<*>) JSONArray(v) else v) } })
             .put("events", DeviceFile.union(storedEvents(), own))
+            .put("carded", carded()).put("fsrs", fsrs())
             .put("cards", cards)
             .put("media", JSONObject().put("files", media.size).put("bytes", media.sumOf { it.length() }))
     }
@@ -218,7 +222,7 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
     fun plan(o: JSONObject): DeviceFile.Plan {
         val previous = File(dir, safe(o.optString("device")) + ".json").takeIf { it.exists() }?.let { JSONObject(it.readText()) }
         val mine = DeviceFile.Mine(progress.device, progress.parts(), languages.associate { it.lang.code to (it.known.importedTime() to it.known.importedWords) },
-            PersonalDictionary.fromJson(personal.entries()), streams(), DeviceFile.union(storedEvents(), ownEvents()), previous, srs.person())
+            PersonalDictionary.fromJson(personal.entries()), streams(), DeviceFile.union(storedEvents(), ownEvents()), previous, carded(), srs.person())
         return DeviceFile.plan(mine, o)
     }
 
@@ -244,10 +248,36 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
         }.apply()
         File(eventsFile.path + ".part").apply { writeText(plan.events.toString()) }.renameTo(eventsFile)
         if (plan.backup) File(dir, safe(plan.from) + ".json").let { f -> File(f.path + ".part").apply { writeText(o.toString()) }.renameTo(f) }
+        File(cardedFile.path + ".part").apply { writeText(plan.carded.toString()) }.renameTo(cardedFile)
+        share()
         return copy
     }
 
     private fun streams(): Map<String, Any?> = settings.prefs.all.filterKeys { it.startsWith("alone_") }
+
+    fun carded(): JSONObject = JSONObject(runCatching { cardedFile.readText() }.getOrDefault("{}"))
+        .put(progress.device, WordSync.own(progress.device, System.currentTimeMillis(), keys().values.flatMap { it.values.filterNotNull() }).getJSONObject(progress.device))
+
+    fun share() {
+        val events = storedEvents()
+        val here = HashSet<String>()
+        for ((l, s) in stores()) {
+            val keys = s.cards().associate { it.id to DeviceFile.wordKey(l.code, it.word, it.fields) }
+            here += keys.values.filterNotNull()
+            WordSync.toAdd(events, keys, s.revlogIds()).takeIf { it.isNotEmpty() }?.let(s::take)
+        }
+        WordSync.words = WordSync.elsewhere(events, carded(), progress.device, here, { srs.store(Lang.of(it))?.fsrs ?: Fsrs6() })
+    }
+
+    fun fsrs(): JSONObject = JSONObject().apply { for ((l, s) in stores()) put(l.code, JSONObject().put("params", s.meta("params")).put("retention", s.meta("retention"))) }
+
+    fun takeFsrs(o: JSONObject?) {
+        for ((l, s) in stores()) o?.optJSONObject(l.code)?.let { s.useFsrs(it.optString("params").ifEmpty { null }, it.optString("retention").ifEmpty { null }) }
+    }
+
+    private fun stores(): List<Pair<Lang, Srs>> = Lang.ALL.filter { File(context.filesDir, "srs/${srs.person()}/${it.code}.db").exists() }.mapNotNull { l -> srs.store(l)?.let { l to it } }
+
+    private fun keys(): Map<Lang, Map<Long, String?>> = stores().associate { (l, s) -> l to s.cards().associate { it.id to DeviceFile.wordKey(l.code, it.word, it.fields) } }
 
     private fun storedEvents(): JSONArray = runCatching { JSONArray(eventsFile.readText()) }.getOrDefault(JSONArray())
 

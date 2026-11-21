@@ -211,7 +211,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     }
 
     /** This language's word cards by form and kuma3's queue today: [EpisodeDetail] words' [io.github.pedrubik2000.kumapie.data.Word.card]. */
-    val cardIndex = CardIndex()
+    val cardIndex = CardIndex(language.lang.code)
     @Volatile private var dueAt = 0L
 
     /** The word cards again without parsing (a card was just mined here); kuma3's queue as it was (a new card isn't due). */

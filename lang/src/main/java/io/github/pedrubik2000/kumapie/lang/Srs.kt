@@ -172,6 +172,27 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         } finally { db.endTransaction() }
     }
 
+    fun revlogIds(): Set<Long> = db.rawQuery("SELECT id FROM revlog", null).use { c -> buildSet { while (c.moveToNext()) add(c.getLong(0)) } }
+
+    fun take(events: List<Pair<JSONObject, Long>>) {
+        db.beginTransaction()
+        try {
+            for ((e, card) in events) db.insertWithOnConflict("revlog", null, ContentValues().apply {
+                put("id", e.getLong("id")); put("card", card); put("time", e.getLong("time")); put("rating", e.getInt("ease")); put("device", e.optString("device"))
+            }, SQLiteDatabase.CONFLICT_IGNORE)
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+        replayAll(events.map { it.second }.toSet())
+    }
+
+    fun useFsrs(params: String?, retention: String?) {
+        if (meta("params") == params && meta("retention") == retention) return
+        for ((k, v) in listOf("params" to params, "retention" to retention))
+            if (v == null) db.delete("meta", "key = ?", arrayOf(k)) else db.insertWithOnConflict("meta", null, values(JSONObject().put("key", k).put("value", v)), SQLiteDatabase.CONFLICT_REPLACE)
+        scheduler = null
+        replayAll()
+    }
+
     /**
      * Sends this device's new rows (the outbox: kept while offline) and takes everyone else's from the PC
      * (`POST /api/tv/srs/sync`, [post] adds person and language). The first one downloads the whole store.

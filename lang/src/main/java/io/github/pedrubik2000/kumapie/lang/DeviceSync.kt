@@ -120,7 +120,7 @@ object DeviceSync {
     suspend fun syncNow(context: Context): String = withContext(Dispatchers.IO) {
         val settings = Settings(context)
         if (settings.server.isNotEmpty()) return@withContext ""
-        val peer = with(settings) ?: return@withContext ""
+        val peer = with(settings) ?: return@withContext lock.withLock { runCatching { files(context).share() }; "" }
         val line = runCatching {
             lock.withLock {
                 runCatching { exchange(context, peer) }.recoverCatching { e ->
@@ -145,6 +145,8 @@ object DeviceSync {
         val o = JSONObject(String(a.body))
         val plan = files.plan(o)
         files.apply(plan, o, files.isNew(plan.from))
+        files.takeFsrs(o.optJSONObject("fsrs"))
+        files.share()
         return tr("%1\$s with %2\$s · took: %3\$s · gave: %4\$s", now(), peer.name, moved(plan), o.optString("moved"))
     }
 

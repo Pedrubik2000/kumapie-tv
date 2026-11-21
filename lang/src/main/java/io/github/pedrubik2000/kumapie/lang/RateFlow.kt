@@ -11,14 +11,24 @@ class RateFlow(
     private val takeBack: suspend (KnownWords.Rated) -> Boolean,
     private val refreshDue: suspend () -> Unit,
     private val recontext: suspend (notes: List<Long>, at: Miner.Request) -> Unit,
+    private val elsewhere: (form: String) -> Boolean = { false },
+    private val mineHere: suspend (at: Miner.Request) -> Unit = {},
 ) {
     constructor(known: KnownWords, miner: Miner) :
-        this(known::rate, known::undo, { known.refreshDue(force = true) }, { notes, at -> miner.recontext(notes, at) })
+        this(known::rate, known::undo, { known.refreshDue(force = true) }, { notes, at -> miner.recontext(notes, at) },
+            { known.cardIndex.cards(it).isEmpty() && WordSync.state(known.lang.code, it.lowercase()) != null },
+            { at ->
+                WordSync.insist = true
+                try { miner.mine(at) {} } finally { WordSync.insist = false }
+                DeviceFiles(known.context, emptyList()).share()
+                known.addNote(miner.lastNote)
+            })
 
     private val moves = ArrayList<Pair<KnownWords.Rated, Miner.Request>>()
 
     suspend fun rate(form: String, ease: Int, ms: Long, watch: Srs.Watch?, at: Miner.Request?): KnownWords.Rated? {
-        val done = answer(form, ease, ms, watch) ?: return null
+        val done = answer(form, ease, ms, watch)
+            ?: at?.takeIf { elsewhere(form) }?.let { mineHere(it); answer(form, ease, ms, watch) } ?: return null
         if (at != null) synchronized(moves) { moves += done to at }
         return done
     }

@@ -547,7 +547,7 @@ private fun WideTile(library: Library, s: Show, e: Episode, onPlay: () -> Unit) 
 @Composable
 private fun Streaming(library: Library, onOpen: (io.github.pedrubik2000.kumapie.data.Found) -> Unit) {
     var kept by remember { mutableStateOf(emptyList<io.github.pedrubik2000.kumapie.data.Found>()) }
-    LaunchedEffect(Unit) { runCatching { library.discovery.saved() }.onSuccess { kept = it } }
+    LaunchedEffect(Unit) { runCatching { library.discovery.let { io.github.pedrubik2000.kumapie.data.streamingRow(it.saved(), it.playedAt()) } }.onSuccess { kept = it } }
     if (kept.isEmpty()) return
     Column(Modifier.padding(top = 20.dp)) {
         Text(tr("Streaming"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))

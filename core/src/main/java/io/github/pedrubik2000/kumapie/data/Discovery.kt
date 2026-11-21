@@ -29,6 +29,8 @@ interface Discovery {
 
     fun goingNow(): List<Pair<Show, Episode>>? = null
 
+    suspend fun playedAt(): Map<String, Long> = going().associate { (s, e) -> s.id to e.resumedAt }
+
     fun found(o: JSONObject) = Found(o.optString("id"), o.optString("type", "series"), o.optString("name"), o.optString("poster"), o.optString("year"),
         o.optString("background"), o.optString("logo"), o.optString("description"), o.optString("genres"), o.optString("rating"), o.optString("runtime"), o.optString("name_ja"))
 }
@@ -175,6 +177,8 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
 
     override suspend fun going(): List<Pair<Show, Episode>> = going(saved())
 
+    override suspend fun playedAt(): Map<String, Long> = lastPlays(store.all)
+
     override fun goingNow(): List<Pair<Show, Episode>> = going(JSONArray(store.getString(SAVED, "[]")).objects().map { found(it) }
         .map { f -> if (f.nameJa.isNotEmpty()) f else f.copy(nameJa = store.getString("alone_ja_${f.id}", null).orEmpty()) })
 
@@ -254,6 +258,11 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         private const val BOARD = "discover_board"
 
         fun titleOf(id: String) = id.split(':').take(if (id.startsWith("kitsu:")) 2 else 1).joinToString(":")
+
+        fun lastPlays(all: Map<String, *>): Map<String, Long> = all.mapNotNull { (k, v) ->
+            if (!k.startsWith("alone_last_") || v !is String) null
+            else runCatching { k.removePrefix("alone_last_") to JSONObject(v).getLong("at") }.getOrNull()
+        }.toMap()
 
         fun nextId(type: String, id: String): String? {
             if (type == "movie" || id.count { it == ':' } < 2) return null

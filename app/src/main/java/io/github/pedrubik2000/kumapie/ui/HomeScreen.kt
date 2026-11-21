@@ -106,7 +106,7 @@ fun HomeScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, settings: Set
     val lang = picked?.takeIf { it in langs } ?: langs.firstOrNull()
     // Discover titles kept on Home (+ HOME on a title's page), to stream later: Japanese only, as Discover.
     var kept by remember { mutableStateOf(emptyList<Found>()) }
-    LaunchedEffect(lang) { kept = if (lang == "ja") runCatching { api.saved() }.getOrDefault(emptyList()) else emptyList() }
+    LaunchedEffect(lang) { kept = if (lang == "ja") runCatching { io.github.pedrubik2000.kumapie.data.streamingRow(api.saved(), api.playedAt()) }.getOrDefault(emptyList()) else emptyList() }
     // Streamed titles in "Continue watching" too (the episode left partway, or the next one).
     // null while loading: the row waited for them, else it showed without them and reshuffled (focus on a card that moved).
     // No PC: the row from this device's own data in Home's first frame (goingNow), and no shows to wait for. Without

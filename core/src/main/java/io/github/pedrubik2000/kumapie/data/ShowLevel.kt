@@ -38,6 +38,8 @@ fun continueRow(shows: List<Show>, streams: List<Pair<Show, Episode>> = emptyLis
             ?.let { s to it }
     } + streams).sortedByDescending { it.second.resumedAt }
 
+fun streamingRow(saved: List<Found>, playedAt: Map<String, Long>): List<Found> = saved.sortedByDescending { playedAt[it.id] ?: 0L }
+
 const val RESUME_AFTER_S = 20.0
 
 fun partway(at: Double?, duration: Double) = at != null && duration > 0 && at > RESUME_AFTER_S && duration - at > 120

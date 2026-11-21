@@ -143,17 +143,11 @@ class Library(context: Context, val settings: Settings) {
         val api = runCatching { api }.getOrNull() ?: return
         val shows = lastShows.takeIf { it.isNotEmpty() } ?: return
         val v = progress.devices()
-        val watch = shows.map { it.lang }.toSet().associateWith { Progress.daysIn(it, v, sceneLang(v, shows)) }
+        val watch = shows.map { it.lang }.toSet().associateWith { Progress.daysIn(it, v, Progress.sceneLang(v, shows)) }
         val hash = watch.hashCode().toString()
         if (settings.prefs.getString("watch_sent", null) == hash) return
         runCatching { api.deviceWatch(watch) }.onSuccess { settings.prefs.edit().putString("watch_sent", hash).apply() }
             .onFailure { android.util.Log.w("kumapie", "watch time not sent: $it") }
-    }
-
-    /** Episode watched (any of it) -> the language of its show. */
-    private fun sceneLang(v: Progress.View, shows: List<Show>): Map<String, String> {
-        val epLang = shows.flatMap { s -> s.episodes.map { it.id to s.lang } }.toMap()
-        return v.ranges.keys.mapNotNull { ep -> epLang[ep]?.let { ep to it } }.toMap()
     }
 
     /** The last list [shows] gave (for [sendWatch]). */
@@ -293,13 +287,8 @@ class Library(context: Context, val settings: Settings) {
         return progress.stats(runCatching { shows().first }.getOrDefault(emptyList()))
     }
 
-    /** Home's progress card: time in [lang] (today, 7 days, all) and the words known in it. */
-    class LangProgress(val today: Double, val week: Double, val total: Double, val known: Int)
-
-    suspend fun langProgress(lang: String, shows: List<Show>): LangProgress = withContext(Dispatchers.IO) {
-        val m = progress.merged
-        val (today, week, total) = Progress.totals(Progress.daysIn(lang, m, sceneLang(m, shows)))
-        LangProgress(today, week, total, languages.of(lang).known.knownList().size)
+    suspend fun langProgress(lang: String, shows: List<Show>) = withContext(Dispatchers.IO) {
+        Progress.homeTotal(lang, progress.merged, shows, languages.of(lang).known.knownList().size)
     }
 
     /** Every episode of [shows] with its scenes and word colours (fetched once per app run; unreachable ones skipped). */

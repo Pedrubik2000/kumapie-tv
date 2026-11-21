@@ -72,6 +72,8 @@ val slopForbidden = listOf(
         "use RESUME_AFTER_S / partway() (core data/ShowLevel.kt): a place resumes over 20 s, one number (no-PC streams resumed over 5 s, Home over 20 s)", listOf("app", "mobile", "core")),
     Forbidden(": Backend {", Regex(""":\s*(io\.github\.pedrubik2000\.kumapie\.data\.)?Backend\s*(\{|by\b)"""), listOf("/mobile/offline/Library.kt"),
         "use the :lang no-PC backend (lang NoPcBackend.kt): the TV marked words at once, the phone only once Anki was read (Library.kt's OfflineBackend is the with-PC part on top of it)", listOf("app", "mobile")),
+    Forbidden("daysIn( / totals(", Regex("""\b(daysIn|totals)\("""), listOf("/mobile/offline/Library.kt"),
+        "use Progress.homeTotal() (lang Progress.kt): Home's time and words known, one sum for the TV and the phone (the TV split the old time without its shows; Library.kt: sendWatch's days for the PC)", listOf("app", "mobile")),
 )
 
 /** [src] with comments removed and string contents blanked (newlines kept), and its number of comments. */

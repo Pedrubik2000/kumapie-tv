@@ -155,7 +155,7 @@ fun HomeScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, settings: Set
             lang == null -> Column { header(); Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL)) }
             else -> Rows(shows!!.filter { it.lang == lang }, lang, onShow, onPlay, kept, onDiscovered, streams!!, header, railFocus, toRows, api = api) {
                 if (api is Api) LangCard(lang) { api.stats().langs[lang] }
-                else LangCard(lang) { aloneTotal(context, settings, lang) }
+                else LangCard(lang) { aloneTotal(context, settings, lang, shows.orEmpty()) }
                 if (api !is Api && kept.isEmpty()) Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim)
             }
         }
@@ -211,15 +211,9 @@ internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequeste
 /** The header's buttons: narrower than elsewhere so all nine of Pedro's fit a 960 dp TV. */
 internal val TAB = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
 
-/**
- * Without a PC: this TV's time in [lang] and words known ([io.github.pedrubik2000.kumapie.lang.Progress], as the
- * phone's Home card); null before anything was watched.
- */
-private suspend fun aloneTotal(context: android.content.Context, settings: Settings, lang: String) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+private suspend fun aloneTotal(context: android.content.Context, settings: Settings, lang: String, shows: List<Show>) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
     val p = io.github.pedrubik2000.kumapie.lang.Progress
-    val (today, week, total) = p.totals(p.daysIn(lang, p.of(context).merged, emptyMap()))
-    io.github.pedrubik2000.kumapie.data.LangTotal(today, week, total, tvLanguages(context, settings).of(lang).known.knownList().size)
-        .takeIf { total > 0 }
+    p.homeTotal(lang, p.of(context).merged, shows, tvLanguages(context, settings).of(lang).known.knownList().size).takeIf { it.total > 0 }
 }
 
 /** Hours in this language (TV + phones) and words known, above everything (user, 2026-10-15), as on the phone. */

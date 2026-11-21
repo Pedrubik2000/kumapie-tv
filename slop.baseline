@@ -1,13 +1,13 @@
 # slopCheck's baseline (build.gradle.kts): shrinks, never grows. Rewritten by `gradlew slopCheck -PslopBaseline`.
 comments :lang 2113
-comments :mobile 802
+comments :mobile 800
 comments app/src/main/java/io/github/pedrubik2000/kumapie/data/KeySettings.kt 1
 comments app/src/main/java/io/github/pedrubik2000/kumapie/player/PlayerKeys.kt 23
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/Arcade.kt 45
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/ButtonsScreen.kt 3
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 42
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/HelpOverlay.kt 2
-comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 63
+comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 62
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 59
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/ProfilesScreen.kt 2
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/ReviewScreen.kt 5
@@ -66,7 +66,7 @@ forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/ShowLevel.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/player/LiveLines.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/ui/Subtitles.kt 1
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 413
-lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 467
+lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 461
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 526
 lines core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 720
 lines core/src/main/java/io/github/pedrubik2000/kumapie/player/SceneController.kt 453

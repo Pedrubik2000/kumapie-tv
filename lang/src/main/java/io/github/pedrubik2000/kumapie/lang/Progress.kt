@@ -224,6 +224,17 @@ class Progress internal constructor(dir: File, private val settings: Settings?) 
             }
         }
 
+        fun sceneLang(v: View, shows: List<io.github.pedrubik2000.kumapie.data.Show>): Map<String, String> {
+            val epLang = shows.flatMap { s -> s.episodes.map { it.id to s.lang } }.toMap()
+            return v.ranges.keys.mapNotNull { ep -> epLang[ep]?.let { ep to it } }.toMap()
+        }
+
+        fun homeTotal(lang: String, v: View, shows: List<io.github.pedrubik2000.kumapie.data.Show>, known: Int,
+                      today: java.time.LocalDate = today()): io.github.pedrubik2000.kumapie.data.LangTotal {
+            val (now, week, total) = totals(daysIn(lang, v, sceneLang(v, shows)), today)
+            return io.github.pedrubik2000.kumapie.data.LangTotal(now, week, total, known)
+        }
+
         /** The study day (it starts at 4 am, like the PC's and Anki's). */
         fun studyDay(): String = today().toString()
 

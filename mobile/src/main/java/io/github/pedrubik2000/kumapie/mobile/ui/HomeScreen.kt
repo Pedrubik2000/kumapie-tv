@@ -344,7 +344,7 @@ fun HomeScreen(
     }
 }
 
-private val shownProgress = mutableMapOf<String, Library.LangProgress>()
+private val shownProgress = mutableMapOf<String, io.github.pedrubik2000.kumapie.data.LangTotal>()
 
 /**
  * The first thing on Home (user, 2026-10-15): hours in this language and words known, so watching shows up as progress.

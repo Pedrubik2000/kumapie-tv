@@ -242,18 +242,20 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
     /** One row as the PC takes it (cards without the FSRS cache columns: every device replays its own). */
     private fun row(table: String, id: Long): JSONObject? = db.rawQuery("SELECT * FROM $table WHERE id = ?", arrayOf("$id")).use { c ->
         if (!c.moveToFirst()) return null
-        JSONObject().apply {
-            for (i in 0 until c.columnCount) {
-                val k = c.getColumnName(i)
-                if (table == "cards" && k in CACHE) continue
-                put(k, when (c.getType(i)) {
-                    Cursor.FIELD_TYPE_NULL -> JSONObject.NULL
-                    Cursor.FIELD_TYPE_INTEGER -> c.getLong(i)
-                    Cursor.FIELD_TYPE_FLOAT -> c.getDouble(i)
-                    else -> c.getString(i)
-                })
-            }
-        }
+        json(c).apply { if (table == "cards") CACHE.forEach(::remove) }
+    }
+
+    fun dump(): JSONObject = JSONObject().apply {
+        for (t in listOf("meta", "cards", "revlog", "exposures")) put(t, JSONArray(db.rawQuery("SELECT * FROM $t", null).use { c -> buildList { while (c.moveToNext()) add(json(c)) } }))
+    }
+
+    private fun json(c: Cursor) = JSONObject().apply {
+        for (i in 0 until c.columnCount) put(c.getColumnName(i), when (c.getType(i)) {
+            Cursor.FIELD_TYPE_NULL -> JSONObject.NULL
+            Cursor.FIELD_TYPE_INTEGER -> c.getLong(i)
+            Cursor.FIELD_TYPE_FLOAT -> c.getDouble(i)
+            else -> c.getString(i)
+        })
     }
 
     private fun values(o: JSONObject) = ContentValues().apply {

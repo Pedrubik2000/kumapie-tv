@@ -60,3 +60,4 @@ What the TV does for someone with no PC, in their words. Each line is proved on 
 6. `undo`: undo a rating, and the word is back as it was.
 7. `home`: Back from the player goes to Home.
 8. `next`: the episode ends and the next one starts.
+9. `export`: Settings > Export everything writes one file of words, cards, reviews and progress for another device to import.

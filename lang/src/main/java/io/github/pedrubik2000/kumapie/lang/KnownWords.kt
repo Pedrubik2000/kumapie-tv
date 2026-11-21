@@ -123,7 +123,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     }
 
     /** When the import was made: 1 for one from before times were kept (older than any other), 0 for none. */
-    private fun importedTime() = settings.prefs.getLong("imported_time_${lang.code}", if (imported.isEmpty()) 0 else 1)
+    internal fun importedTime() = settings.prefs.getLong("imported_time_${lang.code}", if (imported.isEmpty()) 0 else 1)
 
     /** The PC's answer to [listsBody]: takes another device's import when it's newer. */
     fun useLists(o: JSONObject) {

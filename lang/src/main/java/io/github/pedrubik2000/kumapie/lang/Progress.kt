@@ -157,41 +157,51 @@ class Progress internal constructor(dir: File, private val settings: Settings?) 
     /** This person's devices only, without the PC's history (the TV): what the PC gets as the phones' time. */
     fun devices(): View = merge(skip = "pc")
 
-    private fun merge(skip: String? = null): View {
-        val parts = listOf(data) + others.keys().asSequence().filter { it != skip }.mapNotNull { others.optJSONObject(it) }.toList()
-        val pos = HashMap<String, Pair<Double, Long>>()
-        val unwatched = HashMap<String, Long>()
-        val watch = HashMap<String, Double>()
-        val langWatch = HashMap<String, HashMap<String, Double>>()
-        val lookups = HashMap<String, Int>()
-        val gloss = HashMap<String, String>()
-        val ranges = ArrayList<Map<String, Pair<Long, List<Span>>>>()
-        val done = HashMap<String, Long>()
-        for (p in parts) {
-            p.optJSONObject("ranges")?.let { o ->
-                ranges += o.keys().asSequence().associateWith { k -> o.getJSONArray(k).let { it.getLong(0) to Ranges.parse(it.getJSONArray(1)) } }
-            }
-            p.optJSONObject("done")?.let { o -> for (k in o.keys()) done[k] = maxOf(done[k] ?: 0, o.getLong(k)) }
-            p.optJSONObject("pos")?.let { o ->
-                for (k in o.keys()) {
-                    val a = o.getJSONArray(k)
-                    if ((pos[k]?.second ?: -1) <= a.optLong(1)) pos[k] = a.getDouble(0) to a.optLong(1)
-                }
-            }
-            p.optJSONObject("unwatched")?.let { o -> for (k in o.keys()) unwatched[k] = maxOf(unwatched[k] ?: 0, o.getLong(k)) }
-            p.optJSONObject("watch")?.let { o -> for (k in o.keys()) watch[k] = (watch[k] ?: 0.0) + o.getDouble(k) }
-            p.optJSONObject("lwatch")?.let { o ->
-                for (l in o.keys()) o.getJSONObject(l).let { w -> val m = langWatch.getOrPut(l) { HashMap() }; for (k in w.keys()) m[k] = (m[k] ?: 0.0) + w.getDouble(k) }
-            }
-            p.optJSONObject("lookups")?.let { o -> for (k in o.keys()) lookups[k] = (lookups[k] ?: 0) + o.getInt(k) }
-            p.optJSONObject("gloss")?.let { o -> for (k in o.keys()) gloss[k] = o.getString(k) }
-        }
-        return View(pos.mapValues { it.value.first }, watch, lookups, io.github.pedrubik2000.kumapie.lang.LeavePc.newestMarks(parts), gloss, unwatched,
-            pos.mapValues { it.value.second }, langWatch, stillWatched(ranges, unwatched),
-            done.filter { (ep, at) -> at > (unwatched[ep] ?: -1) }.keys)
+    private fun merge(skip: String? = null): View =
+        merge(listOf(data) + others.keys().asSequence().filter { it != skip }.mapNotNull { others.optJSONObject(it) }.toList())
+
+    internal fun parts(): JSONObject = JSONObject(others.toString()).put(device, JSONObject(data.toString()))
+
+    internal fun useOthers(o: JSONObject) = synchronized(this) {
+        others = o
+        othersFile.writeText(o.toString())
+        merged = merge()
     }
 
     companion object {
+        fun merge(parts: List<JSONObject>): View {
+            val pos = HashMap<String, Pair<Double, Long>>()
+            val unwatched = HashMap<String, Long>()
+            val watch = HashMap<String, Double>()
+            val langWatch = HashMap<String, HashMap<String, Double>>()
+            val lookups = HashMap<String, Int>()
+            val gloss = HashMap<String, String>()
+            val ranges = ArrayList<Map<String, Pair<Long, List<Span>>>>()
+            val done = HashMap<String, Long>()
+            for (p in parts) {
+                p.optJSONObject("ranges")?.let { o ->
+                    ranges += o.keys().asSequence().associateWith { k -> o.getJSONArray(k).let { it.getLong(0) to Ranges.parse(it.getJSONArray(1)) } }
+                }
+                p.optJSONObject("done")?.let { o -> for (k in o.keys()) done[k] = maxOf(done[k] ?: 0, o.getLong(k)) }
+                p.optJSONObject("pos")?.let { o ->
+                    for (k in o.keys()) {
+                        val a = o.getJSONArray(k)
+                        if ((pos[k]?.second ?: -1) <= a.optLong(1)) pos[k] = a.getDouble(0) to a.optLong(1)
+                    }
+                }
+                p.optJSONObject("unwatched")?.let { o -> for (k in o.keys()) unwatched[k] = maxOf(unwatched[k] ?: 0, o.getLong(k)) }
+                p.optJSONObject("watch")?.let { o -> for (k in o.keys()) watch[k] = (watch[k] ?: 0.0) + o.getDouble(k) }
+                p.optJSONObject("lwatch")?.let { o ->
+                    for (l in o.keys()) o.getJSONObject(l).let { w -> val m = langWatch.getOrPut(l) { HashMap() }; for (k in w.keys()) m[k] = (m[k] ?: 0.0) + w.getDouble(k) }
+                }
+                p.optJSONObject("lookups")?.let { o -> for (k in o.keys()) lookups[k] = (lookups[k] ?: 0) + o.getInt(k) }
+                p.optJSONObject("gloss")?.let { o -> for (k in o.keys()) gloss[k] = o.getString(k) }
+            }
+            return View(pos.mapValues { it.value.first }, watch, lookups, io.github.pedrubik2000.kumapie.lang.LeavePc.newestMarks(parts), gloss, unwatched,
+                pos.mapValues { it.value.second }, langWatch, stillWatched(ranges, unwatched),
+                done.filter { (ep, at) -> at > (unwatched[ep] ?: -1) }.keys)
+        }
+
         @Volatile private var one: Progress? = null
 
         /** One per app process (the player, and the condensed service each make a Library). */

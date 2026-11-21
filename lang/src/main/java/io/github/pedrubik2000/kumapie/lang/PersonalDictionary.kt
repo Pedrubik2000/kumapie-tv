@@ -79,6 +79,10 @@ class PersonalDictionary internal constructor(private val file: File) {
 
     private fun load(): List<Entry> = runCatching { fromJson(JSONArray(file.readText())) }.getOrDefault(emptyList())
 
+    internal fun entries(): JSONArray = toJson(all)
+
+    @Synchronized internal fun take(list: List<Entry>) = store(list)
+
     companion object {
         /** The dictionary name an entry's meaning shows under. */
         const val TITLE = "Personal"
@@ -152,12 +156,12 @@ class PersonalDictionary internal constructor(private val file: File) {
             return best.values.toList()
         }
 
-        private fun toJson(list: List<Entry>) = JSONArray(list.map { e ->
+        internal fun toJson(list: List<Entry>) = JSONArray(list.map { e ->
             JSONObject().put("lang", e.lang).put("text", e.text).put("target", e.target).put("reading", e.reading)
                 .put("meaning", e.meaning).put("time", e.time).put("deleted", e.deleted)
         })
 
-        private fun fromJson(a: JSONArray) = (0 until a.length()).map { i ->
+        internal fun fromJson(a: JSONArray) = (0 until a.length()).map { i ->
             a.getJSONObject(i).let { o ->
                 Entry(o.getString("lang"), o.getString("text"), o.optString("target"), o.optString("reading"), o.optString("meaning"),
                     o.optLong("time"), o.optBoolean("deleted"))

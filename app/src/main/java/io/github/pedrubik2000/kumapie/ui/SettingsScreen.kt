@@ -47,6 +47,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         if (!firstRun && settings.server.isEmpty()) AloneSources(settings)
         if (!firstRun) {
             TvPreferences(settings, focus, onButtons)
+            TvExport()
             TvAbout(settings, onUpdate)
         }
     }
@@ -243,4 +244,24 @@ internal fun SetupLine(l: io.github.pedrubik2000.kumapie.data.SetupCheck.Line) {
         Text(l.what, color = Colors.text, modifier = Modifier.width(220.dp))
         Text(l.say, color = if (l.verdict == io.github.pedrubik2000.kumapie.data.SetupCheck.Verdict.OK) Colors.dim else colour)
     }
+}
+
+@Composable
+private fun TvExport() {
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var status by remember { mutableStateOf("") }
+    Heading(tr("Your data"), Modifier.padding(top = 24.dp))
+    Text(tr("Everything kumapie keeps here in one file, for another device to import: words, cards, reviews, progress."), color = Colors.dim)
+    Button(onClick = {
+        status = tr("Exporting…")
+        scope.launch {
+            status = runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    io.github.pedrubik2000.kumapie.lang.DeviceFiles(context, tvLanguages(context, Settings(context)).all).export()
+                }
+            }.fold({ it.line() }, { tr("Couldn't export: %s", it.message) })
+        }
+    }) { Text(tr("Export everything")) }
+    if (status.isNotEmpty()) Text(status, color = Colors.dim)
 }

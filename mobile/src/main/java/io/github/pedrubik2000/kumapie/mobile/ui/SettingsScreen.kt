@@ -204,7 +204,7 @@ private fun SectionContent(library: Library, key: String, onSaved: () -> Unit, o
             LeavePcSection(library, onSaved)
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             TransferSection()
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(Modifier.padding(vertical = 8.dp)); DeviceFileSection(library); HorizontalDivider(Modifier.padding(vertical = 8.dp))
             CheckSetupSection(settings)
         }
         "storage" -> StorageSection(library, onUpdate)

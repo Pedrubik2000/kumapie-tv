@@ -29,7 +29,12 @@ import dev.chrisbanes.haze.blur.hazeBlur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,7 +43,8 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 /**
  * The "Glass" look (N9, user 2026-11-17): a near-black page, translucent white surfaces with a thin white border,
  * white pills, ice blue only for small accents (today, sense numbers, ticks). The TV keeps its own (`Colors` are vars
- * it sets itself); subtitle word colours are not touched.
+ * it sets itself); subtitle word colours are not touched. Text is Roboto, the TV's font, from Google Fonts as the
+ * Japanese subtitle fonts: a Samsung font style replaces the system's sans-serif too (serif on Pedro's tablet).
  */
 object Glass {
     val page = Color(0xFF07090D)
@@ -71,8 +77,18 @@ fun Modifier.glass(shape: Shape = RoundedCornerShape(18.dp)) = composed {
         .border(1.dp, Glass.line, shape)
 }
 
+private val Roboto = FontFamily(listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.Bold)
+    .map { Font(GoogleFont("Roboto"), io.github.pedrubik2000.kumapie.ui.JapaneseFonts.provider, it) })
+
+private val RobotoType = Typography().run {
+    fun TextStyle.r() = copy(fontFamily = Roboto)
+    Typography(displayLarge.r(), displayMedium.r(), displaySmall.r(), headlineLarge.r(), headlineMedium.r(), headlineSmall.r(),
+        titleLarge.r(), titleMedium.r(), titleSmall.r(), bodyLarge.r(), bodyMedium.r(), bodySmall.r(), labelLarge.r(), labelMedium.r(), labelSmall.r())
+}
+
 @Composable
 fun MobileTheme(content: @Composable () -> Unit) {
+    io.github.pedrubik2000.kumapie.ui.uiFont = Roboto
     Colors.background = Glass.page
     Colors.surface = Glass.solid
     Colors.accent = Glass.accent
@@ -109,6 +125,7 @@ fun MobileTheme(content: @Composable () -> Unit) {
             large = RoundedCornerShape(22.dp),
             extraLarge = RoundedCornerShape(28.dp),
         ),
+        typography = RobotoType,
         content = content,
     )
 }

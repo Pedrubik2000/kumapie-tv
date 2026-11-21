@@ -103,7 +103,7 @@ fun MeaningCard(
 @Composable
 private fun DefinitionParts(ctl: SceneController, picker: WordPicker, written: String, def: LineDef, onTapDef: ((Int) -> Unit)?, style: androidx.compose.ui.text.TextStyle?) {
     val heading = def.lemma.ifBlank { written }
-    Text(heading, color = Colors.text, fontSize = if (style != null) 34.sp else 26.sp, style = style ?: androidx.compose.ui.text.TextStyle.Default)
+    Text(heading, color = Colors.text, fontSize = if (style != null) 34.sp else 26.sp, style = style ?: androidx.compose.ui.text.TextStyle(fontFamily = uiFont))
     if (!heading.equals(written, ignoreCase = true)) Text(written, color = Colors.dim, fontSize = 18.sp)
     val germanKnown = def.target.all { s -> s.word == null || (ctl.words[s.word]?.status ?: "u") == "k" }
     val german = coloredDefinition(def, ctl.words, if (picker.inDef) picker.defSeg else -1, ctl.plainWords)

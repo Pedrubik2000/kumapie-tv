@@ -25,6 +25,6 @@ fun NeutralPoster(title: String, modifier: Modifier = Modifier, fontSize: TextUn
     val hue = ((title.hashCode() % 360) + 360) % 360
     Box(modifier.background(Color.hsv(hue.toFloat(), 0.35f, 0.32f)), contentAlignment = Alignment.Center) {
         if (showTitle) BasicText(title, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(12.dp),
-            style = TextStyle(color = Colors.text, fontSize = fontSize, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center))
+            style = TextStyle(color = Colors.text, fontFamily = uiFont, fontSize = fontSize, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center))
     }
 }

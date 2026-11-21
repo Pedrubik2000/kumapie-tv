@@ -78,6 +78,8 @@ val slopForbidden = listOf(
         "use Startup.updates() / Startup.update(BuildConfig.DEBUG) (core data/Startup.kt): one update check at start, none in debug builds (Settings' button: its own error line)", listOf("app", "mobile")),
     Forbidden("server.isEmpty() && !standalone / !onboarded, ONBOARDED", Regex("""server\.isEmpty\(\)\s*&&\s*!(standalone|onboarded)\b|\b(TV_)?ONBOARDED\b"""), emptyList(),
         "use Startup.gate() / Startup.onboarded() (core data/Startup.kt): first run, onboarding or the app is one rule, one \"onboarded\" key", listOf("app", "mobile")),
+    Forbidden("FontFamily.Serif / SansSerif / Default", Regex("""\bFontFamily\.(Serif|SansSerif|Default|Monospace|Cursive)\b"""), emptyList(),
+        "the theme's Roboto (MobileTheme.kt): a generic family is the device's font, which a Samsung font style replaces (serif on Pedro's tablet; look plan step 1)", listOf("mobile")),
     Forbidden("StreamStart.picked( / StreamStart.ready( / Playable.missing( / discoverStreams(title", Regex("""\bStreamStart\.(picked|ready)\(|\bPlayable\.missing\(|\bdiscoverStreams\(\s*title\b"""), emptyList(),
         "use TitlePage (core data/TitlePage.kt): ▶, play or the file list, the files' order, + Home and ✓ are one holder for both title pages", listOf("app", "mobile")),
     Forbidden("LangKit.get( / Languages( / Miner(", Regex("""\bLangKit\.get\(|\b(Languages|Miner)\("""), listOf("/ui/TvMining.kt", "/mobile/offline/Library.kt"),

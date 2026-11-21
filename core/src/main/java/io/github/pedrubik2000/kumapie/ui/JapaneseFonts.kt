@@ -24,7 +24,7 @@ object JapaneseFonts {
     /** A line to see a font by. */
     const val SAMPLE = "日本語の字幕：がんばろう！"
 
-    private val provider = GoogleFont.Provider(
+    val provider = GoogleFont.Provider(
         providerAuthority = "com.google.android.gms.fonts",
         providerPackage = "com.google.android.gms",
         certificates = R.array.com_google_android_gms_fonts_certs,

@@ -42,6 +42,7 @@ internal val esTv: Map<String, String> = mapOf(
     "Show the meaning; then a due word: rate it; another: hear it (twice: the definition)" to
         "Ver el significado; luego, si toca hoy: responderla; si no: escucharla (dos veces: la definición)",
     "Replay the word's line" to "Repetir la línea de la palabra",
+    "Next reading (a word with one: replay the word's line)" to "Siguiente lectura (si tiene una sola: repetir la línea de la palabra)",
     "Mark known / undo" to "Marcar como conocida / deshacer",
     "Add the word to Anki" to "Agregar la palabra a Anki",
     "Pick a word first" to "Primero elige una palabra",
@@ -194,6 +195,8 @@ internal val esTv: Map<String, String> = mapOf(
     "Word" to "Palabra",
     "Hear" to "Escuchar",
     "Line" to "Línea",
+    "· %d readings" to "· %d lecturas",
+    "%1\$s · %2\$d readings" to "%1\$s · %2\$d lecturas",
     "Rate" to "Responder",
     "Move" to "Mover",
     "Open" to "Abrir",

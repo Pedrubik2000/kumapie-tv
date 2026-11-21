@@ -285,6 +285,10 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
     override suspend fun entries(tap: Tap): List<DictEntry> = emptyList()
 
     /** The rows a tap at [offset] in [text] rates ([JapaneseLookup.forms]). */
+    fun readings(word: String): List<String> = JapaneseLookup.readings(word, yomitan.query(lang, word))
+
+    fun nextReading(word: String, now: String): String = JapaneseLookup.next(readings(word), now).also { yomitan.personal.choose(word, it) }
+
     suspend fun forms(text: String, offset: Int): List<JapaneseLookup.Form> =
         withContext(Dispatchers.Default) { finder.forms(text, offset) }
 

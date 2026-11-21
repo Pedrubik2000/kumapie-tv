@@ -19,6 +19,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,6 +43,26 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 
+internal object TvReading {
+    var at by mutableStateOf<Pair<Int, Int>?>(null)
+    var word by mutableStateOf("")
+    var readings by mutableStateOf(emptyList<String>())
+    var shown by mutableStateOf("")
+    var version by mutableIntStateOf(0)
+    fun several(picker: WordPicker) = picker.cardOpen && at == (picker.line to picker.seg) && readings.size > 1
+    suspend fun show(found: Headword?, spot: Pair<Int, Int>) {
+        readings = found?.let { withContext(Dispatchers.IO) { TvMining.languages.japanese.readings(it.expression) } }.orEmpty()
+        word = found?.expression.orEmpty()
+        shown = found?.reading.orEmpty()
+        at = spot
+    }
+}
+
+fun nextTvReading() {
+    TvMining.languages.japanese.nextReading(TvReading.word, TvReading.shown)
+    TvReading.version++
+}
+
 @Composable
 fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker, height: Int) {
     val context = LocalContext.current
@@ -56,6 +77,7 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
             val kana = hw?.reading?.takeIf { it.isNotBlank() } ?: word.reading
             val expression = hw?.expression ?: word.lemma.ifBlank { segment.text }
             if (kana.isNotBlank() && kana != expression) PitchReading(kana, hw?.pitches?.flatMap { it.second }?.firstOrNull())
+            if (TvReading.several(picker)) Text(tr("· %d readings", TvReading.readings.size), color = Colors.dim, fontSize = 14.sp)
             Text(expression, color = Colors.text, fontSize = 40.sp, lineHeight = 46.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             if (segment.text != expression) Text(segment.text, color = Colors.dim, fontSize = 16.sp)
             (ctl.scene.meanings[key] ?: word.meaning).substringAfter(" = ").takeIf { it.isNotBlank() }?.let {
@@ -74,7 +96,7 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
         if (message != null) Text(message, color = Colors.dim, fontSize = 17.sp, modifier = Modifier.padding(start = 20.dp, top = 4.dp))
         else html?.let { DictionaryWeb(it, Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp)) }
     }
-    LaunchedEffect(picker.line, picker.seg) {
+    LaunchedEffect(picker.line, picker.seg, TvReading.version) {
         TvMining.languages(context, settings)
         val y = TvMining.yomitan
         if (y.of(Lang.JAPANESE).isEmpty()) TvMining.fetchJapanese(context, settings)
@@ -86,6 +108,7 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
         val lemma = ctl.scene.def(picker.line, key)?.lemma?.takeIf { it.isNotBlank() } ?: word?.lemma?.takeIf { it.isNotBlank() }
         val found = withContext(Dispatchers.IO) { io.github.pedrubik2000.kumapie.lang.WordCard.japaneseHeadwords(TvMining.languages.japanese, cue.text, offset, segment.text, lemma ?: key, word?.reading.orEmpty()).firstOrNull() }
         hw = found
+        TvReading.show(found, picker.line to picker.seg)
         html = if (found == null) "" else withContext(Dispatchers.IO) {
             val byDict = LinkedHashMap<String, MutableList<String>>()
             for (t in found.terms) for (g in t.glossaries) byDict.getOrPut(g.dict) { ArrayList() }.let { if (g.raw !in it) it += g.raw }

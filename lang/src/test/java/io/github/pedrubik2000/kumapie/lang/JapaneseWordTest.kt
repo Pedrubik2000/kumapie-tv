@@ -170,4 +170,18 @@ class JapaneseWordTest {
         assertEquals("the table loses too", "あす", JapaneseLookup.reading("明日は雨", 0, "明日", "あした", terms("明日")) { it == CardIndex.japaneseKey("明日", "あす") })
         assertEquals("the line decides: なん", "なん", JapaneseLookup.reading("何でしょう？", 0, "何", "なん", terms("何", jpdb)) { it in cards })
     }
+
+    /** Way 3 (Pedro, 2026-11-21): the reading the person picked wins over the line, a card and the frequency; hold OK / a tap goes round them. */
+    @Test fun aPickedReadingWins() {
+        assertEquals("なに", JapaneseLookup.reading("何でしょう？", 0, "何", "なん", terms("何", jpdb), chosen = "なに"))
+        assertEquals("わたくし", JapaneseLookup.reading("私は 薬屋です", 0, "私", "わたし", terms("私"), "わたくし") { it == CardIndex.japaneseKey("私", "わたし") })
+        assertEquals("not one of its readings: ignored", "わたし", JapaneseLookup.reading("私は 薬屋です", 0, "私", "わたくし", terms("私"), chosen = "ぼく"))
+        assertEquals("one reading: nothing to pick (no label; hold OK replays the line)", 1,
+            JapaneseLookup.readings("上の空", listOf(term("上の空", "うわのそら"), term("上の空", "上の空"))).size)
+        val asu = JapaneseLookup.readings("明日", terms("明日"))
+        assertEquals(listOf("あした", "あす", "みょうにち"), asu)
+        assertEquals("あす", JapaneseLookup.next(asu, "あした"))
+        assertEquals("wraps round", "あした", JapaneseLookup.next(asu, "みょうにち"))
+        assertEquals("あした", JapaneseLookup.next(asu, ""))
+    }
 }

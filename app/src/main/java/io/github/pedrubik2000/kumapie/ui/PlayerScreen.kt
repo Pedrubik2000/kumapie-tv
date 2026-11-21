@@ -192,7 +192,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
                 Action.PICK_AUDIO -> if (picker.cardOpen && !picker.inDef && pickedCard(ctl, picker)?.second in RATEABLE) rating.open = true
                     else picker.hearAgain()
                 Action.PICK_HEAR -> picker.hearAgain()
-                Action.PICK_REPLAY_LINE -> picker.replayLine()
+                Action.PICK_REPLAY_LINE, Action.PICK_READING -> if (action == Action.PICK_READING && TvReading.several(picker)) nextTvReading() else picker.replayLine()
                 Action.PICK_MARK_KNOWN -> picker.toggleKnown()
                 // Right after a rating the "add to Anki" button undoes it, until the next word card.
                 Action.PICK_MINE -> if (rating.fresh) undoRating(context, api, settings, ctl, scope, rating)
@@ -388,19 +388,19 @@ private fun PlayerHints(ctl: SceneController, picker: WordPicker, rating: TvRati
     fun hint(keys: Map<Binding, Action>, action: Action, label: String, on: Boolean = false): Hint? =
         forInput(keys.filterValues { it == action }.keys).firstOrNull()?.let { b -> Hint(tr(label), on) { KeyHint(b, if (on) Arcade.background else Colors.text) } }
     fun move(label: String, arrows: String) = Hint(tr(label)) { if (Pad.on) Glyph(DPAD) else KeyCap(arrows) }
+    fun line() = hint(pick, Action.PICK_READING, if (TvReading.several(picker)) "Reading" else "Line") ?: hint(pick, Action.PICK_REPLAY_LINE, "Line")
     fun back(label: String) = Hint(tr(label)) { if (Pad.on) Glyph(android.view.KeyEvent.KEYCODE_BUTTON_B) else KeyCap(tr("Back")) }
     val card = pickedCard(ctl, picker)
-    val context = LocalContext.current
-    val own = remember(ctl.lang) { runCatching { ownCards(context, ctl.settings, ctl.lang) }.getOrDefault(false) }
+    val own = LocalContext.current.let { context -> remember(ctl.lang) { runCatching { ownCards(context, ctl.settings, ctl.lang) }.getOrDefault(false) } }
     val hints: List<Hint?> = when {
         rating.open -> listOf(move("Rate", "← ↓ → ↑"), back("Cancel"))
         picker.isOpen && picker.inDef -> listOf(move("Word", "←→"), hint(pick, Action.PICK_DOWN, "Back to the line"),
             hint(pick, Action.PICK_AUDIO, "Hear"), hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         // A due word with its meaning shown: the "hear" button rates (the pad hears with its own button).
         picker.isOpen && picker.cardOpen && card?.second in RATEABLE -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, "Rate card", on = true),
-            hint(pick, Action.PICK_HEAR, "Hear"), hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
+            hint(pick, Action.PICK_HEAR, "Hear"), line(), hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         picker.isOpen -> listOf(move("Word", "←→"), hint(pick, Action.PICK_AUDIO, if (picker.cardOpen) "Hear" else "Meaning"),
-            hint(pick, Action.PICK_REPLAY_LINE, "Line"), hint(pick, Action.PICK_MINE, if (rating.fresh) "Undo" else if (ctl.episode.srs || own) "Add to reviews" else "Add to Anki"),
+            line(), hint(pick, Action.PICK_MINE, if (rating.fresh) "Undo" else if (ctl.episode.srs || own) "Add to reviews" else "Add to Anki"),
             hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         ctl.atSceneEnd -> listOf(hint(watch, Action.PLAY_PAUSE, "Play"), hint(watch, Action.REPLAY_LINE, "Line"),
             hint(watch, Action.CYCLE_SUBTITLES, "Pick a word"), hint(watch, Action.PREVIOUS_SCENE, "Previous"))

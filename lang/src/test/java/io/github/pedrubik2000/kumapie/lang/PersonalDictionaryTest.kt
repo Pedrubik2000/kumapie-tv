@@ -5,6 +5,7 @@ import io.github.pedrubik2000.kumapie.lang.PersonalDictionary.Companion.join
 import io.github.pedrubik2000.kumapie.lang.PersonalDictionary.Companion.merge
 import io.github.pedrubik2000.kumapie.lang.PersonalDictionary.Entry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PersonalDictionaryTest {
@@ -43,5 +44,17 @@ class PersonalDictionaryTest {
         val merged = merge(listOf(cacao.copy(time = 2)), listOf(cacao.copy(target = "old", time = 1), Entry("ja", "x", deleted = true, time = 5)))
         assertEquals(listOf("カカオ", ""), merged.map { it.target })
         assertEquals(listOf(false, true), merged.map { it.deleted })
+    }
+
+    /** A picked reading (core plan 5b way 3) is kept in the file, the newest wins, and it is never a Japanese word. */
+    @Test fun aPickedReadingIsKept() {
+        val f = java.io.File.createTempFile("personal", ".json").apply { delete(); deleteOnExit() }
+        PersonalDictionary(f).choose("明日", "あす")
+        val again = PersonalDictionary(f)
+        assertEquals("あす", again.reading("明日"))
+        again.choose("明日", "あした")
+        assertEquals("the newest", "あした", again.reading("明日"))
+        assertNull(again.entry("ja", "明日"))
+        assertNull(again.reading("今日"))
     }
 }

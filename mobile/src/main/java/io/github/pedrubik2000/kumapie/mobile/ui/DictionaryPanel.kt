@@ -12,7 +12,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -54,7 +56,8 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker, 
     var entries by remember(tap) { mutableStateOf<List<DictEntry>?>(null) }
     var headwords by remember(tap) { mutableStateOf<List<Headword>?>(null) }
     var all by remember(tap) { mutableStateOf(false) }
-    LaunchedEffect(tap, missing) {
+    var picked by remember(tap) { mutableIntStateOf(0) }
+    LaunchedEffect(tap, missing, picked) {
         if (missing != null) return@LaunchedEffect
         val t0 = android.os.SystemClock.uptimeMillis()
         entries = language.entries(tap)
@@ -83,6 +86,14 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker, 
                 modifier = Modifier.padding(end = 36.dp, bottom = 4.dp)) // clear of the card's ×
         }
         val hws = headwords
+        val first = hws?.firstOrNull()?.takeIf { language is io.github.pedrubik2000.kumapie.lang.Japanese && picker.selectedInDef == null }
+        val readings by produceState(emptyList<String>(), first) {
+            value = first?.let { h -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { (language as io.github.pedrubik2000.kumapie.lang.Japanese).readings(h.expression) } }.orEmpty()
+        }
+        if (first != null && readings.size > 1) TextButton(onClick = {
+            (language as io.github.pedrubik2000.kumapie.lang.Japanese).nextReading(first.expression, first.reading)
+            picked++
+        }) { Text(tr("%1\$s · %2\$d readings", first.reading, readings.size), fontSize = 14.sp) }
         when {
             missing != null -> Text(missing, color = Colors.dim, fontSize = 14.sp)
             hws == null -> Text(tr("Looking it up…"), color = Colors.dim, fontSize = 14.sp)

@@ -16,16 +16,17 @@ import java.io.File
  * entry is either the same as an existing word ([Entry.target]: 可可阿 = カカオ, sharing its card, colour and dictionaries)
  * or a word of its own, with a [Entry.reading] and [Entry.meaning]. The text is then one word in every episode when it
  * opens ([join]) and [YomitanDictionaries] finds it like a dictionary entry. A copy on each device (it works offline);
- * [sync] merges it with the PC's, so the phone, tablet and TV share them.
+ * [sync] merges it with the PC's, so the phone, tablet and TV share them. Also the reading the person picked for a
+ * Japanese word (core plan 5b way 3: [reading], [choose]): an entry of its own language [READINGS], so it is never a
+ * word in an episode, and it syncs with the rest (the PC merges any language by its text, newest wins).
  */
-class PersonalDictionary private constructor(context: Context) {
+class PersonalDictionary internal constructor(private val file: File) {
     data class Entry(val lang: String, val text: String, val target: String = "", val reading: String = "", val meaning: String = "",
                      val time: Long = 0, val deleted: Boolean = false)
 
     /** Where [entry] is in a subtitle line: characters [start] until [end]. */
     data class Span(val start: Int, val end: Int, val entry: Entry)
 
-    private val file = File(context.filesDir, "personal-dictionary.json")
     @Volatile private var all: List<Entry> = load()
 
     private fun live(lang: String) = all.filter { it.lang == lang && !it.deleted }
@@ -44,6 +45,10 @@ class PersonalDictionary private constructor(context: Context) {
     @Synchronized fun save(e: Entry) = store(merge(all, listOf(e.copy(time = System.currentTimeMillis()))))
 
     @Synchronized fun delete(e: Entry) = save(e.copy(deleted = true))
+
+    fun reading(word: String): String? = live(READINGS).firstOrNull { it.text == word }?.reading?.ifEmpty { null }
+
+    fun choose(word: String, reading: String) = save(Entry(READINGS, word, reading = reading))
 
     /** [episode] with this language's entries as one word each; a word new to the episode starts red. */
     fun join(episode: EpisodeDetail): EpisodeDetail {
@@ -77,10 +82,11 @@ class PersonalDictionary private constructor(context: Context) {
     companion object {
         /** The dictionary name an entry's meaning shows under. */
         const val TITLE = "Personal"
+        const val READINGS = "ja-yomi"
 
         @Volatile private var instance: PersonalDictionary? = null
         fun get(context: Context): PersonalDictionary = instance ?: synchronized(this) {
-            instance ?: PersonalDictionary(context.applicationContext).also { instance = it }
+            instance ?: PersonalDictionary(File(context.applicationContext.filesDir, "personal-dictionary.json")).also { instance = it }
         }
 
         /** Written with spaces: whole words only, in any case. */

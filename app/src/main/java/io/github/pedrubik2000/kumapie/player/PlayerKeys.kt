@@ -30,6 +30,7 @@ enum class Action(val label: String, val context: KeyContext = KeyContext.WATCH)
     PICK_AUDIO("Show the meaning; then a due word: rate it; another: hear it (twice: the definition)", KeyContext.PICKER),
     PICK_HEAR("Hear the word", KeyContext.PICKER),
     PICK_REPLAY_LINE("Replay the word's line", KeyContext.PICKER),
+    PICK_READING("Next reading (a word with one: replay the word's line)", KeyContext.PICKER),
     PICK_MARK_KNOWN("Mark known / undo", KeyContext.PICKER),
     PICK_MINE("Add the word to Anki", KeyContext.PICKER),
     PICK_UNDO("Undo the last rating", KeyContext.PICKER),
@@ -107,8 +108,8 @@ class KeyMap(
                 KeyEvent.KEYCODE_BUTTON_START to Action.PICK_UNDO,
             ),
             long = mapOf(
-                KeyEvent.KEYCODE_DPAD_CENTER to Action.PICK_REPLAY_LINE,
-                KeyEvent.KEYCODE_ENTER to Action.PICK_REPLAY_LINE,
+                KeyEvent.KEYCODE_DPAD_CENTER to Action.PICK_READING,
+                KeyEvent.KEYCODE_ENTER to Action.PICK_READING,
                 KeyEvent.KEYCODE_DPAD_DOWN to Action.PICK_MARK_KNOWN,
                 KeyEvent.KEYCODE_DPAD_UP to Action.PICK_MINE,
             ),

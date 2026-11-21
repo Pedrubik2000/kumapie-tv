@@ -47,8 +47,6 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
 import kotlinx.coroutines.launch
 
-/** Set once the onboarding was finished (or skipped through): it doesn't come back. */
-const val ONBOARDED = "onboarded"
 
 /**
  * The first run without a PC (kumapie_plan.md "Onboarding"): languages, the Jimaku key (Japanese subtitles), the
@@ -129,7 +127,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                 Spacer(Modifier.weight(1f))
                 Button(enabled = keys[step] != "jimaku" || jimaku.isNotBlank(), onClick = {
                     if (keys[step] == "sources") saveSources()
-                    if (step < steps - 1) step++ else { settings.prefs.edit().putBoolean(ONBOARDED, true).apply(); onDone() }
+                    if (step < steps - 1) step++ else { io.github.pedrubik2000.kumapie.data.Startup.onboard(settings.prefs); onDone() }
                 }) { Text(if (step < steps - 1) tr("Next") else tr("Start watching")) }
             }
         }

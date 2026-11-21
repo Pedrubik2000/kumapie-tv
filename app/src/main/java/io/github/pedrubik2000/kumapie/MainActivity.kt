@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Episode
+import io.github.pedrubik2000.kumapie.data.Gate
 import io.github.pedrubik2000.kumapie.data.Profile
 import io.github.pedrubik2000.kumapie.i18n.Tr
 import io.github.pedrubik2000.kumapie.data.Settings
@@ -59,9 +60,7 @@ class MainActivity : ComponentActivity() {
             coil3.SingletonImageLoader.get(this).enqueue(coil3.request.ImageRequest.Builder(this).data(image)
                 .size(m.widthPixels, m.heightPixels).scale(coil3.size.Scale.FILL).build())
         }
-        Updater.repo = BuildConfig.UPDATE_REPO
-        Updater.version = BuildConfig.VERSION_NAME
-        Updater.asset = "kumapie-tv-"
+        io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-tv-")
         val settings = Settings(this)
         fromAdb(intent, settings)
         if (settings.server.isBlank()) window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() }, 5000)
@@ -97,27 +96,25 @@ fun App(settings: Settings) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
     var standalone by remember { mutableStateOf(settings.standalone) }
-    var onboarded by remember { mutableStateOf(settings.prefs.getBoolean(io.github.pedrubik2000.kumapie.ui.TV_ONBOARDED, false)) }
+    var onboarded by remember { mutableStateOf(io.github.pedrubik2000.kumapie.data.Startup.onboarded(settings.prefs.all)) }
     LaunchedEffect(standalone, server) { if (standalone && server.isEmpty()) io.github.pedrubik2000.kumapie.ui.startJapaneseDictionaries(context, settings) }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
 
     LaunchedEffect(Unit) {
-        if (!BuildConfig.DEBUG) update = runCatching { Updater.newer() }.getOrNull()
+        update = io.github.pedrubik2000.kumapie.data.Startup.update(BuildConfig.DEBUG)
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
+    val gate = io.github.pedrubik2000.kumapie.data.Startup.gate(server, standalone, onboarded)
 
     Box(Modifier.fillMaxSize().arcadeBackdrop()
-        .onBackKey(enabled = stack.size > 1 && (server.isNotEmpty() || standalone)) { stack.removeAt(stack.lastIndex) }) {
-        if (server.isEmpty() && !standalone) {
-            SettingsScreen(settings, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone },
-                onUpdate = { update = it })
-        } else if (server.isEmpty() && !onboarded) {
-            io.github.pedrubik2000.kumapie.ui.TvOnboarding(settings, onDone = { onboarded = true })
-        } else if (server.isEmpty()) {
-            AloneScreens(settings, stack, onSaved = { server = settings.server }, onUpdate = { update = it })
-        } else {
-            PcScreens(settings, server, stack, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it })
+        .onBackKey(enabled = stack.size > 1 && gate != Gate.FIRST_RUN) { stack.removeAt(stack.lastIndex) }) {
+        when {
+            gate == Gate.FIRST_RUN -> SettingsScreen(settings, firstRun = true,
+                onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it })
+            gate == Gate.ONBOARDING -> io.github.pedrubik2000.kumapie.ui.TvOnboarding(settings, onDone = { onboarded = true })
+            server.isEmpty() -> AloneScreens(settings, stack, onSaved = { server = settings.server }, onUpdate = { update = it })
+            else -> PcScreens(settings, server, stack, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
     }

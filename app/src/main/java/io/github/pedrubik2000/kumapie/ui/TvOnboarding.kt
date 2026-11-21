@@ -38,7 +38,6 @@ import io.github.pedrubik2000.kumapie.i18n.Tr
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.launch
 
-const val TV_ONBOARDED = "onboarded"
 const val ALONE_LANG = "alone_lang"
 
 @Composable
@@ -78,7 +77,7 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
                 when {
                     step == PHONE_STEP && settings.jimakuKey.isBlank() -> needKey = true
                     step < STEPS - 1 -> step++
-                    else -> { settings.prefs.edit().putBoolean(TV_ONBOARDED, true).apply(); onDone() }
+                    else -> { io.github.pedrubik2000.kumapie.data.Startup.onboard(settings.prefs); onDone() }
                 }
             },
                 modifier = if (step > 0) Modifier.focusRequester(first) else Modifier) {

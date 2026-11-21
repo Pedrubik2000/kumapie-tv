@@ -74,6 +74,10 @@ val slopForbidden = listOf(
         "use the :lang no-PC backend (lang NoPcBackend.kt): the TV marked words at once, the phone only once Anki was read (Library.kt's OfflineBackend is the with-PC part on top of it)", listOf("app", "mobile")),
     Forbidden("daysIn( / totals(", Regex("""\b(daysIn|totals)\("""), listOf("/mobile/offline/Library.kt"),
         "use Progress.homeTotal() (lang Progress.kt): Home's time and words known, one sum for the TV and the phone (the TV split the old time without its shows; Library.kt: sendWatch's days for the PC)", listOf("app", "mobile")),
+    Forbidden("Updater.newer( / Updater.repo =", Regex("""\bUpdater\.(newer\(|(repo|version|asset)\s*=)"""), listOf("/ui/SettingsScreen.kt"),
+        "use Startup.updates() / Startup.update(BuildConfig.DEBUG) (core data/Startup.kt): one update check at start, none in debug builds (Settings' button: its own error line)", listOf("app", "mobile")),
+    Forbidden("server.isEmpty() && !standalone / !onboarded, ONBOARDED", Regex("""server\.isEmpty\(\)\s*&&\s*!(standalone|onboarded)\b|\b(TV_)?ONBOARDED\b"""), emptyList(),
+        "use Startup.gate() / Startup.onboarded() (core data/Startup.kt): first run, onboarding or the app is one rule, one \"onboarded\" key", listOf("app", "mobile")),
 )
 
 /** [src] with comments removed and string contents blanked (newlines kept), and its number of comments. */

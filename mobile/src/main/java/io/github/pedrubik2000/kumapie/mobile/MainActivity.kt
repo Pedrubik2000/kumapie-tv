@@ -71,9 +71,8 @@ sealed interface Screen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Updater.repo = BuildConfig.UPDATE_REPO
-        Updater.version = BuildConfig.VERSION_NAME
-        Updater.asset = "kumapie-v" // kumapie-vX.Y.Z-mobile.apk (sorts after kumapie-tv-*, see release.yml)
+        // kumapie-vX.Y.Z-mobile.apk (sorts after kumapie-tv-*, see release.yml)
+        io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-v")
         val settings = Settings(this)
         if (settings.server.isBlank()) io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() // no PC: streams' words
         io.github.pedrubik2000.kumapie.data.Jimaku.cache = cacheDir // an episode's lines kept for the next time it opens
@@ -159,7 +158,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     val settings = library.settings
     var server by remember { mutableStateOf(settings.server) }
     var standalone by remember { mutableStateOf(settings.standalone) } // no PC server: chosen on the first run, as on the TV
-    var onboarded by remember { mutableStateOf(settings.prefs.getBoolean(io.github.pedrubik2000.kumapie.mobile.ui.ONBOARDED, false)) }
+    var onboarded by remember { mutableStateOf(io.github.pedrubik2000.kumapie.data.Startup.onboarded(settings.prefs.all)) }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home).apply { if (openSearch) add(Screen.Search); if (openImprove) add(Screen.Improve); if (prepare != null) add(Screen.Prepare(prepare)) } }
     val context = androidx.compose.ui.platform.LocalContext.current
     var update by remember { mutableStateOf<Updater.Release?>(null) }
@@ -174,14 +173,15 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
         if (stack.last() != Screen.Home) runCatching { library.shows().first }.onSuccess { shows = it }
     }
     LaunchedEffect(Unit) { // once per start; debug builds have their own app id, so they don't self-update
-        if (!BuildConfig.DEBUG) update = runCatching { Updater.newer() }.getOrNull()
+        update = io.github.pedrubik2000.kumapie.data.Startup.update(BuildConfig.DEBUG)
     }
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     // Without a PC, as on the TV: JMdict and JMnedict download in the background on the first run (and again if it
     // didn't finish), so a word has a meaning without a trip to Settings.
     // Not during onboarding: its last step installs them (a second install waited on the first, "Starting…").
-    LaunchedEffect(standalone, server, onboarded) {
-        if (!standalone || server.isNotEmpty() || !onboarded) return@LaunchedEffect
+    val gate = io.github.pedrubik2000.kumapie.data.Startup.gate(server, standalone, onboarded)
+    LaunchedEffect(gate, server) {
+        if (gate != io.github.pedrubik2000.kumapie.data.Gate.APP || server.isNotEmpty()) return@LaunchedEffect
         val dicts = io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(appContext)
         if (dicts.of(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE).isEmpty())
             runCatching { dicts.installRecommended(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) {} }
@@ -217,13 +217,13 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     }
 
     Row(Modifier.fillMaxSize().background(Colors.background)) {
-    if (wide() && (server.isNotEmpty() || standalone) && tab != "-") Box(Modifier.fillMaxHeight().width(98.dp), contentAlignment = Alignment.CenterStart) {
+    if (wide() && gate != io.github.pedrubik2000.kumapie.data.Gate.FIRST_RUN && tab != "-") Box(Modifier.fillMaxHeight().width(98.dp), contentAlignment = Alignment.CenterStart) {
         GlassMenu(main, tab, { top(null) }, { more = true })
     }
     Box(Modifier.weight(1f).fillMaxHeight()) {
-        if (server.isEmpty() && !standalone) {
+        if (gate == io.github.pedrubik2000.kumapie.data.Gate.FIRST_RUN) {
             SettingsScreen(library, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it }, onBack = {})
-        } else if (server.isEmpty() && !onboarded) { // without a PC: the setup (languages, Jimaku, sources, downloads), once
+        } else if (gate == io.github.pedrubik2000.kumapie.data.Gate.ONBOARDING) { // without a PC: the setup (languages, Jimaku, sources, downloads), once
             io.github.pedrubik2000.kumapie.mobile.ui.OnboardingScreen(library, onDone = { onboarded = true })
         } else when (val screen = stack.last()) {
             Screen.Home -> HomeScreen(

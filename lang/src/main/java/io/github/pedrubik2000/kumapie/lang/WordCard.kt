@@ -67,25 +67,38 @@ object WordCard {
         return Miner.Word(surface, key, lemma, pick?.gloss.orEmpty(), pick?.example, def, mono = c.monos.firstOrNull()?.gloss)
     }
 
-    suspend fun japaneseHeadword(japanese: Japanese, text: String, offset: Int, word: String, reading: String): Headword? =
-        headword(if (japanese.model.isReady) runCatching { japanese.forms(text, offset) }.getOrDefault(emptyList()) else emptyList(), reading) {
-            japanese.yomitan.query(Lang.JAPANESE, word)
-        }
+    /**
+     * A subtitle word's headwords, [headword] first, then the other rows' (気にしない: 気にする): the TV's word card, the phone's
+     * popup and mine sheet show these, so they agree with the ratings and the card (core plan 5e). [written]: the word as
+     * the line has it, [word]: its dictionary form (the episode's lemma or key). [popup]: a tap's, these for a subtitle
+     * word, what the dictionaries find for a word inside a definition (or German, English).
+     */
+    suspend fun japaneseHeadwords(japanese: Japanese, text: String, offset: Int, written: String, word: String, reading: String): List<Headword> {
+        val forms = if (japanese.model.isReady) runCatching { japanese.forms(text, offset) }.getOrDefault(emptyList()) else emptyList()
+        val first = headword(forms, reading, written, word) { japanese.yomitan.query(Lang.JAPANESE, it) } ?: return emptyList()
+        return (listOf(first) + forms.mapNotNull { it.head }).distinctBy { it.expression to it.reading }
+    }
 
     suspend fun japaneseWord(japanese: Japanese, text: String, offset: Int, surface: String, key: String, word: String, reading: String, english: String?): Miner.Word =
-        japaneseHeadword(japanese, text, offset, word, reading)?.let { japanese(japanese.yomitan, it, surface, key, null, null, english) }
+        japaneseHeadwords(japanese, text, offset, surface, word, reading).firstOrNull()?.let { japanese(japanese.yomitan, it, surface, key, null, null, english) }
             ?: Miner.Word(surface, key, word, "")
+
+    suspend fun popup(language: Language, tap: Tap, inLine: Boolean, reading: String): List<Headword> =
+        if (inLine && language is Japanese) japaneseHeadwords(language, tap.text, tap.offset, tap.word, tap.lemma ?: tap.key ?: tap.word, reading)
+        else language.lookup(tap)
 
     /**
      * The headword a Japanese word card is made for, the TV's and the phone's (core plan step 5): the first rating row's
-     * ([forms]: your own word, a name, the dictionary form covering the whole word, お料理 as 料理), else the episode's
-     * dictionary form as the dictionaries have it ([entries], read [reading] first: もらえるでしょ is 貰える). Never a
-     * shorter piece the scan finds (ドラート is not ドラー, item 26): then no headword, a card without a meaning.
+     * ([forms]: your own word, a name, the dictionary form covering the whole word, お料理 as 料理), else [written] the
+     * dictionaries have with its お/ご or honorific or without them (ごひいきさん: 贔屓, [JapaneseLookup.whole]), else [word]
+     * as the dictionaries have it ([query]; read [reading] first, else a common entry ⭐: もらえるでしょ is 貰える). Never a
+     * shorter piece (ドラート is not ドラー, item 26; ごひいきさん not ご): then no headword, a card without a meaning.
      */
-    fun headword(forms: List<JapaneseLookup.Form>, reading: String, entries: () -> List<YomitanDictionaries.Term>): Headword? {
+    fun headword(forms: List<JapaneseLookup.Form>, reading: String, written: String, word: String, query: (String) -> List<YomitanDictionaries.Term>): Headword? {
         forms.firstNotNullOfOrNull { it.head }?.let { return it }
-        val terms = entries()
-        val first = terms.firstOrNull { reading.isNotBlank() && JapaneseLookup.hiragana(it.reading) == reading } ?: terms.firstOrNull() ?: return null
+        val terms = JapaneseLookup.whole(written, word, query) ?: if (JapaneseLookup.piece(word, written)) emptyList() else query(word)
+        val first = terms.firstOrNull { reading.isNotBlank() && JapaneseLookup.hiragana(it.reading) == reading }
+            ?: terms.firstOrNull { t -> t.glossaries.any { "⭐" in it.tags || "★" in it.tags } } ?: terms.firstOrNull() ?: return null
         return Headword(first.expression, JapaneseLookup.hiragana(first.reading), terms.filter { it.expression == first.expression && it.reading == first.reading })
     }
 

@@ -64,6 +64,8 @@ val slopForbidden = listOf(
         "use nextQuery() / Addons.next(query) (core data/Streaming.kt): the next episode's query is built there once", listOf("app", "mobile")),
     Forbidden("fun japaneseWord( / tvHeadword", Regex("""\bfun japaneseWord\(|\btvHeadword\b"""), emptyList(),
         "use WordCard.japaneseHeadword() / WordCard.japaneseWord() (lang WordCard.kt): the TV and the phone made different cards of one word", listOf("app", "mobile")),
+    Forbidden("language.lookup(", Regex("""\blanguage\.lookup\("""), listOf("/mobile/ui/YomitanPopup.kt"),
+        "use WordCard.popup() (lang WordCard.kt): a subtitle word's popup shows the headword its card and ratings get (the phone showed フリー, Mine made フリーレン; YomitanPopup: words inside a definition)", listOf("app", "mobile")),
     Forbidden("known.rate( / known.undo( / miner.recontext(", Regex("""\bknown\.(rate|undo)\(|\bminer\.recontext\("""), listOf("/mobile/WordColours.kt"),
         "use RateFlow (lang RateFlow.kt): rate -> undo -> the due queue -> recontext is one path for both apps (WordColours: the readers' provider, no scene)", listOf("app", "mobile")),
     Forbidden("pos/saved/resume?.takeIf { > N }", Regex("""\b(pos|saved|resume)\w*\??\.takeIf \{ (\w+ -> )?\w+ > [1-9]"""), emptyList(),

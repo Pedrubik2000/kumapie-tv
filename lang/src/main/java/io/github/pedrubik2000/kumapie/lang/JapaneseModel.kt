@@ -155,7 +155,7 @@ class JapaneseModel(private val context: Context) : Model {
                 t.split('\u001D').let { f -> Token(f[0], f[1], f[2], f[3], f[4].toInt(), f[5]) } } }
 
         private val HEADS = setOf("動詞", "形容詞")
-        private val HONORIFIC = setOf("さん", "ちゃん", "くん", "君", "様", "さま", "たち", "達", "殿", "氏")
+        val HONORIFIC = setOf("さん", "ちゃん", "くん", "君", "様", "さま", "たち", "達", "殿", "氏")
         private val CONNECTIVE = setOf("て", "で", "ちゃ", "じゃ")
 
         /** Sudachi's mode-B tokens of [text]. */

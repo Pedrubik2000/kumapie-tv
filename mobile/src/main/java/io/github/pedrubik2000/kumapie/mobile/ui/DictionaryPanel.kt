@@ -59,7 +59,9 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker, 
         val t0 = android.os.SystemClock.uptimeMillis()
         entries = language.entries(tap)
         val t1 = android.os.SystemClock.uptimeMillis()
-        headwords = runCatching { language.lookup(tap) }.getOrDefault(emptyList())
+        headwords = runCatching {
+            io.github.pedrubik2000.kumapie.lang.WordCard.popup(language, tap, picker.selectedInDef == null, tap.key?.let { ctl.words[it]?.reading }.orEmpty())
+        }.getOrDefault(emptyList())
         android.util.Log.i("kumapie", "lookup ${tap.word}: entries ${t1 - t0} ms, dictionaries ${android.os.SystemClock.uptimeMillis() - t1} ms")
     }
 

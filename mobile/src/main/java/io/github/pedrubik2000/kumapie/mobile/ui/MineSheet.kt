@@ -205,7 +205,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
         forms = runCatching { library.languages.japanese.forms(cue.text, offset) }.getOrDefault(emptyList())
         val w = ctl.words[key]
         val word = scene.def(line, key)?.lemma?.takeIf { it.isNotBlank() } ?: w?.lemma?.takeIf { it.isNotBlank() } ?: key
-        headword = WordCard.headword(forms, w?.reading.orEmpty()) { japanese.yomitan.query(ja, word) }
+        headword = WordCard.headword(forms, w?.reading.orEmpty(), segment.text, word) { japanese.yomitan.query(ja, it) }
         if (headword == null) looked = true // no headword covers the word: a card without a meaning, or a sentence card
     }
     LaunchedEffect(headword) {
@@ -239,7 +239,7 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
             when {
                 !looked -> Text(tr("Looking up meanings…"), color = Colors.dim, fontSize = 14.sp)
                 entry != null -> Text(tr("Definition: the whole %s entry", shortDictName(entry!!)), color = Colors.text, fontSize = 15.sp)
-                choices.isEmpty() -> Text(tr("Not in your Japanese dictionaries: a sentence card is still possible."), color = Colors.dim, fontSize = 14.sp)
+                choices.isEmpty() -> Text(tr("Not in your dictionaries: the card gets no meaning."), color = Colors.dim, fontSize = 14.sp)
             }
             if (entry == null) choices.forEachIndexed { i, c ->
                 Row(Modifier.fillMaxWidth().clickable { chosen = i }, verticalAlignment = Alignment.CenterVertically) {
@@ -277,14 +277,15 @@ private fun JapaneseMineSheet(library: Library, episode: EpisodeDetail, ctl: Sce
             }
         }
     }
-        Button(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), enabled = !busy && !done && (!wordCard || choices.isNotEmpty() || entry != null), onClick = {
+        Button(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), enabled = !busy && !done && (!wordCard || looked), onClick = {
             busy = true
             val pick = choices.getOrNull(chosen)
-            // The headword when the line has it whole (壬氏 of the piece 壬): that is what the sentence bolds.
-            val w = if (wordCard && segment != null && (pick != null || entry != null) && hw != null) Miner.Word(hw.expression.takeIf { it in cue.text } ?: segment.text, segment.word, hw.expression,
+            // The headword when the line has it whole (壬氏 of the piece 壬): that is what the sentence bolds. No headword (フリーレン): the card without a meaning, as on the TV.
+            val w = if (!wordCard || segment == null) null
+            else if (hw == null) forms.firstOrNull().let { f -> Miner.Word(segment.text, segment.word, f?.written ?: segment.text, "", reading = f?.reading?.takeIf { it.isNotBlank() }) }
+            else Miner.Word(hw.expression.takeIf { it in cue.text } ?: segment.text, segment.word, hw.expression,
                 pick?.gloss.orEmpty(), reading = hw.reading.takeIf { it.isNotBlank() }, pitch = hw.pitches.flatMap { it.second }.firstOrNull(), mono = monos.getOrNull(monoChosen)?.gloss,
                 audio = audios?.getOrNull(audioChosen)?.second)
-            else null
             mining.launch {
                 runCatching { library.miner.mine(Miner.Request(episode, scene, line, w)) { status = it } }
                     .onSuccess { status = it; done = true; known.mined(library.miner.lastNote, ctl, pcColours = false) }

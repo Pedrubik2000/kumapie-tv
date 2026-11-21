@@ -77,7 +77,12 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         }
         val w = model.words(listOf(text)).first().lastOrNull { it.begin <= offset }?.takeIf { it.isWord } ?: return emptyList()
         val heads = lookup(text, w.begin, w.surface.length)
-        // お料理 rates as 料理 and すごーい as すごい (item 31): never a card of their own; お's scan starts after it.
+        // お料理 rates as 料理 and すごーい as すごい (item 31): never a card of their own; お's scan starts after it. お休み is an entry with its お, ごひいきさん is ひいき and およ nothing ([whole], 5e), whatever a scan from お finds.
+        if (prefixed(w)) whole(w.surface, w.base) { dicts.query(Lang.JAPANESE, it) }?.let { terms ->
+            val r = hiragana(w.reading)
+            val found = headwords(terms).let { hs -> hs.firstOrNull { it.reading.isNotEmpty() && it.reading in r } ?: hs.firstOrNull() }
+            return listOf(found?.let { Form(it.expression, it.reading, it, surface = w.surface) } ?: Form(w.surface, r, null))
+        }
         val skip = if (prefixed(w)) 1 else 0
         val (written, reading) = when {
             skip == 1 -> w.surface.drop(1) to hiragana(w.reading).drop(1)
@@ -85,16 +90,14 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             else -> w.surface to hiragana(w.reading)
         }
         val scanned = dicts.scan(Lang.JAPANESE, text.substring(w.begin + skip))
-        // Its headword covers the whole word (item 26): its dictionary form or spelling, or a scan match at least as long.
-        // A shorter piece never is (ホント is not ホン "book", カスミ not カス): no headword then, the card gets no meaning.
-        val whole = scanned.filter { it.first.length >= w.surface.length - skip }.map { it.second.expression }.toSet() + w.base + w.surface
-        val covering = heads.filter { it.expression in whole }
+        // Its headword covers the whole word (item 26): its dictionary form or spelling, or a scan match at least as long. A shorter piece never is (ホント is not ホン "book", カスミ not カス, おぉ not お): no headword then, the card gets no meaning.
+        val covers = scanned.filter { it.first.length >= w.surface.length - skip }.map { it.second.expression }.toSet() + w.base + w.surface
+        val covering = heads.filter { it.expression in covers && !piece(it.expression, w.surface) }
         // Among those, preferring one with an English meaning for its card (がんばります: 頑張る, not a monolingual-only 頑張ります).
         val meant = covering.filter { h -> h.terms.any(::bilingual) }
         val own = meant.firstOrNull { it.expression == w.base } ?: meant.firstOrNull() ?: covering.firstOrNull { it.expression == w.base } ?: covering.firstOrNull()
         val out = mutableListOf(Form(written, reading, own))
-        // The longest match, only when it covers the word (気にしない from 気); among same-length ones a bilingual
-        // dictionary's (しましょう: する, not Pixiv's しましょう). A shorter piece is no row (user, 2026-10-11).
+        // The longest match, only when it covers the word (気にしない from 気); among same-length ones a bilingual dictionary's (しましょう: する, not Pixiv's しましょう). A shorter piece is no row (user, 2026-10-11).
         val longest = scanned.filter { it.first.length == scanned.maxOfOrNull { s -> s.first.length } && it.first.length >= w.surface.length - skip }
         name(longest, heads)?.let { return listOf(it) }
         val (matched, term) = longest.firstOrNull { it.second.expression == w.base && bilingual(it.second) }
@@ -105,8 +108,7 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         out += Form(matched, head.reading.takeIf { matched == term.expression && it.isNotBlank() }
             ?: model.parse(listOf(matched)).first().joinToString("") { hiragana(it.reading) }, head)
         out += Form(term.expression, head.reading, head)
-        // A conjugated form is never a row of its own (user, 2026-10-24): 離れてて and 気にしない rate as 離れる and
-        // 気にする, when that dictionary form has a row.
+        // A conjugated form is never a row of its own (user, 2026-10-24): 離れてて and 気にしない rate as 離れる and 気にする, when that dictionary form has a row.
         val dictionary = setOf(w.base, term.expression)
         val conjugated = { f: Form -> f.written !in dictionary && out.any { it.written in dictionary } &&
             (f.written == written || f.written == matched) && (w.surface != w.base || matched != term.expression) }
@@ -258,6 +260,32 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         /** A word お/ご joined to the word after it, keyed by that word (お料理 → 料理, お待たせ → 待たせる; JitenSplitter.joinPrefix). */
         fun prefixed(t: JapaneseModel.Token) =
             t.surface.length > 1 && t.surface[0] in "おご" && t.base.firstOrNull() != t.surface[0] && t.surface[1] == t.base.firstOrNull()
+
+        /**
+         * A word with お/ご before it or an honorific after it the dictionaries may not have as written (core plan 5e): the
+         * word, without the honorific, without お/ご, without both (ごひいきさん: ごひいき, ひいきさん, ひいき). One: neither.
+         */
+        fun tries(word: String): List<String> {
+            val bare = JapaneseModel.HONORIFIC.firstOrNull { word.length > it.length && word.endsWith(it) }?.let { word.dropLast(it.length) } ?: word
+            val prefix = word.length > 1 && word[0] in "おご"
+            return listOfNotNull(word, bare, word.drop(1).takeIf { prefix }, bare.drop(1).takeIf { prefix && bare.length > 1 }).distinct()
+        }
+
+        /**
+         * What the dictionaries have for such a word ([tries]): the first try they have; with [base] (the splitter's
+         * dictionary form) not among the tries, a conjugated word (お待ち: 待つ) or none, null (the usual rows decide), as for a
+         * word that is neither. Empty: none, a card without a meaning. A one-kana piece is never tried: [piece], one kana
+         * of a longer word (ご of ごひいきさん, お of おぉ, よ of およ) is never its headword.
+         */
+        fun whole(word: String, base: String, query: (String) -> List<YomitanDictionaries.Term>): List<YomitanDictionaries.Term>? {
+            val tries = tries(word)
+            if (tries.size < 2) return null
+            query(word).takeIf { it.isNotEmpty() }?.let { return it }
+            if (base !in tries && base.isNotEmpty() && !piece(base, word)) return null
+            return tries.drop(1).filterNot { piece(it, word) }.firstNotNullOfOrNull { t -> query(t).takeIf { it.isNotEmpty() } }.orEmpty()
+        }
+
+        fun piece(found: String, word: String) = word.length > 1 && found.length == 1 && (found[0] in 'ぁ'..'ゖ' || found[0] in 'ァ'..'ヶ')
 
         /** A hiragana word with a long mark that isn't its own (すごーい → すごい, keyed 凄い or すごい). */
         fun stretched(t: JapaneseModel.Token) = 'ー' in t.surface && t.surface.replace("ー", "").length > 1 &&

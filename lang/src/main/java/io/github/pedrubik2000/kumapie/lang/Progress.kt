@@ -22,9 +22,9 @@ import java.util.UUID
  * PC's history). Every device merges them: latest position, scenes seen anywhere, time and lookups added up, the latest
  * known/unknown mark. This device's part is kept in a file, the others' as the PC last gave them.
  */
-class Progress private constructor(context: Context, private val settings: Settings) {
-    private val mine = File(context.filesDir, "progress.json")
-    private val othersFile = File(context.filesDir, "progress-others.json")
+class Progress internal constructor(dir: File, private val settings: Settings?) {
+    private val mine = File(dir, "progress.json")
+    private val othersFile = File(dir, "progress-others.json")
     private val lock = Mutex()
     @Volatile private var data: JSONObject = runCatching { JSONObject(mine.readText()) }.getOrDefault(empty())
     @Volatile private var others: JSONObject = runCatching { JSONObject(othersFile.readText()) }.getOrDefault(JSONObject())
@@ -32,8 +32,8 @@ class Progress private constructor(context: Context, private val settings: Setti
         private set
 
     /** This device's name in Anki: model + a random part, made once. */
-    val device: String = settings.prefs.getString("progress_device", null) ?: "${Build.MODEL}-${UUID.randomUUID().toString().take(6)}"
-        .also { settings.prefs.edit().putString("progress_device", it).apply() }
+    val device: String = settings?.prefs?.let { p -> p.getString("progress_device", null) ?: "${Build.MODEL}-${UUID.randomUUID().toString().take(6)}"
+        .also { p.edit().putString("progress_device", it).apply() } } ?: "test"
 
     class View(
         val pos: Map<String, Double>,
@@ -117,7 +117,7 @@ class Progress private constructor(context: Context, private val settings: Setti
      */
     suspend fun sync(api: io.github.pedrubik2000.kumapie.data.Api?) = lock.withLock {
         runCatching {
-            if (settings.server.isEmpty()) return@withLock // no PC: nothing to send or take; what came from it stays
+            val settings = settings?.takeIf { it.server.isNotEmpty() } ?: return@withLock // no PC: nothing to send or take; what came from it stays
             val fromPc = api?.let { runCatching { it.devicesProgress(device, data) }.onFailure { Log.w("kumapie", "progress to the PC: $it") }.getOrNull() }
                 ?: return@withLock // the PC didn't answer: keep what we had
             val pcText = runCatching { api.history() }.getOrNull()?.let { JSONObject(it).toString() }
@@ -196,7 +196,7 @@ class Progress private constructor(context: Context, private val settings: Setti
 
         /** One per app process (the player, and the condensed service each make a Library). */
         fun of(context: Context): Progress = one ?: synchronized(this) {
-            one ?: Progress(context.applicationContext, Settings(context.applicationContext)).also { one = it }
+            one ?: Progress(context.applicationContext.filesDir, Settings(context.applicationContext)).also { one = it }
         }
 
 

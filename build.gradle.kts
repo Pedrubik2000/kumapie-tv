@@ -68,6 +68,8 @@ val slopForbidden = listOf(
         "use RateFlow (lang RateFlow.kt): rate -> undo -> the due queue -> recontext is one path for both apps (WordColours: the readers' provider, no scene)", listOf("app", "mobile")),
     Forbidden("pos/saved/resume?.takeIf { > N }", Regex("""\b(pos|saved|resume)\w*\??\.takeIf \{ (\w+ -> )?\w+ > [1-9]"""), emptyList(),
         "use RESUME_AFTER_S / partway() (core data/ShowLevel.kt): a place resumes over 20 s, one number (no-PC streams resumed over 5 s, Home over 20 s)", listOf("app", "mobile", "core")),
+    Forbidden(": Backend {", Regex(""":\s*(io\.github\.pedrubik2000\.kumapie\.data\.)?Backend\s*(\{|by\b)"""), listOf("/mobile/offline/Library.kt"),
+        "use the :lang no-PC backend (lang NoPcBackend.kt): the TV marked words at once, the phone only once Anki was read (Library.kt's OfflineBackend is the with-PC part on top of it)", listOf("app", "mobile")),
 )
 
 /** [src] with comments removed and string contents blanked (newlines kept), and its number of comments. */

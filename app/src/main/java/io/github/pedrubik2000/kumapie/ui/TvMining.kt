@@ -55,6 +55,10 @@ internal object TvMining {
         return ready.dictionary.recording(surface, lang)
     }
 
+    fun backend(context: Context, settings: Settings, lang: String) = io.github.pedrubik2000.kumapie.lang.NoPcBackend(
+        io.github.pedrubik2000.kumapie.lang.Progress.of(context), lang, { languages(context, settings).of(lang) },
+        { surface, l -> recording(context, settings, surface, l) ?: "tts:$surface" }, { languages(context, settings).of(lang).voice.speak(it) })
+
     fun languages(context: Context, settings: Settings): Languages {
         if (kit == null) {
             kit = LangKit.get(context, settings)
@@ -242,3 +246,8 @@ fun syncAnkiLater(context: Context, settings: Settings, ctl: SceneController) {
 internal fun repaint(language: Language, ctl: SceneController) = language.known.repaint(ctl, pcColours(ctl))
 
 internal fun pcColours(ctl: SceneController) = !ctl.episode.id.startsWith("alone:")
+
+suspend fun joinNames(context: Context, settings: Settings, episode: io.github.pedrubik2000.kumapie.data.EpisodeDetail): io.github.pedrubik2000.kumapie.data.EpisodeDetail {
+    val language = TvMining.languages(context, settings).of(episode.lang)
+    return withContext(Dispatchers.Default) { language.joinNames(episode) }
+}

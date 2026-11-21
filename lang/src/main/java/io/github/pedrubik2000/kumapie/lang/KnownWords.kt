@@ -460,7 +460,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     }
 
     /** A word marked known in the app (or unmarked); answers its status now. */
-    fun mark(word: String, known: Boolean): String {
+    @Synchronized fun mark(word: String, known: Boolean): String {
         setMarked(if (known) marked + word else marked - word)
         return status(word) ?: "u"
     }
@@ -468,7 +468,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** Words marked known in kumapie (and the PC's), as [Progress] merged them from every device. */
     val markedWords: Set<String> get() = marked
 
-    fun useMarked(words: Set<String>) {
+    @Synchronized fun useMarked(words: Set<String>) {
         if (words != marked) setMarked(words)
         _status.value = describe()
     }

@@ -239,7 +239,7 @@ class StreamActivity : ComponentActivity() {
         LaunchedEffect(live.fitted, ctl) { ctl?.let { s.fitLanded(it::shift) } }
         shown?.let { ep ->
             remember(ep) { alone = null; note = null }
-            val backend = remember { io.github.pedrubik2000.kumapie.ui.AloneBackend(context, settings, ep.lang) }
+            val backend = remember { io.github.pedrubik2000.kumapie.ui.TvMining.backend(context, settings, ep.lang) }
             return androidx.compose.runtime.key(ep) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p, onController = { ctl = it }) }
         }
         AlonePlain(p, live.line, note ?: label?.takeIf { showLabel })

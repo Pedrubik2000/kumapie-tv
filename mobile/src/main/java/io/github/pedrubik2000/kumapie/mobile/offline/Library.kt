@@ -10,9 +10,9 @@ import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.lang.Dictionary
-import io.github.pedrubik2000.kumapie.lang.Language
 import io.github.pedrubik2000.kumapie.lang.Languages
 import io.github.pedrubik2000.kumapie.lang.Miner
+import io.github.pedrubik2000.kumapie.lang.NoPcBackend
 import io.github.pedrubik2000.kumapie.lang.YomitanDictionaries
 import io.github.pedrubik2000.kumapie.mobile.local.LocalEpisodes
 import kotlinx.coroutines.CoroutineScope
@@ -344,54 +344,9 @@ class Library(context: Context, val settings: Settings) {
     fun poster(showId: String, url: String): Any = downloads.poster(showId).takeIf { it.exists() } ?: url
 
     /** The player's backend; [lang] is the episode's language, so its marks go to that language's list. */
-    fun backend(lang: String = "de"): Backend = OfflineBackend(api, downloads, pending, { languages.ofWord(it, lang) }, dictionary, { languages.of(lang).voice.speak(it) }, { surface, url ->
-        background.launch { dictionary.keepRecording(surface, url, lang) }
-    }, lang, progress, ::syncLater, settings.server.isNotEmpty())
-}
-
-/** The server API with local audio files when downloaded, and reports queued when the PC can't be reached. */
-private class OfflineBackend(
-    private val api: Api,
-    private val downloads: Downloads,
-    private val pending: Pending,
-    /** The language of a word marked in this episode. */
-    private val languageOf: (String) -> Language,
-    private val dictionary: Dictionary,
-    private val say: (String) -> Unit,
-    private val keepRecording: (String, String) -> Unit,
-    /** The episode's language ([io.github.pedrubik2000.kumapie.data.Lang.code]): whose recordings. */
-    private val lang: String,
-    private val progress: Progress,
-    private val syncLater: () -> Unit,
-    /** Without a PC nothing is queued for it (pending.jsonl would only grow). */
-    private val hasServer: Boolean,
-) : Backend {
-
-    /**
-     * Kept in [Progress] (Anki). The PC gets only the position (its own episodes and synced ones made on a device), so
-     * the TV resumes there; scenes and time would count twice (the PC's history is part of Progress as the "pc" note).
-     */
-    override suspend fun progress(episode: String, pos: Double, watched: Double, ranges: List<io.github.pedrubik2000.kumapie.data.Span>, done: Boolean) {
-        progress.record(episode, pos, watched, lang, ranges, done)
-        syncLater()
-        if (!hasServer) return
-        pending.add(Pending.progress(episode, pos, 0.0))
-        pending.flush(api)
-    }
-
-    override suspend fun lookup(word: String, scene: String): Int = progress.lookup(word).also { syncLater() }
-
-    override suspend fun markKnown(word: String, known: Boolean, scene: String): String {
-        // Kept on the device too, so the colour is right offline and once the PC is no longer asked.
-        val language = languageOf(word)
-        val list = language.known
-        progress.mark(language.markKey(word), known)
-        syncLater()
-        val here = if (list.ready) list.mark(word, known) else null
-        if (list.lang.code != "de" || !hasServer) return here ?: if (known) "k" else "u" // the PC only knows German
-        if (pending.flush(api)) runCatching { val pc = api.markKnown(word, known); return here ?: pc }
-        pending.add(Pending.known(word, known))
-        return here ?: if (known) "k" else "u" // the PC's real answer comes with the next fresh episode
+    fun backend(lang: String = "de"): Backend {
+        val here = NoPcBackend(progress, lang, { languages.ofWord(it, lang) }, { surface, l -> wordAudio(surface, l) }, { languages.of(lang).voice.speak(it) }, ::syncLater)
+        return if (settings.server.isEmpty()) here else OfflineBackend(api, downloads, pending, here) { languages.ofWord(it, lang).lang.code == "de" }
     }
 
     /**
@@ -399,19 +354,45 @@ private class OfflineBackend(
      * a computer voice only without one: the PC's that a download brought, else the device's. Offline, a recording not
      * saved yet fails to play and the player says the word with the device voice.
      */
-    override fun wordAudio(surface: String, lang: String): String {
+    private fun wordAudio(surface: String, lang: String): String {
         dictionary.recording(surface, lang)?.let { recording ->
-            if (recording.startsWith("http")) keepRecording(surface, recording)
+            if (recording.startsWith("http")) background.launch { dictionary.keepRecording(surface, recording, lang) }
             return recording
         }
         downloads.wordFile(surface).takeIf { it.exists() }?.let { return it.path }
         return "tts:$surface"
     }
+}
 
-    override fun speak(text: String) = say(text)
+/**
+ * With a PC: [here] (the no-PC backend: Progress and the colour lists, at once) and, on top, downloaded audio and
+ * reports queued while the PC can't be reached.
+ */
+private class OfflineBackend(
+    private val api: Api,
+    private val downloads: Downloads,
+    private val pending: Pending,
+    private val here: NoPcBackend,
+    /** The PC only knows German marks. */
+    private val german: (String) -> Boolean,
+) : Backend by here {
+
+    /** The PC gets only the position, so the TV resumes there (its history is part of Progress as the "pc" note). */
+    override suspend fun progress(episode: String, pos: Double, watched: Double, ranges: List<io.github.pedrubik2000.kumapie.data.Span>, done: Boolean) {
+        here.progress(episode, pos, watched, ranges, done)
+        pending.add(Pending.progress(episode, pos, 0.0))
+        pending.flush(api)
+    }
+
+    override suspend fun markKnown(word: String, known: Boolean, scene: String): String {
+        val mine = here.markKnown(word, known, scene)
+        if (!german(word)) return mine
+        if (pending.flush(api) && runCatching { api.markKnown(word, known) }.isSuccess) return mine
+        pending.add(Pending.known(word, known))
+        return mine
+    }
 
     override fun definitionAudio(scene: String, line: Int, word: String): String =
         downloads.definitionFile(scene, line, word).takeIf { it.exists() }?.path
             ?: api.definitionAudio(scene, line, word)
 }
-

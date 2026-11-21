@@ -87,7 +87,7 @@ class CardIndex {
          * `拾[ひろ]\う:0`, `気[き]:0 に / 入[い]る:0`, `みんな:3-`), or JPDB's Word + Reading fields.
          */
         fun japaneseKeys(note: AnkiCards.Note): List<String> {
-            val field = note.fields["Word"] ?: return emptyList()
+            val field = note.fields["Word"]?.let { moved(it) ?: it } ?: return emptyList()
             // Anki furigana: "base[reading]", the base being the text since the last space.
             val s = plain(field).replace(Regex(""":[0-9A-Za-z\-]*"""), "").replace(Regex("""[/*\\-]"""), "")
             val ruby = Regex("""([^\s\[\]]+)\[([^\]]*)]""")
@@ -97,6 +97,15 @@ class CardIndex {
                 ?: s.replace(ruby, "$2").replace(Regex("""\s"""), "")
             return listOf(japaneseKey(spelling, reading), spelling)
         }
+
+        /**
+         * Core plan 5b: a Word field mined while 私 read わたくし (Sudachi's reading, the rows' since step 5) as it is now,
+         * "私[わたくし]:0-" -> "私[わたし]:0-" (same pitch); null when it didn't move. Its key moves with it here (kuma3's cards,
+         * which kumapie doesn't edit) and [Srs.moveWords] rewrites its own cards once when a Japanese store opens (an edit
+         * the PC and the other devices take on sync: newest wins), so no rating is lost: they stay the same card ids.
+         */
+        fun moved(word: String): String? = MOVED.entries.firstOrNull { word.startsWith(it.key) }?.let { it.value + word.substring(it.key.length) }
+        val MOVED = mapOf("私[わたくし]" to "私[わたし]")
 
         /** A Japanese word's key: as written, tab, its reading in hiragana (kana-only words: the word itself). */
         fun japaneseKey(written: String, reading: String): String =

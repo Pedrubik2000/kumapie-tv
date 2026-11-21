@@ -25,12 +25,10 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         val found = ArrayList<YomitanDictionaries.Term>()
         val from = tok?.begin ?: offset
         // hoshidicts already orders the scan like Yomitan (and Hachidori, same engine): longest match first, then fewer
-        // text changes and conjugation steps, an exact spelling, the frequency lists, the dictionary's score (user,
-        // 2026-10-11: the longest first, then frequency). 黒板消し comes before 黒板 even when Sudachi split it.
+        // text changes and conjugation steps, an exact spelling, the frequency lists, the dictionary's score (user, 2026-10-11: the longest first, then frequency). 黒板消し comes before 黒板 even when Sudachi split it.
         val scanned = dicts.scan(ja, text.substring(from.coerceIn(0, text.length)))
-        // Only change: among matches of the same length, Sudachi's dictionary form first (行って: 行く, not 行う), with
-        // its reading when the word isn't conjugated (先生 せんせい, not Pixiv's あにめせんせい).
-        val sudachi = tok?.let { t -> if (t.surface == t.base) hiragana(t.reading) else if (prefixed(t) && t.surface.drop(1) == t.base) hiragana(t.reading).drop(1) else null }
+        // Only change: among matches of the same length, Sudachi's dictionary form first (行って: 行く, not 行う), with its reading when the word isn't conjugated (先生 せんせい, not Pixiv's あにめせんせい; 私 わたし: [reading]).
+        val sudachi = tok?.let { t -> if (t.surface == t.base) readingIn(text, t) else if (prefixed(t) && t.surface.drop(1) == t.base) hiragana(t.reading).drop(1) else null }
         val bySudachi = { t: YomitanDictionaries.Term ->
             when {
                 tok == null || t.expression != tok.base -> 2
@@ -61,6 +59,8 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         return out.entries.sortedBy { order.indexOf(it.key.first) }.map { (k, v) -> Headword(k.first, k.second, v) }
     }
 
+    private fun readingIn(text: String, t: JapaneseModel.Token) = reading(text, t.begin, t.base, hiragana(t.reading), dicts.query(Lang.JAPANESE, t.base))
+
     /**
      * What a tap can rate (kumapie_anki_review_plan.md, Japanese): Sudachi's word as written (気), the text Yomitan's
      * longest match covers (気にしない), that match's headword (気にする); one row per word + reading.
@@ -87,7 +87,7 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         val (written, reading) = when {
             skip == 1 -> w.surface.drop(1) to hiragana(w.reading).drop(1)
             stretched(w) -> w.surface.replace("ー", "") to hiragana(w.reading).replace("ー", "")
-            else -> w.surface to hiragana(w.reading)
+            else -> w.surface to if (w.surface == w.base) readingIn(text, w) else hiragana(w.reading)
         }
         val scanned = dicts.scan(Lang.JAPANESE, text.substring(w.begin + skip))
         // Its headword covers the whole word (item 26): its dictionary form or spelling, or a scan match at least as long. A shorter piece never is (ホント is not ホン "book", カスミ not カス, おぉ not お): no headword then, the card gets no meaning.
@@ -95,12 +95,13 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
         val covering = heads.filter { it.expression in covers && !piece(it.expression, w.surface) }
         // Among those, preferring one with an English meaning for its card (がんばります: 頑張る, not a monolingual-only 頑張ります).
         val meant = covering.filter { h -> h.terms.any(::bilingual) }
-        val own = meant.firstOrNull { it.expression == w.base } ?: meant.firstOrNull() ?: covering.firstOrNull { it.expression == w.base } ?: covering.firstOrNull()
+        val own = meant.firstOrNull { it.expression == w.base && it.reading == reading } ?: meant.firstOrNull { it.expression == w.base } ?: meant.firstOrNull() ?: covering.firstOrNull { it.expression == w.base } ?: covering.firstOrNull()
         val out = mutableListOf(Form(written, reading, own))
         // The longest match, only when it covers the word (気にしない from 気); among same-length ones a bilingual dictionary's (しましょう: する, not Pixiv's しましょう). A shorter piece is no row (user, 2026-10-11).
         val longest = scanned.filter { it.first.length == scanned.maxOfOrNull { s -> s.first.length } && it.first.length >= w.surface.length - skip }
         name(longest, heads)?.let { return listOf(it) }
-        val (matched, term) = longest.firstOrNull { it.second.expression == w.base && bilingual(it.second) }
+        val (matched, term) = longest.firstOrNull { it.second.expression == w.base && readingOf(it.second) == reading && bilingual(it.second) }
+            ?: longest.firstOrNull { it.second.expression == w.base && bilingual(it.second) }
             ?: longest.firstOrNull { bilingual(it.second) } ?: longest.firstOrNull() ?: return out
         val head = heads.firstOrNull { it.expression == term.expression && readingOf(term).let { r -> r.isEmpty() || r == it.reading } }
             ?: Headword(term.expression, readingOf(term), listOf(term))
@@ -284,6 +285,41 @@ class JapaneseLookup(private val model: JapaneseModel, private val dicts: Yomita
             if (base !in tries && base.isNotEmpty() && !piece(base, word)) return null
             return tries.drop(1).filterNot { piece(it, word) }.firstNotNullOfOrNull { t -> query(t).takeIf { it.isNotEmpty() } }.orEmpty()
         }
+
+        /**
+         * Core plan 5b: which of the readings the dictionaries have for [word] ([terms]) it has at [begin] in [text]. Sudachi's
+         * ([sudachi]) is one per spelling, not the line's (私 is always わたくし, 明日 あす, 日本 にっぽん, 一日 ついたち). The line's
+         * own first: 何 before で, だ, の, と or a counter is なん, else なに; 一日 after 月 ついたち. After a kanji or a digit
+         * (a suffix, a counter) Sudachi's stays (緑青館's 館 かん, ３人 にん). Else the most common: the first frequency dictionary's ranks, Sudachi's
+         * unless ranked and ten times rarer (私: わたくし 28801, わたし 32 in JPDB; 方 かた 304 / ほう 117 stays かた; an unranked
+         * one stays: 翡翠 ひすい, 2 of Pedro's 2864 cards would move); else [COMMON]. ponytail: two line rules and a four-word
+         * table; more go here as they turn up.
+         */
+        fun reading(text: String, begin: Int, word: String, sudachi: String, terms: List<YomitanDictionaries.Term>): String {
+            val own = terms.filter { it.expression == word && it.reading.isNotEmpty() && it.reading != word }
+            val readings = own.map { hiragana(it.reading) }.distinct()
+            if (readings.size < 2) return sudachi
+            val before = text.getOrNull(begin - 1)
+            val after = text.getOrNull(begin + word.length)
+            val line = when (word) {
+                "何" -> if (after != null && (after in "でだのと" || after in COUNTERS)) "なん" else "なに"
+                "一日" -> "ついたち".takeIf { before == '月' }
+                else -> null
+            }
+            if (line != null && line in readings) return line
+            if (before != null && (before.isDigit() || before in '一'..'鿿' || before == '々')) return sudachi
+            val dict = own.flatMap { it.frequencies }.firstOrNull()?.first
+            val ranks = own.mapNotNull { t ->
+                t.frequencies.firstOrNull { it.first == dict }?.second?.split(", ")?.filter { '㋕' !in it || word.none { c -> c in '一'..'鿿' } }
+                    ?.mapNotNull { Regex("""\d+""").find(it)?.value?.toIntOrNull() }?.minOrNull()?.let { hiragana(t.reading) to it }
+            }.groupBy({ it.first }, { it.second }).mapValues { it.value.min() }
+            val top = ranks.minByOrNull { it.value }
+            val mine = ranks[sudachi] ?: return COMMON[word]?.takeIf { it in readings } ?: sudachi
+            return if (top != null && mine > 10 * top.value) top.key else sudachi
+        }
+
+        private const val COUNTERS = "人回度時歳年日月分個本枚匹台冊階番"
+        private val COMMON = mapOf("私" to "わたし", "明日" to "あした", "日本" to "にほん", "一日" to "いちにち")
 
         fun piece(found: String, word: String) = word.length > 1 && found.length == 1 && (found[0] in 'ぁ'..'ゖ' || found[0] in 'ァ'..'ヶ')
 

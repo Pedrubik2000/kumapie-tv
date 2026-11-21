@@ -98,4 +98,49 @@ class JapaneseWordTest {
         assertNull(JapaneseLookup.whole("お待ち", "待つ", ::ja))
         assertNull(JapaneseLookup.whole("お納め", "収める", ::ja))
     }
+
+    /** Core plan 5b: the readings the emulator's JMdict has (2026-11-21); [freq]: JPDB's ranks, as a frequency dictionary gives them. */
+    private val readings = mapOf(
+        "私" to "あたい あたくし あたし あっし あて し わい わし わたい わたくし わたし わちき わっし わっち わて わらわ", "明日" to "あした あす みょうにち",
+        "今日" to "きょう こんじつ こんち こんにち", "何" to "なに なん", "日本" to "にっぽん にほん", "一日" to "いちじつ いちにち いっぴ ついたち つきたち ひとひ",
+        "館" to "かん たち やかた", "方" to "かた がた ほう", "翡翠" to "かわせみ ひすい",
+    )
+    private fun terms(word: String, freq: Map<String, String> = emptyMap()) = readings.getValue(word).split(' ').map { r ->
+        YomitanDictionaries.Term(word, r, listOf(YomitanDictionaries.Glossary("JMdict", listOf("…"), "")), listOfNotNull(freq[r]?.let { "JPDB" to it }), emptyList())
+    } + term(word, word) // JMnedict's, its reading the spelling
+    /** The reading of [word] in [line] (its first place there), Sudachi read it [sudachi]. */
+    private fun read(line: String, word: String, sudachi: String, freq: Map<String, String> = emptyMap()) =
+        JapaneseLookup.reading(line, line.indexOf(word), word, sudachi, terms(word, freq))
+
+    /** Sudachi's reading is one per spelling (私 always わたくし): the line's, else the common one. Real lines (Apothecary Diaries, Frieren). */
+    @Test fun watashiReadsWatashi() {
+        assertEquals("わたし", read("私は 薬屋です", "私", "わたくし"))
+        assertEquals("あした", read("明日は雨", "明日", "あす"))
+        assertEquals("きょう", read("今日は何のご用で？", "今日", "きょう"))
+        assertEquals("なん", read("何でしょう？ごひいきさん？", "何", "なん"))
+        assertEquals("なん", read("今日は何のご用で？", "何", "なん"))
+        assertEquals("なに", read("私は何をすればいいの？", "何", "なん"))
+        assertEquals("なに", read("何か書けば", "何", "なん"))
+        assertEquals("にほん", read("日本に行く", "日本", "にっぽん"))
+        assertEquals("いちにち", read("一日休む", "一日", "ついたち"))
+        assertEquals("ついたち", read("四月一日に", "一日", "ついたち"))
+    }
+
+    /** A frequency dictionary on the device (JPDB's ranks, ㋕ = written in kana): its common reading, Sudachi's unless far rarer. */
+    @Test fun theFrequencyDictionarysReading() {
+        assertEquals("わたし", read("私は 薬屋です", "私", "わたくし", mapOf("わたし" to "32, 1308㋕", "わたくし" to "28801, 3050㋕")))
+        assertEquals("かた", read("高貴な方と", "方", "かた", mapOf("ほう" to "117, 530㋕", "かた" to "304, 4189㋕")))
+        assertEquals("unranked: Sudachi's", "ひすい", read("翡翠宮の侍女", "翡翠", "ひすい", mapOf("かわせみ" to "19555")))
+        assertEquals("unranked, a common word", "あした", read("明日は雨", "明日", "あす", mapOf("あした" to "547, 8592㋕")))
+        assertEquals("inside a word: Sudachi's", "かん", read("緑青館に薬を", "館", "かん", mapOf("やかた" to "4908", "かん" to "5903")))
+    }
+
+    /** Cards mined as 私[わたくし] move to 私[わたし], once: their key is the rows' again, the card id (its ratings) the same. */
+    @Test fun theWatashiCardsMove() {
+        assertEquals("私[わたし]:0-", CardIndex.moved("私[わたくし]:0-"))
+        assertNull(CardIndex.moved("私[わたし]:0-"))
+        assertNull(CardIndex.moved("私室[ししつ]"))
+        val note = AnkiCards.Note(1, mapOf("Word" to "私[わたくし]:0-"), emptySet())
+        assertEquals(listOf(CardIndex.japaneseKey("私", "わたし"), "私"), CardIndex.japaneseKeys(note))
+    }
 }

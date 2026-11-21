@@ -31,6 +31,8 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         .let { SQLiteDatabase.openOrCreateDatabase(File(it, "${lang.code}.db"), null) }
         .apply { if (version < 1) { beginTransaction(); try { SCHEMA.forEach(::execSQL); version = 1; setTransactionSuccessful() } finally { endTransaction() } } }
 
+    init { if (lang == Lang.JAPANESE) moveWords() }
+
     data class Card(
         val id: Long, val note: Long, val ord: Int, val word: String, val sentence: String, val meaning: String,
         val fields: String, val tags: String, val show: String?, val episode: String?, val scene: Int?,
@@ -144,6 +146,11 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
             db.insertWithOnConflict("outbox", null, ContentValues().apply { put("kind", "cards"); put("id", id) }, SQLiteDatabase.CONFLICT_IGNORE)
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
+    }
+
+    fun moveWords() {
+        for (from in CardIndex.MOVED.keys) db.rawQuery("SELECT $CARD_COLS FROM cards WHERE word LIKE ?", arrayOf("$from%")).use { c -> buildList { while (c.moveToNext()) add(card(c)) } }
+            .forEach { c -> CardIndex.moved(c.word)?.let { updateCard(c.id, it, c.sentence, c.meaning, c.fields, c.tags) } }
     }
 
     /** Card id -> (ratings standing, Agains), as kuma3's reps and lapses. */

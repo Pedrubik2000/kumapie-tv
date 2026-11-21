@@ -7,7 +7,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
 import io.github.pedrubik2000.kumapie.player.LiveLines
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
@@ -36,7 +35,6 @@ import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,8 +48,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -60,7 +56,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -75,7 +70,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -129,38 +123,35 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
         return TitleScreen(library, title, onWatch, onBack = back)
     }
     BackHandler { if (searched.isNotEmpty()) { searched = ""; query = "" } else onBack() }
-    Scaffold(containerColor = Colors.background, topBar = {
-        TopAppBar(title = { Text(tr("Discover")) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
-    }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            // Glass: a pill with a search icon.
-            OutlinedTextField(query, { query = it }, singleLine = true, placeholder = { Text(tr("Search anime")) },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { searched = query.trim() }),
-                shape = RoundedCornerShape(28.dp), leadingIcon = { Icon(Icons.Default.Search, null) },
-                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Glass.fill, focusedContainerColor = Glass.fill,
-                    unfocusedBorderColor = Glass.line, focusedBorderColor = Color.White.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+    val wide = wide()
+    val search = @Composable { m: Modifier -> DiscoverSearch(query, { query = it }, { searched = query.trim() }, m) }
+    val body = @Composable { m: Modifier ->
+        Box(m) {
             val list = found
             val board = rows
+            val top = if (wide) 96.dp else 12.dp
             when {
-                error != null -> Message(error!!)
+                error != null -> Box(Modifier.padding(top = top)) { Message(error!!) }
                 searched.isNotEmpty() && list == null || searched.isEmpty() && board == null ->
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.accent) }
-                searched.isNotEmpty() && list!!.isEmpty() -> Message(tr("Nothing found"))
-                searched.isNotEmpty() -> LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.fillMaxSize(), grid, contentPadding = PaddingValues(12.dp),
+                searched.isNotEmpty() && list!!.isEmpty() -> Box(Modifier.padding(top = top)) { Message(tr("Nothing found")) }
+                searched.isNotEmpty() -> LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.fillMaxSize(), grid, contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = top, bottom = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(list!!.distinctBy { it.id }, key = { it.id }) { f -> PosterCard(f, Modifier.fillMaxWidth()) { open = f } }
                 }
-                else -> LazyColumn(Modifier.fillMaxSize(), column, contentPadding = PaddingValues(bottom = 24.dp)) {
-                    // The hero: the first row's first few (your newest plans when you have an AniList list).
-                    val featured = board!!.firstOrNull()?.second.orEmpty().filter { it.background.isNotEmpty() }.take(6)
-                    if (featured.isNotEmpty()) item(key = "hero") { Hero(featured) { open = it } }
-                    // Two addons may name a catalog alike, and two AniList entries may share a kitsu id: keys unique.
-                    board.forEachIndexed { index, (name, titles) ->
-                        item(key = "row-$index") {
-                            Text(tr(name), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 10.dp))
-                            LazyRow(state = rowStates.getOrPut(index) { androidx.compose.foundation.lazy.LazyListState() }, contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                items(titles.distinctBy { it.id }, key = { it.id }) { f -> PosterCard(f, Modifier.width(if (wide()) 140.dp else 112.dp)) { open = f } }
+                else -> {
+                    // The TV's hero: the first row's first title (your newest plans when you have an AniList list).
+                    val hero = board!!.firstOrNull()?.second?.firstOrNull()
+                    hero?.let { DiscoverBackdrop(library, it) }
+                    LazyColumn(Modifier.fillMaxSize(), column, contentPadding = PaddingValues(bottom = 24.dp)) {
+                        hero?.let { h -> item(key = "hero") { DiscoverHero(library, h, board[0].first) { open = h } } }
+                        // Two addons may name a catalog alike, and two AniList entries may share a kitsu id: keys unique.
+                        board.forEachIndexed { index, (name, titles) ->
+                            item(key = "row-$index") {
+                                Text(tr(name), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 10.dp))
+                                LazyRow(state = rowStates.getOrPut(index) { androidx.compose.foundation.lazy.LazyListState() }, contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    items(titles.distinctBy { it.id }, key = { it.id }) { f -> PosterCard(f, Modifier.width(if (wide) 140.dp else 112.dp)) { open = f } }
+                                }
                             }
                         }
                     }
@@ -168,6 +159,13 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
             }
         }
     }
+    if (wide) Box(Modifier.fillMaxSize().background(Colors.background)) {
+        body(Modifier.fillMaxSize())
+        search(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 16.dp, end = 24.dp).width(360.dp))
+    } else Scaffold(containerColor = Colors.background, topBar = {
+        TopAppBar(title = { Text(tr("Discover")) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
+            actions = { search(Modifier.width(200.dp).padding(end = 8.dp)) })
+    }) { padding -> body(Modifier.fillMaxSize().padding(padding)) }
 }
 
 /** A poster with its name and year under it. */
@@ -177,28 +175,6 @@ private fun PosterCard(f: Found, modifier: Modifier, onClick: () -> Unit) = Colu
         modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)).background(Colors.surface))
     Text(f.shownName, color = Colors.text, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
     Text(f.year, color = Colors.dim, fontSize = 12.sp)
-}
-
-/** Nuvio's hero: a title's backdrop with its logo, rating and genres and a line of its text; the next one every 8 s. */
-@Composable
-private fun Hero(titles: List<Found>, onOpen: (Found) -> Unit) {
-    var i by remember { mutableIntStateOf(0) }
-    LaunchedEffect(titles) { while (titles.size > 1) { delay(8_000); i = (i + 1) % titles.size } }
-    androidx.compose.animation.Crossfade(titles[i % titles.size], label = "hero") { f ->
-        // Glass: inset with round corners and the thin border.
-        Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(if (wide()) 280.dp else 240.dp)
-            .clip(RoundedCornerShape(22.dp)).border(1.dp, Glass.line, RoundedCornerShape(22.dp)).clickable { onOpen(f) }) {
-            Backdrop(f.background.ifEmpty { f.poster })
-            Column(Modifier.align(Alignment.BottomStart).padding(16.dp).fillMaxWidth(0.85f)) {
-                TitleLogo(f)
-                Text(f.line, color = Colors.text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-                Text(f.description, color = Colors.dim, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            Row(Modifier.align(Alignment.BottomEnd).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                titles.indices.forEach { n -> Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(if (n == i % titles.size) Color.White else Color.White.copy(alpha = 0.35f))) }
-            }
-        }
-    }
 }
 
 /**

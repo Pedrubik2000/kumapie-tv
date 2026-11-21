@@ -78,6 +78,8 @@ val slopForbidden = listOf(
         "use Startup.updates() / Startup.update(BuildConfig.DEBUG) (core data/Startup.kt): one update check at start, none in debug builds (Settings' button: its own error line)", listOf("app", "mobile")),
     Forbidden("server.isEmpty() && !standalone / !onboarded, ONBOARDED", Regex("""server\.isEmpty\(\)\s*&&\s*!(standalone|onboarded)\b|\b(TV_)?ONBOARDED\b"""), emptyList(),
         "use Startup.gate() / Startup.onboarded() (core data/Startup.kt): first run, onboarding or the app is one rule, one \"onboarded\" key", listOf("app", "mobile")),
+    Forbidden("StreamStart.picked( / StreamStart.ready( / Playable.missing( / discoverStreams(title", Regex("""\bStreamStart\.(picked|ready)\(|\bPlayable\.missing\(|\bdiscoverStreams\(\s*title\b"""), emptyList(),
+        "use TitlePage (core data/TitlePage.kt): ▶, play or the file list, the files' order, + Home and ✓ are one holder for both title pages", listOf("app", "mobile")),
 )
 
 /** [src] with comments removed and string contents blanked (newlines kept), and its number of comments. */

@@ -209,55 +209,41 @@ private fun Hero(titles: List<Found>, onOpen: (Found) -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, String>) -> Unit, onBack: () -> Unit) {
-    var meta by remember { mutableStateOf<JSONObject?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var picking by remember { mutableStateOf<Pair<String, String>?>(null) } // (Stremio id, its name)
-    var kept by remember { mutableStateOf<Boolean?>(null) } // on Home (null: not known yet)
+    val page = remember(title.id) { io.github.pedrubik2000.kumapie.data.TitlePage(library.discovery, title) }
     var more by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var reload by remember { mutableStateOf(0) }
     var menu by remember { mutableStateOf<String?>(null) } // the long-pressed episode's id
-    LaunchedEffect(title.id, reload) {
-        runCatching { library.discovery.discoverMeta(title.type, title.id) }.onSuccess { meta = it }.onFailure { error = it.message ?: it.toString() }
-    }
-    LaunchedEffect(title.id) { kept = runCatching { library.discovery.saved().any { it.id == title.id } }.getOrNull() }
+    LaunchedEffect(page) { page.load() }
+    LaunchedEffect(page) { page.loadKept() }
     var media by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(title.id, aniListLogins.intValue) {
         if (library.settings.anilistToken.isNotEmpty() && title.id.startsWith("kitsu:"))
             media = runCatching { io.github.pedrubik2000.kumapie.data.AniList.idOfKitsu(title.id, library.settings.prefs) }.getOrNull()
     }
-    fun play(e: JSONObject) {
-        val name = "${title.name} ${e.optInt("number")}"
-        // The PC got a file ready for it: no file list, it starts at once.
-        if (e.optBoolean("ready")) onWatch(StreamStart.ready(title, e.getString("id"), name))
-        else picking = e.getString("id") to name
-    }
+    fun play(e: JSONObject?) { page.play(e)?.let(onWatch) }
     Box(Modifier.fillMaxSize().background(Colors.background)) {
-        val m = meta
-        val t = m?.let { library.discovery.found(it) } ?: title
-        val eps = m?.optJSONArray("episodes")?.objects().orEmpty()
+        val m = page.meta
+        val error = page.error
+        val t = page.shown
+        val eps = page.episodes
         val wide = wide()
         // The logo, line, ▶ and + Home, the text, then "Episodes". A tablet: left column over the dimmed backdrop.
         val info = @Composable {
             androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (m != null) {
-                    val first = io.github.pedrubik2000.kumapie.data.nextUp(eps, remember(title.id) { library.discovery.goingNow()?.firstOrNull { it.first.id == title.id }?.second?.id })
+                    val first = page.next
                     Pill(if (first != null) tr("Episode %1\$d", first.optInt("number")) +
                         (if (first.optBoolean("ready") && first.optString("source").isNotEmpty()) " · " + first.optString("source") else "") else tr("Watch"),
-                        { if (first != null) play(first) else picking = title.id to title.name }, primary = true, icon = Icons.Default.PlayArrow)
+                        { play(first) }, primary = true, icon = Icons.Default.PlayArrow)
                 }
-                kept?.let { on ->
-                    Pill(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"), {
-                        scope.launch { runCatching { library.discovery.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } }
-                    })
-                }
+                page.kept?.let { on -> Pill(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"), { scope.launch { page.keep() } }) }
                 AniListPill(library.settings, media)
             }
             Text(t.description, color = Colors.text, fontSize = 15.sp, maxLines = if (more) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.clickable { more = !more }.padding(horizontal = 16.dp, vertical = 4.dp))
             when {
-                error != null -> Message(error!!)
+                error != null -> Message(error)
                 m == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.accent) }
                 eps.isNotEmpty() && !wide -> Text(tr("Episodes"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
@@ -279,12 +265,8 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                     }
                 }
                 DropdownMenu(expanded = menu == e.getString("id"), onDismissRequest = { menu = null }) {
-                    DropdownMenuItem(text = { Text(tr("Other files")) }, onClick = {
-                        menu = null; picking = e.getString("id") to "${title.name} ${e.optInt("number")}"
-                    })
-                    DropdownMenuItem(text = { Text(if (watched) tr("Mark not watched") else tr("Mark watched")) }, onClick = {
-                        menu = null; scope.launch { runCatching { library.discovery.seen(e.getString("id"), !watched) }; reload++ }
-                    })
+                    DropdownMenuItem(text = { Text(tr("Other files")) }, onClick = { menu = null; page.others(e) })
+                    DropdownMenuItem(text = { Text(if (watched) tr("Mark not watched") else tr("Mark watched")) }, onClick = { menu = null; scope.launch { page.mark(e) } })
                 }
                 }
         }
@@ -329,30 +311,25 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
             Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Color.White)
         }
     }
-    picking?.let { (id, name) ->
-        ModalBottomSheet(properties = DarkSheet, onDismissRequest = { picking = null }, containerColor = Colors.surface) {
-            Files(library, title.type, id) { f ->
-                picking = null
+    LaunchedEffect(page.picking) { page.loadFiles() }
+    page.picking?.let { at ->
+        ModalBottomSheet(properties = DarkSheet, onDismissRequest = { page.closeFiles() }, containerColor = Colors.surface) {
+            Files(library, page) { f ->
+                page.closeFiles()
                 // An addon's link (no PC): it plays as it is, its Japanese lines live, its words made on the phone.
-                scope.launch { onWatch(StreamStart.picked(library.discovery, title, id, name, f, kept).first) }
+                scope.launch { onWatch(page.pick(at, f)) }
             }
         }
     }
 }
 
-/** Torrentio's files for [id], best first; asking the indexers takes up to a minute. */
+/** Torrentio's files for the picked episode, best first; asking the indexers takes up to a minute. */
 @Composable
-private fun Files(library: Library, type: String, id: String, onPick: (JSONObject) -> Unit) {
-    var files by remember { mutableStateOf<List<JSONObject>?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(id) {
-        runCatching { library.discovery.discoverStreams(type, id).objects() }.onSuccess { l ->
-            files = l.sortedBy { io.github.pedrubik2000.kumapie.data.Playable.missing(it.optString("label") + " " + it.optString("about") + " " + it.optString("file")).isNotEmpty() }
-        }.onFailure { error = it.message ?: it.toString() }
-    }
-    val list = files
+private fun Files(library: Library, page: io.github.pedrubik2000.kumapie.data.TitlePage, onPick: (JSONObject) -> Unit) {
+    val list = page.files
+    val error = page.error
     when {
-        error != null -> Message(error!!)
+        error != null -> Message(error)
         list == null -> Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = Colors.accent)
             Text(if (library.settings.server.isEmpty()) tr("Asking your addons…") else tr("Asking Torrentio…"), color = Colors.dim, modifier = Modifier.padding(top = 12.dp))

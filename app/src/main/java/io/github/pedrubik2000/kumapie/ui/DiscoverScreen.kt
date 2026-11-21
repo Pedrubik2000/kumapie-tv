@@ -59,7 +59,6 @@ import coil3.compose.AsyncImage
 import io.github.pedrubik2000.kumapie.StreamActivity
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Found
-import io.github.pedrubik2000.kumapie.data.StreamStart
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.launch
@@ -234,46 +233,31 @@ private fun TitleLogo(f: Found) {
 private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, title: Found,
                         rail: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {}) {
     val context = LocalContext.current
-    var meta by remember { mutableStateOf<JSONObject?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var picking by remember { mutableStateOf<Pair<String, String>?>(null) } // (Stremio id, its name)
-    var files by remember { mutableStateOf<List<JSONObject>?>(null) }
-    var kept by remember { mutableStateOf<Boolean?>(null) } // on Home (null: not known yet)
+    val page = remember(title.id) {
+        io.github.pedrubik2000.kumapie.data.TitlePage(api, title) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.data.SavedMeta.put(context, title.id, it) }
+            io.github.pedrubik2000.kumapie.data.Backdrops.put(context, title.id, it.optString("background"))
+        }
+    }
     var menu by remember { mutableStateOf<JSONObject?>(null) } // the episode OK was held on
     val main = remember { FocusRequester() } // the ▶ button
     val toEps = remember { FocusRequester() } // Down from the hero: the next episode's card (it went to the round buttons)
-    var reload by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(title.id) { kept = runCatching { api.saved().any { it.id == title.id } }.getOrNull() }
-    LaunchedEffect(title.id, reload) {
-        // Last time's answer at once (SavedMeta); the fresh one replaces it only if it differs (no redraw for nothing).
-        if (meta == null) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.data.SavedMeta.get(context, title.id) }?.let { meta = it }
-        runCatching { api.discoverMeta(title.type, title.id) }.onSuccess {
-            val old = meta; if (kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { it.toString() != old?.toString() }) meta = it
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.data.SavedMeta.put(context, title.id, it) }
-            io.github.pedrubik2000.kumapie.data.Backdrops.put(context, title.id, it.optString("background")) // Home's and Discover's hero
-        }.onFailure { if (meta == null) error = it.message ?: it.toString() }
-    }
-    LaunchedEffect(picking) {
-        files = null
-        val (id, _) = picking ?: return@LaunchedEffect
-        runCatching { api.discoverStreams(title.type, id).objects() }.onSuccess { files = it }.onFailure { error = it.message ?: it.toString() }
-    }
-    val t = meta?.let { api.found(it) } ?: title
-    val eps = meta?.optJSONArray("episodes")?.objects().orEmpty()
-    // ▶ and the shelf's start. No PC: the episode Home's Continue watching shows (Eden of the East: Home said 2, ▶ played 1, 2026-11-19).
-    val going = remember(title.id) { api.goingNow()?.firstOrNull { it.first.id == title.id }?.second?.id }
-    val next = io.github.pedrubik2000.kumapie.data.nextUp(eps, going)
-    fun play(e: JSONObject) {
-        val name = "${title.name} ${e.optInt("number")}"
-        // The PC got a file ready for it: no file list, it starts at once.
-        if (e.optBoolean("ready")) context.startActivity(StreamActivity.intent(context, StreamStart.ready(title, e.getString("id"), name)))
-        else picking = e.getString("id") to name
-    }
+    LaunchedEffect(page) { page.loadKept() }
+    LaunchedEffect(page) { page.load(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.data.SavedMeta.get(context, title.id) }) }
+    LaunchedEffect(page.picking) { page.loadFiles() }
+    val meta = page.meta
+    val error = page.error
+    val picking = page.picking
+    val files = page.files
+    val t = page.shown
+    val eps = page.episodes
+    val next = page.next
+    fun play(e: JSONObject?) { page.play(e)?.let { context.startActivity(StreamActivity.intent(context, it)) } }
     // The files or an episode's menu on the right; else the episodes as a row of wide cards at the bottom (mockups 2026-11-18).
     val side = error != null || meta == null || picking != null || menu != null
     LaunchedEffect(meta != null, side) { if (meta != null && !side) main.focusSoon() }
-    Box(Modifier.fillMaxSize().onBackKey(picking != null || menu != null) { if (picking != null) { picking = null; error = null } else menu = null }) {
+    Box(Modifier.fillMaxSize().onBackKey(picking != null || menu != null) { if (picking != null) page.closeFiles() else menu = null }) {
     Backdrop(t.background.ifEmpty { t.poster })
     Row(Modifier.fillMaxSize().padding(start = RAIL, top = 40.dp, end = 32.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
         Column(Modifier.width(520.dp)) {
@@ -282,13 +266,13 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
             Text(t.line, color = Colors.text, fontSize = 16.sp, modifier = Modifier.padding(top = 6.dp))
             Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (meta != null) {
-                    Button(onClick = { if (next != null) play(next) else picking = title.id to title.name }, modifier = Modifier.focusRequester(main).focusProperties { if (!side) down = toEps }) {
+                    Button(onClick = { play(next) }, modifier = Modifier.focusRequester(main).focusProperties { if (!side) down = toEps }) {
                         Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) +
                             (if (next.optBoolean("ready") && next.optString("source").isNotEmpty()) " · " + next.optString("source") else "") else tr("Watch")))
                     }
                 }
-                kept?.let { on ->
-                    Button(onClick = { scope.launch { runCatching { api.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } } } },
+                page.kept?.let { on ->
+                    Button(onClick = { scope.launch { page.keep() } },
                         modifier = Modifier.focusProperties { if (!side) down = toEps }) {
                         Text(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"))
                     }
@@ -302,7 +286,7 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
         if (side) Box(Modifier.weight(1f).focusProperties {
             onExit = { if (requestedFocusDirection == androidx.compose.ui.focus.FocusDirection.Left && meta != null) { cancelFocusChange(); main.requestFocus() } }
         }.focusGroup()) { when {
-            error != null -> ErrorBox(error!!, onRetry = { error = null; reload++ }, onSettings = null, server = api is Api)
+            error != null -> ErrorBox(error, onRetry = { scope.launch { page.retry() } }, onSettings = null, server = api is Api)
             m == null -> Text(tr("Loading…"), color = Colors.dim)
             pick == null && menu != null -> {
                 val e = menu!!
@@ -310,21 +294,15 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
                 Column {
                     Heading(tr("Episode %1\$d", e.optInt("number")))
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(12.dp)) {
-                        item { Line(0, tr("Other files"), "", null) { menu = null; picking = e.getString("id") to "${title.name} ${e.optInt("number")}" } }
-                        item {
-                            Line(1, if (watched) tr("Mark not watched") else tr("Mark watched"), "", null) {
-                                menu = null; scope.launch { runCatching { api.seen(e.getString("id"), !watched) }; reload++ }
-                            }
-                        }
+                        item { Line(0, tr("Other files"), "", null) { menu = null; page.others(e) } }
+                        item { Line(1, if (watched) tr("Mark not watched") else tr("Mark watched"), "", null) { menu = null; scope.launch { page.mark(e) } } }
                     }
                 }
             }
             pick != null -> {
                 // Files this device can't decode (by their names: HEVC 10 bit, AV1…) go last, saying why. A name never says the level: "may".
                 val list = remember(files) {
-                    files?.map { f -> f to io.github.pedrubik2000.kumapie.data.Playable.missing(f.optString("label") + " " + f.optString("about") + " " + f.optString("file")) }
-                        ?.sortedBy { it.second.isNotEmpty() }
-                        ?.map { (f, no) -> if (no.isEmpty()) f else JSONObject(f.toString()).put("label", "✗ " + tr("May not play here: %1\$s", no.joinToString(", ")) + " · " + f.optString("label")) }
+                    files?.map { f -> page.missing(f).let { no -> if (no.isEmpty()) f else JSONObject(f.toString()).put("label", "✗ " + tr("May not play here: %1\$s", no.joinToString(", ")) + " · " + f.optString("label")) } }
                 }
                 Column {
                     Heading(pick.second)
@@ -336,11 +314,7 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
                                 Line(i, f.optString("label"), f.optString("about"), null) {
                                     // An addon's stream (no PC): a link that plays as it is, with its live Japanese lines.
                                     // Its title goes on Home, to come back to (no PC keeps "Continue watching").
-                                    scope.launch {
-                                        val (query, list) = StreamStart.picked(api, title, pick.first, pick.second, f, kept)
-                                        list?.let { l -> kept = l.any { it.id == title.id } }
-                                        context.startActivity(StreamActivity.intent(context, query))
-                                    }
+                                    scope.launch { context.startActivity(StreamActivity.intent(context, page.pick(pick, f))) }
                                 }
                             }
                         }
@@ -357,7 +331,7 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
             val at = remember(m) { eps.indexOf(next).coerceAtLeast(0) }
             LazyRow(state = androidx.compose.foundation.lazy.rememberLazyListState(at), horizontalArrangement = Arrangement.spacedBy(20.dp),
                 contentPadding = PaddingValues(start = RAIL, end = 32.dp, top = 8.dp, bottom = 8.dp)) {
-                if (eps.isEmpty()) item { EpisodeCard(tr("Watch"), m.optString("year"), null, "", Modifier.focusRequester(toEps)) { picking = title.id to title.name } }
+                if (eps.isEmpty()) item { EpisodeCard(tr("Watch"), m.optString("year"), null, "", Modifier.focusRequester(toEps)) { play(null) } }
                 itemsIndexed(eps, key = { _, e -> e.getString("id") }) { i, e ->
                     val ready = e.optBoolean("ready") // the PC got a file ready for it: no file list, it starts at once
                     val mark = if (e.optBoolean("watched")) "✓" else if (ready) "▶" else ""

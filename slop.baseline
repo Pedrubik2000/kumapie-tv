@@ -1,11 +1,11 @@
 # slopCheck's baseline (build.gradle.kts): shrinks, never grows. Rewritten by `gradlew slopCheck -PslopBaseline`.
 comments :lang 2113
-comments :mobile 799
+comments :mobile 796
 comments app/src/main/java/io/github/pedrubik2000/kumapie/data/KeySettings.kt 1
 comments app/src/main/java/io/github/pedrubik2000/kumapie/player/PlayerKeys.kt 23
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/Arcade.kt 45
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/ButtonsScreen.kt 3
-comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 42
+comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 36
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/HelpOverlay.kt 2
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 62
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 59
@@ -54,7 +54,7 @@ comments core/src/main/java/io/github/pedrubik2000/kumapie/update/Updater.kt 10
 digit lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Fsrs6.kt
 digit lang/src/main/java/io/github/pedrubik2000/kumapie/lang/jiten/RepairStages2.kt
 forbid app/src/main/java/io/github/pedrubik2000/kumapie/player/PlayerKeys.kt 1
-forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 7
+forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 6
 forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 2
 forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 2
 forbid app/src/main/java/io/github/pedrubik2000/kumapie/ui/ProfilesScreen.kt 3
@@ -65,7 +65,6 @@ forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/Settings.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/ShowLevel.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/player/LiveLines.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/ui/Subtitles.kt 1
-lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 413
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 461
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 526
 lines core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 720
@@ -74,7 +73,7 @@ lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Hoshidicts.kt 630
 lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/KnownWords.kt 677
 lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Miner.kt 582
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/local/ProcessWorker.kt 718
-lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/DiscoverScreen.kt 547
+lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/DiscoverScreen.kt 524
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/HomeScreen.kt 624
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/PlayerScreen.kt 731
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/SettingsScreen.kt 951

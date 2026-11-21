@@ -97,8 +97,8 @@ fun ReviewScreen(source: ReviewSource, onBack: () -> Unit) {
                 }
                 else -> Column(Modifier.widthIn(max = 700.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    // The line's picture and audio (own cards with both only: ownReview), as the TV's Review.
-                    io.github.pedrubik2000.kumapie.ui.CardPicture(card.image, Modifier.fillMaxWidth())
+                    // The line's picture (own cards: ownReview) in only the height the line and the buttons leave: full width on a tablet pushed the ratings off the screen.
+                    io.github.pedrubik2000.kumapie.ui.CardPicture(card.image, Modifier.weight(1f, fill = false).fillMaxWidth())
                     if (card.audio.isNotEmpty()) OutlinedButton(onClick = { play(card.audio) }) { Text(tr("Listen")) }
                     Text(buildAnnotatedString {
                         var at = 0

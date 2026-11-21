@@ -5,6 +5,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasImeAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.isFocused
@@ -218,5 +219,30 @@ class TvOnboardingTest {
         val said = dictionariesState(context, Settings(context))
         TvMining.failed = null
         assertEquals("Couldn't download them (no internet). Trying again…", said)
+    }
+}
+
+/** Review with the remote (core plan 5d): every button was below the Chromecast's screen, under a 300 dp picture (8a2b9f0). */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], qualifiers = "w960dp-h540dp-television-xhdpi")
+class TvReviewTest {
+    @get:Rule val rule = createComposeRule()
+    @get:Rule val tmp = org.junit.rules.TemporaryFolder()
+
+    @Test fun showAndTheRatingsAreOnScreenAndRate() {
+        val picture = tmp.newFile("frame.png")
+        picture.outputStream().use { android.graphics.Bitmap.createBitmap(1280, 720, android.graphics.Bitmap.Config.ARGB_8888)
+            .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        val card = io.github.pedrubik2000.kumapie.data.SrsCard("師匠", "フランメ「師匠」", "", "ししょう · master", "new", "", 1,
+            android.net.Uri.fromFile(picture).toString())
+        val rated = mutableListOf<Int>()
+        rule.setContent { ReviewScreen(io.github.pedrubik2000.kumapie.lang.ReviewSource({ listOf(card) }, { _, r -> rated += r }), server = false) }
+        rule.waitUntil(5_000) { rule.focusedTitle() == "Show" }
+        rule.onNodeWithText("Show").assertIsDisplayed()
+        rule.press(Key.DirectionCenter)
+        rule.waitUntil(5_000) { rule.focusedTitle() == "Good" }
+        listOf("Again", "Hard", "Good", "Easy").forEach { rule.onNodeWithText(it).assertIsDisplayed() }
+        rule.press(Key.DirectionCenter)
+        rule.waitUntil(5_000) { rated == listOf(3) }
     }
 }

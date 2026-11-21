@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
@@ -110,7 +110,7 @@ fun ReviewScreen(source: ReviewSource, server: Boolean = true) {
 private fun Front(card: SrsCard, shown: Boolean, onShow: () -> Unit, onListen: () -> Unit, onRate: (Int) -> Unit) {
     val first = remember(card.word, shown) { FocusRequester() }
     Column(Modifier.widthIn(max = 1100.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        CardPicture(card.image, Modifier.padding(bottom = 20.dp).height(300.dp)) // own cards: the line's frame
+        CardPicture(card.image, Modifier.weight(1f, fill = false).padding(bottom = 20.dp).heightIn(max = 300.dp)) // own cards: the line's frame
         Text(marked(card.sentence, card.word), fontSize = 34.sp, color = Colors.text, textAlign = TextAlign.Center)
         if (shown) {
             Column(Modifier.padding(top = 28.dp).background(Arcade.slab).padding(horizontal = 32.dp, vertical = 18.dp),

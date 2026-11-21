@@ -139,6 +139,45 @@ class TvDiscoverFocusTest {
         rule.press(Key.Back) // the first Back left Discover (Chromecast, 2026-11-17)
         rule.waitUntil(5_000) { rule.focusedTitle() == "Alpha" }
     }
+
+    /** Discover inside the stack's Back (MainActivity's onBackKey pops to Home): [home] counts those pops. */
+    private var home = 0
+    private fun openInStack() {
+        rule.setContent { androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.onBackKey { home++ }) { DiscoverScreen(discovery) } }
+        rule.waitUntil(5_000) { rule.focusedTitle() == "Alpha" }
+    }
+
+    private fun openTitleAndBack() {
+        rule.press(Key.DirectionCenter)
+        rule.waitUntil(5_000) { rule.focusedTitle()?.startsWith("▶") == true }
+        rule.press(Key.Back)
+    }
+
+    @Test fun backFromATitleGoesBackToItsCard() { // it went Home (Chromecast, 2026-11-20)
+        openInStack()
+        rule.press(Key.DirectionDown)
+        rule.waitUntil(2_000) { rule.focusedTitle() == "Delta" }
+        rule.press(Key.DirectionRight)
+        assertEquals("Echo", rule.focusedTitle())
+        openTitleAndBack()
+        rule.waitUntil(5_000) { rule.focusedTitle() == "Echo" }
+        assertEquals(0, home)
+    }
+
+    @Test fun backFromASearchedTitleGoesBackToTheResults() {
+        openInStack()
+        rule.onNode(hasImeAction(androidx.compose.ui.text.input.ImeAction.Done)).requestFocus()
+        rule.press(Key.DirectionCenter)
+        rule.onNode(hasSetTextAction()).performTextInput("zeta")
+        rule.onNode(hasSetTextAction()).performImeAction()
+        rule.waitUntil(5_000) { rule.focusedTitle() == "Zeta" }
+        rule.press(Key.DirectionRight)
+        assertEquals("Eta", rule.focusedTitle())
+        openTitleAndBack()
+        rule.waitUntil(5_000) { rule.focusedTitle() == "Eta" }
+        assertEquals(true, rule.onAllNodesWithText("zeta").fetchSemanticsNodes().isNotEmpty())
+        assertEquals(0, home)
+    }
 }
 
 /** The TV's first run without a PC (bug hunt 2026-11-17: Back quit the app; a failed dictionary download said "Starting…" forever). */

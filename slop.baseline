@@ -65,7 +65,7 @@ forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/Settings.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/data/ShowLevel.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/player/LiveLines.kt 1
 forbid core/src/main/java/io/github/pedrubik2000/kumapie/ui/Subtitles.kt 1
-lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 414
+lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 413
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 467
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 526
 lines core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 720

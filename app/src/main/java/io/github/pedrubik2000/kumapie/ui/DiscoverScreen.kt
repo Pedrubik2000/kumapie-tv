@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -100,14 +99,15 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
         error = null
         runCatching { api.discover(searched) }.onSuccess { found = it }.onFailure { error = it.message ?: it.toString() }
     }
-    open?.let { title ->
-        if (start == null) BackHandler { open = null }
-        return TitleScreen(api, title, rail)
-    }
+    var row by remember { mutableIntStateOf(0) } // the focused poster's row: its name over the hero
+    var from by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    val rowsState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val rowStates = remember { mutableMapOf<Int, androidx.compose.foundation.lazy.LazyListState>() }
+    val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    open?.let { return Box(Modifier.onBackKey(start == null) { open = null }) { TitleScreen(api, it, rail) } }
     val board = rows
     var kept by remember { mutableStateOf<Set<String>?>(null) } // the titles on Home, for the hero's + Home
     LaunchedEffect(Unit) { kept = runCatching { api.saved().map { it.id }.toSet() }.getOrNull() }
-    var row by remember { mutableIntStateOf(0) } // the focused poster's row: its name over the hero
     val scope = rememberCoroutineScope()
     // onBackKey, not BackHandler: the first Back left Discover (Chromecast, 2026-11-17).
     Box(Modifier.fillMaxSize().onBackKey(searched.isNotEmpty()) { searched = ""; query = "" }) {
@@ -132,10 +132,11 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
                 searched.isNotEmpty() && list!!.isEmpty() -> Text(tr("Nothing found"), color = Colors.dim, fontSize = 20.sp, modifier = Modifier.padding(top = 64.dp))
                 searched.isNotEmpty() -> {
                     Heading(searched, Modifier.padding(top = 56.dp))
-                    LazyVerticalGrid(GridCells.Adaptive(130.dp), contentPadding = PaddingValues(vertical = 16.dp),
+                    val back = list!!.any { -1 to it.id == from }
+                    LazyVerticalGrid(GridCells.Adaptive(130.dp), state = grid, contentPadding = PaddingValues(vertical = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                        itemsIndexed(list!!.distinctBy { it.id }, key = { _, f -> f.id }) { i, f ->
-                            Poster(f.poster, f.shownName, f.year, null, if (i == 0) Modifier.focusRequester(first) else Modifier) { open = f }
+                        itemsIndexed(list.distinctBy { it.id }, key = { _, f -> f.id }) { i, f ->
+                            Poster(f.poster, f.shownName, f.year, null, if (if (back) -1 to f.id == from else i == 0) Modifier.focusRequester(first) else Modifier) { from = -1 to f.id; open = f }
                         }
                     }
                 }
@@ -151,7 +152,7 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
                         Text(f.line, color = Colors.text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                         Text(f.description.replace(Regex("""\s+"""), " "), color = Colors.dim, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(onClick = { open = f }) { Text("▶  " + tr("Watch")) }
+                            Button(onClick = { from = row to f.id; open = f }) { Text("▶  " + tr("Watch")) }
                             kept?.let { k ->
                                 val on = f.id in k
                                 Button(onClick = { scope.launch { runCatching { api.save(f, !on) }.onSuccess { l -> kept = l.map { it.id }.toSet() } } }) {
@@ -164,16 +165,16 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
                 // The top edge fades out: a row scrolled up peeked its years out under the text (Chromecast).
                 // The focused row goes to the top of the list: left where the D-pad put it, the row above showed its
                 // titles and years under the text, and the focused row's years were cut at the bottom.
-                val rowsState = androidx.compose.foundation.lazy.rememberLazyListState()
                 LaunchedEffect(row) { rowsState.animateScrollToItem(row) }
+                val back = from?.let { (r, id) -> board.getOrNull(r)?.second?.any { it.id == id } } == true
                 LazyColumn(Modifier.fillMaxSize().fadeTop(0.06f), state = rowsState) {
                     board!!.forEachIndexed { r, (name, titles) ->
                         item(key = "row-$r") {
                             Heading(tr(name), Modifier.padding(start = RAIL, top = 16.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(start = RAIL, end = 48.dp, top = 8.dp, bottom = 8.dp)) {
+                            LazyRow(state = rowStates.getOrPut(r) { androidx.compose.foundation.lazy.LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(start = RAIL, end = 48.dp, top = 8.dp, bottom = 8.dp)) {
                                 itemsIndexed(titles.distinctBy { it.id }, key = { _, f -> f.id }) { i, f ->
-                                    Poster(f.poster, f.shownName, f.year, null, (if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier)
-                                        .onFocusChanged { if (it.isFocused) { focused = f; row = r } }) { open = f }
+                                    Poster(f.poster, f.shownName, f.year, null, (if (if (back) r to f.id == from else r == 0 && i == 0) Modifier.focusRequester(first) else Modifier)
+                                        .onFocusChanged { if (it.isFocused) { focused = f; row = r } }) { from = r to f.id; open = f }
                                 }
                             }
                         }
@@ -258,8 +259,6 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
         val (id, _) = picking ?: return@LaunchedEffect
         runCatching { api.discoverStreams(title.type, id).objects() }.onSuccess { files = it }.onFailure { error = it.message ?: it.toString() }
     }
-    if (picking != null) BackHandler { picking = null; error = null }
-    if (menu != null && picking == null) BackHandler { menu = null }
     val t = meta?.let { api.found(it) } ?: title
     val eps = meta?.optJSONArray("episodes")?.objects().orEmpty()
     // ▶ and the shelf's start. No PC: the episode Home's Continue watching shows (Eden of the East: Home said 2, ▶ played 1, 2026-11-19).
@@ -274,7 +273,7 @@ private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, titl
     // The files or an episode's menu on the right; else the episodes as a row of wide cards at the bottom (mockups 2026-11-18).
     val side = error != null || meta == null || picking != null || menu != null
     LaunchedEffect(meta != null, side) { if (meta != null && !side) main.focusSoon() }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().onBackKey(picking != null || menu != null) { if (picking != null) { picking = null; error = null } else menu = null }) {
     Backdrop(t.background.ifEmpty { t.poster })
     Row(Modifier.fillMaxSize().padding(start = RAIL, top = 40.dp, end = 32.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
         Column(Modifier.width(520.dp)) {

@@ -110,6 +110,7 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
     var rows by remember { mutableStateOf<List<Pair<String, List<Found>>>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var open by remember { mutableStateOf(start) }
+    val (column, grid, rowStates) = remember { Triple(androidx.compose.foundation.lazy.LazyListState(), androidx.compose.foundation.lazy.grid.LazyGridState(), mutableMapOf<Int, androidx.compose.foundation.lazy.LazyListState>()) }
     LaunchedEffect(Unit) {
         if (start == null) {
             if (rows == null) rows = (library.discovery as? io.github.pedrubik2000.kumapie.data.Addons)?.lastBoard() // last time's rows at once (as the TV)
@@ -146,20 +147,19 @@ fun DiscoverScreen(library: Library, onWatch: (Map<String, String>) -> Unit, onB
                 searched.isNotEmpty() && list == null || searched.isEmpty() && board == null ->
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.accent) }
                 searched.isNotEmpty() && list!!.isEmpty() -> Message(tr("Nothing found"))
-                searched.isNotEmpty() -> LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp),
+                searched.isNotEmpty() -> LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.fillMaxSize(), grid, contentPadding = PaddingValues(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(list!!.distinctBy { it.id }, key = { it.id }) { f -> PosterCard(f, Modifier.fillMaxWidth()) { open = f } }
                 }
-                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                else -> LazyColumn(Modifier.fillMaxSize(), column, contentPadding = PaddingValues(bottom = 24.dp)) {
                     // The hero: the first row's first few (your newest plans when you have an AniList list).
                     val featured = board!!.firstOrNull()?.second.orEmpty().filter { it.background.isNotEmpty() }.take(6)
                     if (featured.isNotEmpty()) item(key = "hero") { Hero(featured) { open = it } }
                     // Two addons may name a catalog alike, and two AniList entries may share a kitsu id: keys unique.
                     board.forEachIndexed { index, (name, titles) ->
                         item(key = "row-$index") {
-                            Text(tr(name), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                                modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 10.dp))
-                            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Text(tr(name), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 10.dp))
+                            LazyRow(state = rowStates.getOrPut(index) { androidx.compose.foundation.lazy.LazyListState() }, contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 items(titles.distinctBy { it.id }, key = { it.id }) { f -> PosterCard(f, Modifier.width(if (wide()) 140.dp else 112.dp)) { open = f } }
                             }
                         }

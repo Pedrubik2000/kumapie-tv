@@ -7,14 +7,15 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.pedrubik2000.kumapie.data.Backend
+import io.github.pedrubik2000.kumapie.data.Cue
 import io.github.pedrubik2000.kumapie.data.LineDef
 import io.github.pedrubik2000.kumapie.data.Segment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * The word picker: a cursor on the words of the paused scene. It lands only on coloured words (red, blue, green;
- * not white), unless the scene has none; then on every word. Moving is silent and shows
+ * The word picker: a cursor on the words of the paused scene. In a line with a red (new) word it lands only on
+ * coloured words (red, blue, green; not white); in a line without one, on every word. Moving is silent and shows
  * nothing but the highlight; the card opens only on request:
  *
  * OK opens the selected word's card, plays the word and counts a lookup. While the card is open, OK plays
@@ -55,13 +56,13 @@ class WordPicker(
     /** The word picked inside the definition (only while [inDef]). */
     val selectedInDef: Segment? get() = if (inDef) definition?.target?.getOrNull(defSeg) else null
 
-    /** Pauses and puts the cursor on the scene's first coloured word (else any). */
+    /** Pauses and puts the cursor on the scene's first coloured word; in a scene without a red word, on its first word. */
     fun open(): Boolean {
         val spots = spots()
         if (spots.isEmpty()) return false
         ctl.pause()
         isOpen = true
-        land(spots.first()) // the first coloured word from the top line down (user, 2026-10-14)
+        land(if (spots.any { status(it).isRed() }) spots.first { status(it) != "k" } else spots.first()) // from the top line down (user, 2026-10-14)
         return true
     }
 
@@ -162,17 +163,7 @@ class WordPicker(
     private fun status(spot: Spot): String? =
         ctl.scene.cues[spot.line].segments[spot.seg].let { s -> s.word?.let { ctl.words[it]?.shownFor(s.text) ?: "u" } }
 
-    /** The words the cursor can land on, in reading order (always including where it is now). */
-    private fun spots(): List<Spot> {
-        val all = ctl.scene.cues.flatMapIndexed { l, cue ->
-            cue.segments.mapIndexedNotNull { s, segment -> if (segment.word != null) Spot(l, s) else null }
-        }
-        val here = Spot(line, seg)
-        // Every word white: all of them (the cursor's own word counted as "coloured" here, so it couldn't move: Pedro,
-        // 2026-11-19).
-        if (all.none { status(it) != "k" }) return all
-        return all.filter { status(it) != "k" || (isOpen && it == here) }
-    }
+    private fun spots(): List<Spot> = wordStops(ctl.scene.cues, Spot(line, seg).takeIf { isOpen }, ::status)
 
     private fun step(by: Int) {
         val spots = spots()
@@ -250,3 +241,11 @@ class WordAudio(private val backend: Backend? = null) {
         player = null
     }
 }
+
+fun wordStops(cues: List<Cue>, here: WordPicker.Spot?, status: (WordPicker.Spot) -> String?): List<WordPicker.Spot> =
+    cues.flatMapIndexed { l, cue ->
+        val all = cue.segments.indices.filter { cue.segments[it].word != null }.map { WordPicker.Spot(l, it) }
+        if (all.none { status(it).isRed() }) all else all.filter { status(it) != "k" || it == here }
+    }
+
+private fun String?.isRed() = this == "u" || this == "b"

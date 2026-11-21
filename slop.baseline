@@ -41,7 +41,7 @@ comments core/src/main/java/io/github/pedrubik2000/kumapie/player/AudioAwake.kt 
 comments core/src/main/java/io/github/pedrubik2000/kumapie/player/LiveLines.kt 32
 comments core/src/main/java/io/github/pedrubik2000/kumapie/player/Players.kt 5
 comments core/src/main/java/io/github/pedrubik2000/kumapie/player/SceneController.kt 72
-comments core/src/main/java/io/github/pedrubik2000/kumapie/player/WordPicker.kt 26
+comments core/src/main/java/io/github/pedrubik2000/kumapie/player/WordPicker.kt 23
 comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/CardPicture.kt 2
 comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/Colors.kt 11
 comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/JapaneseFonts.kt 7

@@ -154,7 +154,7 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
     override val model = JapaneseModel(appContext)
     override val parserId get() = "sudachi-B-${JapaneseModel.VERSION}" + if (model.splitterReady) "+${JitenSplitter.ID}" else ""
     override val known = KnownWords(context, settings, this)
-    private val finder by lazy { JapaneseLookup(model, yomitan) }
+    private val finder by lazy { JapaneseLookup(model, yomitan) { known.cardIndex.cards(it).isNotEmpty() } }
     override val voice by lazy {
         Voice(appContext, lang) { t -> runCatching { finder.lookup(t, 0, t.length).firstOrNull { it.expression == t }?.reading }.getOrNull()?.takeIf { it.isNotBlank() } }
     }

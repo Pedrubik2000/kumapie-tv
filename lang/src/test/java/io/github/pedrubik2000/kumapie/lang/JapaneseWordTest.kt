@@ -103,7 +103,7 @@ class JapaneseWordTest {
     private val readings = mapOf(
         "私" to "あたい あたくし あたし あっし あて し わい わし わたい わたくし わたし わちき わっし わっち わて わらわ", "明日" to "あした あす みょうにち",
         "今日" to "きょう こんじつ こんち こんにち", "何" to "なに なん", "日本" to "にっぽん にほん", "一日" to "いちじつ いちにち いっぴ ついたち つきたち ひとひ",
-        "館" to "かん たち やかた", "方" to "かた がた ほう", "翡翠" to "かわせみ ひすい",
+        "館" to "かん たち やかた", "方" to "かた がた ほう", "翡翠" to "かわせみ ひすい", "呪い" to "のろい まじない", "上" to "うえ うわ かみ じょう",
     )
     private fun terms(word: String, freq: Map<String, String> = emptyMap()) = readings.getValue(word).split(' ').map { r ->
         YomitanDictionaries.Term(word, r, listOf(YomitanDictionaries.Glossary("JMdict", listOf("…"), "")), listOfNotNull(freq[r]?.let { "JPDB" to it }), emptyList())
@@ -142,5 +142,32 @@ class JapaneseWordTest {
         assertNull(CardIndex.moved("私室[ししつ]"))
         val note = AnkiCards.Note(1, mapOf("Word" to "私[わたくし]:0-"), emptySet())
         assertEquals(listOf(CardIndex.japaneseKey("私", "わたし"), "私"), CardIndex.japaneseKeys(note))
+    }
+
+    private val jpdb = mapOf("のろい" to "3165, 60685㋕", "まじない" to "52702, 25411㋕", "うえ" to "142, 2329㋕", "うわ" to "94801, 53102㋕",
+        "なに" to "72, 493㋕", "なん" to "101, 151㋕")
+
+    /**
+     * The three holes Pedro's real cards showed (core plan 5b): 呪い[まじない] from 「まじないを唱える声」 (Kusuriya 3, 5) and
+     * 上[うわ]の 空[そら] from 「…肝心のデートも上の空である」 stay as they are, with a frequency dictionary (JPDB) on the device.
+     */
+    @Test fun pedrosCardsKeepTheirReading() {
+        // (c) the line writes the word in kana: that is its reading, not the kanji spelling's common のろい.
+        assertEquals("まじない", JapaneseLookup.reading("まじないを唱える声", 0, "呪い", "まじない", terms("呪い", jpdb)))
+        assertEquals("written in kanji: the common one", "のろい", read("呪いをかける", "呪い", "まじない", jpdb))
+        // (a) the expression the line has (上の空, an entry) is the first row, before 上 gets its own reading (うえ).
+        val line = "現にここまで失敗続きで肝心のデートも上の空である"
+        assertEquals("うえ", read(line, "上", "うえ", jpdb))
+        val sora = row("上の空", "うわのそら", head("上の空", "うわのそら"))
+        val rows = listOf(row("上", "うえ", head("上", "うえ")), sora)
+        assertEquals(sora, JapaneseLookup.entryFirst(rows, "上の空", sora, 1).first())
+        assertEquals("気にしない is 気にする conjugated: rows as they were", rows,
+            JapaneseLookup.entryFirst(rows, "気にしない", row("気にする", "きにする", null), 1))
+        // (b) a word with a card of its own keeps the card's reading when the line doesn't decide; the line rules still win.
+        val cards = setOf(CardIndex.japaneseKey("呪い", "まじない"), CardIndex.japaneseKey("上", "うわ"), CardIndex.japaneseKey("何", "なに"))
+        assertEquals("まじない", JapaneseLookup.reading("呪いをかける", 0, "呪い", "のろい", terms("呪い", jpdb)) { it in cards })
+        assertEquals("うわ", JapaneseLookup.reading(line, line.indexOf("上"), "上", "うえ", terms("上", jpdb)) { it in cards })
+        assertEquals("the table loses too", "あす", JapaneseLookup.reading("明日は雨", 0, "明日", "あした", terms("明日")) { it == CardIndex.japaneseKey("明日", "あす") })
+        assertEquals("the line decides: なん", "なん", JapaneseLookup.reading("何でしょう？", 0, "何", "なん", terms("何", jpdb)) { it in cards })
     }
 }

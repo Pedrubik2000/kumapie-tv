@@ -80,6 +80,8 @@ val slopForbidden = listOf(
         "use Startup.gate() / Startup.onboarded() (core data/Startup.kt): first run, onboarding or the app is one rule, one \"onboarded\" key", listOf("app", "mobile")),
     Forbidden("StreamStart.picked( / StreamStart.ready( / Playable.missing( / discoverStreams(title", Regex("""\bStreamStart\.(picked|ready)\(|\bPlayable\.missing\(|\bdiscoverStreams\(\s*title\b"""), emptyList(),
         "use TitlePage (core data/TitlePage.kt): ▶, play or the file list, the files' order, + Home and ✓ are one holder for both title pages", listOf("app", "mobile")),
+    Forbidden("LangKit.get( / Languages( / Miner(", Regex("""\bLangKit\.get\(|\b(Languages|Miner)\("""), listOf("/ui/TvMining.kt", "/mobile/offline/Library.kt"),
+        "use TvMining.languages / miner (TV) or Library.languages / miner / yomitan (phone): both are lang LangKit, one language layer per app run", listOf("app", "mobile")),
 )
 
 /** [src] with comments removed and string contents blanked (newlines kept), and its number of comments. */

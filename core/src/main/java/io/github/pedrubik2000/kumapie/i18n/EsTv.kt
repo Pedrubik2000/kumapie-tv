@@ -27,8 +27,8 @@ internal val esTv: Map<String, String> = mapOf(
     "Replay line" to "Repetir la línea",
     "Replay line and play on" to "Repetir la línea y seguir",
     "Couldn't download them (%s). Trying again…" to "No se pudieron descargar (%s). Probando de nuevo…",
-    "Subtitles: hidden → blurred → both blurred → %s → both (paused after a line: pick a word)" to
-        "Subtítulos: ocultos → borrosos → los dos borrosos → %s → los dos (en pausa después de una línea: elegir una palabra)",
+    "Subtitles: hidden → blurred → both blurred → %s → both" to
+        "Subtítulos: ocultos → borrosos → los dos borrosos → %s → los dos",
     "%s subtitles" to "Subtítulos en %s",
     "the episode's language" to "el idioma del episodio",
     "the translation" to "la traducción",
@@ -113,8 +113,8 @@ internal val esTv: Map<String, String> = mapOf(
     " · hold ↑ again: see the card" to " · mantén ↑ otra vez: ver la tarjeta",
     "Close the picker" to "Cerrar",
     "Back: close the picker" to "Atrás: cerrar",
-    "Speed, pause after each line, subtitles and this list: Options (Menu, or hold ↓)." to
-        "Velocidad, pausa después de cada línea, subtítulos y esta lista: Opciones (Menú, o mantener ↓).",
+    "Speed, pause after each line, subtitles and this list: Options (hold ↓, or Menu)." to
+        "Velocidad, pausa después de cada línea, subtítulos y esta lista: Opciones (mantener ↓, o Menú).",
     "Change the buttons in Settings > Change buttons.   Any button closes this." to
         "Los botones se cambian en Ajustes > Cambiar botones.   Cualquier botón cierra esto.",
     "hold %s" to "mantener %s",

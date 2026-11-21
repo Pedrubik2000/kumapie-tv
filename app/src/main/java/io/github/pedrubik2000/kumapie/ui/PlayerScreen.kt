@@ -174,8 +174,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
                 Action.PREVIOUS_SCENE -> ctl.previousScene()
                 Action.REPLAY_LINE -> ctl.replayLine()
                 Action.REPLAY_SCENE -> ctl.replayScene()
-                // At the end of a scene ↓ opens the picker; otherwise it steps through the subtitle modes.
-                Action.CYCLE_SUBTITLES -> if (ctl.atSceneEnd) openPicker() else ctl.cycleSubtitles()
+                Action.CYCLE_SUBTITLES -> ctl.cycleSubtitles()
                 Action.TOGGLE_GERMAN -> ctl.toggleTarget()
                 Action.TOGGLE_ENGLISH -> ctl.toggleEnglish()
                 Action.SLOW -> ctl.toggleSlow()
@@ -403,7 +402,7 @@ private fun PlayerHints(ctl: SceneController, picker: WordPicker, rating: TvRati
             line(), hint(pick, Action.PICK_MINE, if (rating.fresh) "Undo" else if (ctl.episode.srs || own) "Add to reviews" else "Add to Anki"),
             hint(pick, Action.PICK_MARK_KNOWN, "Known"), back("Close"))
         ctl.atSceneEnd -> listOf(hint(watch, Action.PLAY_PAUSE, "Play"), hint(watch, Action.REPLAY_LINE, "Line"),
-            hint(watch, Action.CYCLE_SUBTITLES, "Pick a word"), hint(watch, Action.PREVIOUS_SCENE, "Previous"))
+            hint(watch, Action.WORD_PICKER, "Pick a word"), hint(watch, Action.PREVIOUS_SCENE, "Previous"))
         !ctl.playing -> listOf(hint(watch, Action.PLAY_PAUSE, "Play"), hint(watch, Action.WORD_PICKER, "Pick a word"),
             hint(watch, Action.REPLAY_LINE, "Line"), hint(watch, Action.OPTIONS, "Options"))
         else -> emptyList()

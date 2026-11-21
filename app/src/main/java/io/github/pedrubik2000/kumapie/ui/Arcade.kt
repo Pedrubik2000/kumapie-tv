@@ -229,9 +229,11 @@ object Pad {
 
 private val ARROWS = setOf(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT)
 
-/** The buttons of [bindings] on the input in use: the pad's own (else its D-pad), or the remote's. Short ones first. */
+private val SIX_BUTTONS = ARROWS + setOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER)
+
+/** The buttons of [bindings] on the input in use: the pad's own (else its D-pad), or the remote's. A six-button remote's first (← → ↑ ↓ OK), then short ones first. */
 fun forInput(bindings: Collection<Binding>): List<Binding> {
-    val all = bindings.sortedBy { it.long }.distinctBy { it.label }
+    val all = bindings.sortedWith(compareBy({ it.code !in SIX_BUTTONS }, { it.long })).distinctBy { it.label }
     if (!Pad.on) return all.filter { !KeyEvent.isGamepadButton(it.code) }
     return all.filter { KeyEvent.isGamepadButton(it.code) }.ifEmpty { all.filter { it.code in ARROWS } }
 }

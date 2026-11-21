@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.data
 
+import android.view.KeyEvent
 import io.github.pedrubik2000.kumapie.player.Action
 import io.github.pedrubik2000.kumapie.player.Binding
 import io.github.pedrubik2000.kumapie.player.KeyContext
@@ -14,8 +15,15 @@ fun Settings.keys(context: KeyContext): Map<Binding, Action> {
         o.keys().asSequence().associate { k ->
             val (kind, code) = k.split(":", limit = 2)
             Binding(code.toInt(), kind == "long") to Action.valueOf(o.getString(k))
-        }
+        }.let { if (context == KeyContext.WATCH) upgradedWatchKeys(it) else it }
     }.getOrElse { defaultBindings(context) }
+}
+
+fun upgradedWatchKeys(saved: Map<Binding, Action>): Map<Binding, Action> {
+    val down = Binding(KeyEvent.KEYCODE_DPAD_DOWN, false)
+    val keys = saved.mapValues { (b, a) -> if (b == down && a == Action.CYCLE_SUBTITLES) Action.WORD_PICKER else a }
+    if (keys[down] != Action.WORD_PICKER) return keys
+    return keys.filterNot { (b, a) -> b.long && b.code in setOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER) && a == Action.WORD_PICKER }
 }
 
 fun Settings.setKeys(context: KeyContext, bindings: Map<Binding, Action>) {

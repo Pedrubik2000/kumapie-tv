@@ -14,7 +14,7 @@ enum class Action(val label: String, val context: KeyContext = KeyContext.WATCH)
     PREVIOUS_SCENE("Previous line"),
     REPLAY_LINE("Replay line"),
     REPLAY_SCENE("Replay line and play on"), // REPLAY_LINE pauses after it
-    CYCLE_SUBTITLES("Subtitles: hidden → blurred → both blurred → %s → both (paused after a line: pick a word)"),
+    CYCLE_SUBTITLES("Subtitles: hidden → blurred → both blurred → %s → both"),
     TOGGLE_GERMAN("%s subtitles"),   // the episode's language (the name stays: saved button maps use it)
     TOGGLE_ENGLISH("%s subtitles"),  // the translation's
     SLOW("Speed 0.75x"),
@@ -63,7 +63,7 @@ class KeyMap(
             KeyEvent.KEYCODE_DPAD_RIGHT to Action.NEXT_SCENE,
             KeyEvent.KEYCODE_DPAD_LEFT to Action.PREVIOUS_SCENE,
             KeyEvent.KEYCODE_DPAD_UP to Action.REPLAY_LINE,
-            KeyEvent.KEYCODE_DPAD_DOWN to Action.CYCLE_SUBTITLES,
+            KeyEvent.KEYCODE_DPAD_DOWN to Action.WORD_PICKER,
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE to Action.PLAY_PAUSE,
             KeyEvent.KEYCODE_MEDIA_PLAY to Action.PLAY_PAUSE,
             KeyEvent.KEYCODE_MEDIA_PAUSE to Action.PLAY_PAUSE,
@@ -83,8 +83,6 @@ class KeyMap(
         )
         val DEFAULT_LONG = mapOf(
             KeyEvent.KEYCODE_BUTTON_A to Action.WORD_PICKER,
-            KeyEvent.KEYCODE_DPAD_CENTER to Action.WORD_PICKER,
-            KeyEvent.KEYCODE_ENTER to Action.WORD_PICKER,
             KeyEvent.KEYCODE_DPAD_LEFT to Action.REPLAY_SCENE,
             KeyEvent.KEYCODE_DPAD_DOWN to Action.OPTIONS,
         )

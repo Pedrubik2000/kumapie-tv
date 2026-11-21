@@ -272,7 +272,7 @@ internal fun ScenePlayer(
             bgm?.release()
             // Leaving the player: every rated card takes its line (kumapie_plan.md 37b), now that the stream stopped.
             // ponytail: fire-and-forget scope; if the app is killed within those seconds the card keeps its old scene.
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { rateFlow.leave() }
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { rateFlow.leave(); io.github.pedrubik2000.kumapie.lang.DeviceSync.soon(context) }
         }
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle

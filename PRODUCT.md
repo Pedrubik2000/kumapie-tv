@@ -61,3 +61,4 @@ What the TV does for someone with no PC, in their words. Each line is proved on 
 7. `home`: Back from the player goes to Home.
 8. `next`: the episode ends and the next one starts.
 9. `export`: Settings > Export everything writes one file of words, cards, reviews and progress for another device to import.
+10. `sync`: Settings > Sync with another device pairs the TV with the tablet (a code shown on the TV, allowed on the tablet) and syncs over the Wi-Fi: words known, marks, reviews, places, stats (two emulators: `proof_mobile.sh sync`).

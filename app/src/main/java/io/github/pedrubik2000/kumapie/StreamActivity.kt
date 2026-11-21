@@ -215,6 +215,7 @@ class StreamActivity : ComponentActivity() {
             onDispose {
                 p.removeListener(listener)
                 s.leave()
+                io.github.pedrubik2000.kumapie.lang.DeviceSync.soon(applicationContext)
                 alone = null; aloneView = null
             }
         }

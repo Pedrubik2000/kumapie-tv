@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
         io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-tv-")
         val settings = Settings(this)
         fromAdb(intent, settings)
+        window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.DeviceSync.start(applicationContext) }, 8000)
         if (settings.server.isBlank()) window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() }, 5000)
         window.decorView.postDelayed({ Thread { io.github.pedrubik2000.kumapie.data.Playable.device }.start() }, 3000)
         if (settings.server.isBlank()) window.decorView.postDelayed({ Thread { io.github.pedrubik2000.kumapie.lang.AloneStream.prefetch(applicationContext, settings.prefs,

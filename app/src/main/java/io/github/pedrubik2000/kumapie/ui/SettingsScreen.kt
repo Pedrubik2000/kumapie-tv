@@ -48,6 +48,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         if (!firstRun) {
             TvPreferences(settings, focus, onButtons)
             TvExport()
+            if (settings.server.isEmpty()) TvSync(settings)
             TvAbout(settings, onUpdate)
         }
     }

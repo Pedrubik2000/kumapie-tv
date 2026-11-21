@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         enableEdgeToEdge()
         val library = Library(applicationContext, settings)
+        window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.DeviceSync.start(applicationContext) }, 5000)
         // kumapie://prepare?person&lang&type&id (the kumapie add-on's stream in Stremio): the PC makes the episode, then it plays.
         val prepare = intent?.takeIf { it.action == android.content.Intent.ACTION_VIEW }?.data?.takeIf { it.host == "prepare" }
             ?.let { u -> u.queryParameterNames.associateWith { u.getQueryParameter(it).orEmpty() } }

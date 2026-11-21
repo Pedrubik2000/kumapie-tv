@@ -241,6 +241,7 @@ fun moveRated(rating: TvRating) {
 
 fun syncAnkiLater(context: Context, settings: Settings, ctl: SceneController) {
     kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { syncAnki(context.applicationContext, settings, ctl, wait = false) }
+    io.github.pedrubik2000.kumapie.lang.DeviceSync.soon(context.applicationContext)
 }
 
 internal fun repaint(language: Language, ctl: SceneController) = language.known.repaint(ctl, pcColours(ctl))

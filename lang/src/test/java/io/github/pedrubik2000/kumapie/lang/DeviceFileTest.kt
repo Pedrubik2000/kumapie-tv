@@ -12,7 +12,7 @@ class DeviceFileTest {
     private val day = Srs.DAY
 
     /** One device's stores, as DeviceFiles reads and writes them. */
-    private class Dev(
+    internal class Dev(
         val name: String, var parts: JSONObject, var known: Map<String, Pair<Long, Set<String>>>,
         var personal: List<PersonalDictionary.Entry>, val streams: MutableMap<String, Any?>, var events: JSONArray,
         val backups: MutableMap<String, JSONObject> = HashMap(), var made: Long = 1000,
@@ -39,22 +39,22 @@ class DeviceFileTest {
         fun view() = Progress.merge(parts.keys().asSequence().map { parts.getJSONObject(it) }.toList())
     }
 
-    private fun part(watch: Double, pos: Map<String, Pair<Double, Long>> = emptyMap(), marks: Map<String, Pair<Boolean, Long>> = emptyMap()) =
+    internal fun part(watch: Double, pos: Map<String, Pair<Double, Long>> = emptyMap(), marks: Map<String, Pair<Boolean, Long>> = emptyMap()) =
         JSONObject().put("watch", JSONObject().put("2026-11-20", watch))
             .put("pos", JSONObject().apply { pos.forEach { (e, p) -> put(e, JSONArray().put(p.first).put(p.second)) } })
             .put("marked", JSONObject().apply { marks.forEach { (w, m) -> put(w, JSONArray().put(m.first).put(m.second)) } })
             .put("lookups", JSONObject())
 
-    private fun event(id: Long, key: String, ease: Int = 3) = JSONObject().put("id", id).put("key", key).put("time", id / 1000).put("ease", ease).put("device", "x")
+    internal fun event(id: Long, key: String, ease: Int = 3) = JSONObject().put("id", id).put("key", key).put("time", id / 1000).put("ease", ease).put("device", "x")
 
-    private fun chromecast() = Dev("Chromecast-aaa", JSONObject().put("Chromecast-aaa", part(3600.0, mapOf("ep1" to (600.0 to 200L)), mapOf("猫" to (true to 100L)))),
+    internal fun chromecast() = Dev("Chromecast-aaa", JSONObject().put("Chromecast-aaa", part(3600.0, mapOf("ep1" to (600.0 to 200L)), mapOf("猫" to (true to 100L)))),
         mapOf("ja" to (50L to setOf("犬", "鳥"))),
         listOf(PersonalDictionary.Entry("ja", "フリーレン", meaning = "Frieren", time = 10)),
         mutableMapOf("alone_saved" to """[{"id":"kitsu:1","name":"Frieren"}]""", "alone_seen" to setOf("kitsu:1:1"),
             "alone_last_kitsu:1" to """{"id":"kitsu:1:2","at":300}""", "alone_pos_kitsu:1:2" to 500f),
         JSONArray().put(event(1_000_000, "ja|猫\tねこ")).put(event(2_000_000, "ja|犬\tいぬ")))
 
-    private fun tablet() = Dev("SM-T970-bbb", JSONObject().put("SM-T970-bbb", part(1200.0, mapOf("ep2" to (60.0 to 250L)), mapOf("猫" to (false to 50L)))),
+    internal fun tablet() = Dev("SM-T970-bbb", JSONObject().put("SM-T970-bbb", part(1200.0, mapOf("ep2" to (60.0 to 250L)), mapOf("猫" to (false to 50L)))),
         mapOf("ja" to (20L to setOf("犬"))), emptyList(), mutableMapOf("alone_saved" to "[]"),
         JSONArray().put(event(3_000_000, "ja|猫\tねこ")))
 

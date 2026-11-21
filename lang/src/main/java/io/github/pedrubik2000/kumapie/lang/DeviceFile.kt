@@ -21,7 +21,8 @@ object DeviceFile {
     data class Count(val what: String, val add: Int, val change: Int, val keep: Int)
 
     class Mine(val device: String, val parts: JSONObject, val known: Map<String, Pair<Long, Set<String>>>,
-               val personal: List<PersonalDictionary.Entry>, val streams: Map<String, Any?>, val events: JSONArray, val backup: JSONObject?)
+               val personal: List<PersonalDictionary.Entry>, val streams: Map<String, Any?>, val events: JSONArray, val backup: JSONObject?,
+               val person: String = SrsCards.LOCAL)
 
     class Plan(val from: String, val person: String, val counts: List<Count>, val others: JSONObject,
                val known: Map<String, Pair<Long, Set<String>>>, val personal: List<PersonalDictionary.Entry>,
@@ -57,6 +58,8 @@ object DeviceFile {
     fun plan(mine: Mine, file: JSONObject): Plan {
         require(file.optString("format") == FORMAT) { tr("Not a kumapie export file") }
         val from = file.getString("device")
+        val person = file.optString("person", mine.person)
+        require(person == mine.person) { tr("This file is %1\$s's and this device is %2\$s's: not merged.", person, mine.person) }
         val theirs = file.optJSONObject("progress") ?: JSONObject()
         val others = JSONObject(mine.parts.toString()).apply { remove(mine.device) }
         for (k in theirs.keys()) {
@@ -92,7 +95,7 @@ object DeviceFile {
         val lastKeys = mine.streams.keys.filter { it.startsWith(LAST) }.toSet()
         val lastTaken = streams.keys.filter { it.startsWith(LAST) }
 
-        return Plan(from, file.optString("person"), listOf(
+        return Plan(from, person, listOf(
             Count(tr("Cards backed up"), if (backup) (cards.keys - previous.keys).size else 0,
                 if (backup) cards.count { (id, m) -> previous[id]?.let { it != m } == true } else 0,
                 if (backup) cards.count { (id, m) -> previous[id] == m } else previous.size),
@@ -182,11 +185,21 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
     }
 
     fun export(): Exported {
+        val o = payload()
+        val out = File(requireNotNull(shared) { "no shared storage" }, "${DeviceFile.PREFIX}${safe(progress.device)}.json")
+        File(out.path + ".part").apply { writeText(o.toString()) }.renameTo(out)
+        val cards = o.getJSONObject("cards")
+        val n = cards.keys().asSequence().map { cards.getJSONObject(it) }.toList()
+        val media = o.getJSONObject("media")
+        return Exported(out, n.sumOf { it.getJSONArray("cards").length() }, n.sumOf { it.getJSONArray("revlog").length() }, media.getInt("files"), media.getLong("bytes"))
+    }
+
+    fun payload(): JSONObject {
         val cards = JSONObject()
         for (l in Lang.ALL) if (File(context.filesDir, "srs/${srs.person()}/${l.code}.db").exists()) srs.store(l)?.let { cards.put(l.code, it.dump()) }
         val own = cards.keys().asSequence().flatMap { DeviceFile.events(it, cards.getJSONObject(it)) }.toList()
         val media = CardMedia.dir(context).listFiles().orEmpty().filter { it.isFile }
-        val o = JSONObject().put("format", DeviceFile.FORMAT).put("device", progress.device).put("model", android.os.Build.MODEL)
+        return JSONObject().put("format", DeviceFile.FORMAT).put("device", progress.device).put("model", android.os.Build.MODEL)
             .put("person", srs.person()).put("made", System.currentTimeMillis())
             .put("progress", progress.parts())
             .put("known", JSONObject().apply { languages.forEach { put(it.lang.code, JSONObject().put("time", it.known.importedTime()).put("words", JSONArray(it.known.importedWords.sorted()))) } })
@@ -195,28 +208,30 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
             .put("events", DeviceFile.union(storedEvents(), own))
             .put("cards", cards)
             .put("media", JSONObject().put("files", media.size).put("bytes", media.sumOf { it.length() }))
-        val out = File(requireNotNull(shared) { "no shared storage" }, "${DeviceFile.PREFIX}${safe(progress.device)}.json")
-        File(out.path + ".part").apply { writeText(o.toString()) }.renameTo(out)
-        val n = cards.keys().asSequence().map { cards.getJSONObject(it) }.toList()
-        return Exported(out, n.sumOf { it.getJSONArray("cards").length() }, n.sumOf { it.getJSONArray("revlog").length() }, media.size, media.sumOf { it.length() })
     }
 
     fun incoming(): File? = shared?.listFiles { f -> f.name.startsWith(DeviceFile.PREFIX) && f.name.endsWith(".json") && f.name != "${DeviceFile.PREFIX}${safe(progress.device)}.json" }
         ?.maxByOrNull { it.lastModified() }
 
-    fun plan(file: File): DeviceFile.Plan {
-        val o = JSONObject(file.readText())
+    fun plan(file: File): DeviceFile.Plan = plan(JSONObject(file.readText()))
+
+    fun plan(o: JSONObject): DeviceFile.Plan {
         val previous = File(dir, safe(o.optString("device")) + ".json").takeIf { it.exists() }?.let { JSONObject(it.readText()) }
         val mine = DeviceFile.Mine(progress.device, progress.parts(), languages.associate { it.lang.code to (it.known.importedTime() to it.known.importedWords) },
-            PersonalDictionary.fromJson(personal.entries()), streams(), DeviceFile.union(storedEvents(), ownEvents()), previous)
+            PersonalDictionary.fromJson(personal.entries()), streams(), DeviceFile.union(storedEvents(), ownEvents()), previous, srs.person())
         return DeviceFile.plan(mine, o)
     }
 
-    fun apply(plan: DeviceFile.Plan, file: File): File {
-        val backup = File(context.filesDir, "backup/" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))).apply { mkdirs() }
+    fun apply(plan: DeviceFile.Plan, file: File): File = apply(plan, JSONObject(file.readText()), true)!!
+
+    fun isNew(device: String) = !File(dir, safe(device) + ".json").exists()
+
+    fun apply(plan: DeviceFile.Plan, o: JSONObject, backup: Boolean): File? {
+        val copy = if (!backup) null else File(context.filesDir, "backup/" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))).apply { mkdirs() }
         val prefs = File(context.filesDir.parentFile, "shared_prefs/kumapie.xml")
-        (context.filesDir.listFiles { f -> f.name == "srs" || f.name == "devices" || f.name.startsWith("known") || f.name.startsWith("progress") || f.name == "personal-dictionary.json" }.orEmpty().toList() + prefs)
-            .filter { it.exists() }.forEach { it.copyRecursively(File(backup, it.name), overwrite = true) }
+        if (copy != null) (context.filesDir.listFiles { f -> f.name == "srs" || f.name == "devices" || f.name.startsWith("known") || f.name.startsWith("progress") || f.name == "personal-dictionary.json" }.orEmpty().toList() + prefs)
+            .filter { it.exists() }.forEach { it.copyRecursively(File(copy, it.name), overwrite = true) }
+        copy?.parentFile?.listFiles()?.sortedByDescending { it.name }?.drop(BACKUPS)?.forEach { it.deleteRecursively() }
         progress.useOthers(plan.others)
         languages.forEach { l -> plan.known[l.lang.code]?.let { (time, words) -> l.known.setImported(words, time) } }
         languages.forEach { l -> l.known.useMarked(progress.merged.marked.mapNotNull(l::wordOfMark).toSet()) }
@@ -228,8 +243,8 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
             }
         }.apply()
         File(eventsFile.path + ".part").apply { writeText(plan.events.toString()) }.renameTo(eventsFile)
-        if (plan.backup) file.copyTo(File(dir, safe(plan.from) + ".json"), overwrite = true)
-        return backup
+        if (plan.backup) File(dir, safe(plan.from) + ".json").let { f -> File(f.path + ".part").apply { writeText(o.toString()) }.renameTo(f) }
+        return copy
     }
 
     private fun streams(): Map<String, Any?> = settings.prefs.all.filterKeys { it.startsWith("alone_") }
@@ -240,4 +255,8 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
         .flatMap { l -> srs.store(l)?.let { DeviceFile.events(l.code, it.dump()) }.orEmpty() }
 
     private fun safe(s: String) = s.replace(Regex("[^A-Za-z0-9._-]"), "_")
+
+    companion object {
+        const val BACKUPS = 5
+    }
 }

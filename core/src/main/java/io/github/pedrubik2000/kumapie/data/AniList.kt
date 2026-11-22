@@ -18,15 +18,19 @@ object AniList {
 
     /** "AniList · Watching" and "AniList · Planning" for [user]; titles Kitsu doesn't know are left out. */
     suspend fun rows(user: String, store: SharedPreferences): List<Pair<String, List<Found>>> = withContext(Dispatchers.IO) {
-        val q = "query(\$u:String){MediaListCollection(userName:\$u,type:ANIME,status_in:[CURRENT,PLANNING]){lists{status entries{media{" +
-            "id title{romaji english native} coverImage{extraLarge} bannerImage startDate{year} averageScore description(asHtml:false)}}}}}"
+        val taste = "status score media{id type format status averageScore genres tags{name rank isMediaSpoiler}"
+        val q = "query(\$u:String){anime:MediaListCollection(userName:\$u,type:ANIME){lists{entries{$taste " +
+            "title{romaji english native} coverImage{extraLarge} bannerImage startDate{year} description(asHtml:false)}}}} " +
+            "manga:MediaListCollection(userName:\$u,type:MANGA){lists{entries{$taste}}}}}"
         val body = JSONObject().put("query", q).put("variables", JSONObject().put("u", user)).toString()
         val answer = JSONObject(post("https://graphql.anilist.co", body))
         answer.optJSONArray("errors")?.optJSONObject(0)?.optString("message")?.let { error("AniList: $it") }
-        val lists = answer.getJSONObject("data").getJSONObject("MediaListCollection").getJSONArray("lists")
-        val byStatus = (0 until lists.length()).map { lists.getJSONObject(it) }.associate { l ->
-            l.getString("status") to l.getJSONArray("entries").let { e -> (0 until e.length()).map { e.getJSONObject(it).getJSONObject("media") } }
-        }
+        val data = answer.getJSONObject("data")
+        val items = BestForYou.items(data)
+        val media = data.getJSONObject("anime").getJSONArray("lists").objects().flatMap { it.getJSONArray("entries").objects() }
+            .map { it.getJSONObject("media") }.associateBy { it.getInt("id") }
+        val byStatus = mapOf("CURRENT" to items.filter { it.anime && it.status == "CURRENT" }.map { it.id }, "PLANNING" to BestForYou.planning(items))
+            .mapValues { (_, ids) -> ids.mapNotNull { media[it] } }
         val kitsu = kitsuIds(byStatus.values.flatten().map { it.getInt("id") }, store)
         listOf("CURRENT" to "AniList · Watching", "PLANNING" to "AniList · Planning").mapNotNull { (status, name) ->
             val found = byStatus[status].orEmpty().mapNotNull { m ->

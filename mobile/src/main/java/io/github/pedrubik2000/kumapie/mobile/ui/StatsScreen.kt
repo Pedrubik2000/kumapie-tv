@@ -41,6 +41,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.Stats
@@ -69,7 +70,7 @@ fun StatsScreen(library: Library, onBack: () -> Unit) {
             .onSuccess { stats = it }.onFailure { error = it.message ?: it.toString() }
     }
     Scaffold(topBar = {
-        TopAppBar(title = { Text(tr("Stats")) },
+        TopAppBar(title = { Text(tr("Stats"), fontSize = 30.sp, fontWeight = FontWeight.Bold) },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
     }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
@@ -107,6 +108,8 @@ private fun StatsContent(s: Stats) {
                 // Scrolled to today (the right end) at first.
                 val scroll = rememberScrollState(Int.MAX_VALUE)
                 Box(Modifier.horizontalScroll(scroll)) { Heatmap(s.days, today, Modifier.padding(top = 8.dp)) }
+                Text(tr("A square is a day: the more minutes, the brighter. Weeks start on Monday."), fontSize = 13.sp,
+                    color = Colors.dim, modifier = Modifier.padding(top = 6.dp))
             }
         }
         item {
@@ -149,13 +152,13 @@ private fun StatsContent(s: Stats) {
 }
 
 @Composable
-private fun Heading(text: String) = Text(text, color = Colors.accent, fontSize = 17.sp)
+private fun Heading(text: String) = Text(text, color = Colors.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
 
 @Composable
 private fun Tile(label: String, value: String) {
-    Column(Modifier.glass(RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 10.dp)) {
-        Text(value, fontSize = 20.sp)
-        Text(label, fontSize = 12.sp, color = Colors.dim)
+    Column(Modifier.background(Glass.solid, RoundedCornerShape(16.dp)).padding(horizontal = 26.dp, vertical = 12.dp)) {
+        Text(value, fontSize = 26.sp, color = Colors.accent, fontWeight = FontWeight.SemiBold)
+        Text(label, fontSize = 13.sp, color = Colors.dim, fontWeight = FontWeight.SemiBold)
     }
 }
 

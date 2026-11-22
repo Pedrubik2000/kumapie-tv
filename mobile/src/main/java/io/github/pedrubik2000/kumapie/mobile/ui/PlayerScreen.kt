@@ -536,8 +536,8 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
 /** A round control over the video: dark see-through with the Glass border (white glass alone vanished on bright frames). */
 private val OverVideo = Modifier.background(Color(0x59000000), CircleShape).border(1.dp, Glass.line, CircleShape)
 
-/** The word card (Glass, radius 22): nearly opaque, so the dictionary's own page inside it doesn't show as a box. */
-private val CardGlass = RoundedCornerShape(22.dp).let { Modifier.clip(it).background(Glass.solid.copy(alpha = 0.94f)).border(1.dp, Glass.line, it) }
+/** The word card (Glass, radius 22): opaque as the TV's, so the dictionary's own page inside it doesn't show as a box. */
+private val CardGlass = RoundedCornerShape(22.dp).let { Modifier.clip(it).background(Glass.solid).border(1.dp, Glass.line, it) }
 
 /** Position, the episode's timeline, its length. Dragging shows where it will land; letting go seeks there. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -629,11 +629,10 @@ private fun CardButtons(ctl: SceneController, picker: WordPicker, onMine: () -> 
             IconButton(onClick = picker::hearDefinition) { Icon(Icons.Default.RecordVoiceOver, tr("Hear the definition"), tint = Colors.text) }
         }
         // Labelled: a bare pickaxe was easy to miss next to "Mark known" (user, 2026-10-14).
-        TextButton(onClick = onMine) { Icon(Pickaxe, null, tint = Colors.text); Text(tr("Mine"), color = Colors.text, fontSize = 16.sp, modifier = Modifier.padding(start = 6.dp)) }
-        // Known takes the rest of the line (user, 2026-10-13).
-        FilterChip(selected = marked, onClick = picker::toggleKnown, modifier = Modifier.weight(1f).height(48.dp),
-            label = { Text(if (marked) tr("Known") else tr("Mark known"), fontSize = 16.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-            leadingIcon = if (marked) ({ Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }) else null)
+        Pill(tr("Mine"), onMine, icon = Pickaxe)
+        // Known takes the rest of the line (user, 2026-10-13); the TV's glass pills, white when on.
+        Pill(if (marked) tr("Known") else tr("Mark known"), picker::toggleKnown, Modifier.weight(1f), primary = marked,
+            icon = if (marked) Icons.Default.Check else null)
     }
 }
 

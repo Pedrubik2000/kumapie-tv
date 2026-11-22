@@ -75,6 +75,6 @@ lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Miner.kt 582
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/local/ProcessWorker.kt 718
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/DiscoverScreen.kt 493
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/HomeScreen.kt 576
-lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/PlayerScreen.kt 728
+lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/PlayerScreen.kt 727
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/SettingsScreen.kt 951
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/ShowScreen.kt 402

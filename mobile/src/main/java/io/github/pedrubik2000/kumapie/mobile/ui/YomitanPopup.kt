@@ -143,6 +143,7 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
     if (side != null) Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         // Scrolls when it doesn't fit (a phone in landscape cut off the second rating row and Mine, 2026-10-14).
         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.SpaceBetween) { top(); side() }
+        Box(Modifier.fillMaxHeight().background(Colors.dim.copy(alpha = 0.2f)).padding(start = 1.dp))
         // Less the screen margins and the card's padding; the card's height clamps it further.
         cards(Modifier.weight(1.2f), (tall - 76).coerceAtLeast(140))
     } else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -169,7 +170,7 @@ private fun Header(hw: Headword, onSpeak: (Headword) -> Unit) {
             // Kana words too when there is a pitch (もう: the line over it is the point).
             val kana = hw.reading.ifBlank { hw.expression }
             if (kana != hw.expression || downsteps.isNotEmpty()) PitchReading(kana, downsteps.firstOrNull())
-            Text(hw.expression, fontSize = 28.sp, color = Colors.text)
+            Text(hw.expression, fontSize = 40.sp, lineHeight = 46.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Colors.text)
         }
         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             badges.forEach { b ->
@@ -192,9 +193,9 @@ private fun PitchReading(reading: String, downstep: Int?) {
         morae.forEachIndexed { i, m ->
             val high = downstep != null && high(i, downstep)
             val drop = downstep != null && downstep > 0 && i == downstep - 1
-            Text(m, fontSize = 14.sp, color = Colors.dim, modifier = Modifier.padding(top = 3.dp).drawBehind {
-                if (high) drawLine(Colors.accent, Offset(0f, 0f), Offset(size.width, 0f), 2f)
-                if (drop) drawLine(Colors.accent, Offset(size.width, 0f), Offset(size.width, size.height * 0.45f), 2f)
+            Text(m, fontSize = 20.sp, color = Colors.dim, modifier = Modifier.padding(top = 4.dp).drawBehind {
+                if (high) drawLine(Colors.accent, Offset(0f, 0f), Offset(size.width, 0f), 3f)
+                if (drop) drawLine(Colors.accent, Offset(size.width, 0f), Offset(size.width, size.height * 0.45f), 3f)
             })
         }
     }

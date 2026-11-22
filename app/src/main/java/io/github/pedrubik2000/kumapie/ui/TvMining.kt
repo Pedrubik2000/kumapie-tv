@@ -62,7 +62,7 @@ internal object TvMining {
     fun languages(context: Context, settings: Settings): Languages {
         if (kit == null) {
             kit = LangKit.get(context, settings)
-            if (yomitan.of(Lang.JAPANESE).isNotEmpty() && settings.server.isNotEmpty()) fetchJapanese(context, settings)
+            if (yomitan.of(Lang.JAPANESE).isNotEmpty() && (settings.server.isNotEmpty() || yomitan.lacksRecommended(Lang.JAPANESE))) fetchJapanese(context, settings)
         }
         return languages
     }

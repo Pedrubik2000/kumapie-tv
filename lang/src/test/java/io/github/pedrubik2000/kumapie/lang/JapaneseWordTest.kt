@@ -135,6 +135,22 @@ class JapaneseWordTest {
         assertEquals("inside a word: Sudachi's", "かん", read("緑青館に薬を", "館", "かん", mapOf("やかた" to "4908", "かん" to "5903")))
     }
 
+    /** Core plan 5f: with JPDB v2.2 installed (its ranks for these readings, as hoshidicts gives them) the 5b list holds. */
+    @Test fun withJpdbTheFiveBListHolds() {
+        val jpdb = mapOf("私" to mapOf("わたし" to "32, 1308㋕", "わたくし" to "3050㋕, 28801", "し" to "26101", "わし" to "3093㋕, 175701"),
+            "明日" to mapOf("あした" to "547, 8592㋕"), "今日" to mapOf("きょう" to "122, 6099㋕"), "何" to mapOf("なに" to "72, 493㋕", "なん" to "101, 151㋕"),
+            "日本" to mapOf("にほん" to "803, 49084㋕"), "一日" to mapOf("いちにち" to "1098, 76696㋕", "ついたち" to "25701, 93300㋕"))
+        fun jp(line: String, word: String, sudachi: String) = read(line, word, sudachi, jpdb.getValue(word))
+        assertEquals("わたし", jp("私は 薬屋です", "私", "わたくし"))
+        assertEquals("あした", jp("明日は雨", "明日", "あす"))
+        assertEquals("きょう", jp("今日は何のご用で？", "今日", "きょう"))
+        assertEquals("なん", jp("何でしょう？ごひいきさん？", "何", "なん"))
+        assertEquals("なに", jp("私は何をすればいいの？", "何", "なん"))
+        assertEquals("にほん", jp("日本に行く", "日本", "にっぽん"))
+        assertEquals("いちにち", jp("一日休む", "一日", "ついたち"))
+        assertEquals("ついたち", jp("四月一日に", "一日", "ついたち"))
+    }
+
     /** Cards mined as 私[わたくし] move to 私[わたし], once: their key is the rows' again, the card id (its ratings) the same. */
     @Test fun theWatashiCardsMove() {
         assertEquals("私[わたし]:0-", CardIndex.moved("私[わたくし]:0-"))

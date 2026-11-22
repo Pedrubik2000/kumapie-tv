@@ -480,7 +480,7 @@ private fun YomitanSection(library: Library, learning: Set<String> = emptySet())
         }
     }
     OutlinedButton(enabled = !busy, onClick = { pickFolder.launch(null) }) { Text(tr("Import a folder of %s dictionaries", langName)) }
-    if (io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.RECOMMENDED[lang.code] != null) OutlinedButton(enabled = !busy, onClick = {
+    if (io.github.pedrubik2000.kumapie.lang.Recommended.of(lang).isNotEmpty()) OutlinedButton(enabled = !busy, onClick = {
         busy = true
         scope.launch { said = dicts.installRecommended(lang) { said = it }.joinToString("\n"); busy = false }
     }) { Text(tr("Download the recommended %s dictionaries", langName)) }

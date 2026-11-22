@@ -138,7 +138,8 @@ internal fun TvJitenImport(settings: Settings) {
 @Composable
 internal fun PhonePage(settings: Settings, onSaved: () -> Unit = {}) {
     var saved by remember { mutableIntStateOf(0) }
-    val page = remember { SetupPage(settings) { saved++; onSaved() } }
+    val context = LocalContext.current
+    val page = remember { SetupPage(settings, context.applicationContext) { saved++; onSaved() } }
     val url = remember { page.start() }
     DisposableEffect(Unit) { onDispose { page.stop() } }
     Heading(tr("Set up kumapie from your phone"))
@@ -166,7 +167,7 @@ internal fun PhonePage(settings: Settings, onSaved: () -> Unit = {}) {
 private fun TvDownloads(settings: Settings) {
     val context = LocalContext.current
     Heading(tr("Downloads"))
-    Text(tr("Two downloads, once: the Japanese dictionaries (meanings, about 27 MB) and the word splitter (about 80 MB). You can start watching while they finish."),
+    Text(tr("Two downloads, once: the Japanese dictionaries (meanings, about 33 MB) and the word splitter (about 80 MB). You can start watching while they finish."),
         color = Colors.text, fontSize = 18.sp)
     LaunchedEffect(Unit) { startJapaneseDictionaries(context, settings) }
     val model = remember { io.github.pedrubik2000.kumapie.lang.JapaneseModel(context.applicationContext) }

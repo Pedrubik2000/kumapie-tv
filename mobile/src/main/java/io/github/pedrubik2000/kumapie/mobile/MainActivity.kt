@@ -177,14 +177,14 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
         update = io.github.pedrubik2000.kumapie.data.Startup.update(BuildConfig.DEBUG)
     }
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    // Without a PC, as on the TV: JMdict and JMnedict download in the background on the first run (and again if it
-    // didn't finish), so a word has a meaning without a trip to Settings.
+    // Without a PC, as on the TV: JMdict, JMnedict and JPDB download in the background on the first run (and again if it
+    // didn't finish, or JPDB joined the set later), so a word has a meaning without a trip to Settings.
     // Not during onboarding: its last step installs them (a second install waited on the first, "Starting…").
     val gate = io.github.pedrubik2000.kumapie.data.Startup.gate(server, standalone, onboarded)
     LaunchedEffect(gate, server) {
         if (gate != io.github.pedrubik2000.kumapie.data.Gate.APP || server.isNotEmpty()) return@LaunchedEffect
         val dicts = io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(appContext)
-        if (dicts.of(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE).isEmpty())
+        if (dicts.lacksRecommended(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE))
             runCatching { dicts.installRecommended(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) {} }
                 .onSuccess { it.forEach { l -> android.util.Log.i("kumapie", "ja dictionary: $l") } }
     }

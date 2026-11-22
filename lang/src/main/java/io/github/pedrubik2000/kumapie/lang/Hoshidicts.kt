@@ -155,10 +155,14 @@ class YomitanDictionaries private constructor(private val context: Context) {
         return importFile(zip, lang, replacing, replacing?.group ?: "")
     }
 
-    /** The starter set for [lang] ([RECOMMENDED]): installs those not there yet. Answers one line per dictionary. */
+    /** The starter set for [lang] ([Recommended]): installs those not there yet. Answers one line per dictionary. */
     suspend fun installRecommended(lang: Lang, progress: (String) -> Unit): List<String> = work.withLock { withContext(Dispatchers.IO) {
-        (RECOMMENDED["${lang.code}-${Lang.speaker}"] ?: RECOMMENDED[lang.code]).orEmpty().map { indexUrl ->
+        Recommended.of(lang).map { indexUrl ->
             runCatching {
+                Recommended.ZIPS[indexUrl]?.let { t ->
+                    return@runCatching if (Recommended.missingZips(listOf(indexUrl), of(lang)).isEmpty()) tr("%s: already there", t)
+                        else install(indexUrl, lang, null) { progress("$t: $it") }
+                }
                 val index = JSONObject(fetchText(indexUrl))
                 val title = index.getString("title")
                 if (of(lang).any { it.title == title || it.indexUrl == indexUrl }) return@runCatching tr("%s: already there", title)
@@ -213,6 +217,8 @@ class YomitanDictionaries private constructor(private val context: Context) {
         if (conn.responseCode != 200) throw IOException("HTTP ${conn.responseCode}")
         return conn.inputStream
     }
+
+    fun lacksRecommended(lang: Lang) = of(lang).isEmpty() || Recommended.missingZips(Recommended.of(lang), of(lang)).isNotEmpty()
 
     @Synchronized fun setEnabled(folder: String, on: Boolean) = edit { l -> l.map { if (it.folder == folder) it.copy(enabled = on) else it } }
 
@@ -412,27 +418,6 @@ class YomitanDictionaries private constructor(private val context: Context) {
         /** One per process: the app and the update job share the list and the open dictionaries. */
         fun get(context: Context): YomitanDictionaries =
             instance ?: synchronized(this) { instance ?: YomitanDictionaries(context.applicationContext).also { instance = it } }
-
-        /**
-         * Starter sets per language (index.json URLs; updatable): German = wty-de-en (Wiktionary, the source of the old
-         * de-en.sqlite) + its IPA. Japanese comes with step 3 (Jitendex, JMnedict, a frequency and a pitch dictionary).
-         */
-        private const val JMDICT = "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download"
-        private const val WTY = "https://huggingface.co/datasets/daxida/wty-release/resolve/main/latest/index"
-        val RECOMMENDED = mapOf(
-            // German-German last: the monolingual definition for mining and the fallback when wty-de-en has nothing.
-            "de" to listOf("$WTY/wty-de-en-index.json?download=true", "$WTY/wty-de-en-ipa-index.json?download=true",
-                "$WTY/wty-de-de-index.json?download=true"),
-            // English for Pedro: English meanings and IPA. For a Spanish speaker (the parents): Spanish meanings per
-            // sense (gloss), the Spanish Wiktionary's English entries, IPA - 93% of their episodes' words, 99% heard.
-            "en-es" to listOf("$WTY/wty-en-es-gloss-index.json?download=true", "$WTY/wty-en-es-index.json?download=true",
-                "$WTY/wty-en-es-ipa-index.json?download=true", "$WTY/wty-en-en-index.json?download=true"),
-            "en" to listOf("$WTY/wty-en-en-index.json?download=true", "$WTY/wty-en-en-ipa-index.json?download=true"),
-            // Japanese without a PC (kumapie for other people): JMdict and JMnedict, Yomitan's own builds (EDRDG licence,
-            // CC BY-SA 4.0: the attribution comes in each index). Spanish JMdict is small: English behind it.
-            "ja" to listOf("$JMDICT/JMdict_english.json", "$JMDICT/JMnedict.json"),
-            "ja-es" to listOf("$JMDICT/JMdict_spanish.json", "$JMDICT/JMdict_english.json", "$JMDICT/JMnedict.json"),
-        )
 
         fun parseTerms(a: JSONArray): List<Term> = (0 until a.length()).map { i ->
             val t = a.getJSONObject(i)

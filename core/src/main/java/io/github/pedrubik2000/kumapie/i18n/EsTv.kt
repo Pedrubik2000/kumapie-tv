@@ -77,8 +77,8 @@ internal val esTv: Map<String, String> = mapOf(
     "Check" to "Comprobar",
     "Next" to "Siguiente",
     "Start watching" to "Empezar a ver",
-    "Two downloads, once: the Japanese dictionaries (meanings, about 27 MB) and the word splitter (about 80 MB). You can start watching while they finish." to
-        "Dos descargas, una sola vez: los diccionarios de japonés (significados, unos 27 MB) y el separador de palabras (unos 80 MB). Puedes empezar a ver mientras terminan.",
+    "Two downloads, once: the Japanese dictionaries (meanings, about 33 MB) and the word splitter (about 80 MB). You can start watching while they finish." to
+        "Dos descargas, una sola vez: los diccionarios de japonés (significados, unos 33 MB) y el separador de palabras (unos 80 MB). Puedes empezar a ver mientras terminan.",
     "✓ ready" to "✓ listo",
     "Dictionaries: %s" to "Diccionarios: %s",
     "Word splitter: %s" to "Separador de palabras: %s",
@@ -90,6 +90,11 @@ internal val esTv: Map<String, String> = mapOf(
     "There: your Jimaku key, your Real-Debrid token, Kitsu and your AniList username." to
         "Allí: tu clave de Jimaku, tu token de Real-Debrid, Kitsu y tu usuario de AniList.",
     "Japanese subtitles (Jimaku)" to "Subtítulos en japonés (Jimaku)",
+    "A Japanese dictionary" to "Un diccionario de japonés",
+    "A Yomitan .zip from your phone, for example a frequency list (JPDB: each word's most common reading first)." to
+        "Un .zip de Yomitan desde tu teléfono, por ejemplo una lista de frecuencia (JPDB: primero la lectura más común de cada palabra).",
+    "Pick a .zip first." to "Primero elige un .zip.",
+    "Too big: %d MB at most." to "Demasiado grande: %d MB como máximo.",
     "Add your Jimaku key from your phone first: without it, streams get no Japanese lines." to "Primero agrega tu clave de Jimaku desde el teléfono: sin ella, los videos no tienen las líneas en japonés.",
     "Needed: without it, streams get no Japanese lines." to "Necesaria: sin ella, los videos no tienen las líneas en japonés.",
     "This episode's video isn't on this device any more, and there's no PC to play it from." to "El video de este episodio ya no está en este dispositivo y no hay una PC desde donde reproducirlo.",

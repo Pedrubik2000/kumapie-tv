@@ -1,10 +1,23 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import android.content.Context
+import android.net.Uri
 import io.github.pedrubik2000.kumapie.data.Addons
+import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.data.Multipart
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import io.github.pedrubik2000.kumapie.lang.YomitanDictionaries
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.File
+import java.io.InputStream
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.net.ServerSocket
@@ -12,9 +25,10 @@ import java.net.Socket
 import java.net.URLDecoder
 import kotlin.concurrent.thread
 
-class SetupPage(private val settings: Settings, private val onSaved: () -> Unit) {
+class SetupPage(private val settings: Settings, private val context: Context, private val onSaved: () -> Unit) {
     private val code = (1..10).map { "abcdefghjkmnpqrstuvwxyz23456789".random() }.joinToString("")
     private var socket: ServerSocket? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun start(): String? {
         val ip = lanAddress() ?: return null
@@ -22,32 +36,51 @@ class SetupPage(private val settings: Settings, private val onSaved: () -> Unit)
         thread(isDaemon = true, name = "setup-page") {
             while (!s.isClosed) {
                 val c = runCatching { s.accept() }.getOrNull() ?: break
-                thread(isDaemon = true) { runCatching { handle(c) } }
+                scope.launch { runCatching { handle(c) } }
             }
         }
         return "http://$ip:${s.localPort}/$code"
     }
 
-    fun stop() { runCatching { socket?.close() } }
+    fun stop() { runCatching { socket?.close() }; scope.cancel() }
 
-    private fun handle(c: Socket) = c.use {
-        val input = BufferedReader(InputStreamReader(c.getInputStream(), Charsets.UTF_8))
-        val (method, path) = (input.readLine() ?: return@use).split(" ").let { (it.getOrNull(0) ?: "") to (it.getOrNull(1) ?: "") }
-        var length = 0
-        while (true) {
-            val h = input.readLine() ?: break
-            if (h.isEmpty()) break
-            if (h.startsWith("Content-Length:", ignoreCase = true)) length = h.substringAfter(':').trim().toIntOrNull() ?: 0
-        }
+    private suspend fun handle(c: Socket) = c.use {
+        val input = BufferedInputStream(c.getInputStream())
+        val head = generateSequence { line(input) }.takeWhile { it.isNotEmpty() }.toList().ifEmpty { return@use }
+        val (method, path) = head[0].split(" ").let { (it.getOrNull(0) ?: "") to (it.getOrNull(1) ?: "") }
+        fun header(name: String) = head.firstOrNull { it.startsWith("$name:", ignoreCase = true) }?.substringAfter(':')?.trim().orEmpty()
+        val length = header("Content-Length").toIntOrNull() ?: 0
         if (path.substringBefore('?') != "/$code") return@use answer(c, 404, "<p>Not here.</p>")
+        if (method == "POST" && header("Content-Type").startsWith("multipart/form-data")) return@use answer(c, 200, upload(input, length, header("Content-Type")))
         if (method == "POST") {
-            val body = CharArray(length.coerceAtMost(8192)).let { buf -> var n = 0; while (n < buf.size) { val r = input.read(buf, n, buf.size - n); if (r < 0) break; n += r }; String(buf, 0, n) }
+            val body = String(read(input, length.coerceAtMost(8192)), Charsets.UTF_8)
             save(body.split('&').mapNotNull { p -> p.split('=', limit = 2).takeIf { it.size == 2 }?.let { URLDecoder.decode(it[0], "UTF-8") to URLDecoder.decode(it[1], "UTF-8").trim() } }.toMap())
             onSaved()
             return@use answer(c, 200, "<h1>✓ ${tr("Saved")}</h1><p>${tr("Look at your TV: kumapie has it.")}</p>")
         }
         answer(c, 200, form())
     }
+
+    private suspend fun upload(input: InputStream, length: Int, type: String): String {
+        if (length > 64 shl 20) return "<p>${tr("Too big: %d MB at most.", 64)}</p>"
+        val (name, bytes) = Multipart.file(read(input, length), type)?.takeIf { it.first.endsWith(".zip", true) && it.second.isNotEmpty() }
+            ?: return "<p>${tr("Pick a .zip first.")}</p>"
+        val zip = File(context.cacheDir, name).apply { writeBytes(bytes) }
+        val said = try { YomitanDictionaries.get(context).import(listOf(Uri.fromFile(zip)), Lang.JAPANESE) {} } finally { zip.delete() }
+        return "<h1>${tr("A Japanese dictionary")}</h1><p>" + said.joinToString("<br>") { it.replace("&", "&amp;").replace("<", "&lt;") } + "</p>"
+    }
+
+    private fun line(i: InputStream): String? {
+        val b = ByteArrayOutputStream()
+        while (true) {
+            val x = i.read()
+            if (x < 0) return if (b.size() == 0) null else b.toString("UTF-8")
+            if (x == '\n'.code) return b.toString("UTF-8").trimEnd('\r')
+            b.write(x)
+        }
+    }
+
+    private fun read(i: InputStream, n: Int) = ByteArray(n).also { DataInputStream(i).readFully(it) }
 
     private fun save(f: Map<String, String>) {
         f["jimaku"]?.takeIf { it.isNotEmpty() }?.let { settings.jimakuKey = it }
@@ -75,6 +108,12 @@ class SetupPage(private val settings: Settings, private val onSaved: () -> Unit)
             <p>${tr("Your AniList lists (optional): what you're watching and plan to watch, at the top of Discover. Your profile must be public.")}</p>
             <input name="anilist" placeholder="${tr("AniList username")}" value="${settings.anilist.replace("\"", "")}" autocomplete="off">
             <button>${tr("Save")}</button>
+            </form>
+            <h2>${tr("A Japanese dictionary")}</h2>
+            <form method="post" enctype="multipart/form-data">
+            <p>${tr("A Yomitan .zip from your phone, for example a frequency list (JPDB: each word's most common reading first).")}</p>
+            <input type="file" name="dict" accept=".zip">
+            <button>${tr("Import")}</button>
             </form>""".trimIndent()
     }
 

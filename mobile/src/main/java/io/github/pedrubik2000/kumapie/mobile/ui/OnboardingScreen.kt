@@ -139,7 +139,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
 private fun Downloads(library: Library) {
     val context = LocalContext.current
     Text(tr("Downloads"), fontSize = 22.sp)
-    Text(tr("Two downloads, once: the Japanese dictionaries (meanings, about 27 MB) and the word splitter (about 80 MB). You can start watching while they finish."))
+    Text(tr("Two downloads, once: the Japanese dictionaries (meanings, about 33 MB) and the word splitter (about 80 MB). You can start watching while they finish."))
     val dicts = remember { YomitanDictionaries.get(context.applicationContext) }
     var dictSaid by remember { mutableStateOf(if (dicts.of(Lang.JAPANESE).isNotEmpty()) tr("✓ ready") else tr("Starting…")) }
     LaunchedEffect(Unit) {

@@ -69,7 +69,7 @@ lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/HomeScreen.kt 461
 lines app/src/main/java/io/github/pedrubik2000/kumapie/ui/PlayerScreen.kt 525
 lines core/src/main/java/io/github/pedrubik2000/kumapie/data/Api.kt 720
 lines core/src/main/java/io/github/pedrubik2000/kumapie/player/SceneController.kt 453
-lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Hoshidicts.kt 630
+lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Hoshidicts.kt 615
 lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/KnownWords.kt 677
 lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Miner.kt 582
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/local/ProcessWorker.kt 718

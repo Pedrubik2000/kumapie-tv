@@ -249,7 +249,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
     /** What the imported dictionaries (not [personal]) have for [word]. */
     private fun imported(lang: Lang, word: String): List<Term> {
         val h = handle(lang) ?: return emptyList()
-        return parseTerms(JSONArray(Hoshidicts.nativeQuery(h, word)))
+        return Redirects.follow(parseTerms(JSONArray(Hoshidicts.nativeQuery(h, word)))) { parseTerms(JSONArray(Hoshidicts.nativeQuery(h, it))) }.filterNotNull()
     }
 
     /** Your own words, found by [query] and [scan] like a dictionary's. */
@@ -322,7 +322,7 @@ class YomitanDictionaries private constructor(private val context: Context) {
         val own = personal.startingAt(lang.code, text)?.let { e -> personalTerms(lang, e).map { e.text to it } }.orEmpty()
         val h = handle(lang) ?: return own
         val a = JSONArray(Hoshidicts.nativeLookup(h, text, max))
-        own + (0 until a.length()).map { i -> a.getJSONObject(i).let { it.getString("matched") to parseTerms(JSONArray().put(it.getJSONObject("term"))).first() } }
+        own + (0 until a.length()).map { i -> a.getJSONObject(i).let { it.getString("matched") to parseTerms(JSONArray().put(it.getJSONObject("term"))).first() } }.let { s -> s.zip(Redirects.follow(s.map { it.second }) { w -> parseTerms(JSONArray(Hoshidicts.nativeQuery(h, w))) }).mapNotNull { (p, t) -> t?.let { p.first to it } } }
     }
 
     /** Each enabled dictionary's styles.css, by dictionary title. */

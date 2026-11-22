@@ -433,7 +433,7 @@ private fun Rows(library: Library, shows: List<Show>, streams: List<Pair<Show, E
             Column {
                 Section(tr("Continue watching"))
                 LazyRow(contentPadding = PaddingValues(start = GUTTER, end = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    items(going.drop(1)) { (s, e) -> WideTile(library, s, e) { onPlay(s, e) } }
+                    items(going.drop(1)) { (s, e) -> WideTile(art(library, s, e), s.shown, listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), ((e.resume ?: 0.0) / e.duration).toFloat()) { onPlay(s, e) } }
                 }
             }
         }
@@ -529,17 +529,17 @@ private fun Hero(library: Library, s: Show, e: Episode, onShow: () -> Unit, onPl
     }
 }
 
-/** Another episode in progress: its picture wide, a progress line, the show and where it was left. */
+/** A wide still (another episode in progress; a title page's episode): [mark] ✓ / ▶ and [progress] on it, [name] and [line] under it. */
 @Composable
-private fun WideTile(library: Library, s: Show, e: Episode, onPlay: () -> Unit) {
-    Column(Modifier.width(296.dp).clickable(onClick = onPlay)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp))) {
-            NeutralPoster(s.title, Modifier.matchParentSize(), showTitle = false)
-            AsyncImage(art(library, s, e), null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
-            ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.align(Alignment.BottomCenter).fillMaxWidth())
+internal fun WideTile(image: Any?, name: String, line: String, progress: Float?, width: Dp = 296.dp, mark: String = "", onLongClick: (() -> Unit)? = null, onPlay: () -> Unit) {
+    Column(Modifier.width(width).combinedClickable(onLongClick = onLongClick, onClick = onPlay)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp)).background(Glass.solid)) {
+            AsyncImage(image, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            if (mark.isNotEmpty()) Text(mark, color = Color.White, fontSize = 16.sp, modifier = Modifier.padding(8.dp).background(Glass.page.copy(alpha = 0.75f), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp))
+            if (progress != null) ProgressBar(progress, Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         }
-        Text(s.shown, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-        Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Glass.dim, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(name, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(line, color = Glass.dim, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

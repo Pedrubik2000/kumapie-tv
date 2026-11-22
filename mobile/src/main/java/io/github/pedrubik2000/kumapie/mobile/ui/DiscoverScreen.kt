@@ -221,52 +221,45 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
             when {
                 error != null -> Message(error)
                 m == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.accent) }
-                eps.isNotEmpty() && !wide -> Text(tr("Episodes"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
             }
         }
         val episode = @Composable { e: JSONObject ->
                 val ready = e.optBoolean("ready")
                 val watched = e.optBoolean("watched")
-                Box(Modifier.padding(horizontal = 16.dp, vertical = 5.dp).glass(RoundedCornerShape(16.dp))) {
-                Row(Modifier.fillMaxWidth().combinedClickable(onLongClick = { menu = e.getString("id") }) { play(e) }.padding(10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    AsyncImage(e.optString("thumb"), null, contentScale = ContentScale.Crop,
-                        modifier = Modifier.width(if (wide) 150.dp else 120.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Colors.surface))
-                    Column(Modifier.weight(1f)) {
-                        Text((if (watched) "✓ " else if (ready) "▶ " else "") + tr("Episode %1\$d", e.optInt("number")) +
-                            (if (ready && e.optString("source").isNotEmpty()) " · " + e.optString("source") else ""), // the ▶ file's quality, Mbps
-                            color = if (watched) Colors.dim else if (ready) Colors.accent else Colors.text)
-                        Text(e.optString("title"), color = Colors.dim, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                }
+                Box {
+                    WideTile(e.optString("thumb"), tr("Episode %1\$d", e.optInt("number")), listOf(if (ready) e.optString("source") else "", e.optString("title")).filter { it.isNotEmpty() }.joinToString(" · "),
+                        null, if (wide) 296.dp else 240.dp, if (watched) "✓" else if (ready) "▶" else "", onLongClick = { menu = e.getString("id") }) { play(e) }
                 DropdownMenu(expanded = menu == e.getString("id"), onDismissRequest = { menu = null }) {
                     DropdownMenuItem(text = { Text(tr("Other files")) }, onClick = { menu = null; page.others(e) })
                     DropdownMenuItem(text = { Text(if (watched) tr("Mark not watched") else tr("Mark watched")) }, onClick = { menu = null; scope.launch { page.mark(e) } })
                 }
                 }
         }
+        // The episodes as the TV's shelf of stills, scrolled to ▶'s episode.
+        val at = eps.indexOf(page.next).coerceAtLeast(0)
+        val row = androidx.compose.foundation.lazy.rememberLazyListState()
+        LaunchedEffect(at) { row.scrollToItem(at) }
+        val shelf = @Composable {
+            if (eps.isNotEmpty()) Text(tr("Episodes"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
+            LazyRow(state = row, contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                items(eps, key = { it.getString("id") }) { episode(it) }
+            }
+        }
         if (wide) {
-            // The backdrop behind everything, dimmed; info left, the episodes right (the mockup's title page).
-            val haze = dev.chrisbanes.haze.rememberHazeState() // the episode cards and pills blur it
+            val haze = dev.chrisbanes.haze.rememberHazeState() // the pills blur it
             Box(Modifier.matchParentSize().hazeSource(haze)) {
                 Backdrop(t.background.ifEmpty { t.poster })
-                Box(Modifier.matchParentSize().background(Colors.background.copy(alpha = 0.72f)))
+                Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(0f to Colors.background, 0.6f to Colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
             }
             androidx.compose.runtime.CompositionLocalProvider(LocalHaze provides haze) {
-                Row(Modifier.fillMaxSize().statusBarsPadding()) {
-                    Column(Modifier.weight(0.42f).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(top = 72.dp)) {
+                Column(Modifier.fillMaxSize().statusBarsPadding().padding(bottom = 24.dp)) {
+                    Column(Modifier.weight(1f).fillMaxWidth(0.6f).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(top = 72.dp)) {
                         Box(Modifier.padding(horizontal = 16.dp)) { TitleLogo(t) }
                         Text(t.line, color = Colors.text, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
                         info()
                     }
-                    LazyColumn(Modifier.weight(0.58f).fillMaxHeight(), contentPadding = PaddingValues(top = 16.dp, bottom = 72.dp)) {
-                        if (eps.isNotEmpty()) item(key = "title") {
-                            Text(tr("Episodes"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp))
-                        }
-                        items(eps, key = { it.getString("id") }) { episode(it) }
-                    }
+                    shelf()
                 }
             }
         } else LazyColumn(Modifier.fillMaxSize()) {
@@ -280,7 +273,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                 }
                 info()
             }
-            items(eps, key = { it.getString("id") }) { episode(it) }
+            item(key = "episodes") { shelf() }
         }
         // Over the backdrop, like Stremio's: only the back arrow.
         IconButton(onClick = onBack, modifier = Modifier.padding(8.dp).statusBarsPadding().background(Color(0x59000000), CircleShape).border(1.dp, Glass.line, CircleShape)) {

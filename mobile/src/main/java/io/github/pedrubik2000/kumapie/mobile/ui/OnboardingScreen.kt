@@ -51,7 +51,7 @@ import kotlinx.coroutines.launch
 /**
  * The first run without a PC (kumapie_plan.md "Onboarding"): languages, the Jimaku key (Japanese subtitles), the
  * sources (Torrentio with the user's Real-Debrid token, Kitsu's titles, their AniList lists), and the downloads
- * (dictionaries, Sudachi). Every step can be skipped; Settings has all of it later.
+ * (dictionaries, Sudachi). Only the Jimaku key and a Real-Debrid token Real-Debrid accepts are needed; Settings has the rest later.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +66,9 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     var english by remember { mutableStateOf(true) }
     var anilist by remember { mutableStateOf(settings.anilist) }
     var anilistSaid by remember { mutableStateOf<String?>(null) }
+    var rdSaid by remember { mutableStateOf("") }
+    var rdFailed by remember { mutableIntStateOf(0) }
+    val checking = tr("Checking with %s…", "Real-Debrid")
     fun open(url: String) = runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     fun saveSources() {
         settings.setSources(kitsu, english, rd) // shared with the TV's setup page
@@ -99,6 +102,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                     Text(tr("Videos: Torrentio finds an episode's files and Real-Debrid streams them (a paid account). Copy your token from real-debrid.com/apitoken."))
                     OutlinedButton(onClick = { open("https://real-debrid.com/apitoken") }) { Text(tr("Open real-debrid.com")) }
                     KeyField(rd, { rd = it; settings.rdToken = it }, tr("Real-Debrid token"), KeyService.REAL_DEBRID)
+                    if (rdSaid.isNotEmpty()) Text(rdSaid, color = if (rdSaid == checking) Colors.dim else Colors.unknown)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(kitsu, { kitsu = it })
                         Text(tr("Kitsu: anime titles, posters and episodes to pick from"))
@@ -127,7 +131,13 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                 Spacer(Modifier.weight(1f))
                 Button(enabled = keys[step] != "jimaku" || jimaku.isNotBlank(), onClick = {
                     if (keys[step] == "sources") saveSources()
-                    if (step < steps - 1) step++ else { io.github.pedrubik2000.kumapie.data.Startup.onboard(settings.prefs); onDone() }
+                    if (keys[step] == "sources") { if (rdSaid != checking) scope.launch {
+                        rdSaid = checking
+                        val g = io.github.pedrubik2000.kumapie.data.Startup.rdCheck(settings, rdFailed)
+                        if (g == io.github.pedrubik2000.kumapie.data.RdGate.UNREACHABLE) rdFailed++
+                        rdSaid = io.github.pedrubik2000.kumapie.data.Startup.rdSay(g)
+                        if (g.mayFinish) step++
+                    } } else if (step < steps - 1) step++ else { io.github.pedrubik2000.kumapie.data.Startup.onboard(settings.prefs); onDone() }
                 }) { Text(if (step < steps - 1) tr("Next") else tr("Start watching")) }
             }
         }

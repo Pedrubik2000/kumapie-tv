@@ -38,9 +38,7 @@ object SetupCheck {
         val noPc = settings.server.isEmpty() // with one, the PC finds the subtitles and videos
         val jimaku = p.getString("jimaku_key", "").orEmpty()
         // The phone keeps the token by itself; the TV only inside Torrentio's address.
-        val rd = p.getString("rd_token", "").orEmpty().ifEmpty {
-            settings.addons.firstNotNullOfOrNull { Regex("realdebrid=([^/|%]+)").find(it)?.groupValues?.get(1) }.orEmpty()
-        }
+        val rd = Startup.rdKey(settings.rdToken, settings.addons)
         val anilist = p.getString(Addons.ANILIST, "").orEmpty()
         val alone = noPc && settings.standalone
         listOfNotNull(

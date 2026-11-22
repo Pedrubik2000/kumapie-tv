@@ -40,4 +40,9 @@ internal val esCore: Map<String, String> = mapOf(
     "%1\$s + %2\$s, hidden until paused" to "%1\$s + %2\$s, ocultos hasta pausar",
     "%1\$s + %2\$s, blurred" to "%1\$s + %2\$s borroso",
     "Spanish" to "Español",
+    "Real-Debrid key missing: no video will play" to "Falta la clave de Real-Debrid: no se reproducirá ningún vídeo",
+    "Real-Debrid key missing: no video will play. Get yours at real-debrid.com/apitoken." to
+        "Falta la clave de Real-Debrid: no se reproducirá ningún vídeo. Consigue la tuya en real-debrid.com/apitoken.",
+    "Couldn't reach Real-Debrid to check the key: is this device online? Next tries again; the 3rd time it goes on." to
+        "No se pudo contactar con Real-Debrid para comprobar la clave: ¿está conectado este dispositivo? Siguiente lo intenta de nuevo; a la 3.ª vez continúa.",
 )

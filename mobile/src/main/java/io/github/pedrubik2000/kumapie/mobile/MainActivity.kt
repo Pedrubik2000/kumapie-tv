@@ -11,6 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
@@ -275,6 +277,8 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             Screen.Downloads -> io.github.pedrubik2000.kumapie.mobile.ui.DownloadsScreen(onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Review -> io.github.pedrubik2000.kumapie.mobile.ui.ReviewScreen(remember(homeLang) { io.github.pedrubik2000.kumapie.lang.ownReview(context, homeLang) })
         }
+        if (gate == io.github.pedrubik2000.kumapie.data.Gate.APP && stack.last().let { it == Screen.Home || it is Screen.Discover })
+            io.github.pedrubik2000.kumapie.mobile.ui.RdMissingLine(settings, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp)) { stack += Screen.Settings(null) }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
     }
     }

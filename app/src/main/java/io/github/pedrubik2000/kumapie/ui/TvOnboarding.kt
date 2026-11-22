@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,6 +49,10 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
     var step by remember { mutableIntStateOf(0) }
     var lang by remember { mutableStateOf(settings.menuLanguage) }
     var needKey by remember { mutableStateOf(false) }
+    var rdSaid by remember { mutableStateOf("") }
+    var rdFailed by remember { mutableIntStateOf(0) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val checking = tr("Checking with %s…", "Real-Debrid")
     remember(lang) { Tr.use(lang) }
     val first = remember { FocusRequester() }
     Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(48.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -70,6 +76,7 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
             2 -> {
                 PhonePage(settings, onSaved = { if (settings.jimakuKey.isNotBlank()) needKey = false })
                 if (needKey) Text(tr("Add your Jimaku key from your phone first: without it, streams get no Japanese lines."), color = Colors.accent, fontSize = 18.sp)
+                if (rdSaid.isNotEmpty()) Text(rdSaid, color = Colors.accent, fontSize = 18.sp)
             }
             else -> TvDownloads(settings)
         }
@@ -78,6 +85,13 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
             Button(onClick = {
                 when {
                     step == PHONE_STEP && settings.jimakuKey.isBlank() -> needKey = true
+                    step == PHONE_STEP -> if (rdSaid != checking) scope.launch {
+                        rdSaid = checking
+                        val g = io.github.pedrubik2000.kumapie.data.Startup.rdCheck(settings, rdFailed)
+                        if (g == io.github.pedrubik2000.kumapie.data.RdGate.UNREACHABLE) rdFailed++
+                        rdSaid = io.github.pedrubik2000.kumapie.data.Startup.rdSay(g)
+                        if (g.mayFinish) step++
+                    }
                     step < STEPS - 1 -> step++
                     else -> { io.github.pedrubik2000.kumapie.data.Startup.onboard(settings.prefs); onDone() }
                 }
@@ -204,6 +218,14 @@ internal fun TvDictionaries(settings: Settings) {
     val shown = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     if (phone) Column(Modifier.bringIntoViewRequester(shown)) { PhonePage(settings) }
     LaunchedEffect(phone) { if (phone) { kotlinx.coroutines.delay(100); shown.bringIntoView() } }
+}
+
+@Composable
+fun RdMissingLine(settings: Settings, onSettings: () -> Unit) {
+    if (!io.github.pedrubik2000.kumapie.data.Startup.rdMissing(settings)) return
+    Button(onClick = onSettings, modifier = Modifier.fillMaxWidth().wrapContentWidth().padding(top = 24.dp)) {
+        Text(tr("Real-Debrid key missing: no video will play"))
+    }
 }
 
 internal fun qr(text: String, size: Int): Bitmap {

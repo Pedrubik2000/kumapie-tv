@@ -52,3 +52,12 @@ internal fun KeyField(value: String, onChange: (String) -> Unit, label: String, 
         }, color = if (r == "rejected") Colors.unknown else Colors.dim) } },
         modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused) check() })
 }
+
+@Composable
+internal fun RdMissingLine(settings: io.github.pedrubik2000.kumapie.data.Settings, modifier: Modifier, onSettings: () -> Unit) {
+    if (!io.github.pedrubik2000.kumapie.data.Startup.rdMissing(settings)) return
+    androidx.compose.material3.Button(onClick = onSettings, modifier = modifier,
+        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Colors.unknown)) {
+        Text(tr("Real-Debrid key missing: no video will play"))
+    }
+}

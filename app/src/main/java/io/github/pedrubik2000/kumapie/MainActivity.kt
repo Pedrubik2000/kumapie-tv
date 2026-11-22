@@ -143,6 +143,7 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
             onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) }, onProfiles = {}, onReview = { stack.add(Screen.Review(it)) },
             onDiscover = { stack.add(Screen.Discover()) }, onDiscovered = { stack.add(Screen.Discover(it)) })
     }
+    if (stack.last().let { it == Screen.Home || it is Screen.Discover }) io.github.pedrubik2000.kumapie.ui.RdMissingLine(settings) { stack.add(Screen.Settings) }
 }
 
 @Composable

@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -512,24 +511,22 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
     val scene = ctl.scene
     Row(
         Modifier.fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color(0xE0000000), Color(0x80000000), Color.Transparent)))
+            .background(Brush.verticalGradient(listOf(Color(0xF0000000), Color(0x99000000), Color.Transparent)))
             .padding(horizontal = 8.dp, vertical = 6.dp).padding(bottom = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Colors.text) }
-        Text(androidx.compose.ui.text.buildAnnotatedString {
-            withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)) { append(ctl.episode.show) }
-            withStyle(androidx.compose.ui.text.SpanStyle(color = Glass.dim)) { append("   " + ctl.episode.title) }
-        }, color = Colors.text, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(ctl.episode.title.let { if (it.startsWith(ctl.episode.show, ignoreCase = true)) it else "${ctl.episode.show} · $it" },
+            color = Colors.text, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         val modes = listOfNotNull(
             if (ctl.pauseAtSceneStart) tr("primed") else null, if (ctl.pauseAtSceneEnd) null else tr("plays on"),
             if (ctl.slow) "0.75x" else null)
-        if (modes.isNotEmpty()) Text(modes.joinToString(" · "), color = Colors.dim, fontSize = 13.sp,
+        if (modes.isNotEmpty()) Text(modes.joinToString(" · "), color = Colors.text.copy(alpha = 0.8f), fontSize = 16.sp,
             modifier = Modifier.padding(horizontal = 8.dp))
         // One scene alone (feed): its place in the episode.
         // Tap: the list of scenes, to jump to one.
         Text(if (ctl.scenes.size == 1) tr("line %d", scene.index + 1) else tr("Line %1\$d of %2\$d", scene.index + 1, ctl.scenes.size),
-            color = Colors.text, fontSize = 18.sp, modifier = if (ctl.scenes.size > 1)
+            color = Colors.text, fontSize = 20.sp, modifier = if (ctl.scenes.size > 1)
                 Modifier.clickable(onClick = onScenes).padding(horizontal = 6.dp, vertical = 8.dp) else Modifier)
         LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 10.dp))
         IconButton(onClick = onOptions) { Icon(Icons.Default.MoreVert, tr("Options"), tint = Colors.text) }
@@ -579,8 +576,8 @@ private fun LevelBadge(level: Int?, modifier: Modifier = Modifier) {
         level == 1 -> "i+1" to Colors.levelOne
         else -> "i+$level" to Colors.unknown
     }
-    Text(text, color = Color.Black, fontSize = 14.sp,
-        modifier = modifier.background(color, RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 1.dp))
+    Text(text, color = Color.Black, fontSize = 18.sp,
+        modifier = modifier.background(color, RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 2.dp))
 }
 
 /** Every scene: number, start time, first line, level, ✓ when seen; the one playing highlighted. Tap = play it. */

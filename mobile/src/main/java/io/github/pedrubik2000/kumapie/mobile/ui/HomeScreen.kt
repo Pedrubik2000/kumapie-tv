@@ -22,20 +22,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import io.github.pedrubik2000.kumapie.data.shown
 import io.github.pedrubik2000.kumapie.data.resumeLine
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -306,7 +300,7 @@ fun HomeScreen(
                         Button(onClick = { adding = true }) { Text(tr("Add an episode")) }
                     }
                     else -> Rows(library, all.filter { it.lang == lang }, streams, states, wide, onShow, onPlay,
-                        streaming = { if (lang == "ja") Streaming(library, onDiscovered) }, top = top) { LangCard(library, lang, all, wide, onStats) }
+                        streaming = { if (lang == "ja") Streaming(library, onDiscovered) }, top = top) { LangCard(library, lang, all, onStats) }
                 }
             }
         }
@@ -351,31 +345,17 @@ private val shownProgress = mutableMapOf<String, io.github.pedrubik2000.kumapie.
  * One tap opens Stats.
  */
 @Composable
-private fun LangCard(library: Library, lang: String, shows: List<Show>, glass: Boolean, onStats: () -> Unit) {
+private fun LangCard(library: Library, lang: String, shows: List<Show>, onStats: () -> Unit) {
     // This language's last numbers while fresh ones load (~2 s): not the other language's, and the list doesn't jump.
     var p by remember(lang) { mutableStateOf(shownProgress[lang]) }
     LaunchedEffect(lang, shows) { p = runCatching { library.langProgress(lang, shows) }.getOrNull()?.also { shownProgress[lang] = it } }
     val s = p ?: return
-    if (glass) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StatChip(minutes(s.today), tr("Today"), accent = true, onClick = onStats)
         StatChip(minutes(s.week), tr("Last 7 days"), onClick = onStats)
         StatChip(String.format(java.util.Locale.ROOT, "%.1f h", s.total / 3600), tr("In total"), onClick = onStats)
         StatChip("%,d".format(s.known), tr("Words known"), onClick = onStats)
-    } else Surface(onClick = onStats, shape = RoundedCornerShape(12.dp), color = Colors.surface,
-        modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat(String.format(java.util.Locale.ROOT, "%.1f h", s.total / 3600), tr("In total"))
-            Stat(minutes(s.week), tr("Last 7 days"))
-            Stat(minutes(s.today), tr("Today"))
-            Stat("${s.known}", tr("Words known"))
-        }
     }
-}
-
-@Composable
-private fun Stat(value: String, label: String) = Column(horizontalAlignment = Alignment.CenterHorizontally) {
-    Text(value, style = MaterialTheme.typography.titleMedium, color = Colors.accent)
-    Text(label, style = MaterialTheme.typography.bodySmall, color = Colors.dim)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -395,7 +375,6 @@ private fun HomeBar(onAdd: (() -> Unit)? = null, onRefresh: () -> Unit) {
  * shows in progress as small tiles. Then the library, one media type per tab, easiest first. A tablet puts the
  * library beside the resume column (user, 2026-10-15: Home is for resuming fast).
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Rows(library: Library, shows: List<Show>, streams: List<Pair<Show, Episode>>, states: Map<String, DownloadState>, wide: Boolean,
                  onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit,
@@ -406,19 +385,13 @@ private fun Rows(library: Library, shows: List<Show>, streams: List<Pair<Show, E
     val split = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
     // Shared with the TV (core data/ShowLevel.kt): the categories, easiest first, finished last.
     val kinds = io.github.pedrubik2000.kumapie.data.libraryRows(shows).map { (label, list) -> tr(label) to list }.filter { it.second.isNotEmpty() }
-    var tab by rememberSaveable(shows.firstOrNull()?.lang) { mutableIntStateOf(0) }
-    val picked = tab.coerceIn(0, (kinds.size - 1).coerceAtLeast(0))
-    val tabs = @Composable {
-        if (kinds.size > 1) PrimaryScrollableTabRow(selectedTabIndex = picked, edgePadding = 16.dp, containerColor = Color.Transparent,
-            divider = { HorizontalDivider(color = Colors.surface) }) {
-            kinds.forEachIndexed { i, (label, _) ->
-                Tab(selected = i == picked, onClick = { tab = i }, text = { Text(label) }, unselectedContentColor = Colors.dim)
+    // Each type its own shelf of posters, as on the TV (was: tabs over one grid).
+    val shelves = @Composable { inset: Dp, width: Dp ->
+        kinds.forEach { (label, list) ->
+            Text(label, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = inset, end = 16.dp, top = 28.dp, bottom = 12.dp))
+            LazyRow(contentPadding = PaddingValues(start = inset, end = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                items(list, key = { it.id }) { s -> Poster(library.poster(s.id, s.poster), s.title, levelLine(s), width) { onShow(s) } }
             }
-        } else kinds.firstOrNull()?.let { Text(it.first, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) }
-    }
-    val grid = @Composable { width: Dp ->
-        FlowRow(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            kinds.getOrNull(picked)?.second?.forEach { s -> Poster(library.poster(s.id, s.poster), s.title, levelLine(s), width) { onShow(s) } }
         }
     }
     val resume = @Composable {
@@ -438,20 +411,8 @@ private fun Rows(library: Library, shows: List<Show>, streams: List<Pair<Show, E
             }
         }
         item(key = "streaming") { Box(Modifier.padding(start = GUTTER - 16.dp)) { streaming() } }
-        if (kinds.isNotEmpty()) item(key = "tabs") {
-            Row(Modifier.fillMaxWidth().padding(end = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-                Section(tr("Your shows"))
-                if (kinds.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 28.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    kinds.forEachIndexed { i, (label, _) -> GlassChip(label, i == picked) { tab = i } }
-                }
-            }
-        }
-        item(key = "grid-$picked") {
-            FlowRow(Modifier.padding(start = GUTTER, end = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                kinds.getOrNull(picked)?.second?.forEach { s -> Poster(library.poster(s.id, s.poster), s.title, levelLine(s), 150.dp) { onShow(s) } }
-            }
-        }
-    } else if (split && going.isNotEmpty()) Column { header(); Row(Modifier.fillMaxSize()) {
+        item(key = "shelves") { shelves(GUTTER, 150.dp) }
+    } else if (split && going.isNotEmpty()) Column { Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { header() }; Row(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.weight(0.42f).fillMaxHeight()) {
         // A phone on its side is short: the card narrows until its art and text fit the height (~110 dp under the art).
         val cardWidth = minOf(maxWidth, (maxHeight - 126.dp) * 16f / 9f + 32.dp)
@@ -461,24 +422,17 @@ private fun Rows(library: Library, shows: List<Show>, streams: List<Pair<Show, E
             going.drop(1).forEach { (s, e) -> Tile(library.poster(s.id, s.poster), s, e, Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { onPlay(s, e) } }
         }
         }
-        Column(Modifier.weight(0.58f).fillMaxHeight().verticalScroll(rememberScrollState())) { streaming(); tabs(); grid(posterWidth(true)) }
-    } } else BoxWithConstraints(Modifier.fillMaxSize()) {
-        // A phone: three posters across (more on its side); a tablet with nothing in progress: the tablet's poster size.
-        val across = maxOf(3, (maxWidth / 130.dp).toInt())
-        // 1 dp spare: rounded to pixels the exact fit was 1 px too wide on the Pixel 8a, so only two went across.
-        val width = if (wide) posterWidth(true) else (maxWidth - 33.dp - 12.dp * (across - 1)) / across
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
-            item(key = "card") { header() } // scrolls away: pinned, it took a third of a phone's list
-            if (going.isNotEmpty()) item(key = "resume") { Box(Modifier.widthIn(max = 600.dp)) { resume() } } // on its side: not a screen-tall card
-            if (going.size > 1) item(key = "going") {
-                Column(Modifier.widthIn(max = 600.dp).padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    going.drop(1).forEach { (s, e) -> Tile(library.poster(s.id, s.poster), s, e, Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { onPlay(s, e) } }
-                }
+        Column(Modifier.weight(0.58f).fillMaxHeight().verticalScroll(rememberScrollState())) { streaming(); shelves(16.dp, posterWidth(true)) }
+    } } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
+        if (going.isNotEmpty()) item(key = "resume") { Box(Modifier.widthIn(max = 600.dp)) { resume() } } // on its side: not a screen-tall card
+        item(key = "card") { Box(Modifier.padding(start = 16.dp, top = 12.dp)) { header() } } // the stats under it, as the TV's
+        if (going.size > 1) item(key = "going") {
+            Column(Modifier.widthIn(max = 600.dp).padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                going.drop(1).forEach { (s, e) -> Tile(library.poster(s.id, s.poster), s, e, Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { onPlay(s, e) } }
             }
-            item(key = "streaming") { streaming() }
-            item(key = "tabs") { Column(Modifier.padding(top = if (going.isEmpty()) 0.dp else 20.dp)) { tabs() } }
-            item(key = "grid-$picked") { grid(width) }
         }
+        item(key = "streaming") { streaming() }
+        item(key = "shelves") { shelves(16.dp, posterWidth(false)) }
     }
 }
 
@@ -517,7 +471,6 @@ private fun Hero(library: Library, s: Show, e: Episode, onShow: () -> Unit, onPl
                 Text(s.shown, color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(listOf(e.title, resumeLine(e)).filter { it.isNotBlank() }.joinToString(" · "), color = Color.White.copy(alpha = 0.85f), fontSize = 18.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-                ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(420.dp).padding(top = 14.dp))
                 Row(Modifier.padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Pill(tr("Resume"), onPlay, primary = true, icon = Icons.Default.PlayArrow)
                     Pill(tr("Episodes"), onShow)
@@ -550,7 +503,7 @@ private fun Streaming(library: Library, onOpen: (io.github.pedrubik2000.kumapie.
     LaunchedEffect(Unit) { runCatching { library.discovery.let { io.github.pedrubik2000.kumapie.data.streamingRow(it.saved(), it.playedAt()) } }.onSuccess { kept = it } }
     if (kept.isEmpty()) return
     Column(Modifier.padding(top = 20.dp)) {
-        Text(tr("Streaming"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        Text(tr("Streaming"), color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(kept.size, key = { kept[it].id }) { i -> kept[i].let { f -> Poster(f.poster, f.name, f.year, 110.dp) { onOpen(f) } } }
         }
@@ -569,7 +522,7 @@ private fun ResumeCard(image: Any?, s: Show, e: Episode, onPlay: () -> Unit) {
                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Colors.surface)))
                 FilledIconButton(onClick = onPlay, modifier = Modifier.align(Alignment.BottomEnd).offset(y = 32.dp).padding(end = 16.dp).size(64.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = Colors.accent, contentColor = Color.Black)) {
-                    Icon(Icons.Default.PlayArrow, tr("Play"), Modifier.size(36.dp))
+                    Icon(Icons.Default.PlayArrow, tr("Resume"), Modifier.size(36.dp))
                 }
             }
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
@@ -578,7 +531,6 @@ private fun ResumeCard(image: Any?, s: Show, e: Episode, onPlay: () -> Unit) {
                 Text(e.title, style = MaterialTheme.typography.bodyMedium, color = Colors.dim, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
                 Text(resumeLine(e), style = MaterialTheme.typography.bodyMedium, color = Colors.dim, maxLines = 1)
-                ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.fillMaxWidth().padding(top = 12.dp))
             }
         }
     }

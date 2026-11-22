@@ -1,6 +1,6 @@
 # slopCheck's baseline (build.gradle.kts): shrinks, never grows. Rewritten by `gradlew slopCheck -PslopBaseline`.
 comments :lang 2113
-comments :mobile 795
+comments :mobile 794
 comments app/src/main/java/io/github/pedrubik2000/kumapie/data/KeySettings.kt 1
 comments app/src/main/java/io/github/pedrubik2000/kumapie/player/PlayerKeys.kt 23
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/Arcade.kt 45
@@ -74,7 +74,7 @@ lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/KnownWords.kt 677
 lines lang/src/main/java/io/github/pedrubik2000/kumapie/lang/Miner.kt 582
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/local/ProcessWorker.kt 718
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/DiscoverScreen.kt 493
-lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/HomeScreen.kt 624
+lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/HomeScreen.kt 576
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/PlayerScreen.kt 731
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/SettingsScreen.kt 951
 lines mobile/src/main/java/io/github/pedrubik2000/kumapie/mobile/ui/ShowScreen.kt 402

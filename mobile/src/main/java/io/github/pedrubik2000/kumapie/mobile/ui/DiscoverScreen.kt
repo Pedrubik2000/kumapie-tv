@@ -367,7 +367,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
 
             // Plain playback had no word of it: the video just stood still under "Words coming".
             override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
-                error = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
+                if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(player, e)) error = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
             }
         }
         player.addListener(ended)

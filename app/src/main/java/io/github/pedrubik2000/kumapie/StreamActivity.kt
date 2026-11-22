@@ -158,7 +158,7 @@ class StreamActivity : ComponentActivity() {
         DisposableEffect(p) {
             val ended = object : Player.Listener {
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
-                    failed = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
+                    if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(p, e)) failed = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
                 }
 
                 override fun onPlaybackStateChanged(state: Int) {
@@ -204,7 +204,7 @@ class StreamActivity : ComponentActivity() {
         DisposableEffect(p) {
             val listener = object : Player.Listener {
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
-                    note = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
+                    if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(p, e)) note = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
                 }
 
                 override fun onPlaybackStateChanged(state: Int) {

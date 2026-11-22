@@ -37,7 +37,7 @@ fun videoPlayer(context: Context, lang: String?): ExoPlayer = ExoPlayer.Builder(
                     .let { if (format.sampleMimeType == MimeTypes.AUDIO_FLAC) maxOf(it, 1 shl 20) else it }
         }
     }
-}).setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder()
+}.setEnableDecoderFallback(true)).setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder()
     .setTargetBufferBytes(BUFFER_BYTES).setPrioritizeTimeOverSizeThresholds(false).build()
 ).build().apply {
     if (lang != null) {

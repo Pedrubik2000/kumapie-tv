@@ -206,7 +206,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
     var playError by remember { mutableStateOf<String?>(null) }
     DisposableEffect(player) {
         val l = object : androidx.media3.common.Player.Listener {
-            override fun onPlayerError(error: androidx.media3.common.PlaybackException) { playError = error.errorCodeName }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) { if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(player, error)) playError = error.errorCodeName }
         }
         player.addListener(l)
         onDispose { player.removeListener(l) }

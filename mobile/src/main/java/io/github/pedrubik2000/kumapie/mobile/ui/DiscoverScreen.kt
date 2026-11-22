@@ -352,7 +352,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
     val live = remember { s?.live ?: LiveLines(player) { library.api.discoverSubs(query["type"].orEmpty(), query["id"].orEmpty(), file) } }
     DisposableEffect(Unit) { onDispose { s?.leave() } }
     LaunchedEffect(live) { live.run() }
-    LaunchedEffect(live.noLines) { if (live.noLines) error = tr("No Japanese subtitles: none in this file, none on Jimaku") }
+    LaunchedEffect(live.noLines) { if (live.noLines && error == null) error = tr("No Japanese subtitles: none in this file, none on Jimaku") }
     DisposableEffect(Unit) {
         val ended = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {

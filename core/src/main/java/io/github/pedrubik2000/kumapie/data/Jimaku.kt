@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.data
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -36,7 +37,7 @@ object Jimaku {
         val saved = savedFile(show, season, episode, videoName)
         if (saved != null) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { saved.takeIf { it.exists() }?.let { f ->
             runCatching { org.json.JSONArray(f.readText()).let { a -> (0 until a.length()).map { a.getJSONArray(it).let { l -> Line(l.getDouble(0), l.getDouble(1), l.getString(2)) } } } }
-                .getOrNull() } }?.takeIf { fitsLength(it, duration()) }?.let { return it }
+                .getOrNull() } }?.takeIf { fitsLength(it, duration()) }?.let(::japanese)?.takeIf { it.isNotEmpty() }?.let { return it }
         return fetch(key, show, season, episode, videoName, 0, duration).also { keep(show, season, episode, videoName, it) }
     }
 
@@ -76,12 +77,28 @@ object Jimaku {
         if (entries.length() == 0) return emptyList()
         val files = JSONArray(String(get("$API/entries/${entries.getJSONObject(0).getInt("id")}/files", key)))
         val ranked = rank((0 until files.length()).map { files.getJSONObject(it).let { f -> f.getString("name") to f.getString("url") } }, episode, videoName, release(show))
-        val first = ranked.getOrNull(skip) ?: return emptyList()
-        val firstLines = read(key, first, episode)
-        if (skip > 0 || fitsLength(firstLines, duration())) return firstLines.also { lastName = first.first }
-        for (f in ranked.drop(1).take(CUTS)) read(key, f, episode).takeIf { fitsLength(it, duration()) }?.let { lastName = f.first; return it }
-        lastName = first.first
-        return firstLines
+        if (skip > 0) return ranked.getOrNull(skip)?.let { f -> japanese(read(key, f, episode)).orEmpty().also { lastName = f.first } }.orEmpty()
+        var best: Triple<Int, String, List<Line>>? = null
+        for (f in ranked.take(CUTS + 1)) {
+            val all = read(key, f, episode)
+            val ja = japanese(all)?.takeIf { it.isNotEmpty() }
+            if (ja == null) continue
+            val score = (if (fitsLength(ja, duration())) 2 else 0) + if (ja.size == all.size) 1 else 0
+            if (score == 3) { lastName = f.first; return ja }
+            if (best == null || score > best.first) best = Triple(score, f.first, ja)
+        }
+        if (best == null && ranked.isNotEmpty()) error(tr("Jimaku has subtitles for this episode, none in Japanese"))
+        lastName = best?.second.orEmpty()
+        return best?.third.orEmpty()
+    }
+
+    fun japanese(lines: List<Line>): List<Line>? {
+        val kana = lines.count { KANA.containsMatchIn(it.text) }
+        return when {
+            lines.isEmpty() || kana * 20 >= lines.size * 17 -> lines
+            kana * 5 < lines.size -> null
+            else -> lines.filter { KANA.containsMatchIn(it.text) }
+        }
     }
 
     private suspend fun read(key: String, best: Pair<String, String>, episode: Int?): List<Line> {
@@ -102,7 +119,8 @@ object Jimaku {
         lines.last().start <= duration + 120 && lines.maxOf { it.end } >= duration * 0.6
 
     /**
-     * Jimaku files for [episode], best first: its own files (else packs), subtitles over archives, then the most words
+     * Jimaku files for [episode], best first: its own files (else packs), subtitles over archives, a name tagged Chinese
+     * last (bilingual "[CHS, JPN]" before it), then the most words
      * shared with [release] (a file of the show that fitted before, [keep]), then with the video's name, .srt first.
      * The phone's jimaku.py has no [release] (its episodes are built once, not streamed).
      */
@@ -112,7 +130,9 @@ object Jimaku {
         val released = wordsOf(release.substringBeforeLast('.'))
         fun score(name: String): List<Int> {
             val n = name.lowercase()
+            val zh = ZH_TAG.containsMatchIn(n)
             return listOf(if (episode == null || numbers(n).second == episode) 1 else 0, if (SUB_EXT.any(n::endsWith)) 1 else 0,
+                if (!zh) 2 else if (JA_TAG.containsMatchIn(n)) 1 else 0,
                 wordsOf(n.substringBeforeLast('.')).intersect(released).size,
                 wordsOf(n).intersect(words).size, if (n.endsWith(".srt")) 1 else 0)
         }
@@ -134,6 +154,8 @@ object Jimaku {
     // main thread in the first 3 s (2026-11-19).
     private val CHINESE_STYLE by lazy { Regex("""CN|CHS|CHT|ZH|[中简繁]|(?i:(?:^|[\W_])(?:cn|chs|cht|zh|chi)(?:$|[\W_]))""") }
     private val SONG_OR_SIGN by lazy { Regex("""sign|\bop\d*\b|\bed\d*\b|opening|ending|song|karaoke|kfx|lyric|\brom|romaji|kanji|title|insert|typeset|\bts\b|credit|staff""", RegexOption.IGNORE_CASE) }
+    private val ZH_TAG by lazy { Regex("""(?:^|[^a-z])(?:zh|chs|cht|chi|sc|tc|big5)(?:[^a-z]|$)|[简繁]|中文""") }
+    private val JA_TAG by lazy { Regex("""(?:^|[^a-z])(?:ja|jp|jpn|japanese)(?:[^a-z]|$)|日本語""") }
     private val KANA by lazy { Regex("[ぁ-ヿ]") }
     private val JAPANESE by lazy { Regex("[぀-ヿ一-鿿]") }
     private const val STAMP = """(?:(\d+):)?(\d+):(\d+)[,.](\d+)""" // VTT may leave out the hours (mm:ss.ttt)
@@ -162,7 +184,7 @@ object Jimaku {
                     val style = row["style"].orEmpty()
                     val body = row["text"].orEmpty()
                     if (CHINESE_STYLE.containsMatchIn(style) || !dialogue(style, body)) continue
-                    val said = body.replace(Regex("""\{[^}]*\}"""), "").replace(Regex("""\\[Nnh]"""), " ").trim()
+                    val said = body.replace(Regex("""\{[^}]*\}"""), "").replace(Regex("""\\[Nn]"""), "\n").replace("\\h", " ").trim()
                     val a = time(row["start"].orEmpty())
                     val b = time(row["end"].orEmpty())
                     if (said.isNotEmpty() && a != null && b != null) out += Line(a, b, said)
@@ -171,7 +193,7 @@ object Jimaku {
         } else for (block in text.split(Regex("""\n\s*\n"""))) {
             val m = ARROW.find(block) ?: continue
             // The rest of the arrow line is VTT cue settings (align:start position:10%), not text.
-            val body = block.substring(m.range.last + 1).substringAfter('\n', "").trim().lines().joinToString(" ") { it.trim() }
+            val body = block.substring(m.range.last + 1).substringAfter('\n', "").trim().lines().joinToString("\n") { it.trim() }
                 .replace(Regex("""<[^>]+>|\{[^}]*\}"""), "").trim()
             val g = m.groupValues
             if (body.isNotEmpty()) out += Line(secs(g[1], g[2], g[3], g[4]), secs(g[5], g[6], g[7], g[8]), body)
@@ -191,9 +213,14 @@ object Jimaku {
             Regex("default|main|dialog|alt|italic|top|flash|overlap", RegexOption.IGNORE_CASE).containsMatchIn(style)
     }
 
-    /** Only what is said: readings 後藤(ごとう), speaker names and sounds （園児）（拍手）, music marks dropped; "" when nothing Japanese is left. */
+    /**
+     * Only what is said: readings 後藤(ごとう), speaker names and sounds （園児）（拍手）, music marks dropped, and in a line of
+     * two languages (日本語\n中文) its row of 5 kanji or more and no kana; "" when nothing Japanese is left.
+     */
     fun spoken(text: String): String {
-        val t = text.replace(Regex("""\([^)]*\)"""), "").replace(Regex("""（[^）]*）|［[^］]*］|\[[^\]]*\]|[♪♬～〜]"""), "").trim()
+        val rows = text.lines().filter { it.isNotBlank() }
+        val t = (if (rows.any { KANA.containsMatchIn(it) }) rows.filter { KANA.containsMatchIn(it) || JAPANESE.findAll(it).count() < 5 } else rows)
+            .joinToString(" ").replace(Regex("""\([^)]*\)"""), "").replace(Regex("""（[^）]*）|［[^］]*］|\[[^\]]*\]|[♪♬～〜]"""), "").trim()
         return if (JAPANESE.containsMatchIn(t) && (KANA.containsMatchIn(t) || t.length <= 12)) t.replace(Regex("""\s+"""), " ") else ""
     }
 

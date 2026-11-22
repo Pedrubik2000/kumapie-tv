@@ -271,6 +271,7 @@ internal val esTv: Map<String, String> = mapOf(
     "Jimaku's subtitles" to "Subtítulos de Jimaku",
     "fitted" to "ajustados",
     "not fitted to this video" to "sin ajustar a este video",
+    "Jimaku has subtitles for this episode, none in Japanese" to "Jimaku tiene subtítulos para este episodio, ninguno en japonés",
     "Next: episode %1\$d…" to "Siguiente: episodio %1\$d…",
     "No files found for episode %1\$d" to "No hay archivos para el episodio %1\$d",
     "That didn't work" to "No ha funcionado",

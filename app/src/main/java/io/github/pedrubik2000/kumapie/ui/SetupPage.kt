@@ -7,6 +7,7 @@ import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Multipart
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
+import io.github.pedrubik2000.kumapie.lang.Recommended
 import io.github.pedrubik2000.kumapie.lang.YomitanDictionaries
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +63,10 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
     }
 
     private suspend fun upload(input: InputStream, length: Int, type: String): String {
-        if (length > 64 shl 20) return "<p>${tr("Too big: %d MB at most.", 64)}</p>"
+        if (length > 64 shl 20) return skip(input, length, "<p>${tr("Too big: %d MB at most.", 64)}</p>")
+        val free = YomitanDictionaries.get(context).base.usableSpace
+        if (!Recommended.fits(length.toLong(), free)) return skip(input, length, "<h1>${tr("Not enough space on the TV")}</h1><p>" +
+            tr("This dictionary needs about %1\$d MB free while it installs; the TV has %2\$d MB.", Recommended.mb(Recommended.needed(length.toLong())), Recommended.mb(free)) + "</p>")
         val (name, bytes) = Multipart.file(read(input, length), type)?.takeIf { it.first.endsWith(".zip", true) && it.second.isNotEmpty() }
             ?: return "<p>${tr("Pick a .zip first.")}</p>"
         val zip = File(context.cacheDir, name).apply { writeBytes(bytes) }
@@ -81,6 +85,13 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
     }
 
     private fun read(i: InputStream, n: Int) = ByteArray(n).also { DataInputStream(i).readFully(it) }
+
+    private fun skip(i: InputStream, n: Int, said: String): String {
+        val buf = ByteArray(1 shl 16)
+        var left = n
+        while (left > 0) { val r = i.read(buf, 0, minOf(buf.size, left)); if (r < 0) break; left -= r }
+        return said
+    }
 
     private fun save(f: Map<String, String>) {
         f["jimaku"]?.takeIf { it.isNotEmpty() }?.let { settings.jimakuKey = it }
@@ -112,6 +123,7 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
             <h2>${tr("A Japanese dictionary")}</h2>
             <form method="post" enctype="multipart/form-data">
             <p>${tr("A Yomitan .zip from your phone, for example a frequency list (JPDB: each word's most common reading first).")}</p>
+            <p>${tr("Free on the TV: %1\$d MB. A dictionary takes about %2\$d times its .zip once installed.", Recommended.mb(YomitanDictionaries.get(context).base.usableSpace), Recommended.UNPACKED)}</p>
             <input type="file" name="dict" accept=".zip">
             <button>${tr("Import")}</button>
             </form>""".trimIndent()

@@ -38,7 +38,7 @@ internal object Hoshidicts {
  * under the app's external files; the list is a small JSON file next to them.
  */
 class YomitanDictionaries private constructor(private val context: Context) {
-    private val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "yomitan").apply { mkdirs() }
+    val base = File(context.getExternalFilesDir(null) ?: context.filesDir, "yomitan").apply { mkdirs() }
     private val listFile = File(base, "dictionaries.json")
     private val handles = HashMap<String, Long>()
     /** One import, download or update at a time (they share the temporary import folder). */

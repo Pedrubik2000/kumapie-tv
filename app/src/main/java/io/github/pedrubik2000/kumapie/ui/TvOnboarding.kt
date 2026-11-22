@@ -3,6 +3,8 @@ package io.github.pedrubik2000.kumapie.ui
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,7 +49,7 @@ fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
     var needKey by remember { mutableStateOf(false) }
     remember(lang) { Tr.use(lang) }
     val first = remember { FocusRequester() }
-    Column(Modifier.fillMaxSize().padding(48.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(48.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(tr("Step %1\$d of %2\$d", step + 1, STEPS), color = Colors.dim, fontSize = 16.sp)
         when (step) {
             0 -> {
@@ -177,6 +179,31 @@ private fun TvDownloads(settings: Settings) {
     LaunchedEffect(Unit) { while (true) { dicts = dictionariesState(context, settings); kotlinx.coroutines.delay(1000) } }
     Text(tr("Dictionaries: %s", dicts), color = Colors.text, fontSize = 18.sp)
     Text(tr("Word splitter: %s", modelState ?: if (model.isReady) tr("✓ ready") else tr("Starting…")), color = Colors.text, fontSize = 18.sp)
+    TvDictionaries(settings)
+}
+
+@Composable
+internal fun TvDictionaries(settings: Settings) {
+    val context = LocalContext.current
+    val yomitan = remember { io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(context.applicationContext) }
+    val all by yomitan.all.collectAsState()
+    val japanese = all.filter { it.lang == Lang.JAPANESE.code }
+    val sizes by androidx.compose.runtime.produceState(emptyMap<String, Long>(), japanese) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            japanese.associate { d -> d.folder to java.io.File(yomitan.base, d.folder).walkTopDown().filter { it.isFile }.sumOf { it.length() } }
+        }
+    }
+    val free = remember(all) { yomitan.base.usableSpace }
+    var phone by remember { mutableStateOf(false) }
+    Heading(tr("Japanese dictionaries"), Modifier.padding(top = 24.dp))
+    val mb = io.github.pedrubik2000.kumapie.lang.Recommended::mb
+    Text(japanese.joinToString("  ·  ") { d -> d.title + (sizes[d.folder]?.let { " ${mb(it)} MB" } ?: "") }.ifEmpty { tr("None yet.") },
+        color = Colors.text, fontSize = 18.sp)
+    Text(tr("Free on this TV: %d MB", mb(free)), color = Colors.text, fontSize = 18.sp)
+    Button(onClick = { phone = !phone }) { Text(if (phone) tr("Hide the QR code") else tr("Add a dictionary from your phone (QR code)")) }
+    val shown = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    if (phone) Column(Modifier.bringIntoViewRequester(shown)) { PhonePage(settings) }
+    LaunchedEffect(phone) { if (phone) { kotlinx.coroutines.delay(100); shown.bringIntoView() } }
 }
 
 internal fun qr(text: String, size: Int): Bitmap {

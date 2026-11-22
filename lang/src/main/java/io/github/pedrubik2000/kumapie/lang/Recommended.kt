@@ -33,4 +33,12 @@ object Recommended {
     /** The zips of [urls] none of [installed] has (by title): a device that installed the set before JPDB joined it still gets JPDB, and only it. */
     fun missingZips(urls: List<String>, installed: List<YomitanDictionaries.Dict>): List<String> =
         urls.filter { u -> ZIPS[u]?.let { t -> installed.none { it.title == t } } == true }
+
+    const val UNPACKED = 7
+
+    fun needed(zipBytes: Long) = zipBytes * (UNPACKED + 1)
+
+    fun fits(zipBytes: Long, freeBytes: Long) = needed(zipBytes) <= freeBytes
+
+    fun mb(bytes: Long) = (bytes + (1 shl 19)) shr 20
 }

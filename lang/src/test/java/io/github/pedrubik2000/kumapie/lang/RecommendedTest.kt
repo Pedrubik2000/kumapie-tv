@@ -5,6 +5,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Core plan 5f: JPDB (a rank per reading) joins the recommended Japanese install; a zip comes in by hand on the TV too. */
@@ -38,5 +39,17 @@ class RecommendedTest {
             Multipart.file(body.toString(Charsets.UTF_8).replace("[JA Freq] JPDB_v2.2.zip", "C:\\\\x\\\\a.zip").toByteArray(), "multipart/form-data; boundary=XyZ")?.first)
         assertNull("no file part", Multipart.file("--XyZ\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nb\r\n--XyZ--".toByteArray(), "multipart/form-data; boundary=XyZ"))
         assertNull("no boundary", Multipart.file(body, "multipart/form-data"))
+    }
+
+    @Test fun aZipFitsWhenItsUnpackedSizeAndTheZipFit() {
+        val mb = 1L shl 20
+        val jpdb = 6 * mb
+        assertEquals("JPDB: 6 MB zip, ~41 MB installed, the zip beside it while it installs", 48L, Recommended.mb(Recommended.needed(jpdb)))
+        assertFalse("41 MB free: refused", Recommended.fits(jpdb, 41 * mb))
+        assertTrue("exactly enough", Recommended.fits(jpdb, 48 * mb))
+        assertFalse("one byte short", Recommended.fits(jpdb, 48 * mb - 1))
+        assertTrue("the Chromecast's ~600 MB", Recommended.fits(jpdb, 600 * mb))
+        assertTrue("an empty upload always fits", Recommended.fits(0, 0))
+        assertEquals("rounded to the nearest MB", 41L, Recommended.mb(40 * mb + 600_000))
     }
 }

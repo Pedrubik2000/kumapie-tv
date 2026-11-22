@@ -95,6 +95,15 @@ internal val esTv: Map<String, String> = mapOf(
         "Un .zip de Yomitan desde tu teléfono, por ejemplo una lista de frecuencia (JPDB: primero la lectura más común de cada palabra).",
     "Pick a .zip first." to "Primero elige un .zip.",
     "Too big: %d MB at most." to "Demasiado grande: %d MB como máximo.",
+    "Not enough space on the TV" to "No hay espacio suficiente en el televisor",
+    "This dictionary needs about %1\$d MB free while it installs; the TV has %2\$d MB." to
+        "Este diccionario necesita unos %1\$d MB libres mientras se instala; el televisor tiene %2\$d MB.",
+    "Free on the TV: %1\$d MB. A dictionary takes about %2\$d times its .zip once installed." to
+        "Libre en el televisor: %1\$d MB. Un diccionario ocupa unas %2\$d veces su .zip una vez instalado.",
+    "Japanese dictionaries" to "Diccionarios de japonés",
+    "None yet." to "Ninguno todavía.",
+    "Free on this TV: %d MB" to "Libre en este televisor: %d MB",
+    "Add a dictionary from your phone (QR code)" to "Agregar un diccionario desde el teléfono (código QR)",
     "Add your Jimaku key from your phone first: without it, streams get no Japanese lines." to "Primero agrega tu clave de Jimaku desde el teléfono: sin ella, los videos no tienen las líneas en japonés.",
     "Needed: without it, streams get no Japanese lines." to "Necesaria: sin ella, los videos no tienen las líneas en japonés.",
     "This episode's video isn't on this device any more, and there's no PC to play it from." to "El video de este episodio ya no está en este dispositivo y no hay una PC desde donde reproducirlo.",

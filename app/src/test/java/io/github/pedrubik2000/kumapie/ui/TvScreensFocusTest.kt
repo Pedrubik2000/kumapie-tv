@@ -212,6 +212,40 @@ class TvOnboardingTest {
         rule.onNodeWithText("Add your Jimaku key from your phone first: without it, streams get no Japanese lines.").assertExists()
     }
 
+    @Test fun theDictionariesEntryOpensTheQrAndLeavesBackToTheStep() {
+        lateinit var activity: androidx.activity.ComponentActivity
+        var backs = 0
+        rule.setContent {
+            activity = LocalContext.current as androidx.activity.ComponentActivity
+            androidx.compose.foundation.layout.Column {
+                TvDictionaries(Settings(LocalContext.current))
+                Button(onClick = {}) { androidx.tv.material3.Text("Start watching") }
+            }
+            androidx.activity.compose.BackHandler { backs++ }
+        }
+        rule.onNodeWithText("Japanese dictionaries").assertExists()
+        rule.onNodeWithText("Free on this TV:", substring = true).assertExists()
+        rule.onNodeWithText("Start watching").requestFocus()
+        rule.press(Key.DirectionUp)
+        assertEquals("Add a dictionary from your phone (QR code)", rule.focusedTitle())
+        rule.press(Key.DirectionCenter)
+        rule.onNodeWithText("Hide the QR code").assertExists()
+        rule.runOnUiThread { activity.onBackPressedDispatcher.onBackPressed() }
+        rule.waitForIdle()
+        assertEquals("Back from the entry is the step's Back", 1, backs)
+    }
+
+    @Test fun settingsHaveTheDictionariesEntryUnderTheFont() {
+        rule.setContent { SettingsScreen(Settings(LocalContext.current), firstRun = false, onSaved = {}, onUpdate = {}) }
+        rule.onNodeWithText("Japanese dictionaries").assertExists()
+        rule.onNodeWithText("Free on this TV:", substring = true).assertExists()
+        rule.onNodeWithText("Font:", substring = true).requestFocus()
+        rule.press(Key.DirectionDown)
+        assertEquals("Add a dictionary from your phone (QR code)", rule.focusedTitle())
+        rule.press(Key.DirectionCenter)
+        rule.onNodeWithText("Hide the QR code").assertExists()
+    }
+
     @Test fun aFailedDictionaryDownloadSaysSo() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()
         TvMining.fetching = null

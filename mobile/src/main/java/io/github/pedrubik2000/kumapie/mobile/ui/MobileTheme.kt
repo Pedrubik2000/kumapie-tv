@@ -33,8 +33,8 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
+import androidx.compose.ui.text.font.Font
+import io.github.pedrubik2000.kumapie.mobile.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,8 +43,8 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 /**
  * The "Glass" look (N9, user 2026-11-17): a near-black page, translucent white surfaces with a thin white border,
  * white pills, ice blue only for small accents (today, sense numbers, ticks). The TV keeps its own (`Colors` are vars
- * it sets itself); subtitle word colours are not touched. Text is Roboto, the TV's font, from Google Fonts as the
- * Japanese subtitle fonts: a Samsung font style replaces the system's sans-serif too (serif on Pedro's tablet).
+ * it sets itself); subtitle word colours are not touched. Text is Roboto, the TV's font, bundled (res/font, its OFL
+ * in assets): a Samsung font style replaces the system's sans-serif too (serif on Pedro's tablet).
  */
 object Glass {
     val page = Color(0xFF07090D)
@@ -77,8 +77,8 @@ fun Modifier.glass(shape: Shape = RoundedCornerShape(18.dp)) = composed {
         .border(1.dp, Glass.line, shape)
 }
 
-private val Roboto = FontFamily(listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.Bold)
-    .map { Font(GoogleFont("Roboto"), io.github.pedrubik2000.kumapie.ui.JapaneseFonts.provider, it) })
+private val Roboto = FontFamily(Font(R.font.roboto_regular, FontWeight.Normal), Font(R.font.roboto_medium, FontWeight.Medium),
+    Font(R.font.roboto_bold, FontWeight.Bold))
 
 private val RobotoType = Typography().run {
     fun TextStyle.r() = copy(fontFamily = Roboto)

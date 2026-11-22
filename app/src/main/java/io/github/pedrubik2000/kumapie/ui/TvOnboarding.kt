@@ -171,7 +171,7 @@ internal fun PhonePage(settings: Settings, onSaved: () -> Unit = {}) {
             val p = settings.prefs
             @Composable fun row(ok: Boolean, what: String) = Text((if (ok) "✓ " else "· ") + what, color = if (ok) Colors.text else Colors.dim, fontSize = 18.sp)
             row(settings.jimakuKey.isNotEmpty(), tr("Japanese subtitles (Jimaku)"))
-            row(settings.addons.any { "torrentio.strem.fun" in it }, tr("Videos (Torrentio with Real-Debrid)"))
+            row(settings.addons.any { "torrentio.strem.fun" in it } && io.github.pedrubik2000.kumapie.data.Startup.rdKey(settings.rdToken, settings.addons).isNotEmpty(), tr("Videos (Torrentio with Real-Debrid)"))
             row(Addons.KITSU in settings.addons, "Kitsu")
             row(Addons.OPENSUBTITLES in settings.addons, tr("English subtitles (OpenSubtitles)"))
             row(settings.anilist.isNotEmpty(), "AniList" + settings.anilist.let { if (it.isEmpty()) "" else ": $it" })

@@ -258,16 +258,16 @@ class SceneController(
     }
 
     /**
-     * Every line [by] seconds later (earlier when negative), English too, while it plays: a no-PC episode's Jimaku
-     * lines timed for another release. The line on stays on.
+     * Every line from [from] s on [by] seconds later (earlier when negative), English too, while it plays: a no-PC
+     * episode's Jimaku lines timed for another release, or a piece of them ([LiveLines.pieces]). The line on stays on.
      */
-    fun shift(by: Double) {
+    fun shift(by: Double, from: Double = 0.0) {
         fun t(x: Double) = (x + by).coerceAtLeast(0.0)
-        scenes = scenes.map { s ->
+        scenes = scenes.map { s -> if (s.start < from) s else
             s.copy(start = t(s.start), end = t(s.end), cues = s.cues.map { it.copy(start = t(it.start), end = t(it.end)) },
                 english = s.english.map { it.copy(start = t(it.start), end = t(it.end)) })
-        }
-        stopAt = stopAt?.let(::t)
+        }.sortedBy { it.start }
+        stopAt = stopAt?.let { if (it < from) it else t(it) }
         need = need(scenes) // what counts as watched moves with the lines
     }
 

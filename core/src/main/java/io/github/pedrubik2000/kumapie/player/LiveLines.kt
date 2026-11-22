@@ -40,6 +40,14 @@ class LiveLines(
     var fitted by mutableStateOf<Double?>(null)
         private set
 
+    var pieces by mutableStateOf(emptyList<Pair<Double, Double?>>())
+        private set
+
+    var unfitted by mutableStateOf(false)
+        private set
+    private var otherCut = false
+    private var pieced = 0
+
     /** No Japanese lines at all: none in the file, none on Jimaku. */
     var noLines by mutableStateOf(false)
         private set
@@ -87,15 +95,15 @@ class LiveLines(
         private set
     private var stopWhenKnown = false
 
-    /** The episode was made: stop, unless the fit to the file's track may still land (tracks not read yet: decided then). */
+    /** The episode was made: stop, unless the file has a track to fit to (the fit goes on in [pieces]; tracks not read yet: decided then). */
     fun stopUnlessFitting() {
         if (!tracksKnown) stopWhenKnown = true
-        else if (!canFit || fitted != null) stop()
+        else if (!canFit) stop()
     }
 
     override fun onCues(cueGroup: CueGroup) {
         // Either track's line starts are the video's own clock: Jimaku's file is fitted to them ([fit]).
-        if (fitted == null && cueGroup.cues.any { it !in shown }) refs += player.currentPosition / 1000.0
+        if (cueGroup.cues.any { it !in shown }) refs += player.currentPosition / 1000.0
         shown = cueGroup.cues
         if (needJimaku) return
         // Netflix's Japanese track is closed captions: （モモ）, （男子生徒の話し声）, ♪ go, as in a Jimaku file. Line by line,
@@ -138,8 +146,16 @@ class LiveLines(
                     break
                 }
             }
+            if (fitted != null && refs.size >= pieced + PIECE_EVERY) {
+                pieced = refs.size
+                val heard = refs.toList()
+                val got = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { pieces(heard, starts) }
+                if (got == null) otherCut = true else pieces = got
+            }
+            val at = player.currentPosition / 1000.0
+            unfitted = otherCut || pieces.lastOrNull { it.first <= at }?.let { it.second == null } == true
             if (source == "jimaku") {
-                val t = player.currentPosition / 1000.0 - offset
+                val t = at - offset
                 line = lines.lastOrNull { it.first <= t }?.takeIf { t < it.second }?.third
             }
             delay(100)
@@ -198,9 +214,17 @@ class LiveLines(
          * Japanese file, where 5 smeared votes from 8 lines fitted noise as 2.8, 16.8, 26.1 s, tablet 2026-11-19; on
          * that episode's English track and Netflix file: 1 wrong in 1200 tries, against 2 % and 0-74 % on Coalgirls). 180 s, not
          * 60: Coalgirls' file is a good one, 80.1 s off this release (an opening it doesn't have), fitted 292 of 360 tries.
-         * ponytail: one offset for the whole episode; a release with a different cut (recap, OP) needs one per part.
+         * Half of what can land: of [refs], or of the Jimaku lines in their stretch when those are fewer (an English
+         * track that splits lines 2:1, Dekinai; core plan 11b).
+         * [pieces]: [fit] per [PIECE] s of [refs] (seconds of video): (from, offset) for each stretch with its own offset, the first
+         * from 0; a change lands between the two refs that split the lines best between the two offsets (an inserted or
+         * removed block, an OP of another length). Offset null: the stretch after the last fit doesn't fit (yet). Null:
+         * another cut (fewer stretches fit than not, over [PIECES] offsets, or over [SPAN] s apart: Rakugo's TV-cut file
+         * on the Blu-ray, +12 s then -352 ... -1968 s).
+         * ponytail: at most [PIECES] offsets [SPAN] s apart, by [PIECE] s windows; a file of another cut is "not fitted".
          */
         fun fit(refs: List<Double>, starts: List<Double>): Double? {
+            if (refs.isEmpty()) return null
             val proposed = HashMap<Long, Int>() // offset (0.1 s) -> refs proposing it
             for (r in refs) starts.filter { kotlin.math.abs(r - it) <= 180 }.map { Math.round((r - it) * 10) }.toSet()
                 .forEach { proposed.merge(it, 1, Int::plus) }
@@ -208,8 +232,43 @@ class LiveLines(
             val scored = proposed.entries.sortedByDescending { it.value }.take(40).map { it.key to hits(it.key) }.sortedByDescending { it.second }
             val (bin, n) = scored.firstOrNull() ?: return null
             val other = scored.filter { kotlin.math.abs(it.first - bin) > 3 }.maxOfOrNull { it.second } ?: 0
-            return if (n >= 6 && n * 2 >= refs.size && n * 2 >= other * 3) bin / 10.0 else null
+            val (lo, hi) = refs.min() - bin / 10.0 - 1 to refs.max() - bin / 10.0 + 1
+            val possible = minOf(refs.size, starts.count { it in lo..hi })
+            return if (n >= 6 && n * 2 >= possible && n * 2 >= other * 3) bin / 10.0 else null
         }
+
+        fun pieces(refs: List<Double>, starts: List<Double>): List<Pair<Double, Double?>>? {
+            val chunks = refs.sorted().groupBy { (it / PIECE).toInt() }.values.filter { it.size >= MIN_REFS }
+                .map { c -> c to fit(c, starts.filter { it in c.first() - 200..c.last() + 200 }) }
+            val fitted = chunks.count { it.second != null }
+            if (fitted == 0) return emptyList()
+            if (fitted * 2 < chunks.size) return null
+            val out = ArrayList<Pair<Double, Double?>>()
+            var last = -1
+            for ((i, c) in chunks.withIndex()) {
+                val o = c.second ?: continue
+                val prev = out.lastOrNull()?.second
+                if (prev == null) out += 0.0 to o
+                else if (kotlin.math.abs(o - prev) > 0.3) out += split(chunks.subList(last, i + 1).flatMap { it.first }, starts, prev, o) to o
+                last = i
+            }
+            if (last < chunks.size - 1) out += chunks[last + 1].first.first() to null
+            val offsets = out.mapNotNull { it.second }
+            return out.takeIf { offsets.size <= PIECES && offsets.max() - offsets.min() <= SPAN }
+        }
+
+        private fun split(refs: List<Double>, starts: List<Double>, a: Double, b: Double): Double {
+            fun on(r: Double, o: Double) = starts.any { kotlin.math.abs(r - it - o) <= 0.15 }
+            val before = refs.runningFold(0) { n, r -> n + if (on(r, a)) 1 else 0 }
+            val after = refs.reversed().runningFold(0) { n, r -> n + if (on(r, b)) 1 else 0 }.reversed()
+            val k = (1 until refs.size).maxByOrNull { before[it] + after[it] } ?: return refs.first()
+            return (refs[k - 1] + refs[k]) / 2
+        }
+
+        private const val PIECE = 240.0
+        private const val PIECE_EVERY = 20
+        private const val PIECES = 4
+        private const val SPAN = 300.0
     }
 
     fun stop() {

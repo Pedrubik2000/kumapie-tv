@@ -237,7 +237,7 @@ class StreamActivity : ComponentActivity() {
             }.getOrElse { note = it.message; return@LaunchedEffect }
         }
         var ctl by remember { mutableStateOf<io.github.pedrubik2000.kumapie.player.SceneController?>(null) }
-        LaunchedEffect(live.fitted, ctl) { ctl?.let { s.fitLanded(it::shift) } }
+        LaunchedEffect(live.fitted, live.pieces, ctl) { ctl?.let { s.fitLanded(it::shift); s.piecesLanded(it::shift) } }
         shown?.let { ep ->
             remember(ep) { alone = null; note = null }
             val backend = remember { io.github.pedrubik2000.kumapie.ui.TvMining.backend(context, settings, ep.lang) }

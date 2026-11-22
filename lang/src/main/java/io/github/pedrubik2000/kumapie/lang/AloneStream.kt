@@ -58,13 +58,22 @@ class AloneStream(
     }
 
     fun fitLanded(shift: (Double) -> Unit): Boolean {
+        if (fitApplied) return true
         val by = lateShift(built, live.offset, live.fitted) ?: return false
         if (by != 0.0) shift(by)
         android.util.Log.i("kumapie", "late fit: ${live.fitted} s from ${live.refCount} lines, lines moved $by s")
         built = live.offset
         saveOffset()
-        live.stop()
+        fitApplied = true
         return true
+    }
+
+    private var fitApplied = false
+    private var moved = 1
+
+    fun piecesLanded(shift: (Double, Double) -> Unit) {
+        if (!fitApplied) return
+        moved = moves(live.pieces, moved, shift)
     }
 
     private fun saveOffset() = prefs.edit().putFloat(offKey(id, file), live.offset.toFloat()).apply()
@@ -99,7 +108,13 @@ class AloneStream(
 
         fun offKey(id: String, file: String = "") = "alone_off_" + id.removePrefix("alone:") + if (file.isEmpty()) "" else "|$file"
 
-        fun fitNote(live: LiveLines): String? = if (live.source == "jimaku" && live.fitted == null) tr("not fitted to this video") else null
+        fun fitNote(live: LiveLines): String? = if (live.source == "jimaku" && (live.fitted == null || live.unfitted)) tr("not fitted to this video") else null
+
+        fun moves(pieces: List<Pair<Double, Double?>>, done: Int, shift: (Double, Double) -> Unit): Int {
+            val p = pieces.mapNotNull { (from, o) -> o?.let { from to it } }
+            for (k in done until p.size) shift(p[k].second - p[k - 1].second, p[k].first + p[k - 1].second - p[k].second)
+            return maxOf(done, p.size)
+        }
 
         fun shift(ctl: io.github.pedrubik2000.kumapie.player.SceneController, prefs: SharedPreferences, by: Double) {
             ctl.shift(by)

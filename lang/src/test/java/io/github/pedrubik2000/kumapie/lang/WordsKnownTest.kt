@@ -25,8 +25,12 @@ class WordsKnownTest {
     private fun key(word: String) = "ja|" + CardIndex.japaneseKeys(note(0, word)).first()
 
     /** A device as DeviceFiles and SrsCards see it: its own cards' schedules come from the word events (16c). */
-    private inner class Device(val dev: DeviceFileTest.Dev, val cards: List<String>) {
-        fun export(): JSONObject = dev.export().put("carded", WordSync.carded(WordSync.own(dev.name, dev.made, cards.map(::key)), dev.carded, dev.name))
+    private inner class Device(val dev: DeviceFileTest.Dev, val cards: List<String>, val tapped: Map<String, String> = emptyMap()) {
+        /** [Language.cardKeys] here: the card's keys and the form its sentence bolds (Language.tapped). */
+        fun keys(note: AnkiCards.Note) = CardIndex.japaneseKeys(note) + listOfNotNull(tapped[note.fields["Word"]])
+
+        fun export(): JSONObject = dev.export().put("carded", WordSync.carded(
+            WordSync.own(dev.name, dev.made, cards.map(::key), tapped.mapKeys { key(it.key) }.mapValues { listOf(it.value) }), dev.carded, dev.name))
 
         fun import(file: JSONObject): DeviceFile.Plan = dev.import(file)
 
@@ -36,7 +40,7 @@ class WordsKnownTest {
             val cs = cards.indices.map { i -> AnkiCards.Card(i + 1L, i + 1L, due[i] != null, due[i]?.first?.state?.stability, (due[i]?.second ?: 0) / 1000, type = if (due[i] == null) 0 else 2) }
             val queue = cards.indices.mapNotNull { i -> when (Srs.state(due[i]?.second, now)) { "d" -> i + 1L to "review"; "b" -> i + 1L to "new"; else -> null } }.toMap()
             WordSync.words = WordSync.elsewhere(dev.events, dev.carded, dev.name, cards.map(::key).toSet(), { fsrs }, now)
-            val index = CardIndex("ja").apply { build(cards.mapIndexed { i, w -> note(i + 1L, w) }, cs, queue, CardIndex::japaneseKeys) }
+            val index = CardIndex("ja").apply { build(cards.mapIndexed { i, w -> note(i + 1L, w) }, cs, queue, ::keys) }
             val imported = dev.known["ja"]?.second.orEmpty()
             return index.known(imported, dev.view().marked.mapNotNull { markWord(it, null) }.toSet(), { it in imported }, { null })
         }
@@ -81,5 +85,21 @@ class WordsKnownTest {
         assertFalse("blue as on the tablet, where it is a new card", "魚" in cc.known())
         assertFalse("魚" in tab.known())
         assertEquals(cc.known().size, tab.known().size)
+    }
+
+    /**
+     * Core plan 16e, the real 85: a rated Chromecast card 罠[わな] whose sentence bolds わな is white there under わな too
+     * (the TV's card index keys the tapped form), but the tablet heard only the card's key: わな counted on one device.
+     * Also the other way: the tablet's own new card of that form is blue there and white on the Chromecast.
+     */
+    @Test fun aCardsTappedFormCountsOnBothDevices() {
+        val cc = Device(DeviceFileTest.Dev("Chromecast-aaa", JSONObject().put("Chromecast-aaa", files.part(0.0)), emptyMap(), emptyList(), mutableMapOf(),
+            JSONArray().put(rated(3, "罠[わな]"))), listOf("罠[わな]"), mapOf("罠[わな]" to "わな"))
+        val tab = Device(DeviceFileTest.Dev("SM-T970-bbb", JSONObject().put("SM-T970-bbb", files.part(0.0)), emptyMap(), emptyList(), mutableMapOf(),
+            JSONArray()), listOf("ワナ[わな]"), mapOf("ワナ[わな]" to "わな"))
+        assertTrue("わな" in cc.known())
+        sync(cc, tab)
+        assertEquals(listOf("わな", "罠"), cc.known())
+        assertEquals("the Chromecast's tapped form, white as there", cc.known(), tab.known())
     }
 }

@@ -27,8 +27,12 @@ object WordSync {
         return out
     }
 
-    fun own(device: String, made: Long, keys: Collection<String>): JSONObject =
-        JSONObject().put(device, JSONObject().put("made", made).put("keys", JSONArray(keys.distinct().sorted())))
+    fun own(device: String, made: Long, keys: Collection<String>, forms: Map<String, Collection<String>> = emptyMap()): JSONObject =
+        JSONObject().put(device, JSONObject().put("made", made).put("keys", JSONArray(keys.distinct().sorted()))
+            .apply { forms.filterValues { it.isNotEmpty() }.takeIf { it.isNotEmpty() }?.let { f -> put("forms", JSONObject().apply { f.forEach { (k, v) -> put(k, JSONArray(v.distinct().sorted())) } }) } })
+
+    fun max(a: String?, b: String?): String? = listOfNotNull(a, b).maxByOrNull { RANK.indexOf(it) }
+    private const val RANK = "ubkd"
 
     fun count(before: JSONObject, after: JSONObject, device: String): DeviceFile.Count {
         fun keys(o: JSONObject) = o.keys().asSequence().filter { it != device }
@@ -47,8 +51,10 @@ object WordSync {
     fun elsewhere(events: JSONArray, carded: JSONObject, device: String, here: Set<String>, fsrs: (String) -> Fsrs6,
                   now: Long = System.currentTimeMillis()): Map<String, Map<String, Elsewhere>> {
         val where = HashMap<String, String>()
-        for (d in carded.keys()) if (d != device) carded.getJSONObject(d).optJSONArray("keys")?.let { a ->
-            for (i in 0 until a.length()) a.getString(i).takeIf { it !in here }?.let { where.putIfAbsent(it, d) }
+        val forms = HashMap<String, MutableSet<String>>()
+        for (d in carded.keys()) if (d != device) carded.getJSONObject(d).let { o ->
+            o.optJSONArray("keys")?.let { a -> for (i in 0 until a.length()) a.getString(i).takeIf { it !in here }?.let { where.putIfAbsent(it, d) } }
+            o.optJSONObject("forms")?.let { f -> for (k in f.keys()) f.getJSONArray(k).let { a -> forms.getOrPut(k) { HashSet() } += List(a.length()) { a.getString(it).lowercase() } } }
         }
         val rows = events.objects().filter { it.getString("key") in where }
             .groupBy({ it.getString("key") }, { it.getLong("time") to it.getInt("ease") })
@@ -60,8 +66,8 @@ object WordSync {
             val e = Elsewhere(Srs.state(r?.let { it.lastReview + f.interval(it.state.stability) * Srs.DAY }, now), d)
             val form = key.substringAfter('|').lowercase()
             val m = out.getOrPut(lang) { HashMap() }
-            m[form] = e
-            m.putIfAbsent(form.substringBefore('\t'), e)
+            for (w in setOf(form, form.substringBefore('\t')) + forms[key].orEmpty())
+                m.merge(w, e) { a, b -> if (max(a.state, b.state) == a.state) a else b }
         }
         return out
     }

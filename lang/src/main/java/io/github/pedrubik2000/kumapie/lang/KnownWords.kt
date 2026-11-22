@@ -547,6 +547,10 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         return out
     }
 
+    fun cardForms(): Map<Long, List<String>> = runCatching { JSONObject(keysCache.readText()) }.getOrNull()?.let { o ->
+        o.keys().asSequence().associate { id -> id.toLong() to o.getJSONObject(id).getJSONArray("k").let { a -> List(a.length()) { a.getString(it) } } }
+    }.orEmpty()
+
     /**
      * [Language.cardKeys] of each note, from the cache when its Word, Reading, Sentence and the parser are the same as last
      * time: Japanese keys load Jiten's lexicon (~3 s of CPU and ~95 MB on a Pixel 8a), now only for new or edited notes.

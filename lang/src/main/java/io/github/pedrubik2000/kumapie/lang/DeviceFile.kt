@@ -255,8 +255,21 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
 
     private fun streams(): Map<String, Any?> = settings.prefs.all.filterKeys { it.startsWith("alone_") }
 
-    fun carded(): JSONObject = JSONObject(runCatching { cardedFile.readText() }.getOrDefault("{}"))
-        .put(progress.device, WordSync.own(progress.device, System.currentTimeMillis(), keys().values.flatMap { it.values.filterNotNull() }).getJSONObject(progress.device))
+    fun carded(): JSONObject {
+        val keys = HashSet<String>()
+        val forms = HashMap<String, MutableSet<String>>()
+        for ((l, s) in stores()) {
+            val index = languages.firstOrNull { it.lang == l }?.known?.cardForms().orEmpty()
+            for (c in s.cards()) {
+                val k = DeviceFile.wordKey(l.code, c.word, c.fields) ?: continue
+                keys += k
+                val main = k.substringAfter('|').lowercase().let { setOf(it, it.substringBefore('\t')) }
+                index[c.note]?.map { it.lowercase() }?.filter { '\t' !in it && it !in main }?.takeIf { it.isNotEmpty() }?.let { forms.getOrPut(k) { HashSet() } += it }
+            }
+        }
+        return JSONObject(runCatching { cardedFile.readText() }.getOrDefault("{}"))
+            .put(progress.device, WordSync.own(progress.device, System.currentTimeMillis(), keys, forms).getJSONObject(progress.device))
+    }
 
     fun share() {
         val events = storedEvents()
@@ -281,7 +294,6 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
 
     private fun stores(): List<Pair<Lang, Srs>> = Lang.ALL.filter { File(context.filesDir, "srs/${srs.person()}/${it.code}.db").exists() }.mapNotNull { l -> srs.store(l)?.let { l to it } }
 
-    private fun keys(): Map<Lang, Map<Long, String?>> = stores().associate { (l, s) -> l to s.cards().associate { it.id to DeviceFile.wordKey(l.code, it.word, it.fields) } }
 
     private fun storedEvents(): JSONArray = runCatching { JSONArray(eventsFile.readText()) }.getOrDefault(JSONArray())
 

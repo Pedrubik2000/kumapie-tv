@@ -42,13 +42,14 @@ class CardIndex(private val lang: String = "") {
      */
     fun state(form: String, nowSecs: Long = System.currentTimeMillis() / 1000): String? {
         val due = due ?: return null
-        val own = byForm[form.lowercase()] ?: return WordSync.state(lang, form.lowercase()) ?: "u"
-        return when {
+        val there = WordSync.state(lang, form.lowercase())
+        val own = byForm[form.lowercase()] ?: return there ?: "u"
+        return WordSync.max(there, when {
             // A learning step later today (due in epoch seconds, not a day number) isn't green yet: Again kept it green (user, 2026-11-08).
             own.any { due[it.id] == "review" || due[it.id] == "learn" && (it.due < 1_000_000_000 || it.due <= nowSecs) } -> "d"
             own.all { it.type == 0 } -> "b"
             else -> "k"
-        }
+        })
     }
 
     /** Every form with a card of its own. */

@@ -97,7 +97,7 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
         androidx.activity.compose.BackHandler(enabled = !wide && open != null) { open = null }
         val title = if (!wide) open?.let { k -> SECTIONS.first { it.first == k }.second } else null
         Scaffold(topBar = {
-            TopAppBar(title = { Text(tr(title ?: "Settings")) },
+            TopAppBar(title = { Text(tr(title ?: "Settings"), fontSize = 32.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = { if (!wide && open != null) open = null else onBack() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
         }) { padding ->
@@ -131,7 +131,7 @@ private fun Version(modifier: Modifier = Modifier) =
 private fun SectionList(library: Library, selected: String?, onOpen: (String) -> Unit) {
     val summaries = rememberSummaries(library)
     SECTIONS.forEach { (key, title) ->
-        androidx.compose.material3.Surface(onClick = { onOpen(key) }, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        androidx.compose.material3.Surface(onClick = { onOpen(key) }, shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
             color = if (key == selected) Colors.surface else androidx.compose.ui.graphics.Color.Transparent,
             modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
@@ -238,7 +238,7 @@ private fun ServerSection(library: Library, onSaved: () -> Unit) {
     val scope = rememberCoroutineScope()
     var server by remember { mutableStateOf(settings.server) }
     var message by remember { mutableStateOf("") }
-    Text(tr("Server"), color = Colors.accent)
+    Text(tr("Server"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     OutlinedTextField(server, { server = it }, label = { Text("https://my-pc.my-tailnet.ts.net:8445") },
         singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
     Button(onClick = {
@@ -270,7 +270,7 @@ private fun StorageSection(library: Library, onUpdate: (Updater.Release) -> Unit
         used = withContext(Dispatchers.IO) { library.downloads.bytesUsed() }
         waiting = library.pending.count()
     }
-    Text(tr("On this device"), color = Colors.accent)
+    Text(tr("On this device"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     Text(tr("Downloads: %.1f GB", used / 1e9), fontSize = 15.sp)
     var confirmRemove by remember { mutableStateOf(false) }
     OutlinedButton(enabled = used > 0, onClick = { confirmRemove = true }) { Text(tr("Remove all downloads")) }
@@ -319,7 +319,7 @@ private fun KnownWordsSection(library: Library, learning: Set<String>) {
         allowed = granted
     }
 
-    Text(tr("Word colours from Anki"), color = Colors.accent)
+    Text(tr("Word colours from Anki"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     when {
         app == null -> Text(tr("No kuma3 Anki or AnkiDroid on this device."), fontSize = 14.sp, color = Colors.dim)
         !allowed -> OutlinedButton(onClick = { ask.launch(known.permission(app)) }) { Text(tr("Allow reading Anki")) }
@@ -348,7 +348,7 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
     LaunchedEffect(state) { ready = model.isReady }
     var busy by remember { mutableStateOf(false) }
 
-    Text(tr("${language.lang.name} words"), color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
+    Text(tr("${language.lang.name} words"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
     // The total Home shows first; the card count under it says where part of it comes from.
     val total = remember(status) { known.knownList().size }
     if (known.ready) Text(tr("%d words known (as on Home: cards, words marked known and imported lists).", total), fontSize = 15.sp)
@@ -389,7 +389,7 @@ internal fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, 
     var busy by remember { mutableStateOf(false) }
     var said by remember { mutableStateOf(known.importedWords.size.takeIf { it > 0 }?.let { tr("%d words imported as known.", it) } ?: "") }
 
-    Text(tr("Known words from jiten.moe"), color = Colors.accent, modifier = Modifier.padding(top = 8.dp))
+    Text(tr("Known words from jiten.moe"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
     OutlinedTextField(top, { top = it.filter(Char::isDigit) }, label = { Text(tr("Most frequent words")) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
     jiten.SETS.forEach { (slug, name) ->
@@ -442,7 +442,7 @@ private fun YomitanSection(library: Library, learning: Set<String> = emptySet())
         }
     }
 
-    Text(tr("Dictionaries (Yomitan)"), color = Colors.accent)
+    Text(tr("Dictionaries (Yomitan)"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (langs.size > 1) langs.forEach { l ->
             androidx.compose.material3.FilterChip(selected = lang == l, onClick = { lang = l }, label = { Text(tr(l.name)) })
@@ -514,7 +514,7 @@ private fun DictionarySection(library: Library) {
         voice = langs.joinToString(separator = "\n") { it.voice.describe() }
     }
 
-    Text(tr("Word audio"), color = Colors.accent)
+    Text(tr("Word audio"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     when {
         state != null -> Text(tr("Recordings list: %s", state), fontSize = 15.sp)
         built != null -> Text(tr("Recordings list: offline, built %s (which German words have a person's recording).", built), fontSize = 15.sp)
@@ -568,7 +568,7 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
     val gemmaState by remember { gemma.state() }.collectAsState(initial = null)
     var gemmaReady by remember { mutableStateOf(gemma.isReady) }
     LaunchedEffect(gemmaState) { gemmaReady = gemma.isReady }
-    Text(tr("Transcription"), fontSize = 15.sp)
+    Text(tr("Transcription"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         androidx.compose.material3.FilterChip(selected = transcriber == "soniox", label = { Text(tr("Soniox (best, paid)")) },
             onClick = { transcriber = "soniox"; library.settings.transcriber = "soniox" })
@@ -627,7 +627,7 @@ private fun FollowedChannels(library: Library) {
     var list by remember { mutableStateOf(subs.all()) }
     var from by remember { mutableStateOf(library.settings.subFrom) }
     var to by remember { mutableStateOf(library.settings.subTo) }
-    Text(tr("Followed channels"), color = Colors.accent, modifier = Modifier.padding(top = 12.dp))
+    Text(tr("Followed channels"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
     if (list.isEmpty()) {
         Text(tr("None yet. In Add an episode, paste a channel's video, pick its shorts or videos and turn on Follow."), fontSize = 13.sp, color = Colors.dim)
         return
@@ -669,7 +669,7 @@ private fun FollowedChannels(library: Library) {
 @Composable
 private fun JapaneseFont(settings: Settings) {
     var font by remember { mutableStateOf(settings.japaneseFont) }
-    Text(tr("Japanese subtitle font"), color = Colors.accent)
+    Text(tr("Japanese subtitle font"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     Text(io.github.pedrubik2000.kumapie.ui.JapaneseFonts.SAMPLE, fontSize = 22.sp,
         fontFamily = io.github.pedrubik2000.kumapie.ui.JapaneseFonts.family(font))
     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -685,7 +685,7 @@ private fun JapaneseFont(settings: Settings) {
 @Composable
 internal fun MenuLanguage(settings: Settings) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    Text(tr("Menu language"), color = Colors.accent)
+    Text(tr("Menu language"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf("" to tr("Phone's language"), "en" to "English", "es" to "Español").forEach { (code, label) ->
             androidx.compose.material3.FilterChip(selected = settings.menuLanguage == code, label = { Text(label) }, onClick = {
@@ -695,7 +695,7 @@ internal fun MenuLanguage(settings: Settings) {
         }
     }
     // The language the person speaks: translation lines and meanings (Spanish for Giovanna and Jackson).
-    Text(tr("I speak"), color = Colors.accent)
+    Text(tr("I speak"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     Text(tr("Meanings and the second subtitle line come in this language."), color = Colors.dim, fontSize = 14.sp)
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf("en" to "English", "es" to "Español").forEach { (code, label) ->
@@ -708,7 +708,7 @@ internal fun MenuLanguage(settings: Settings) {
     // Whose device: its episodes go to that person's PC library and to their other devices. No PC: nobody to sync
     // with, and a stranger's phone shouldn't list the family.
     if (settings.server.isEmpty()) return
-    Text(tr("This device belongs to"), color = Colors.accent)
+    Text(tr("This device belongs to"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     Text(tr("Episodes made here go to the PC, and the PC's new episodes come here (on Wi-Fi)."), color = Colors.dim, fontSize = 14.sp)
     // The PC's people, as the TV's "Who's watching?" (the family's three when it doesn't answer).
     var people by remember { mutableStateOf(listOf("pedro" to "Pedro", "giovanna" to "Giovanna", "jackson" to "Jackson")) }
@@ -766,7 +766,7 @@ private fun TransferSection() {
         if (android.os.Build.VERSION.SDK_INT < 37 || context.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED) go()
         else { then = go; lan.launch(p) }
     }
-    Text(tr("Another device on this Wi-Fi"), color = Colors.accent)
+    Text(tr("Another device on this Wi-Fi"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     Text(tr("Copy episodes, dictionaries, models and keys from one kumapie to another, without the PC."), color = Colors.dim, fontSize = 14.sp)
     if (sending != null) {
         val code = sending.progress.getString("code")
@@ -873,7 +873,7 @@ var Settings.popupHeight: Int
 private fun PopupSize(settings: Settings) {
     var w by remember { mutableStateOf(settings.popupWidth.toString()) }
     var h by remember { mutableStateOf(settings.popupHeight.toString()) }
-    Text(tr("Word popup"), color = Colors.accent)
+    Text(tr("Word popup"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(tr("Max width"), fontSize = 14.sp)
         OutlinedTextField(w, { v -> w = v.filter(Char::isDigit).take(4); w.toIntOrNull()?.takeIf { it >= 240 }?.let { settings.popupWidth = it } },
@@ -906,7 +906,7 @@ private fun HourField(value: Int, range: IntRange, onValid: (Int) -> Unit) {
 private fun AddonsField(settings: Settings) {
     var addons by remember { mutableStateOf(settings.addons) }
     var typed by remember { mutableStateOf("") }
-    Text(tr("Stremio addons"), fontSize = 15.sp)
+    Text(tr("Stremio addons"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     Text(tr("Paste an addon's address (…/manifest.json). One that lists titles (Cinemeta, Kitsu) and one that gives links: a torrent addon needs your debrid key in it. A subtitle addon (OpenSubtitles v3) adds English under the lines."),
         fontSize = 13.sp, color = Colors.dim)
     addons.forEach { a ->
@@ -930,7 +930,7 @@ private fun CheckSetupSection(settings: Settings) {
     val scope = rememberCoroutineScope()
     var lines by remember { mutableStateOf<List<io.github.pedrubik2000.kumapie.data.SetupCheck.Line>?>(null) }
     var checking by remember { mutableStateOf(false) }
-    Text(tr("Check setup"), color = Colors.accent)
+    Text(tr("Check setup"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     OutlinedButton(onClick = { if (!checking) { checking = true; scope.launch { lines = io.github.pedrubik2000.kumapie.data.SetupCheck.run(settings); checking = false } } }) {
         Text(if (checking) tr("Checking…") else tr("Check setup"))
     }

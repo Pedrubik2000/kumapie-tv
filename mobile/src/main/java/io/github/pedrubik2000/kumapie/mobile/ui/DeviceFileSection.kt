@@ -42,7 +42,7 @@ internal fun DeviceFileSection(library: Library) {
             busy = false
         }
     }
-    Text(tr("Your data"), color = Colors.accent)
+    Text(tr("Your data"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     Text(tr("Everything kumapie keeps here in one file, for another device to import: words, cards, reviews, progress."), color = Colors.dim, fontSize = 14.sp)
     OutlinedButton(enabled = !busy, onClick = { run(tr("Exporting…")) { withContext(Dispatchers.IO) { files.export() }.line() } }) { Text(tr("Export everything")) }
     OutlinedButton(enabled = !busy, onClick = {

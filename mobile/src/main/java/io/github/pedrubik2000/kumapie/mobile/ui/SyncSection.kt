@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 internal fun SyncSection(settings: Settings) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    Text(tr("Sync with another device"), color = Colors.accent)
+    Text(tr("Sync with another device"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     if (settings.server.isNotEmpty()) return Text(tr("With a PC, the PC syncs your devices."), color = Colors.dim, fontSize = 14.sp)
     Text(tr("Words known, marks, reviews, places and stats, over the home Wi-Fi. Each device keeps its own cards."), color = Colors.dim, fontSize = 14.sp)
     var then by remember { mutableStateOf<(() -> Unit)?>(null) }

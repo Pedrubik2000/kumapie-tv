@@ -1,22 +1,21 @@
 package io.github.pedrubik2000.kumapie.mobile.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -32,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
  * Review without a PC (kumapie for other people): the device's own cards, due now then new ([ReviewSource]). The line
  * with the word marked; Show gives the reading and meaning; four buttons rate it (FSRS on the device). As the TV's.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ReviewScreen(source: ReviewSource, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -83,9 +83,9 @@ fun ReviewScreen(source: ReviewSource, onBack: () -> Unit) {
         }
     }
     Scaffold(topBar = {
-        TopAppBar(title = { Text(tr("Review")) },
+        TopAppBar(title = { Text(tr("Review"), fontSize = 34.sp, fontWeight = FontWeight.Bold) },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } },
-            actions = { cards?.let { Text(tr("%1\$d left · %2\$d done", it.size - i, done), color = Colors.dim, modifier = Modifier.padding(end = 16.dp)) } })
+            actions = { cards?.let { Text(tr("%1\$d left · %2\$d done", it.size - i, done), color = Colors.dim, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(end = 16.dp)) } })
     }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).padding(24.dp), contentAlignment = Alignment.Center) {
             when {
@@ -99,7 +99,6 @@ fun ReviewScreen(source: ReviewSource, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     // The line's picture (own cards: ownReview) in only the height the line and the buttons leave: full width on a tablet pushed the ratings off the screen.
                     io.github.pedrubik2000.kumapie.ui.CardPicture(card.image, Modifier.weight(1f, fill = false).fillMaxWidth())
-                    if (card.audio.isNotEmpty()) OutlinedButton(onClick = { play(card.audio) }) { Text(tr("Listen")) }
                     Text(buildAnnotatedString {
                         var at = 0
                         for (r in wordRanges(card.sentence, card.word)) {
@@ -108,19 +107,19 @@ fun ReviewScreen(source: ReviewSource, onBack: () -> Unit) {
                             at = r.last + 1
                         }
                         append(card.sentence.substring(at))
-                    }, fontSize = 26.sp, lineHeight = 38.sp, textAlign = TextAlign.Center)
-                    if (shown) Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(card.word, fontSize = 24.sp, color = Colors.accent)
-                        if (card.meaning.isNotBlank()) Text(card.meaning, fontSize = 18.sp, textAlign = TextAlign.Center)
+                    }, fontSize = 34.sp, lineHeight = 46.sp, textAlign = TextAlign.Center)
+                    if (shown) Column(Modifier.background(Glass.page.copy(alpha = 0.55f)).padding(horizontal = 32.dp, vertical = 18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(card.word, fontSize = 30.sp, color = Colors.accent, fontWeight = FontWeight.SemiBold)
+                        if (card.meaning.isNotBlank()) Text(card.meaning, fontSize = 24.sp, textAlign = TextAlign.Center)
                     }
-                    if (!shown) Button(onClick = { shown = true }) { Text(tr("Show")) }
-                    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Four in a phone's width (Spanish labels are long): equal shares, little side padding.
-                        val pad = PaddingValues(horizontal = 6.dp)
-                        listOf("Again", "Hard", "Good", "Easy").forEachIndexed { n, label ->
-                            if (n == 2) Button(onClick = { rate(n + 1) }, Modifier.weight(1f), contentPadding = pad) { Text(tr(label)) }
-                            else OutlinedButton(onClick = { rate(n + 1) }, Modifier.weight(1f), contentPadding = pad) { Text(tr(label)) }
+                    // The TV's row of pills (Good white), wrapped on a phone's width; Listen last, as the TV's.
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val labels = if (shown) listOf("Again", "Hard", "Good", "Easy") else listOf("Show")
+                        labels.forEachIndexed { n, label ->
+                            Pill(tr(label), { if (shown) rate(n + 1) else { shown = true } }, primary = label == "Good" || label == "Show")
                         }
+                        if (card.audio.isNotEmpty()) Pill(tr("Listen"), { play(card.audio) })
                     }
                 }
             }

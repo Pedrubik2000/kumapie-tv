@@ -102,4 +102,19 @@ class WordsKnownTest {
         assertEquals(listOf("わな", "罠"), cc.known())
         assertEquals("the Chromecast's tapped form, white as there", cc.known(), tab.known())
     }
+
+    /** The two-emulator sync proof (core plan 16e): the TV rates its card of フランメ, the tablet marks 魂, they sync; the tablet makes its own card of フランメ after "Already a card on <TV>", they sync again. */
+    @Test fun aWordCardedOnBothDevicesAndAMarkCountTheSameOnBoth() {
+        val tv = Device(DeviceFileTest.Dev("sdk_google_atv64-aaa", JSONObject().put("sdk_google_atv64-aaa", files.part(0.0)), emptyMap(), emptyList(), mutableMapOf(),
+            JSONArray().put(rated(0, "フランメ"))), listOf("フランメ"))
+        val tabDev = DeviceFileTest.Dev("sdk_gphone64-bbb", JSONObject().put("sdk_gphone64-bbb", files.part(0.0, marks = mapOf("魂" to (true to 100L)))),
+            emptyMap(), emptyList(), mutableMapOf(), JSONArray())
+        sync(tv, Device(tabDev, emptyList()))
+        val tab = Device(tabDev, listOf("フランメ"))
+        assertEquals(listOf("フランメ", "魂"), tab.known())
+        assertEquals("the TV before its next sync", listOf("フランメ", "魂"), tv.known())
+        sync(tv, tab)
+        assertEquals(listOf("フランメ", "魂"), tv.known())
+        assertEquals(listOf("フランメ", "魂"), tab.known())
+    }
 }

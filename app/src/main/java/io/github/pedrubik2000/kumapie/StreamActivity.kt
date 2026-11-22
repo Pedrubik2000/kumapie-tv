@@ -248,8 +248,8 @@ class StreamActivity : ComponentActivity() {
 
     private fun shiftLabel(live: LiveLines): String? = when {
         live.source != "jimaku" -> null
-        live.offset == 0.0 -> tr("Jimaku's subtitles") + " · ▲▼"
-        else -> tr("Jimaku's subtitles") + " · " + "%+.1f s".format(live.offset) + (if (live.offset == live.fitted) " · " + tr("fitted") else "") + " · ▲▼"
+        else -> tr("Jimaku's subtitles") + (if (live.offset == 0.0) "" else " · " + "%+.1f s".format(live.offset)) +
+            (io.github.pedrubik2000.kumapie.lang.AloneStream.fitNote(live) ?: if (live.offset == live.fitted) tr("fitted") else null).let { if (it == null) "" else " · $it" } + " · ▲▼"
     }
 
     @Composable

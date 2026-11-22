@@ -5,6 +5,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import io.github.pedrubik2000.kumapie.data.Addons
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Jimaku
+import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.player.LiveLines
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -17,12 +18,13 @@ class AloneStream(
     private val t0 = android.os.SystemClock.elapsedRealtime()
 
     val live = LiveLines(player, jimaku = {
-        runCatching { Jimaku.lines(prefs.getString("jimaku_key", "").orEmpty(), show, null, episodeNumber(id), file) }
+        runCatching { Jimaku.lines(prefs.getString("jimaku_key", "").orEmpty(), show, null, episodeNumber(id), file, duration = ::duration) }
             .onFailure { onError(it.message) }.getOrDefault(emptyList()).map { Triple(it.start, it.end, it.text) }
     }, others = { skip ->
         Jimaku.lines(prefs.getString("jimaku_key", "").orEmpty(), show, null, episodeNumber(id), file, skip).map { Triple(it.start, it.end, it.text) }
     }, switched = { l -> Jimaku.keep(show, null, episodeNumber(id), file, l.map { Jimaku.Line(it.first, it.second, it.third) }, fitted = true) }).also {
-        it.offset = prefs.getFloat(offKey(id), 0f).toDouble()
+        prefs.edit().putString(fileKey(id), file).apply()
+        it.offset = prefs.getFloat(offKey(id, file), 0f).toDouble()
         it.guess = it.offset
     }
 
@@ -65,7 +67,14 @@ class AloneStream(
         return true
     }
 
-    private fun saveOffset() = prefs.edit().putFloat(offKey(id), live.offset.toFloat()).apply()
+    private fun saveOffset() = prefs.edit().putFloat(offKey(id, file), live.offset.toFloat()).apply()
+
+    private suspend fun duration(): Double? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+        kotlinx.coroutines.withTimeoutOrNull(DURATION_WAIT) {
+            while (player.duration == androidx.media3.common.C.TIME_UNSET) delay(50)
+            player.duration / 1000.0
+        }
+    }
 
     fun savePlace(positionMs: Long, durationMs: Long) {
         if (durationMs <= 0) return
@@ -86,13 +95,20 @@ class AloneStream(
     companion object {
         const val PLACE_EVERY = 5_000L
 
-        fun offKey(id: String) = "alone_off_" + id.removePrefix("alone:")
+        const val DURATION_WAIT = 3_000L
+
+        fun offKey(id: String, file: String = "") = "alone_off_" + id.removePrefix("alone:") + if (file.isEmpty()) "" else "|$file"
+
+        fun fitNote(live: LiveLines): String? = if (live.source == "jimaku" && live.fitted == null) tr("not fitted to this video") else null
 
         fun shift(ctl: io.github.pedrubik2000.kumapie.player.SceneController, prefs: SharedPreferences, by: Double) {
             ctl.shift(by)
-            val key = offKey(ctl.episode.id)
-            prefs.edit().putFloat(key, prefs.getFloat(key, 0f) + by.toFloat()).apply()
+            prefs.edit().putFloat(keptKey(prefs, ctl.episode.id), kept(prefs, ctl.episode.id).toFloat() + by.toFloat()).apply()
         }
+
+        private fun keptKey(prefs: SharedPreferences, id: String) = offKey(id, prefs.getString(fileKey(id), "").orEmpty())
+
+        fun kept(prefs: SharedPreferences, id: String): Double = prefs.getFloat(keptKey(prefs, id), 0f).toDouble()
 
         fun fileKey(id: String) = "alone_file_" + io.github.pedrubik2000.kumapie.data.Addons.titleOf(id.removePrefix("alone:"))
 

@@ -464,7 +464,7 @@ private fun LiveLine(library: Library, live: LiveLines, modifier: Modifier) {
         if (live.source == "jimaku") Row(verticalAlignment = Alignment.CenterVertically) {
             // Jimaku's file may be timed for another release: nudged by hand, as SubMiner's subtitle delay.
             androidx.compose.material3.TextButton(onClick = { live.offset -= 0.5 }) { Text("−0.5 s", color = Color.White) }
-            Text(tr("Jimaku %1\$s s", "%+.1f".format(live.offset)), color = Color.White, fontSize = 13.sp)
+            Text(tr("Jimaku %1\$s s", "%+.1f".format(live.offset)) + (io.github.pedrubik2000.kumapie.lang.AloneStream.fitNote(live)?.let { " · $it" } ?: ""), color = Color.White, fontSize = 13.sp)
             androidx.compose.material3.TextButton(onClick = { live.offset += 0.5 }) { Text("+0.5 s", color = Color.White) }
         }
         styled?.let {

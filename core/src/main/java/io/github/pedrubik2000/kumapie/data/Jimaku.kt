@@ -29,15 +29,15 @@ object Jimaku {
      * file that fits [videoName] best ([skip]: the next ones, best first; only the best is kept on the device, unless
      * [keep] says another). Empty when Jimaku has none.
      */
-    suspend fun lines(key: String, show: String, season: Int?, episode: Int?, videoName: String = "", skip: Int = 0): List<Line> {
+    suspend fun lines(key: String, show: String, season: Int?, episode: Int?, videoName: String = "", skip: Int = 0, duration: suspend () -> Double? = { null }): List<Line> {
         if (key.isBlank()) error("Jimaku needs your API key (free, jimaku.cc): add it in Settings")
         if (skip > 0) return fetch(key, show, season, episode, videoName, skip)
         // An episode opened before: its lines from the device (four requests in a row took ~2 s of a stream's words, tablet 2026-11-18).
         val saved = savedFile(show, season, episode, videoName)
         if (saved != null) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { saved.takeIf { it.exists() }?.let { f ->
             runCatching { org.json.JSONArray(f.readText()).let { a -> (0 until a.length()).map { a.getJSONArray(it).let { l -> Line(l.getDouble(0), l.getDouble(1), l.getString(2)) } } } }
-                .getOrNull() } }?.let { return it }
-        return fetch(key, show, season, episode, videoName).also { keep(show, season, episode, videoName, it) }
+                .getOrNull() } }?.takeIf { fitsLength(it, duration()) }?.let { return it }
+        return fetch(key, show, season, episode, videoName, 0, duration).also { keep(show, season, episode, videoName, it) }
     }
 
     /**
@@ -68,16 +68,23 @@ object Jimaku {
     /** Where [lines] keeps each episode's lines (the app's cache folder; null: not kept). */
     @Volatile var cache: java.io.File? = null
 
-    private suspend fun fetch(key: String, show: String, season: Int?, episode: Int?, videoName: String, skip: Int = 0): List<Line> {
+    private suspend fun fetch(key: String, show: String, season: Int?, episode: Int?, videoName: String, skip: Int = 0, duration: suspend () -> Double? = { null }): List<Line> {
         val media = runCatching { anilist(show, season) }.getOrNull()
         fun search(q: String) = "$API/entries/search?anime=true&$q"
         var entries = JSONArray(String(get(search(media?.let { "anilist_id=${it.first}" } ?: "query=${enc(show)}"), key)))
         if (entries.length() == 0 && media != null) entries = JSONArray(String(get(search("query=${enc(media.second)}"), key)))
         if (entries.length() == 0) return emptyList()
         val files = JSONArray(String(get("$API/entries/${entries.getJSONObject(0).getInt("id")}/files", key)))
-        val best = rank((0 until files.length()).map { files.getJSONObject(it).let { f -> f.getString("name") to f.getString("url") } }, episode, videoName, release(show))
-            .getOrNull(skip) ?: return emptyList()
-        lastName = best.first
+        val ranked = rank((0 until files.length()).map { files.getJSONObject(it).let { f -> f.getString("name") to f.getString("url") } }, episode, videoName, release(show))
+        val first = ranked.getOrNull(skip) ?: return emptyList()
+        val firstLines = read(key, first, episode)
+        if (skip > 0 || fitsLength(firstLines, duration())) return firstLines.also { lastName = first.first }
+        for (f in ranked.drop(1).take(CUTS)) read(key, f, episode).takeIf { fitsLength(it, duration()) }?.let { lastName = f.first; return it }
+        lastName = first.first
+        return firstLines
+    }
+
+    private suspend fun read(key: String, best: Pair<String, String>, episode: Int?): List<Line> {
         var name = best.first
         var data = get(best.second, key)
         if (name.lowercase().endsWith(".zip")) {
@@ -88,6 +95,11 @@ object Jimaku {
         }
         return cues(name, data)
     }
+
+    private const val CUTS = 3
+
+    fun fitsLength(lines: List<Line>, duration: Double?): Boolean = duration == null || duration <= 0 || lines.isEmpty() ||
+        lines.last().start <= duration + 120 && lines.maxOf { it.end } >= duration * 0.6
 
     /**
      * Jimaku files for [episode], best first: its own files (else packs), subtitles over archives, then the most words

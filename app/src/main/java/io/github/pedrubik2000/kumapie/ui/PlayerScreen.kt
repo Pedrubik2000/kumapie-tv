@@ -483,12 +483,12 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
             // A no-PC episode (Jimaku's lines, made as it streamed): every line earlier / later, kept for next time
             // (StreamActivity's alone_off_<id>, the shift it starts from).
             if (ctl.episode.id.startsWith("alone:")) {
-                var moved by remember { mutableStateOf(0.0) }
+                var kept by remember { mutableStateOf(io.github.pedrubik2000.kumapie.lang.AloneStream.kept(ctl.settings.prefs, ctl.episode.id)) }
                 fun shift(by: Double) {
                     io.github.pedrubik2000.kumapie.lang.AloneStream.shift(ctl, ctl.settings.prefs, by) // shared with the phone
-                    moved += by
+                    kept = io.github.pedrubik2000.kumapie.lang.AloneStream.kept(ctl.settings.prefs, ctl.episode.id)
                 }
-                Text(tr("Subtitle timing") + (if (moved != 0.0) tr(" (moved %+.1f s so far)").format(java.util.Locale.ROOT, moved) else ""), color = Colors.dim, fontSize = 18.sp)
+                Text(tr("Subtitle timing") + " " + "%+.1f s".format(java.util.Locale.ROOT, kept), color = Colors.dim, fontSize = 18.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     Button(onClick = { shift(-0.5) }, modifier = Modifier.weight(1f)) { Text("−0.5 s") }
                     Button(onClick = { shift(0.5) }, modifier = Modifier.weight(1f)) { Text("+0.5 s") }

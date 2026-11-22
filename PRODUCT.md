@@ -57,6 +57,7 @@ What the TV does for someone with no PC, in their words. Each line is proved on 
 3. `settings`: Settings opens with a Torrentio URL that has options.
 4. `show`: open a show and see the words coloured.
 5. `word`: pause, open a word, rate it.
+5b. `shift`: Options > Subtitle timing +0.5 s moves Jimaku's subtitles; the same file opened again keeps the move, another file of the episode starts at +0.0 s.
 6. `undo`: undo a rating, and the word is back as it was.
 7. `home`: Back from the player goes to Home.
 8. `next`: the episode ends and the next one starts.

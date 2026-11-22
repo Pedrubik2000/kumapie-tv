@@ -390,7 +390,7 @@ class Miner(
             val transformer = Transformer.Builder(context).audioOf(lang)
                 .setAudioMimeType(if (ogg) MimeTypes.AUDIO_OPUS else MimeTypes.AUDIO_AAC)
                 .apply {
-                    if (ogg) setMuxerFactory(WebmMuxer.Factory(ogg = true)).setEncoderFactory(DefaultEncoderFactory.Builder(context)
+                    if (ogg) setMuxerFactory(OggMuxer.Factory(if (endMs == C.TIME_END_OF_SOURCE) null else (endMs - startMs) * 1000)).setEncoderFactory(DefaultEncoderFactory.Builder(context)
                         .setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(bitrate).build()).build())
                 }
                 .addListener(object : Transformer.Listener {

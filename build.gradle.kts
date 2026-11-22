@@ -82,6 +82,8 @@ val slopForbidden = listOf(
         "the theme's Roboto (MobileTheme.kt): a generic family is the device's font, which a Samsung font style replaces (serif on Pedro's tablet; look plan step 1)", listOf("mobile")),
     Forbidden("StreamStart.picked( / StreamStart.ready( / Playable.missing( / discoverStreams(title", Regex("""\bStreamStart\.(picked|ready)\(|\bPlayable\.missing\(|\bdiscoverStreams\(\s*title\b"""), emptyList(),
         "use TitlePage (core data/TitlePage.kt): ▶, play or the file list, the files' order, + Home and ✓ are one holder for both title pages", listOf("app", "mobile")),
+    Forbidden("MUXER_OUTPUT_OGG", Regex("""\bMUXER_OUTPUT_OGG\b"""), emptyList(),
+        "use OggMuxer (lang WebmMuxer.kt / OggOpus.kt): Android's Ogg writer has an uninitialised packet counter and aborted the app on a mine (core plan 11c)", listOf("app", "mobile", "core", "lang")),
     Forbidden("LangKit.get( / Languages( / Miner(", Regex("""\bLangKit\.get\(|\b(Languages|Miner)\("""), listOf("/ui/TvMining.kt", "/mobile/offline/Library.kt"),
         "use TvMining.languages / miner (TV) or Library.languages / miner / yomitan (phone): both are lang LangKit, one language layer per app run", listOf("app", "mobile")),
 )

@@ -32,7 +32,8 @@ import io.github.pedrubik2000.kumapie.ui.SettingsScreen
 import io.github.pedrubik2000.kumapie.ui.ShowScreen
 import io.github.pedrubik2000.kumapie.ui.StatsScreen
 import io.github.pedrubik2000.kumapie.ui.UpdateDialog
-import io.github.pedrubik2000.kumapie.ui.arcadeBackdrop
+import io.github.pedrubik2000.kumapie.ui.glowCovered
+import io.github.pedrubik2000.kumapie.ui.pageBackdrop
 import io.github.pedrubik2000.kumapie.ui.onBackKey
 import io.github.pedrubik2000.kumapie.update.Updater
 
@@ -108,7 +109,7 @@ fun App(settings: Settings) {
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
     val gate = io.github.pedrubik2000.kumapie.data.Startup.gate(server, standalone, onboarded)
 
-    Box(Modifier.fillMaxSize().arcadeBackdrop()
+    Box(Modifier.fillMaxSize().pageBackdrop { glowCovered.value }
         .onBackKey(enabled = stack.size > 1 && gate != Gate.FIRST_RUN) { stack.removeAt(stack.lastIndex) }) {
         when {
             gate == Gate.FIRST_RUN -> SettingsScreen(settings, firstRun = true,

@@ -30,6 +30,8 @@ import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.player.SceneController
 import io.github.pedrubik2000.kumapie.player.WordPicker
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.ui.WordStatus
+import io.github.pedrubik2000.kumapie.data.Word
 import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.compose.ui.text.withStyle
 
@@ -98,6 +100,9 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker, 
             missing != null -> Text(missing, color = Colors.dim, fontSize = 14.sp)
             hws == null -> Text(tr("Looking it up…"), color = Colors.dim, fontSize = 14.sp)
             hws.isNotEmpty() -> YomitanPopup(library, ctl.lang, hws, onSpeak = language::say, compact = true, fit = modifier != Modifier, side = side,
+                status = picker.selected?.takeIf { picker.selectedInDef == null }?.let { s ->
+                    { WordStatus(s.word?.let { ctl.words[it] } ?: Word("u", ""), s.text) }
+                },
                 sentence = if (language is io.github.pedrubik2000.kumapie.lang.Japanese && picker.selectedInDef == null)
                     ctl.scene.cues.getOrNull(picker.line)?.text else null,
                 // Japanese: the sense that fits the line's English, as the mine sheet picks it (user, 2026-10-14).

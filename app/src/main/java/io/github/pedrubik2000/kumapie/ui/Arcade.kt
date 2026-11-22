@@ -139,25 +139,6 @@ fun CoverPicture(image: String, modifier: Modifier) {
         modifier = modifier, onLoading = { glowCovered.value = false }, onSuccess = { glowCovered.value = true }, onError = { glowCovered.value = false })
 }
 
-/** Behind the menus: the page with a faint light from the top left (the old diagonal band is gone). */
-fun Modifier.arcadeBackdrop(): Modifier =
-    // The glow painted once at a quarter size and stretched: a radial gradient over the whole screen on every frame
-    // cost the Chromecast's GPU ~5 ms a frame while lists moved (2026-11-18, Home glide: p50 29-30 ms -> 24-25).
-    // Opaque, the page colour past the glow: the one full-screen paint (the window draws none, themes.xml).
-    drawWithCache {
-        val w = (size.width / 4).toInt().coerceAtLeast(1); val h = (size.height / 4).toInt().coerceAtLeast(1)
-        val glow = androidx.compose.ui.graphics.ImageBitmap(w, h)
-        androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(this, layoutDirection, androidx.compose.ui.graphics.Canvas(glow),
-            androidx.compose.ui.geometry.Size(w.toFloat(), h.toFloat())) {
-            drawRect(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0xFF1A2333), Colors.background),
-                center = Offset(w * 0.15f, 0f), radius = w * 0.7f))
-        }
-        onDrawBehind {
-            if (!glowCovered.value) drawImage(glow, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()),
-                filterQuality = androidx.compose.ui.graphics.FilterQuality.Low)
-        }
-    }
-
 /**
  * A cover picture with [NeutralPoster] only until it loads: drawing both cost the Chromecast's GPU a layer per card
  * while lists moved (2026-11-18).

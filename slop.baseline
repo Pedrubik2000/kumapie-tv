@@ -3,7 +3,7 @@ comments :lang 2113
 comments :mobile 794
 comments app/src/main/java/io/github/pedrubik2000/kumapie/data/KeySettings.kt 1
 comments app/src/main/java/io/github/pedrubik2000/kumapie/player/PlayerKeys.kt 23
-comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/Arcade.kt 45
+comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/Arcade.kt 41
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/ButtonsScreen.kt 3
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/DiscoverScreen.kt 36
 comments app/src/main/java/io/github/pedrubik2000/kumapie/ui/HelpOverlay.kt 2
@@ -45,7 +45,7 @@ comments core/src/main/java/io/github/pedrubik2000/kumapie/player/WordPicker.kt 
 comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/CardPicture.kt 2
 comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/Colors.kt 11
 comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/JapaneseFonts.kt 7
-comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/MeaningCard.kt 19
+comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/MeaningCard.kt 18
 comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/NeutralPoster.kt 1
 comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/Subtitles.kt 38
 comments core/src/main/java/io/github/pedrubik2000/kumapie/ui/Text.kt 2

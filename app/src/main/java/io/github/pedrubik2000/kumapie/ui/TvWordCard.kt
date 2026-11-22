@@ -84,11 +84,11 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
                 Text(it, color = Colors.text, fontSize = 19.sp, maxLines = 5, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 4.dp))
             }
-            val (state, color) = statusLine(word.formCard(segment.text)?.let { word.copy(card = it) } ?: word)
+            val (state, color) = formStatus(word, segment.text)
             val shown = word.formCard(segment.text) ?: word.card.takeUnless { word.marked }
             if (shown == "d") Text(state, color = Arcade.background, fontSize = 12.sp, style = Arcade.label,
                 modifier = Modifier.padding(top = 4.dp).background(Colors.due, Slab).padding(horizontal = 12.dp, vertical = 1.dp))
-            val looked = if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else ""
+            val looked = lookedUp(word)
             Text(if (shown == "d") looked.trimStart(' ', '·') else state + looked, color = color, fontSize = 15.sp)
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(Colors.dim.copy(alpha = 0.2f)))

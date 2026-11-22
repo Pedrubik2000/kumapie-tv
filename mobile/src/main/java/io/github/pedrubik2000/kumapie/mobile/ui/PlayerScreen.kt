@@ -525,7 +525,7 @@ private fun TopBar(ctl: SceneController, onBack: () -> Unit, onOptions: () -> Un
             modifier = Modifier.padding(horizontal = 8.dp))
         // One scene alone (feed): its place in the episode.
         // Tap: the list of scenes, to jump to one.
-        Text(if (ctl.scenes.size == 1) tr("line %d", scene.index + 1) else tr("Line %1\$d of %2\$d", scene.index + 1, ctl.scenes.size),
+        Text(if (ctl.scenes.size == 1) tr("line %d", scene.index + 1) else tr("Line %1\$d / %2\$d", scene.index + 1, ctl.scenes.size),
             color = Colors.text, fontSize = 20.sp, modifier = if (ctl.scenes.size > 1)
                 Modifier.clickable(onClick = onScenes).padding(horizontal = 6.dp, vertical = 8.dp) else Modifier)
         LevelBadge(ctl.levelOf(scene), Modifier.padding(start = 10.dp))

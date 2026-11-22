@@ -77,7 +77,8 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
                   * The word card in landscape: two columns, the chips, header, then [side] (ratings, buttons) on the left
                   * and the cards on the right at the card's full height (user, 2026-10-13: meanings on a short screen).
                   */
-                 side: (@Composable () -> Unit)? = null) {
+                 side: (@Composable () -> Unit)? = null,
+                 status: (@Composable () -> Unit)? = null) {
     if (headwords.isEmpty()) {
         Text(tr("Not in your %s dictionaries.", lang.displayName), color = Colors.dim, fontSize = 14.sp)
         side?.invoke()
@@ -111,7 +112,7 @@ fun YomitanPopup(library: Library, lang: Lang, headwords: List<Headword>, onSpea
                     label = { Text(h.expression + if (h.reading.isNotBlank() && h.reading != h.expression) "  ${h.reading}" else "", fontSize = 14.sp) })
             }
         }
-        Header(hw, onSpeak)
+        Column { Header(hw, onSpeak); if (nested.isEmpty()) status?.invoke() }
         fitFor?.let { f -> remember(hw) { f(hw) } }?.let {
             Text(tr("In this line: %s", it), color = Colors.text, fontSize = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                 maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)

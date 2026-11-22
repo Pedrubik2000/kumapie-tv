@@ -18,13 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -60,7 +56,7 @@ import java.util.Locale
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen(library: Library, onBack: () -> Unit) {
+fun StatsScreen(library: Library) {
     var stats by remember { mutableStateOf<Stats?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -70,8 +66,7 @@ fun StatsScreen(library: Library, onBack: () -> Unit) {
             .onSuccess { stats = it }.onFailure { error = it.message ?: it.toString() }
     }
     Scaffold(topBar = {
-        TopAppBar(title = { Text(tr("Stats"), fontSize = 30.sp, fontWeight = FontWeight.Bold) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
+        TopAppBar(title = { Text(tr("Stats"), fontSize = 30.sp, fontWeight = FontWeight.Bold) })
     }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             val s = stats

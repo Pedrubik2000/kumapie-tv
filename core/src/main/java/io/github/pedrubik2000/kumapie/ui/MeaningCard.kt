@@ -80,9 +80,7 @@ fun MeaningCard(
             // With the dictionaries the footer starts at the word chips and header (user, 2026-10-13): no title or status here.
             if (ownMeaning) {
                 if (def != null) DefinitionParts(ctl, picker, segment.text, def, onTapDef, heading) else ShortMeaning(ctl, key, segment.text, word, heading)
-                // Japanese: the card that colours the tapped form ([Word.formCard]), as the subtitle does.
-                val (status, color) = statusLine(word.formCard(segment.text)?.let { word.copy(card = it) } ?: word)
-                Text(status + if (word.lookups > 0) tr("  ·  looked up %d×", word.lookups) else "", color = color, fontSize = 15.sp)
+                WordStatus(word, segment.text)
             }
             // The word picked inside the German definition: its own short meaning and status.
             picker.selectedInDef?.word?.let { inner ->
@@ -184,6 +182,16 @@ fun statusLine(w: Word) = when {
     w.status == "k" -> (w.stability?.let { tr("known · %s", days(it)) } ?: tr("known")) to Colors.dim
     w.status == "l" -> tr("new in Anki") to Colors.unknown
     else -> tr("never studied") to Colors.unknown
+}
+
+fun formStatus(w: Word, form: String) = statusLine(w.formCard(form)?.let { w.copy(card = it) } ?: w)
+
+fun lookedUp(w: Word) = if (w.lookups > 0) tr("  ·  looked up %d×", w.lookups) else ""
+
+@Composable
+fun WordStatus(w: Word, form: String) {
+    val (state, color) = formStatus(w, form)
+    Text(state + lookedUp(w), color = color, fontSize = 15.sp)
 }
 
 private fun days(d: Double) = if (d < 1) tr("under a day") else if (d.roundToInt() == 1) tr("1 day") else tr("%d days", d.roundToInt())

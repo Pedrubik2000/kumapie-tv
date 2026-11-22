@@ -45,6 +45,7 @@ import io.github.pedrubik2000.kumapie.mobile.ui.ShowScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.StatsScreen
 import io.github.pedrubik2000.kumapie.mobile.ui.UpdateDialog
 import io.github.pedrubik2000.kumapie.ui.Colors
+import io.github.pedrubik2000.kumapie.ui.pageBackdrop
 import io.github.pedrubik2000.kumapie.update.Updater
 import kotlinx.coroutines.launch
 
@@ -217,13 +218,13 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
         else -> "-"
     }
 
-    Row(Modifier.fillMaxSize().background(Colors.background)) {
+    Row(Modifier.fillMaxSize().pageBackdrop()) {
     if (wide() && gate != io.github.pedrubik2000.kumapie.data.Gate.FIRST_RUN && tab != "-") Box(Modifier.fillMaxHeight().width(98.dp), contentAlignment = Alignment.CenterStart) {
         GlassMenu(main, tab, { top(null) }, { more = true })
     }
     Box(Modifier.weight(1f).fillMaxHeight()) {
         if (gate == io.github.pedrubik2000.kumapie.data.Gate.FIRST_RUN) {
-            SettingsScreen(library, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it }, onBack = {})
+            SettingsScreen(library, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it })
         } else if (gate == io.github.pedrubik2000.kumapie.data.Gate.ONBOARDING) { // without a PC: the setup (languages, Jimaku, sources, downloads), once
             io.github.pedrubik2000.kumapie.mobile.ui.OnboardingScreen(library, onDone = { onboarded = true })
         } else when (val screen = stack.last()) {
@@ -266,13 +267,13 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             is Screen.Prepare -> PrepareScreen(library, screen.query, onPlay = { s, e -> stack[stack.lastIndex] = Screen.Player(s, e) }, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Feed -> FeedScreen(library, langShows, homeLang, onBack = { stack.removeAt(stack.lastIndex) })
             is Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server; standalone = settings.standalone },
-                onUpdate = { update = it }, onBack = { stack.removeAt(stack.lastIndex) }, section = screen.section)
+                onUpdate = { update = it }, section = screen.section)
             Screen.Improve -> ImproveScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.Stats -> StatsScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.Stats -> StatsScreen(library)
             Screen.Search -> io.github.pedrubik2000.kumapie.mobile.ui.SearchScreen(library, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Downloads -> io.github.pedrubik2000.kumapie.mobile.ui.DownloadsScreen(onBack = { stack.removeAt(stack.lastIndex) })
-            Screen.Review -> io.github.pedrubik2000.kumapie.mobile.ui.ReviewScreen(remember(homeLang) { io.github.pedrubik2000.kumapie.lang.ownReview(context, homeLang) }, onBack = { stack.removeAt(stack.lastIndex) })
+            Screen.Review -> io.github.pedrubik2000.kumapie.mobile.ui.ReviewScreen(remember(homeLang) { io.github.pedrubik2000.kumapie.lang.ownReview(context, homeLang) })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
     }

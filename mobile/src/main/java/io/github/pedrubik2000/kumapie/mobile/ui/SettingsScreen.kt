@@ -72,7 +72,7 @@ private val SECTIONS = listOf(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit, onBack: () -> Unit,
+fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
                    section: String? = null) {
     val settings = library.settings
     if (firstRun) {
@@ -98,7 +98,7 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
         val title = if (!wide) open?.let { k -> SECTIONS.first { it.first == k }.second } else null
         Scaffold(topBar = {
             TopAppBar(title = { Text(tr(title ?: "Settings"), fontSize = 32.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = { if (!wide && open != null) open = null else onBack() }) {
+                navigationIcon = { if (!wide && open != null) IconButton(onClick = { open = null }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back")) } })
         }) { padding ->
             if (wide) androidx.compose.foundation.layout.Row(Modifier.fillMaxSize().padding(padding)) {

@@ -307,7 +307,7 @@ fun HomeScreen(
     }
 
     // Glass (tablet): the page runs under the status bar; the menu is round buttons down the left edge, the rest under More.
-    if (wide) androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = Glass.page, contentColor = Colors.text) { Box(Modifier.fillMaxSize()) {
+    if (wide) androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = Color.Transparent, contentColor = Colors.text) { Box(Modifier.fillMaxSize()) {
         // The round buttons blur the page scrolling under them.
         val haze = dev.chrisbanes.haze.rememberHazeState()
         Box(Modifier.fillMaxSize().hazeSource(haze)) { content(PaddingValues(0.dp)) }

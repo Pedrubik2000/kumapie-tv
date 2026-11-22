@@ -15,7 +15,7 @@ class DeviceFileTest {
     internal class Dev(
         val name: String, var parts: JSONObject, var known: Map<String, Pair<Long, Set<String>>>,
         var personal: List<PersonalDictionary.Entry>, val streams: MutableMap<String, Any?>, var events: JSONArray,
-        val backups: MutableMap<String, JSONObject> = HashMap(), var made: Long = 1000,
+        val backups: MutableMap<String, JSONObject> = HashMap(), var made: Long = 1000, var carded: JSONObject = JSONObject(),
     ) {
         fun export() = JSONObject().put("format", DeviceFile.FORMAT).put("device", name).put("person", "me").put("made", made++)
             .put("progress", parts)
@@ -25,7 +25,7 @@ class DeviceFileTest {
             .put("events", events)
             .put("cards", JSONObject().put("ja", JSONObject().put("cards", JSONArray().put(JSONObject().put("id", 1).put("modified", 5)))))
 
-        fun mine(from: String) = DeviceFile.Mine(name, parts, known, personal, streams, events, backups[from])
+        fun mine(from: String) = DeviceFile.Mine(name, parts, known, personal, streams, events, backups[from], carded)
 
         fun import(file: JSONObject): DeviceFile.Plan = DeviceFile.plan(mine(file.getString("device")), file).also { p ->
             parts = JSONObject(p.others.toString()).put(name, parts.getJSONObject(name))
@@ -33,6 +33,7 @@ class DeviceFileTest {
             personal = p.personal
             streams.putAll(p.streams)
             events = p.events
+            carded = p.carded
             if (p.backup) backups[p.from] = file
         }
 

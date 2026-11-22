@@ -1,5 +1,8 @@
 package io.github.pedrubik2000.kumapie.lang
 
+import io.github.pedrubik2000.kumapie.i18n.Tr
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -38,13 +41,13 @@ class DeviceSyncTest {
         val tab = files.tablet()
         fun exchange(): Pair<DeviceFile.Plan, DeviceFile.Plan> {
             val there = tab.import(tv.export())
-            val answer = tab.export().apply { remove("cards"); put("moved", DeviceSync.moved(there)) }
+            val answer = tab.export().apply { remove("cards"); put("moved", DeviceSync.counts(there)) }
             return there to tv.import(answer)
         }
         val (there, back) = exchange()
         assertTrue(there.changes)
         assertTrue(back.changes)
-        assertTrue(DeviceSync.moved(there).contains("Review events +2"))
+        assertTrue(DeviceSync.moved(there.counts).contains("Review events +2"))
         assertEquals(tab.events.toString(), tv.events.toString())
         assertEquals(tab.view().marked, tv.view().marked)
         assertEquals(tab.view().watch, tv.view().watch)
@@ -52,7 +55,18 @@ class DeviceSyncTest {
         val (again, againBack) = exchange()
         assertFalse(again.changes)
         assertFalse(againBack.changes)
-        assertEquals("nothing new", DeviceSync.moved(again))
+        assertEquals("nothing new", DeviceSync.moved(again.counts))
+    }
+
+    @Test fun whatTheAnsweringDeviceTookShowsInThisDevicesLanguage() {
+        val there = files.tablet().import(files.chromecast().export())
+        val answer = files.tablet().export().put("moved", DeviceSync.counts(there))
+        try {
+            Tr.use("es")
+            assertTrue(DeviceSync.gave(answer), DeviceSync.gave(answer).contains("Repasos +2") && "Review" !in DeviceSync.gave(answer))
+            assertEquals("nada nuevo", DeviceSync.gave(JSONObject().put("moved", JSONArray())))
+        } finally { Tr.use("en") }
+        assertEquals("an older device's line", "Marks +1", DeviceSync.gave(JSONObject().put("moved", "Marks +1")))
     }
 
     @Test(expected = IllegalArgumentException::class) fun anotherPersonsFileIsNotMerged() {

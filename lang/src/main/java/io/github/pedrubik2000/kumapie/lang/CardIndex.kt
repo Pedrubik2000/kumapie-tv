@@ -54,6 +54,22 @@ class CardIndex(private val lang: String = "") {
     /** Every form with a card of its own. */
     fun forms(): Set<String> = byForm.keys
 
+    fun byCard(word: String, marked: Set<String>, extra: (String) -> Boolean, status: (String) -> String?): String? =
+        if (word in marked) "k" else when (state(word)) {
+            null -> status(word)
+            "k", "d" -> "k"
+            "u" -> if (extra(word)) "k" else null
+            else -> null
+        }
+
+    fun known(words: Collection<String>, marked: Set<String>, extra: (String) -> Boolean, status: (String) -> String?): List<String> {
+        val keys = HashSet(words)
+        keys += byForm.keys
+        keys += WordSync.words[lang]?.keys.orEmpty()
+        keys += marked
+        return keys.filter { '\t' !in it && byCard(it, marked, extra, status) == "k" }.sorted()
+    }
+
     /** What [build] needs to make this index again (KnownWords' saved copy): each note's forms and the cards. */
     fun snapshot(): Pair<Map<Long, List<String>>, List<AnkiCards.Card>> {
         val forms = HashMap<Long, MutableSet<String>>()

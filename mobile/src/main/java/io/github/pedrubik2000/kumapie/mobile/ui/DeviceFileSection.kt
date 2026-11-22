@@ -76,6 +76,6 @@ private fun PlanTable(plan: DeviceFile.Plan) = Column {
         listOf(b, c, d).forEach { Text(it, fontSize = 14.sp, modifier = Modifier.width(64.dp)) }
     }
     row("", tr("would add"), tr("would change"), tr("would keep"))
-    plan.counts.forEach { row(it.what, "${it.add}", "${it.change}", "${it.keep}") }
+    plan.counts.forEach { row(tr(it.what), "${it.add}", "${it.change}", "${it.keep}") }
     Text(if (plan.changes) tr("A dated copy of this device's stores is made first.") else tr("Nothing new in it."), fontSize = 14.sp, color = Colors.dim)
 }

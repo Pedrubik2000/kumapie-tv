@@ -179,16 +179,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     val ready: Boolean get() = snapshot != null
 
-    /**
-     * [status] by cards (kumapie_anki_review_plan.md step 5): "k" when marked known or its own card
-     * is studied (due or not), null otherwise; without kuma3's queue, [status] (stability) as before.
-     */
-    fun statusByCard(word: String): String? = if (word in marked) "k" else when (cardIndex.state(word)) {
-        null -> status(word)
-        "k", "d" -> "k"
-        "u" -> if (extraKnown(word)) "k" else null
-        else -> null
-    }
+    /** [status] by cards ([CardIndex.byCard]); without kuma3's queue, [status] (stability) as before. */
+    fun statusByCard(word: String): String? = cardIndex.byCard(word, marked, ::extraKnown, ::status)
 
     /** The colour to draw [word] in, as the player does ([io.github.pedrubik2000.kumapie.data.Word.shown]): "k" white, "d" green, "b" blue, "u" red. */
     fun shown(word: String): String = if (word in marked) "k" else when (val c = cardIndex.state(word)) {
@@ -202,12 +194,9 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      * part of speech alone ([Language.autoKnown]) can't be listed and aren't in it.
      */
     fun knownList(): List<String> {
-        val keys = HashSet<String>()
-        snapshot?.words?.keys?.let(keys::addAll)
-        keys += cardIndex.forms()
-        keys += marked
-        keys += imported
-        return keys.filter { '\t' !in it && statusByCard(it) == "k" }.sorted()
+        if (settings.server.isEmpty()) WordSync.ensure { DeviceFiles(context, listOf(language)).elsewhere() }
+        if (cardIndex.due == null) kotlinx.coroutines.runBlocking { loadCards() }
+        return cardIndex.known(snapshot?.words?.keys.orEmpty() + imported, marked, ::extraKnown, ::status)
     }
 
     /** This language's word cards by form and kuma3's queue today: [EpisodeDetail] words' [io.github.pedrubik2000.kumapie.data.Word.card]. */

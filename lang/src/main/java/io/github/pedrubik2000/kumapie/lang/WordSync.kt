@@ -9,10 +9,14 @@ object WordSync {
     class Elsewhere(val state: String, val device: String)
 
     @Volatile var words: Map<String, Map<String, Elsewhere>> = emptyMap()
+        set(v) { field = v; loaded = true }
+    @Volatile private var loaded = false
     @Volatile var insist = false
     private val warned = HashSet<String>()
 
     fun state(lang: String, form: String): String? = words[lang]?.get(form)?.state
+
+    fun ensure(load: () -> Unit) { if (!loaded) synchronized(this) { if (!loaded) { runCatching(load); loaded = true } } }
 
     fun carded(mine: JSONObject, theirs: JSONObject?, device: String): JSONObject {
         val out = JSONObject(mine.toString())
@@ -31,7 +35,7 @@ object WordSync {
             .flatMap { d -> o.getJSONObject(d).optJSONArray("keys").let { a -> List(a?.length() ?: 0) { "$d|" + a!!.getString(it) } } }.toSet()
         val b = keys(before)
         val a = keys(after)
-        return DeviceFile.Count(tr("Words with a card on another device"), (a - b).size, (b - a).size, (a intersect b).size)
+        return DeviceFile.Count("Words with a card on another device", (a - b).size, (b - a).size, (a intersect b).size)
     }
 
     fun toAdd(events: JSONArray, cards: Map<Long, String?>, have: Set<Long>): List<Pair<JSONObject, Long>> {

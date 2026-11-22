@@ -15,6 +15,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
+import io.github.pedrubik2000.kumapie.lang.DeviceFile.objects
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.math.BigInteger
@@ -69,8 +71,14 @@ object DeviceSync {
         else -> null
     }
 
-    fun moved(plan: DeviceFile.Plan): String = plan.counts.filter { it.add + it.change > 0 }
-        .joinToString(", ") { "${it.what} +${it.add}" + if (it.change > 0) " ~${it.change}" else "" }.ifEmpty { tr("nothing new") }
+    fun moved(counts: List<DeviceFile.Count>): String = counts.filter { it.add + it.change > 0 }
+        .joinToString(", ") { "${tr(it.what)} +${it.add}" + if (it.change > 0) " ~${it.change}" else "" }.ifEmpty { tr("nothing new") }
+
+    fun counts(plan: DeviceFile.Plan) = JSONArray(plan.counts.map { JSONObject().put("what", it.what).put("add", it.add).put("change", it.change).put("keep", it.keep) })
+
+    fun gave(answer: JSONObject): String = answer.optJSONArray("moved")?.let { a ->
+        moved(a.objects().map { DeviceFile.Count(it.getString("what"), it.getInt("add"), it.getInt("change"), it.optInt("keep")) })
+    } ?: answer.optString("moved")
 
     fun with(settings: Settings): Peer? = settings.prefs.getString(WITH, null)?.let { runCatching { JSONObject(it) }.getOrNull() }
         ?.let { Peer(it.getString("name"), it.getString("address"), it.getString("secret")) }
@@ -129,7 +137,7 @@ object DeviceSync {
                     val p = Peer(peer.name, moved.second, peer.secret)
                     settings.prefs.edit().putString(WITH, JSONObject().put("name", p.name).put("address", p.address).put("secret", p.secret).toString()).apply()
                     exchange(context, p)
-                }.getOrThrow()
+                }.onFailure { runCatching { files(context).share() } }.getOrThrow()
             }
         }.getOrElse { tr("%1\$s: not synced with %2\$s: %3\$s", now(), peer.name, it.message ?: it.toString()) }
         say(settings, line)
@@ -147,7 +155,7 @@ object DeviceSync {
         files.apply(plan, o, files.isNew(plan.from))
         files.takeFsrs(o.optJSONObject("fsrs"))
         files.share()
-        return tr("%1\$s with %2\$s · took: %3\$s · gave: %4\$s", now(), peer.name, moved(plan), o.optString("moved"))
+        return tr("%1\$s with %2\$s · took: %3\$s · gave: %4\$s", now(), peer.name, moved(plan.counts), gave(o))
     }
 
     internal fun answer(context: Context, path: String, device: String?, sig: String?, body: ByteArray): Answer {
@@ -172,9 +180,8 @@ object DeviceSync {
                             val o = JSONObject(String(body))
                             val plan = files.plan(o)
                             files.apply(plan, o, files.isNew(plan.from))
-                            val moved = moved(plan)
-                            say(settings, tr("%1\$s %2\$s synced · took: %3\$s", now(), plan.from, moved))
-                            val out = files.payload().apply { remove("cards"); put("moved", moved) }.toString().toByteArray()
+                            say(settings, tr("%1\$s %2\$s synced · took: %3\$s", now(), plan.from, moved(plan.counts)))
+                            val out = files.payload().apply { remove("cards"); put("moved", counts(plan)) }.toString().toByteArray()
                             Answer(200, out, sign(secret!!, out))
                         }.getOrElse { Answer(422, (it.message ?: it.toString()).toByteArray()) }
                     }

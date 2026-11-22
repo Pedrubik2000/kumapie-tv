@@ -97,18 +97,18 @@ object DeviceFile {
         val carded = WordSync.carded(mine.carded, file.optJSONObject("carded"), mine.device)
 
         return Plan(from, person, listOf(
-            Count(tr("Cards backed up"), if (backup) (cards.keys - previous.keys).size else 0,
+            Count("Cards backed up", if (backup) (cards.keys - previous.keys).size else 0,
                 if (backup) cards.count { (id, m) -> previous[id]?.let { it != m } == true } else 0,
                 if (backup) cards.count { (id, m) -> previous[id] == m } else previous.size),
-            Count(tr("Review events"), events.length() - mine.events.length(), 0, mine.events.length()),
-            knownCount.copy(what = tr("Known words")),
-            sets(tr("Marks"), before.marked, after.marked),
-            Count(tr("Places"), (after.posAt.keys - before.posAt.keys).size + lastTaken.count { it !in lastKeys },
+            Count("Review events", events.length() - mine.events.length(), 0, mine.events.length()),
+            knownCount.copy(what = "Known words"),
+            sets("Marks", before.marked, after.marked),
+            Count("Places", (after.posAt.keys - before.posAt.keys).size + lastTaken.count { it !in lastKeys },
                 before.posAt.keys.count { after.posAt[it] != before.posAt[it] || after.pos[it] != before.pos[it] } + lastTaken.count { it in lastKeys },
                 before.posAt.keys.count { after.posAt[it] == before.posAt[it] && after.pos[it] == before.pos[it] } + lastKeys.count { it !in streams }),
-            Count(tr("Personal dictionary"), personal.count { (it.lang to it.text) !in old },
+            Count("Personal dictionary", personal.count { (it.lang to it.text) !in old },
                 personal.count { e -> old[e.lang to e.text]?.let { it != e } == true }, personal.count { e -> old[e.lang to e.text] == e }),
-            sets(tr("Kept titles"), titles, streams[SAVED]?.let(savedIds) ?: titles),
+            sets("Kept titles", titles, streams[SAVED]?.let(savedIds) ?: titles),
             WordSync.count(mine.carded, carded, mine.device),
         ), others, known, personal, streams, events, backup, carded)
     }
@@ -260,13 +260,17 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
 
     fun share() {
         val events = storedEvents()
-        val here = HashSet<String>()
         for ((l, s) in stores()) {
             val keys = s.cards().associate { it.id to DeviceFile.wordKey(l.code, it.word, it.fields) }
-            here += keys.values.filterNotNull()
             WordSync.toAdd(events, keys, s.revlogIds()).takeIf { it.isNotEmpty() }?.let(s::take)
         }
-        WordSync.words = WordSync.elsewhere(events, carded(), progress.device, here, { srs.store(Lang.of(it))?.fsrs ?: Fsrs6() })
+        elsewhere()
+    }
+
+    fun elsewhere() {
+        val carded = carded()
+        val here = carded.getJSONObject(progress.device).getJSONArray("keys").let { a -> List(a.length()) { a.getString(it) }.toSet() }
+        WordSync.words = WordSync.elsewhere(storedEvents(), carded, progress.device, here, { srs.store(Lang.of(it))?.fsrs ?: Fsrs6() })
     }
 
     fun fsrs(): JSONObject = JSONObject().apply { for ((l, s) in stores()) put(l.code, JSONObject().put("params", s.meta("params")).put("retention", s.meta("retention"))) }

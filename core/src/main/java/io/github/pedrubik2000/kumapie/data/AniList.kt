@@ -79,7 +79,7 @@ object AniList {
 
     data class Entry(
         val status: String? = null, val score: Double = 0.0, val progress: Int = 0, val repeat: Int = 0,
-        val started: String = "", val completed: String = "", val episodes: Int? = null,
+        val started: String = "", val completed: String = "", val episodes: Int? = null, val updatedAt: Long = 0,
     )
 
     val STATUSES = listOf("CURRENT", "PLANNING", "COMPLETED", "REPEATING", "PAUSED", "DROPPED")
@@ -110,7 +110,7 @@ object AniList {
         id
     }
 
-    private const val FIELDS = "status score progress repeat startedAt{year month day} completedAt{year month day}"
+    private const val FIELDS = "status score progress repeat updatedAt startedAt{year month day} completedAt{year month day}"
 
     suspend fun entry(token: String, media: Int): Entry = withContext(Dispatchers.IO) {
         val m = gql(token, "query(\$id:Int){Media(id:\$id){episodes mediaListEntry{$FIELDS}}}", JSONObject().put("id", media)).getJSONObject("Media")
@@ -118,34 +118,43 @@ object AniList {
         m.optJSONObject("mediaListEntry")?.let { entryOf(it).copy(episodes = episodes) } ?: Entry(episodes = episodes)
     }
 
-    suspend fun save(token: String, media: Int, e: Entry): Entry = withContext(Dispatchers.IO) {
+    suspend fun save(token: String, media: Int, e: Entry, before: Entry? = null): Entry = withContext(Dispatchers.IO) {
         val q = "mutation(\$id:Int,\$s:MediaListStatus,\$sc:Float,\$p:Int,\$r:Int,\$a:FuzzyDateInput,\$c:FuzzyDateInput)" +
             "{SaveMediaListEntry(mediaId:\$id,status:\$s,score:\$sc,progress:\$p,repeat:\$r,startedAt:\$a,completedAt:\$c){$FIELDS}}"
+        entryOf(gql(token, q, saveVars(media, e, before)).getJSONObject("SaveMediaListEntry")).copy(episodes = e.episodes)
+    }
+
+    fun saveVars(media: Int, e: Entry, before: Entry? = null): JSONObject {
         val v = JSONObject().put("id", media).put("s", e.status ?: "CURRENT").put("sc", e.score).put("p", e.progress).put("r", e.repeat)
-            .put("a", fuzzy(e.started)).put("c", fuzzy(e.completed))
-        entryOf(gql(token, q, v).getJSONObject("SaveMediaListEntry")).copy(episodes = e.episodes)
+        if (before == null || before.started != e.started) v.put("a", fuzzy(e.started))
+        if (before == null || before.completed != e.completed) v.put("c", fuzzy(e.completed))
+        return v
     }
 
     fun watched(e: Entry, number: Int, today: String): Entry {
+        if (e.episodes != null && number > e.episodes) return e
         if (number <= e.progress && e.status != null) return e
         var n = e.copy(progress = maxOf(e.progress, number))
         if (e.status == null || e.status == "PLANNING" || e.status == "PAUSED" || e.status == "DROPPED") n = n.copy(status = "CURRENT")
         if (n.started.isEmpty() && e.progress == 0 && e.status != "COMPLETED") n = n.copy(started = today)
         if (e.episodes != null && n.progress >= e.episodes && e.status != "COMPLETED") {
-            n = n.copy(status = "COMPLETED", completed = today, repeat = if (e.status == "REPEATING") e.repeat + 1 else e.repeat)
+            n = n.copy(status = "COMPLETED", completed = e.completed.ifEmpty { today }, repeat = if (e.status == "REPEATING") e.repeat + 1 else e.repeat)
         }
         return n
     }
 
-    private fun entryOf(j: JSONObject) = Entry(
+    fun entryOf(j: JSONObject) = Entry(
         j.optString("status").takeIf { it.isNotEmpty() && it != "null" }, j.optDouble("score", 0.0).takeIf { !it.isNaN() } ?: 0.0,
         j.optInt("progress"), j.optInt("repeat"), date(j.optJSONObject("startedAt")), date(j.optJSONObject("completedAt")),
+        updatedAt = j.optLong("updatedAt"),
     )
 
     private fun date(d: JSONObject?): String {
         val y = d?.optInt("year") ?: 0
         if (d == null || y <= 0) return ""
-        return "%04d-%02d-%02d".format(y, d.optInt("month").coerceAtLeast(1), d.optInt("day").coerceAtLeast(1))
+        val m = d.optInt("month")
+        val day = d.optInt("day")
+        return "%04d".format(y) + (if (m > 0) "-%02d".format(m) else "") + (if (m > 0 && day > 0) "-%02d".format(day) else "")
     }
 
     private fun fuzzy(s: String): JSONObject {
@@ -154,13 +163,18 @@ object AniList {
             .put("day", p.getOrNull(2) ?: JSONObject.NULL)
     }
 
+    class Failed(val code: Int, message: String, val retryAfter: Long = 0) : IllegalStateException(message) {
+        val permanent get() = code in 400..499 && code != 429 || code == 200
+    }
+
     internal fun gql(token: String, query: String, variables: JSONObject): JSONObject {
-        val (code, text) = post("https://graphql.anilist.co", JSONObject().put("query", query).put("variables", variables).toString(), token)
+        val (code, text, wait) = post("https://graphql.anilist.co", JSONObject().put("query", query).put("variables", variables).toString(), token)
         val answer = runCatching { JSONObject(text) }.getOrNull()
         val error = answer?.optJSONArray("errors")?.optJSONObject(0)?.optString("message")
         if (code == 401 || error?.contains("token", ignoreCase = true) == true || error == "Unauthorized.") throw LoggedOut()
-        error?.let { error("AniList: $it") }
-        return answer?.optJSONObject("data") ?: error("AniList: HTTP $code")
+        if (code == 429) throw Failed(429, "AniList: too many requests", wait)
+        error?.let { throw Failed(code, "AniList: $it") }
+        return answer?.optJSONObject("data") ?: throw Failed(code, "AniList: HTTP $code")
     }
 
     private fun get(url: String): String = (URL(url.replace("[", "%5B").replace("]", "%5D")).openConnection() as HttpURLConnection).run {
@@ -171,12 +185,13 @@ object AniList {
 
     private fun post(url: String, body: String): String = post(url, body, null).second
 
-    private fun post(url: String, body: String, token: String?): Pair<Int, String> = (URL(url).openConnection() as HttpURLConnection).run {
+    private fun post(url: String, body: String, token: String?): Triple<Int, String, Long> = (URL(url).openConnection() as HttpURLConnection).run {
         connectTimeout = 15_000; readTimeout = 30_000
         requestMethod = "POST"; doOutput = true
         setRequestProperty("Content-Type", "application/json"); setRequestProperty("Accept", "application/json")
-        token?.let { setRequestProperty("Authorization", "Bearer $it") }
+        token?.takeIf { it.isNotEmpty() }?.let { setRequestProperty("Authorization", "Bearer $it") }
         outputStream.use { it.write(body.toByteArray()) }
-        responseCode to ((if (responseCode < 400) inputStream else errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty())
+        Triple(responseCode, ((if (responseCode < 400) inputStream else errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()),
+            getHeaderField("Retry-After")?.toLongOrNull() ?: 60L)
     }
 }

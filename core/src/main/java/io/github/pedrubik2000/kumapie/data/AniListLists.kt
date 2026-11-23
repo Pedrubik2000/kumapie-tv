@@ -2,7 +2,9 @@ package io.github.pedrubik2000.kumapie.data
 
 import android.content.SharedPreferences
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -10,30 +12,39 @@ data class Mine(
     val anilistId: Int, val kitsuId: String, val native: String, val romaji: String, val cover: String, val banner: String,
     val format: String, val episodes: Int?, val status: String, val progress: Int, val score: Double, val average: Int,
     val genres: List<String>, val year: Int,
-)
+) {
+    val watching get() = status == "CURRENT" || status == "REPEATING"
+}
 
 object AniListLists {
-    private const val CACHE = "anilist_mine"
-    private const val QUERY = "query(\$u:String){MediaListCollection(userName:\$u,type:ANIME,status_in:[CURRENT,PLANNING,COMPLETED,PAUSED,DROPPED])" +
-        "{lists{entries{status progress score media{id format episodes averageScore genres title{romaji native} coverImage{extraLarge} " +
-        "bannerImage startDate{year}}}}}}"
+    const val CACHE = "anilist_mine"
+    private const val QUERY = "query(\$u:String,\$c:Int){MediaListCollection(userName:\$u,type:ANIME,chunk:\$c,perChunk:500," +
+        "status_in:[CURRENT,PLANNING,COMPLETED,PAUSED,DROPPED,REPEATING]){hasNextChunk lists{entries{status progress score media{id format episodes " +
+        "averageScore genres title{romaji native} coverImage{extraLarge} bannerImage startDate{year}}}}}}"
 
-    fun cached(prefs: SharedPreferences): List<Mine> = runCatching {
-        JSONArray(prefs.getString(CACHE, "[]")).let { a -> (0 until a.length()).map { mine(a.getJSONObject(it)) } }
+    private fun key(user: String) = CACHE + "_" + user.trim().lowercase()
+
+    fun cached(prefs: SharedPreferences, user: String): List<Mine> = runCatching {
+        JSONArray(prefs.getString(key(user), "[]")).let { a -> (0 until a.length()).map { mine(a.getJSONObject(it)) } }
     }.getOrDefault(emptyList())
 
-    suspend fun refresh(prefs: SharedPreferences, user: String, token: String): List<Mine> {
-        val data = AniList.gql(token, QUERY, JSONObject().put("u", user))
-        val entries = data.getJSONObject("MediaListCollection").getJSONArray("lists").objects().flatMap { it.getJSONArray("entries").objects() }
-        val kitsu = AniList.kitsuIds(entries.map { it.getJSONObject("media").getInt("id") }, prefs)
-        val all = parse(entries, kitsu)
-        prefs.edit().putString(CACHE, JSONArray(all.map(::json)).toString()).apply()
-        return all
+    suspend fun refresh(prefs: SharedPreferences, user: String, token: String): List<Mine> = withContext(Dispatchers.IO) {
+        val entries = ArrayList<JSONObject>()
+        var chunk = 1
+        do {
+            val data = AniList.gql(token, QUERY, JSONObject().put("u", user).put("c", chunk)).getJSONObject("MediaListCollection")
+            entries += data.getJSONArray("lists").objects().flatMap { it.getJSONArray("entries").objects() }
+            chunk++
+        } while (data.optBoolean("hasNextChunk") && chunk <= 40)
+        val unique = entries.distinctBy { it.getJSONObject("media").getInt("id") }
+        val all = parse(unique, AniList.kitsuIds(unique.map { it.getJSONObject("media").getInt("id") }, prefs))
+        prefs.edit().putString(key(user), JSONArray(all.map(::json)).toString()).apply()
+        all
     }
 
     fun cacheFirst(prefs: SharedPreferences, user: String, token: String, scope: CoroutineScope, fresh: (List<Mine>) -> Unit): List<Mine> {
         if (user.isNotEmpty()) scope.launch { runCatching { refresh(prefs, user, token) }.onSuccess(fresh) }
-        return cached(prefs)
+        return cached(prefs, user)
     }
 
     fun parse(entries: List<JSONObject>, kitsu: Map<Int, String>): List<Mine> = entries.mapNotNull { e ->

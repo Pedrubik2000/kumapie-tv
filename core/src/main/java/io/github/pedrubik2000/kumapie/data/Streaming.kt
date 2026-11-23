@@ -67,7 +67,7 @@ suspend fun Addons.next(query: Map<String, String>, looking: (Int) -> Unit = {})
     val type = query["type"] ?: "series"
     val id = query["id"].orEmpty()
     runCatching { seen(id, true) }
-    id.substringAfterLast(":").toIntOrNull()?.let { sync.finished(id, it) }
+    sync.episodeDone(id, type)
     val next = Addons.nextId(type, id) ?: return null
     val n = next.substringAfterLast(':').toInt()
     looking(n)

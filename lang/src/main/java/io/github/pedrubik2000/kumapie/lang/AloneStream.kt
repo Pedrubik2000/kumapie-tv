@@ -97,7 +97,7 @@ class AloneStream(
 
     fun savePlace(positionMs: Long, durationMs: Long) {
         if (durationMs <= 0) return
-        sync.watchingAt(id, positionMs, durationMs)
+        sync.watchingAt(id, type, positionMs, durationMs)
         val at = place(positionMs / 1000.0, durationMs / 1000.0)
         addons?.played(id, at, durationMs / 1000.0) ?: prefs.edit().putFloat("alone_pos_$id", at.toFloat()).apply()
         prefs.edit().putString(fileKey(id), file).apply()

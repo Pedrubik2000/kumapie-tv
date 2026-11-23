@@ -67,7 +67,7 @@ fun AniListLogin(settings: Settings) {
     var token by remember(login) { mutableStateOf(settings.anilistToken) }
     if (token.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
         Text(tr("✓ AniList: %s", settings.anilist), modifier = Modifier.weight(1f))
-        androidx.compose.material3.OutlinedButton(onClick = { settings.anilistToken = ""; token = "" }) { Text(tr("Log out")) }
+        androidx.compose.material3.OutlinedButton(onClick = { settings.logOutAniList(); token = "" }) { Text(tr("Log out")) }
     } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(if (settings.anilistLoggedOut) tr("AniList stopped accepting your login (it lasts a year): log in again.")
             else tr("Optional: log in with AniList to rate each anime and keep your list up to date as you watch."),

@@ -75,14 +75,19 @@ class Settings(context: Context) {
         val token = anilistToken.ifEmpty { return null }
         return try { block(token) } catch (e: AniList.LoggedOut) {
             prefs.edit().putString("anilist_token", "").putBoolean("anilist_logged_out", true).apply()
+            AniListSync.forget(prefs)
             throw e
         }
     }
 
-    fun logOutAniList() = prefs.edit().putString("anilist_token", "").putBoolean("anilist_logged_out", false).apply()
+    fun logOutAniList() {
+        prefs.edit().putString("anilist_token", "").putBoolean("anilist_logged_out", false).apply()
+        AniListSync.forget(prefs)
+    }
 
     suspend fun logInAniList(token: String): String {
         val (name, format) = AniList.viewer(token)
+        if (!name.equals(anilist, ignoreCase = true)) AniListSync.forget(prefs)
         anilistToken = token; anilistFormat = format; anilist = name
         return name
     }

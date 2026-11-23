@@ -14,6 +14,9 @@ import java.time.format.DateTimeFormatter
 object DeviceFile {
     const val FORMAT = "kumapie-device-1"
     const val PREFIX = "kumapie-export-"
+
+    fun counted(lists: Map<String, List<String>>) = JSONObject().apply { lists.forEach { (l, w) -> put(l, JSONArray(w)) } }
+
     private const val SAVED = "alone_saved"
     private const val SEEN = "alone_seen"
     private const val LAST = "alone_last_"
@@ -210,6 +213,7 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
             .put("streams", JSONObject().apply { streams().forEach { (k, v) -> put(k, if (v is Set<*>) JSONArray(v) else v) } })
             .put("events", DeviceFile.union(storedEvents(), own))
             .put("carded", carded()).put("fsrs", fsrs())
+            .put("counted", DeviceFile.counted(languages.associate { it.lang.code to it.known.knownList() }))
             .put("cards", cards)
             .put("media", JSONObject().put("files", media.size).put("bytes", media.sumOf { it.length() }))
     }

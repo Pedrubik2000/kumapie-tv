@@ -24,8 +24,6 @@ import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.i18n.tr
 
-private val NEXT_PADDING = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-
 @Composable
 internal fun DiscoverColumn(mode: DiscoverMode, entry: FocusRequester, link: Link, toRail: () -> FocusRequester, onMode: (DiscoverMode) -> Unit,
                             modifier: Modifier, extras: @Composable ColumnScope.(Modifier) -> Unit) {
@@ -48,7 +46,7 @@ internal fun ColumnScope.NextPicks(next: List<Mine>, levels: Levels?, sides: Mod
     Section(tr("Next picks").uppercase())
     next.forEachIndexed { i, m ->
         key(i) {
-            Button(onClick = { onPick(m) }, modifier = sides, padding = NEXT_PADDING) {
+            FlatButton({ onPick(m) }, sides) {
                 Cover(m.cover, "", Modifier.width(32.dp).height(48.dp).clip(RoundedCornerShape(6.dp)), showTitle = false, description = null)
                 Column(Modifier.padding(start = 10.dp)) {
                     Text(m.shown(), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -65,9 +63,9 @@ internal fun ColumnScope.BrowseFilterRows(state: BrowseState, loggedIn: Boolean,
     val f = state.filters
     Section(tr("Filters").uppercase())
     StepRow(tr("Catalog"), f.catalog.ifEmpty { tr("All") }, sides,
-        { by -> state.pick(f.copy(catalog = catalogs[Math.floorMod(catalogs.indexOf(f.catalog) + by, catalogs.size)], query = "")) }, {})
+        { by -> state.pick(f.copy(catalog = catalogs[Math.floorMod(catalogs.indexOf(f.catalog) + by, catalogs.size)], query = "")) }, {}, flat = true)
     TvTextField(state.text, { state.text = it }, onDone = { state.pick(f.copy(query = state.text.trim())) }, sides, placeholder = tr("Search"))
-    if (loggedIn) StepRow(tr("My list"), if (f.notOnList) tr("Not on it") else tr("Any"), sides, { state.pick(f.copy(notOnList = !f.notOnList)) }, {})
+    if (loggedIn) StepRow(tr("My list"), if (f.notOnList) tr("Not on it") else tr("Any"), sides, { state.pick(f.copy(notOnList = !f.notOnList)) }, {}, flat = true)
     Section(tr("Difficulty").uppercase())
-    StepRow(tr("Up to"), limitLabel(f.limit), sides, { by -> state.pick(f.copy(limit = (f.limit + by).coerceIn(0, LIMIT_MAX))) }, {})
+    StepRow(tr("Up to"), limitLabel(f.limit), sides, { by -> state.pick(f.copy(limit = (f.limit + by).coerceIn(0, LIMIT_MAX))) }, {}, flat = true)
 }

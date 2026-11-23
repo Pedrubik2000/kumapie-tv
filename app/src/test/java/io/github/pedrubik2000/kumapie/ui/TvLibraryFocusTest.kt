@@ -114,7 +114,7 @@ class TvLibraryFocusTest {
 
     private fun selectPlanning() {
         waitFocus { it?.startsWith("Watching") == true }
-        press(DOWN)
+        press(DOWN, OK)
         rule.waitUntil(5_000) { hasCard("Dandadan") }
     }
 
@@ -144,18 +144,24 @@ class TvLibraryFocusTest {
         assertTrue(hasText("Planning · 3 titles"))
     }
 
-    @Test fun passingThroughAListRowDoesNotSelectItUntilFocusRests() {
+    @Test fun movingFocusOverTheListRowsChangesNothingOkSelectsAndRightEntersTheSelectedGrid() {
         logIn()
         open()
         waitFocus { it?.startsWith("Watching") == true }
         rule.waitUntil(5_000) { hasCard("Frieren") }
-        rule.mainClock.autoAdvance = false
-        press(DOWN)
-        assertTrue(hasCard("Frieren"))
-        assertTrue(!hasCard("Dandadan"))
+        press(DOWN, DOWN, DOWN, DOWN)
         rule.mainClock.advanceTimeBy(1_000)
-        rule.mainClock.autoAdvance = true
-        rule.waitUntil(5_000) { hasCard("Dandadan") }
+        assertTrue(hasCard("Frieren") && !hasCard("Dandadan"))
+        press(UP, UP, UP)
+        assertTrue(focused()?.startsWith("Planning") == true)
+        rule.mainClock.advanceTimeBy(1_000)
+        assertTrue(hasCard("Frieren") && !hasCard("Dandadan"))
+        press(RIGHT)
+        assertEquals("Frieren", focused())
+        press(LEFT)
+        assertTrue(focused()?.startsWith("Watching") == true)
+        press(DOWN, OK)
+        rule.waitUntil(5_000) { hasCard("Dandadan") && !hasCard("Frieren") }
     }
 
     @Test fun rightEntersTheGridAndLeftReturnsToTheSelectedList() {
@@ -285,9 +291,9 @@ class TvLibraryFocusTest {
         logIn()
         open()
         waitFocus { it?.startsWith("Watching") == true }
-        press(DOWN, DOWN)
+        press(DOWN, DOWN, OK)
         rule.waitUntil(5_000) { hasText("Nothing in this list yet") }
-        press(UP)
+        press(UP, OK)
         rule.waitUntil(5_000) { hasCard("Dandadan") }
         rule.onNodeWithText("On Home").requestFocus()
         press(OK)
@@ -378,7 +384,7 @@ class TvLibraryFocusTest {
         logIn(listOf(mine(1, "Wa", "CURRENT", 1)) + (10..45).map { mine(it, "Cover$it", "PLANNING") })
         open()
         waitFocus { it?.startsWith("Watching") == true }
-        press(DOWN)
+        press(DOWN, OK)
         rule.waitUntil(5_000) { hasCard("Cover10") }
         press(RIGHT, DOWN, DOWN, DOWN, DOWN)
         assertEquals("Cover34", focused())

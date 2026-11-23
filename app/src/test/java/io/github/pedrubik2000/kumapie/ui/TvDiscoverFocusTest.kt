@@ -151,13 +151,28 @@ class TvDiscoverFocusTest {
     }
 
     private fun selectDuel() {
-        press(DOWN)
+        press(DOWN, OK)
         rule.waitUntil(5_000) { hasText("Keep one") }
     }
 
     private fun selectBrowse() {
         rows(DOWN, 2)
+        press(OK)
         rule.waitUntil(5_000) { hasCard("Alpha") }
+    }
+
+    @Test fun movingOverTheModeRowsChangesNothingOkSelectsAndRightEntersTheSelectedMode() {
+        openPick()
+        press(DOWN, DOWN)
+        rule.mainClock.advanceTimeBy(1_000)
+        assertTrue(hasText("Dandadan") && !hasCard("Alpha"))
+        assertTrue(focused()?.startsWith("Browse") == true)
+        press(UP, RIGHT)
+        assertEquals("+ Home", focused())
+        press(LEFT)
+        assertTrue(focused()?.startsWith("Pick for me") == true)
+        press(DOWN, OK)
+        rule.waitUntil(5_000) { hasText("Keep one") }
     }
 
     @Test fun opensOnPickForMeWhenLoggedInWithAPlanningList() {
@@ -180,6 +195,7 @@ class TvDiscoverFocusTest {
         open()
         waitFocus { it?.startsWith("Browse") == true }
         rows(UP, 2)
+        press(OK)
         rule.waitUntil(5_000) { hasText("Log in with AniList to see your lists here") }
         press(RIGHT)
         assertEquals("Log in", focused())
@@ -300,7 +316,7 @@ class TvDiscoverFocusTest {
     }
 
     private fun selectQuietDuel() {
-        press(DOWN)
+        press(DOWN, OK)
         rule.waitUntil(5_000) { hasText("Not enough titles on your Planning list to choose between") }
     }
 
@@ -390,6 +406,7 @@ class TvDiscoverFocusTest {
         open(board)
         waitFocus { it?.startsWith("Pick for me") == true }
         rows(DOWN, 2)
+        press(OK)
         rule.waitUntil(5_000) { hasCard("Alpha") }
         press(DOWN, DOWN, DOWN)
         assertTrue(focused()?.startsWith("My list") == true)

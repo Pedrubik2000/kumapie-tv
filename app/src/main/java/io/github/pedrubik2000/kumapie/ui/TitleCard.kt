@@ -58,8 +58,8 @@ internal fun AniListCard(state: AniState, edits: TitleEdits, finished: Boolean, 
             state.phase == AniPhase.FAILED -> CardNote(tr("Couldn't read your AniList list"))
             data == null -> CardNote(tr("Loading…"))
             state.phase == AniPhase.LOADING -> {
-                RowFace(tr("Status"), statusLabel(data.status), false, Modifier)
-                RowFace(tr("Your score"), scoreLabel(data.score, state.format), false, Modifier)
+                RowFace(tr("Status"), statusLabel(data.status), false, false, Modifier)
+                RowFace(tr("Your score"), scoreLabel(data.score, state.format), false, false, Modifier)
                 Progress(data)
             }
             else -> CardRows(data, state.format, edits, finished, next, focus)
@@ -117,9 +117,9 @@ private fun stepKey(e: KeyEvent, onStep: (Int) -> Unit): Boolean {
 }
 
 @Composable
-internal fun StepRow(label: String, value: String, modifier: Modifier, onStep: (Int) -> Unit, onLeave: () -> Unit) {
+internal fun StepRow(label: String, value: String, modifier: Modifier, onStep: (Int) -> Unit, onLeave: () -> Unit, flat: Boolean = false) {
     var focused by remember { mutableStateOf(false) }
-    RowFace(label, value, focused, modifier
+    RowFace(label, value, focused, flat, modifier
         .onFocusChanged { if (focused && !it.isFocused) onLeave(); focused = it.isFocused }
         .onKeyEvent { stepKey(it, onStep) }
         .semantics(mergeDescendants = true) {}
@@ -127,10 +127,10 @@ internal fun StepRow(label: String, value: String, modifier: Modifier, onStep: (
 }
 
 @Composable
-private fun RowFace(label: String, value: String, focused: Boolean, modifier: Modifier) {
+private fun RowFace(label: String, value: String, focused: Boolean, flat: Boolean, modifier: Modifier) {
     Row(modifier.fillMaxWidth().height(40.dp)
-        .background(if (focused) Color.White else Arcade.slab, CircleShape)
-        .border(1.dp, if (focused) Color.White else Arcade.line, CircleShape)
+        .background(if (focused) Color.White else if (flat) Color.Transparent else Arcade.slab, CircleShape)
+        .border(1.dp, if (focused) Color.White else if (flat) Color.Transparent else Arcade.line, CircleShape)
         .padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = if (focused) Color.Black else WHITE_DIM, fontSize = 15.sp, modifier = Modifier.weight(1f))
         Text("‹  $value  ›", color = if (focused) Color.Black else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)

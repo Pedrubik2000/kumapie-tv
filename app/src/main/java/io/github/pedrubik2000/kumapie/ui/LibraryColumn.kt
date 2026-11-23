@@ -57,21 +57,21 @@ internal fun LibraryColumn(all: List<Mine>, list: LibraryList, filters: LibraryF
 }
 
 @Composable
-private fun Section(text: String) =
+internal fun Section(text: String) =
     Text(text, color = Colors.dim, fontSize = 13.sp, letterSpacing = 2.sp, style = Arcade.label, modifier = Modifier.padding(top = 8.dp, start = 4.dp))
 
 @Composable
-private fun ListRow(label: String, count: Int, selected: Boolean, onRest: () -> Unit, modifier: Modifier) {
+internal fun ListRow(label: String, count: Int?, selected: Boolean, onRest: () -> Unit, modifier: Modifier) {
     var on by remember { mutableStateOf(false) }
     LaunchedEffect(on) { if (on) { delay(SELECT_AFTER_MS); onRest() } }
     Button(onClick = {}, modifier = modifier.onFocusChanged { on = it.isFocused }, colors = arcadeButtonColors(selected), padding = ROW_PADDING) {
         Text(label, modifier = Modifier.weight(1f))
-        Text("$count")
+        count?.let { Text("$it") }
     }
 }
 
 @Composable
-private fun CheckRow(label: String, checked: Boolean, modifier: Modifier, onToggle: () -> Unit) =
+internal fun CheckRow(label: String, checked: Boolean, modifier: Modifier, onToggle: () -> Unit) =
     Button(onClick = onToggle, modifier = modifier, padding = ROW_PADDING) {
         Box(Modifier.size(18.dp).background(if (checked) Arcade.accent else Color.Transparent, RoundedCornerShape(4.dp))
             .border(2.dp, if (checked) Arcade.accent else WHITE_DIM, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {

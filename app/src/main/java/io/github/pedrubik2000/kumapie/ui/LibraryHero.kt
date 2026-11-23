@@ -20,26 +20,32 @@ import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.i18n.tr
+import io.github.pedrubik2000.kumapie.lang.TitleDifficulty
 
 internal val HERO_BOTTOM = 212.dp
 
 @Stable
 internal class LibFocus {
-    var id by mutableStateOf<Int?>(null)
+    var id by mutableStateOf<Any?>(null)
 }
 
 @Composable
 internal fun LibraryHero(items: List<Mine>, focus: LibFocus, api: Discovery, levels: Levels?) {
     val m = items.firstOrNull { it.anilistId == focus.id } ?: items.firstOrNull()
     val target = remember(m) { m?.let(::ListTarget) }
+    HeroStrip(target, api, m?.let(::libraryStatus).orEmpty(), m?.shown().orEmpty(),
+        m?.let { factLine(ListTarget(it).facts(), it.average.takeIf { a -> a > 0 }?.let { a -> tr("AniList %d", a) }) }.orEmpty(), m?.let { levels?.of(it.kitsuId) }, m != null)
+}
+
+@Composable
+internal fun HeroStrip(target: HeroTarget?, api: Discovery, eyebrow: String, title: String, facts: String, level: TitleDifficulty?, shown: Boolean) {
     Box(Modifier.fillMaxWidth().height(300.dp)) {
         HeroBackdrop(heroPicture(target, api), { FADE_SHORT }, Modifier.matchParentSize())
-        if (m != null) Column(Modifier.padding(start = CONTENT_START, top = 64.dp, end = 28.dp).fillMaxWidth()) {
-            Eyebrow(libraryStatus(m))
-            Text(m.shown(), color = Color.White, fontSize = 36.sp, lineHeight = 42.sp, style = Arcade.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(factLine(ListTarget(m).facts(), m.average.takeIf { it > 0 }?.let { tr("AniList %d", it) }), color = WHITE_DIM, fontSize = 16.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-            levels?.of(m.kitsuId)?.let { Box(Modifier.padding(top = 8.dp)) { DifficultyLine(it) } }
+        if (shown) Column(Modifier.padding(start = CONTENT_START, top = 64.dp, end = 28.dp).fillMaxWidth()) {
+            Eyebrow(eyebrow)
+            Text(title, color = Color.White, fontSize = 36.sp, lineHeight = 42.sp, style = Arcade.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(facts, color = WHITE_DIM, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+            level?.let { Box(Modifier.padding(top = 8.dp)) { DifficultyLine(it) } }
         }
     }
 }

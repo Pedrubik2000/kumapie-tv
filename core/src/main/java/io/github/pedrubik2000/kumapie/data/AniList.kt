@@ -77,6 +77,12 @@ object AniList {
 
     class LoggedOut : Exception("AniList: log in again")
 
+    @Volatile var serverOffset: Long? = null
+
+    fun offsetFrom(date: String?, deviceNow: Long): Long? = date?.let {
+        runCatching { java.time.ZonedDateTime.parse(it, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli() - deviceNow }.getOrNull()
+    }
+
     data class Entry(
         val status: String? = null, val score: Double = 0.0, val progress: Int = 0, val repeat: Int = 0,
         val started: String = "", val completed: String = "", val episodes: Int? = null, val updatedAt: Long = 0,
@@ -164,7 +170,7 @@ object AniList {
     }
 
     class Failed(val code: Int, message: String, val retryAfter: Long = 0) : IllegalStateException(message) {
-        val permanent get() = code in 400..499 && code != 429 || code == 200
+        val permanent get() = code == 400 || code == 404 || code == 200
     }
 
     internal fun gql(token: String, query: String, variables: JSONObject): JSONObject {
@@ -191,6 +197,7 @@ object AniList {
         setRequestProperty("Content-Type", "application/json"); setRequestProperty("Accept", "application/json")
         token?.takeIf { it.isNotEmpty() }?.let { setRequestProperty("Authorization", "Bearer $it") }
         outputStream.use { it.write(body.toByteArray()) }
+        offsetFrom(getHeaderField("Date"), System.currentTimeMillis())?.let { serverOffset = it }
         Triple(responseCode, ((if (responseCode < 400) inputStream else errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()),
             getHeaderField("Retry-After")?.toLongOrNull() ?: 60L)
     }

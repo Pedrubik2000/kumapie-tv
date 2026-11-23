@@ -28,16 +28,20 @@ object AniListLists {
         JSONArray(prefs.getString(key(user), "[]")).let { a -> (0 until a.length()).map { mine(a.getJSONObject(it)) } }
     }.getOrDefault(emptyList())
 
-    suspend fun refresh(prefs: SharedPreferences, user: String, token: String): List<Mine> = withContext(Dispatchers.IO) {
+    suspend fun refresh(
+        prefs: SharedPreferences, user: String, token: String,
+        ask: (JSONObject) -> JSONObject = { AniList.gql(token, QUERY, it) },
+        kitsu: (List<Int>, SharedPreferences) -> Map<Int, String> = AniList::kitsuIds,
+    ): List<Mine> = withContext(Dispatchers.IO) {
         val entries = ArrayList<JSONObject>()
         var chunk = 1
         do {
-            val data = AniList.gql(token, QUERY, JSONObject().put("u", user).put("c", chunk)).getJSONObject("MediaListCollection")
+            val data = ask(JSONObject().put("u", user).put("c", chunk)).getJSONObject("MediaListCollection")
             entries += data.getJSONArray("lists").objects().flatMap { it.getJSONArray("entries").objects() }
             chunk++
         } while (data.optBoolean("hasNextChunk") && chunk <= 40)
         val unique = entries.distinctBy { it.getJSONObject("media").getInt("id") }
-        val all = parse(unique, AniList.kitsuIds(unique.map { it.getJSONObject("media").getInt("id") }, prefs))
+        val all = parse(unique, kitsu(unique.map { it.getJSONObject("media").getInt("id") }, prefs))
         prefs.edit().putString(key(user), JSONArray(all.map(::json)).toString()).apply()
         all
     }

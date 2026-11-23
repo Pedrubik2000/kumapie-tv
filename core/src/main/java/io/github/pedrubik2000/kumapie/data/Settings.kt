@@ -85,9 +85,10 @@ class Settings(context: Context) {
         AniListSync.forget(prefs)
     }
 
-    suspend fun logInAniList(token: String): String {
-        val (name, format) = AniList.viewer(token)
-        if (!name.equals(anilist, ignoreCase = true)) AniListSync.forget(prefs)
+    suspend fun logInAniList(token: String, who: suspend (String) -> Pair<String, String> = AniList::viewer): String {
+        val (name, format) = who(token)
+        if (!name.equals(prefs.getString("anilist_viewer", ""), ignoreCase = true)) AniListSync.forget(prefs)
+        prefs.edit().putString("anilist_viewer", name).apply()
         anilistToken = token; anilistFormat = format; anilist = name
         return name
     }

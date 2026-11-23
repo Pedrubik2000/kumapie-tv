@@ -36,6 +36,8 @@ internal class Picks(val current: Mine?, val next: List<Mine>)
 
 internal class Kept(val ids: Set<String>)
 
+internal class Undo(val skip: Boolean, val id: Int)
+
 internal fun <T> Result<T>.rethrowCancel(): Result<T> = onFailure { if (it is CancellationException) throw it }
 
 @Stable
@@ -46,6 +48,7 @@ internal class PickState(private val store: PickStore) {
     var added by mutableStateOf<Set<String>>(emptySet())
     var ready by mutableStateOf(false)
     var duel: Knockout? = null
+    var undo by mutableStateOf<Undo?>(null)
     var savedKnown = false
 
     suspend fun onHomeIds(api: Discovery): Set<String>? {
@@ -56,11 +59,12 @@ internal class PickState(private val store: PickStore) {
         return ids + added
     }
 
-    fun notForMe(id: Int) {
-        store.notForMe(id)
+    fun notForMe(id: Int, name: String) {
+        store.notForMe(id, name)
         hidden = store.hidden()
         chosen = null
         duel = null
+        undo = Undo(false, id)
     }
 
     fun skip(id: Int) {
@@ -68,6 +72,16 @@ internal class PickState(private val store: PickStore) {
         hidden = store.hidden()
         chosen = null
         duel = null
+        undo = Undo(true, id)
+    }
+
+    fun undoLast() {
+        val u = undo ?: return
+        if (u.skip) store.undoSkip(u.id) else store.undoNotForMe(u.id)
+        hidden = store.hidden()
+        chosen = u.id
+        duel = null
+        undo = null
     }
 
     fun onHome(found: String, fromWinner: Boolean = false) {

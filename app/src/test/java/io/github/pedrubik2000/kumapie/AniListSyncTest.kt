@@ -59,6 +59,24 @@ class AniListSyncTest {
 
     @Before fun login() { prefs.edit().clear().putString("anilist_token", "t").commit() }
 
+    @Test fun theStateOfATitleIsNoneThenSavedOnceTheWriteWasSent() {
+        val s = sync()
+        assertEquals(AniListSync.SyncState.NONE, s.stateOf("kitsu:1"))
+        s.status("kitsu:1", "CURRENT")
+        assertEquals(AniListSync.SyncState.SAVED, s.stateOf("kitsu:1"))
+        assertEquals(AniListSync.SyncState.NONE, s.stateOf("kitsu:2"))
+    }
+
+    @Test fun aFailingTransportMeansWaitingAndALaterSuccessMeansSaved() {
+        val s = sync()
+        failure = java.io.IOException("offline")
+        s.status("kitsu:1", "CURRENT")
+        assertEquals(AniListSync.SyncState.WAITING, s.stateOf("kitsu:1"))
+        failure = null
+        s.retry()
+        assertEquals(AniListSync.SyncState.SAVED, s.stateOf("kitsu:1"))
+    }
+
     @Test fun addedPlansOnlyWhenOnNoList() {
         sync().added("kitsu:1")
         assertEquals(listOf(Triple(7, Entry(episodes = 12), Entry("PLANNING", episodes = 12))), saved)

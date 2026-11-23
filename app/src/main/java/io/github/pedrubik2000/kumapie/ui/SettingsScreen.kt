@@ -47,6 +47,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         if (!firstRun && settings.server.isEmpty()) AloneSources(settings)
         if (!firstRun) {
             TvPreferences(settings, focus, onButtons)
+            TvNotForMe(settings)
             TvDictionaries(settings)
             TvExport()
             if (settings.server.isEmpty()) TvSync(settings)

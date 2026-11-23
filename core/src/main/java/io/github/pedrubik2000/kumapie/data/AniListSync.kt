@@ -7,6 +7,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -30,8 +32,34 @@ class AniListSync(
 
     class Seen(val entry: AniList.Entry, val format: String?)
 
+    enum class SyncState { NONE, SAVED, WAITING }
+
     private val fired = HashSet<String>()
     private val store = Any()
+    private val sent = HashSet<String>()
+    private val stuck = HashSet<String>()
+    private val version = MutableStateFlow(0)
+
+    val changes: StateFlow<Int> get() = version
+
+    fun stateOf(id: String): SyncState {
+        val title = titleOf(id) ?: return SyncState.NONE
+        return synchronized(store) {
+            when {
+                pending().has(title) -> if (title in stuck) SyncState.WAITING else SyncState.NONE
+                title in sent -> SyncState.SAVED
+                else -> SyncState.NONE
+            }
+        }
+    }
+
+    private fun mark(title: String, saved: Boolean, waiting: Boolean) {
+        synchronized(store) {
+            if (saved) sent.add(title) else sent.remove(title)
+            if (waiting) stuck.add(title) else stuck.remove(title)
+        }
+        version.value++
+    }
 
     fun added(id: String) = queue(id) { it.put(ADDED, true) }
 
@@ -56,6 +84,7 @@ class AniListSync(
 
     suspend fun read(token: String, id: String): Seen {
         val title = titleOf(id) ?: throw java.io.IOException("not a kitsu title")
+        mark(title, saved = false, waiting = title in stuck)
         val media = api.lookup(title) ?: throw java.io.IOException("no AniList mapping")
         val entry = lock.withLock { apply(api.entry(token, media), pending().optJSONObject(title) ?: JSONObject(), today()) }
         val format = try { api.format(token) } catch (e: AniList.LoggedOut) { throw e } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
@@ -80,12 +109,13 @@ class AniListSync(
             item.put(AT, clock()).put(SRV, offset() != null)
             prefs.edit().putString(QUEUE, all.toString()).apply()
         }
+        mark(title, saved = false, waiting = false)
         scope.launch { lock.withLock { flush() } }
     }
 
     private fun pending() = runCatching { JSONObject(prefs.getString(QUEUE, "{}").orEmpty()) }.getOrDefault(JSONObject())
 
-    private enum class Outcome { DONE, KEEP, STOP }
+    private enum class Outcome { DONE, DROPPED, KEEP, STOP }
 
     private suspend fun flush() {
         val token = token().ifEmpty { return }
@@ -97,18 +127,23 @@ class AniListSync(
             when (outcome) {
                 Outcome.STOP -> return
                 Outcome.KEEP -> continue
-                Outcome.DONE -> settle(title, token, item.toString())
+                Outcome.DONE -> settle(title, token, item.toString(), true)
+                Outcome.DROPPED -> settle(title, token, item.toString(), false)
             }
         }
     }
 
-    private fun settle(title: String, token: String, sent: String) = synchronized(store) {
-        if (token() != token || !prefs.contains(QUEUE)) return@synchronized
-        val all = pending()
-        if (all.optJSONObject(title)?.toString() == sent) prefs.edit().putString(QUEUE, all.also { it.remove(title) }.toString()).apply()
+    private fun settle(title: String, token: String, sentItem: String, saved: Boolean) {
+        val removed = synchronized(store) {
+            if (token() != token || !prefs.contains(QUEUE)) return@synchronized false
+            val all = pending()
+            (all.optJSONObject(title)?.toString() == sentItem).also { if (it) prefs.edit().putString(QUEUE, all.also { a -> a.remove(title) }.toString()).apply() }
+        }
+        if (removed) mark(title, saved = saved, waiting = false)
     }
 
     private fun failed(title: String, e: Exception): Outcome {
+        if (e !is AniList.LoggedOut && !(e is AniList.Failed && e.permanent)) mark(title, saved = false, waiting = true)
         when {
             e is AniList.LoggedOut -> {
                 forget(prefs)
@@ -128,7 +163,7 @@ class AniListSync(
 
     private fun dropped(title: String, why: String): Outcome {
         android.util.Log.w("kumapie", "AniList sync $title dropped: $why")
-        return Outcome.DONE
+        return Outcome.DROPPED
     }
 
     private suspend fun send(token: String, title: String, want: JSONObject): Outcome {

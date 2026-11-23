@@ -246,6 +246,24 @@ class PickStoreTest {
         assertEquals(setOf(8), store.hidden())
     }
 
+    @Test fun notForMeKeepsTheNameAnOldIdListStillReadsAndUndoRemovesIt() {
+        val p = prefs()
+        p.edit().putString("discover_never", "5,6").commit()
+        assertEquals(listOf(5 to "", 6 to ""), store(p).neverList())
+        store(p).notForMe(7, "Dandadan")
+        assertEquals(listOf(5 to "", 6 to "", 7 to "Dandadan"), store(p).neverList())
+        store(p).undoNotForMe(6)
+        assertEquals(setOf(5, 7), store(p).never())
+    }
+
+    @Test fun undoingASkipBringsTheTitleBackAtOnce() {
+        val store = store()
+        store.skip(9)
+        assertEquals(setOf(9), store.hidden())
+        store.undoSkip(9)
+        assertEquals(emptySet<Int>(), store.hidden())
+    }
+
     @Test fun theSameStoreReadAgainSeesWhatWasKept() {
         val p = prefs()
         store(p).notForMe(3)

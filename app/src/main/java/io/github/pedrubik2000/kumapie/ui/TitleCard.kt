@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import io.github.pedrubik2000.kumapie.data.AniListSync
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.delay
 
@@ -49,7 +50,8 @@ internal class CardData(val status: String?, val score: Double, val progress: In
 internal class AniState(val phase: AniPhase, val data: CardData?, val format: String, val mine: io.github.pedrubik2000.kumapie.data.Mine?, val retry: () -> Unit = {})
 
 @Composable
-internal fun AniListCard(state: AniState, edits: TitleEdits, finished: Boolean, next: Int?, focus: TitleFocus, modifier: Modifier) {
+internal fun AniListCard(state: AniState, edits: TitleEdits, finished: Boolean, next: Int?, focus: TitleFocus, modifier: Modifier,
+                         sync: AniListSync.SyncState = AniListSync.SyncState.NONE) {
     Column(modifier.width(300.dp).arcadePanel().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("AniList", color = Arcade.accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         val data = state.data
@@ -65,7 +67,14 @@ internal fun AniListCard(state: AniState, edits: TitleEdits, finished: Boolean, 
                 RowFace(tr("Your score"), scoreLabel(data.score, state.format), false, false, Modifier)
                 Progress(data)
             }
-            else -> CardRows(data, state.format, edits, finished, next, focus)
+            else -> {
+                CardRows(data, state.format, edits, finished, next, focus)
+                when (sync) {
+                    AniListSync.SyncState.SAVED -> CardNote(tr("Saved to AniList"))
+                    AniListSync.SyncState.WAITING -> CardNote(tr("Will send when online"))
+                    AniListSync.SyncState.NONE -> Unit
+                }
+            }
         }
     }
 }

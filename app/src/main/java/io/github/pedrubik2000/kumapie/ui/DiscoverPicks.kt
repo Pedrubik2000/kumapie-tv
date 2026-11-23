@@ -4,6 +4,8 @@ import android.content.SharedPreferences
 import io.github.pedrubik2000.kumapie.data.BestForYou
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.i18n.tr
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlin.math.floor
 
 private const val NEVER = "discover_never"
@@ -14,18 +16,36 @@ internal const val SKIP_DAYS = 7
 private const val DAY_MS = 24 * 60 * 60_000L
 
 internal class PickStore(private val prefs: SharedPreferences, private val clock: () -> Long = System::currentTimeMillis) {
-    private fun nevers(): List<Int> = prefs.getString(NEVER, "").orEmpty().split(',').mapNotNull { it.toIntOrNull() }
+    private fun nevers(): List<Pair<Int, String>> {
+        val raw = prefs.getString(NEVER, "").orEmpty()
+        if (!raw.startsWith("[")) return raw.split(',').mapNotNull { it.toIntOrNull() }.map { it to "" }
+        return runCatching { JSONArray(raw).let { a -> (0 until a.length()).map { a.getJSONObject(it).let { o -> o.getInt("i") to o.optString("n") } } } }.getOrDefault(emptyList())
+    }
+
+    private fun writeNevers(list: List<Pair<Int, String>>) {
+        prefs.edit().putString(NEVER, JSONArray(list.map { JSONObject().put("i", it.first).put("n", it.second) }).toString()).apply()
+    }
 
     private fun skips(): List<Pair<Int, Long>> = prefs.getString(SKIPPED, "").orEmpty().split(',').mapNotNull { p ->
         p.split(':').let { (it.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null) to (it.getOrNull(1)?.toLongOrNull() ?: return@mapNotNull null) }
     }.filter { clock() - it.second < SKIP_DAYS * DAY_MS && it.second - clock() <= SKIP_DAYS * DAY_MS }
 
-    fun never(): Set<Int> = nevers().toSet()
+    fun neverList(): List<Pair<Int, String>> = nevers()
+
+    fun never(): Set<Int> = nevers().map { it.first }.toSet()
 
     fun hidden(): Set<Int> = never() + skips().map { it.first }
 
-    fun notForMe(id: Int) {
-        prefs.edit().putString(NEVER, (nevers() - id + id).takeLast(MAX_NEVER).joinToString(",")).apply()
+    fun notForMe(id: Int, name: String = "") {
+        writeNevers((nevers().filter { it.first != id } + (id to name)).takeLast(MAX_NEVER))
+    }
+
+    fun undoNotForMe(id: Int) {
+        writeNevers(nevers().filter { it.first != id })
+    }
+
+    fun undoSkip(id: Int) {
+        prefs.edit().putString(SKIPPED, skips().filter { it.first != id }.joinToString(",") { "${it.first}:${it.second}" }).apply()
     }
 
     fun skip(id: Int) {

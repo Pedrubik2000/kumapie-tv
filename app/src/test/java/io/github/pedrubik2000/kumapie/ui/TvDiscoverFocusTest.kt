@@ -178,7 +178,7 @@ class TvDiscoverFocusTest {
 
     @Test fun opensOnPickForMeWhenLoggedInWithAPlanningList() {
         openPick()
-        assertTrue(hasText("AniList 90"))
+        rule.waitUntil(5_000) { hasText("AniList 90") }
         assertTrue(hasText("Short: 12 episodes"))
         assertTrue(hasText("TV · 12 episodes · 2023 · Adventure · AniList 90"))
         assertTrue(hasText("Kaiju"))
@@ -218,11 +218,11 @@ class TvDiscoverFocusTest {
         assertTrue(hasText("Nana"))
         press(RIGHT, OK)
         rule.waitUntil(5_000) { !hasText("Kaiju") }
-        assertEquals("✕ Not for me", focused())
-        assertEquals("4", prefs().getString("discover_never", ""))
+        assertEquals("↶ Undo", focused())
+        assertTrue(prefs().getString("discover_never", "").orEmpty().contains("\"i\":4"))
         press(RIGHT, OK)
         rule.waitUntil(5_000) { !hasText("Lupin") }
-        assertEquals("» Skip", focused())
+        assertEquals("↶ Undo", focused())
         assertTrue(prefs().getString("discover_skipped", "").orEmpty().startsWith("5:"))
         assertEquals(1, saves.size)
     }
@@ -235,6 +235,35 @@ class TvDiscoverFocusTest {
         assertEquals("✕ Not for me", focused())
         press(RIGHT, DOWN)
         assertEquals("» Skip", focused())
+    }
+
+    @Test fun notForMeBecomesUndoForSixSecondsAndOkBringsTheTitleBack() {
+        openPick()
+        press(RIGHT, RIGHT, OK)
+        rule.waitUntil(5_000) { !hasText("Dandadan") }
+        assertEquals("↶ Undo", focused())
+        press(OK)
+        rule.waitUntil(5_000) { hasText("Dandadan") }
+        assertEquals("✕ Not for me", focused())
+        assertTrue(!prefs().getString("discover_never", "[]").orEmpty().contains("\"i\":3"))
+    }
+
+    @Test fun theUndoGoesBackToTheButtonAfterSixSeconds() {
+        openPick()
+        press(RIGHT, RIGHT, OK)
+        assertEquals("↶ Undo", focused())
+        rule.mainClock.advanceTimeBy(7_000)
+        rule.waitForIdle()
+        assertEquals("✕ Not for me", focused())
+    }
+
+    @Test fun skipAlsoOffersUndo() {
+        openPick()
+        press(RIGHT, RIGHT, RIGHT, OK)
+        rule.waitUntil(5_000) { !hasText("Dandadan") }
+        assertEquals("↶ Undo", focused())
+        press(OK)
+        rule.waitUntil(5_000) { hasText("Dandadan") }
     }
 
     @Test fun okOnANextPickMakesItTheCurrentOneAndKeepsTheRow() {
@@ -522,6 +551,7 @@ class TvDiscoverFocusTest {
         onHomeList = listOf(title(3, "Dandadan"))
         open()
         waitFocus { it?.startsWith("Pick for me") == true }
+        rule.mainClock.advanceTimeBy(2_500)
         rule.waitUntil(5_000) { hasText("Dandadan") }
         press(RIGHT, OK)
         rule.mainClock.advanceTimeBy(11_000)

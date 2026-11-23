@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import io.github.pedrubik2000.kumapie.data.AniList
 import kotlinx.coroutines.CancellationException
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -141,6 +142,8 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
     LaunchedEffect(page.picking) { page.loadFiles() }
     val kitsu = AniListSync.titleOf(title.id)?.removePrefix("kitsu:")
     val ani = rememberAniState(settings, writer, title, kitsu, edits)
+    val tick by writer.changes.collectAsState()
+    val syncState = remember(tick) { writer.stateOf(title.id) }
     CommitOnExit(edits, ani.phase == AniPhase.READY)
     val side = page.error != null || page.meta == null || page.picking != null
     val finished = titleFinished(ani.data, page.episodes)
@@ -158,7 +161,7 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
             if (side) TitleSide(api, page, focus, onSettings, Modifier.weight(1f))
         }
         if (cardOn) AniListCard(ani, edits, finished, page.next?.optInt("number")?.takeIf { it > 0 }, focus,
-            Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 32.dp))
+            Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 32.dp), syncState)
         if (page.meta != null && !side) EpisodeRow(page, settings.blurUnwatched, focus, play, { e -> scope.launch { page.mark(e) } },
             Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp))
         rail()

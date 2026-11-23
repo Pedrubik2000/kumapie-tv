@@ -203,6 +203,20 @@ class TvTitleFocusTest {
         assertEquals("+ Home", focused())
     }
 
+    @Test fun aSavedChangeSaysSavedToAniListAndAnOfflineOneSaysItWillSendLater() {
+        logIn()
+        val fake = FakeAniList({ entry("CURRENT", 1) })
+        val sync = syncOf(fake)
+        open(listOf(true, false, false), fake, sync)
+        toStatus()
+        fake.online = false
+        press(Key.DirectionRight)
+        rule.waitUntil(5_000) { hasText("Will send when online") }
+        fake.online = true
+        sync.retry()
+        rule.waitUntil(5_000) { hasText("Saved to AniList") }
+    }
+
     @Test fun aPlayThatHasNotBeenSentYetShowsAsWatchingAndRightNeverWritesPlanning() {
         logIn()
         val fake = FakeAniList({ entry(null) })

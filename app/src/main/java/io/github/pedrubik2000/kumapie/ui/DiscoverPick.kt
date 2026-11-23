@@ -35,9 +35,11 @@ import io.github.pedrubik2000.kumapie.data.BestForYou
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val UNDO_MS = 6_000L
 private val BUTTON_PADDING = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
 
 @Composable
@@ -121,7 +123,15 @@ private fun PickButtons(env: DiscoverEnv, m: Mine, state: PickState, title: Focu
     Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(onClick = { env.hold.addToHome(env.api, found) },
             padding = BUTTON_PADDING, modifier = Modifier.focusRequester(env.link.to).focusProperties { left = env.entry; up = title; down = FocusRequester.Cancel }) { Text("+ " + tr("Home")) }
-        Button(onClick = { state.notForMe(m.anilistId) }, padding = BUTTON_PADDING, modifier = Modifier.focusProperties { down = FocusRequester.Cancel }) { Text("✕ " + tr("Not for me")) }
-        Button(onClick = { state.skip(m.anilistId) }, padding = BUTTON_PADDING, modifier = Modifier.focusProperties { right = cover; down = FocusRequester.Cancel }) { Text("» " + tr("Skip")) }
+        val undo = state.undo
+        LaunchedEffect(undo) {
+            if (undo == null) return@LaunchedEffect
+            delay(UNDO_MS)
+            if (state.undo === undo) state.undo = null
+        }
+        Button(onClick = { if (undo?.skip == false) state.undoLast() else state.notForMe(m.anilistId, m.shown()) }, padding = BUTTON_PADDING,
+            modifier = Modifier.focusProperties { down = FocusRequester.Cancel }) { Text(if (undo?.skip == false) "↶ " + tr("Undo") else "✕ " + tr("Not for me")) }
+        Button(onClick = { if (undo?.skip == true) state.undoLast() else state.skip(m.anilistId) }, padding = BUTTON_PADDING,
+            modifier = Modifier.focusProperties { right = cover; down = FocusRequester.Cancel }) { Text(if (undo?.skip == true) "↶ " + tr("Undo") else "» " + tr("Skip")) }
     }
 }

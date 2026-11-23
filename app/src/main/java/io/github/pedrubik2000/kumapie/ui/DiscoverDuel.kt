@@ -61,7 +61,9 @@ internal fun DuelContent(env: DiscoverEnv, field: List<Mine>?, ranked: Ranked?, 
 @Composable
 private fun Bracket(env: DiscoverEnv, field: List<Mine>, ranked: Ranked, state: PickState, onHomeIds: Set<String>) {
     val fieldIds = remember(field) { field.map { it.anilistId } }
-    val saved = state.duel
+    val rankedIds = remember(ranked) { ranked.list.map { it.anilistId }.toSet() }
+    val saved = state.duel?.takeIf { it.usableWith(rankedIds) }
+    LaunchedEffect(saved == null) { if (saved == null) state.duel = null }
     var game by remember(if (saved != null) null else fieldIds) { mutableStateOf(saved ?: Knockout(fieldIds)) }
     val byId = remember(ranked) { ranked.list.associateBy { it.anilistId } }
     val reasons by produceState(emptyMap<Int, String>(), game.entrants, ranked) {
@@ -129,7 +131,6 @@ private fun DuelCard(m: Mine, level: TitleDifficulty?, reason: String?, modifier
 
 @Composable
 private fun Winner(env: DiscoverEnv, m: Mine, onHomeIds: Set<String>, state: PickState, onAgain: () -> Unit) {
-    val scope = rememberCoroutineScope()
     val found = remember(m) { m.found() }
     val added = found.id in onHomeIds
     val openButton = remember { FocusRequester() }
@@ -145,7 +146,7 @@ private fun Winner(env: DiscoverEnv, m: Mine, onHomeIds: Set<String>, state: Pic
             Text(pickFacts(m), color = WHITE_DIM, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
             env.levels?.of(m.kitsuId)?.let { Box(Modifier.padding(top = 8.dp)) { DifficultyLine(it) } }
             Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { if (!added) scope.launch { runCatching { env.api.save(found, true) }.onSuccess { state.onHome(found.id, fromWinner = true) } } },
+                Button(onClick = { if (!added) env.hold.addToHome(env.api, found, fromWinner = true) },
                     modifier = Modifier.focusRequester(env.link.to).focusProperties { left = env.entry; up = MissingKeyLine.up(env.link.to) }) {
                     Text(if (added) "✓ " + tr("On Home") else "+ " + tr("Home"))
                 }

@@ -21,12 +21,16 @@ internal class BrowseView(val items: List<Found>, val total: Int, val unrated: I
 
 internal fun kitsuOf(f: Found): String? = f.id.takeIf { it.startsWith("kitsu:") }?.removePrefix("kitsu:")?.takeIf { it.isNotEmpty() }
 
+private const val ASK_CAP = 60
+
+internal fun browseSource(rows: List<Pair<String, List<Found>>>, results: List<Found>, f: BrowseFilters): List<Found> = when {
+    f.query.isNotEmpty() -> results
+    f.catalog.isEmpty() -> rows.flatMap { it.second }
+    else -> rows.firstOrNull { it.first == f.catalog }?.second.orEmpty()
+}.distinctBy { it.id }
+
 internal fun browseView(rows: List<Pair<String, List<Found>>>, results: List<Found>, f: BrowseFilters, onList: Set<String>, level: (String) -> TitleDifficulty?): BrowseView {
-    val source = when {
-        f.query.isNotEmpty() -> results
-        f.catalog.isEmpty() -> rows.flatMap { it.second }
-        else -> rows.firstOrNull { it.first == f.catalog }?.second.orEmpty()
-    }.distinctBy { it.id }
+    val source = browseSource(rows, results, f)
     val checked = source.filter { !f.notOnList || kitsuOf(it) !in onList }
     val limited = f.limit > 0
     val unrated = if (limited) checked.count { t -> kitsuOf(t)?.let(level) == null } else 0
@@ -46,8 +50,8 @@ internal var Settings.browseLimit: Int
     get() = prefs.getInt("discover_limit", 0).coerceIn(0, LIMIT_MAX)
     set(v) = prefs.edit().putInt("discover_limit", v).apply()
 
-internal fun browseAskIds(rows: List<Pair<String, List<Found>>>, results: List<Found>, f: BrowseFilters): List<String> = when {
-    f.query.isNotEmpty() -> results
-    f.catalog.isEmpty() -> emptyList()
-    else -> rows.firstOrNull { it.first == f.catalog }?.second.orEmpty()
-}.mapNotNull(::kitsuOf).distinct()
+internal fun browseAskIds(rows: List<Pair<String, List<Found>>>, results: List<Found>, f: BrowseFilters, rated: (String) -> Boolean): List<String> {
+    if (f.limit <= 0) return emptyList()
+    val unrated = browseSource(rows, results, f).mapNotNull(::kitsuOf).filter { !rated(it) }
+    return if (f.query.isEmpty() && f.catalog.isEmpty()) unrated.take(ASK_CAP) else unrated
+}

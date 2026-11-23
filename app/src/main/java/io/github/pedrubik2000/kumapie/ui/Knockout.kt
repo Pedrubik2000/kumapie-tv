@@ -15,6 +15,8 @@ internal class Knockout private constructor(
 
     val left: Int get() = entrants.size - dropped.size
 
+    fun usableWith(ids: Set<Int>): Boolean = entrants.all { it in dropped || it in ids }
+
     fun choose(first: Boolean): Knockout {
         val (a, b) = pair ?: return this
         return Knockout(entrants, alive, won + if (first) a else b, at + 1, round, dropped + if (first) b else a).settled()

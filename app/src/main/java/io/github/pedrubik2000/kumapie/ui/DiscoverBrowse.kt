@@ -49,7 +49,7 @@ internal fun BrowseContent(env: DiscoverEnv, state: BrowseState, lists: List<Min
     LinkWhen(env.link, items.isNotEmpty())
     LaunchedEffect(display?.filters) { if (display != null) { if (seen) grid.scrollToItem(0) else seen = true } }
     KeepFocus(display, restore, { d, id -> d.view.items.indexOfFirst { it.id == id } }, grid, focus, nav, env.entry, live)
-    val askIds = remember(state.rows, state.results, filters) { browseAskIds(state.rows.orEmpty(), state.results.orEmpty(), filters) }
+    val askIds = remember(state.rows, state.results, filters, env.levels) { browseAskIds(state.rows.orEmpty(), state.results.orEmpty(), filters) { env.levels?.of(it) != null } }
     BrowseAsks(env.levels, askIds, filters.limit > 0, grid, items)
     Box(Modifier.fillMaxSize()) {
         BrowseHero(env, filters, items, focus)

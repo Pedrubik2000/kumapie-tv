@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,11 +57,18 @@ fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
                    jiten: JitenQueue? = null, sync: AniListSync? = null, read: LibraryRead = AniListLists::cacheFirst) {
     var open by remember { mutableStateOf(start) }
     val lists by rememberLists(settings, read, start != null)
+    val scope = rememberCoroutineScope()
     val hold = remember {
         DiscoverHold(if (settings.anilistToken.isNotEmpty()) DiscoverMode.PICK else DiscoverMode.BROWSE, PickState(PickStore(settings.prefs)),
-            BrowseState(BrowseFilters(limit = settings.browseLimit), settings))
+            BrowseState(BrowseFilters(limit = settings.browseLimit), settings), scope)
     }
-    val frozen = hold.inContent || open != null
+    DisposableEffect(Unit) {
+        onDispose {
+            MissingKeyLine.from = null
+            MissingKeyLine.home = null
+        }
+    }
+    val frozen = hold.inContent || open != null || hold.restoring
     val ranked = rememberFrozen(rememberRanked(lists), frozen)
     val kept = rememberFrozen(hold.pick.loaded, frozen)
     LoadPicks(api, hold.pick, start == null)
@@ -91,6 +99,11 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
     val field = remember(ranked, pick.hidden, kept, pick.added) { ranked?.let { candidates(it.list, pick.hidden, kept + pick.added) } }
     val picks = remember(field, pick.chosen, pick.ready) { if (field == null || !pick.ready) null else pickFrom(field, pick.chosen) }
     DisposableEffect(Unit) { onDispose { hold.inContent = false } }
+    DisposableEffect(entry) {
+        MissingKeyLine.home = entry
+        onDispose { if (MissingKeyLine.home === entry) MissingKeyLine.home = null }
+    }
+    LaunchedEffect(live.touched.value) { if (live.touched.value) hold.dropRestore() }
     LoadBrowse(api, browse, mode == DiscoverMode.BROWSE)
     LaunchedEffect(Unit) { if (!returning) entry.focusSoon() }
     LaunchedEffect(Unit) { hold.giveUpRestoring() }

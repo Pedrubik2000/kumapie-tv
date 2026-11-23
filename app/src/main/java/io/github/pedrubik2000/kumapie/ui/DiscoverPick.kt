@@ -111,10 +111,9 @@ private fun Why(lines: List<String>) {
 
 @Composable
 private fun PickButtons(env: DiscoverEnv, m: Mine, state: PickState, title: FocusRequester, cover: FocusRequester) {
-    val scope = rememberCoroutineScope()
     val found = remember(m) { m.found() }
     Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(onClick = { scope.launch { runCatching { env.api.save(found, true) }.onSuccess { state.onHome(found.id) } } },
+        Button(onClick = { env.hold.addToHome(env.api, found) },
             modifier = Modifier.focusRequester(env.link.to).focusProperties { left = env.entry; up = title }) { Text("+ " + tr("Home")) }
         Button(onClick = { state.notForMe(m.anilistId) }) { Text("✕ " + tr("Not for me")) }
         Button(onClick = { state.skip(m.anilistId) }, modifier = Modifier.focusProperties { right = cover }) { Text("» " + tr("Skip")) }

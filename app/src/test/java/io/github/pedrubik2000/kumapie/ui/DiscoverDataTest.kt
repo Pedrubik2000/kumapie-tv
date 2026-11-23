@@ -87,6 +87,13 @@ class KnockoutTest {
         assertEquals(1, Knockout(listOf(4, 9)).rounds)
     }
 
+    @Test fun aBracketIsUsableOnlyWhileItsRemainingTitlesAreStillRanked() {
+        val game = Knockout(listOf(1, 2, 3, 4)).choose(true)
+        assertTrue(game.usableWith(setOf(1, 3, 4)))
+        assertTrue(!game.usableWith(setOf(1, 2, 4)))
+        assertTrue(!game.usableWith(emptySet()))
+    }
+
     @Test fun theOtherSideCanWinToo() {
         play(8, first = false)
     }
@@ -152,10 +159,18 @@ class BrowseViewTest {
         assertEquals(2, v.unrated)
     }
 
-    @Test fun onlyTheSelectedCatalogOrTheSearchIsAskedAndAllAsksNothing() {
-        assertEquals(emptyList<String>(), browseAskIds(rows, emptyList(), BrowseFilters()))
-        assertEquals(listOf("3"), browseAskIds(rows, emptyList(), BrowseFilters(catalog = "New")))
-        assertEquals(listOf("7"), browseAskIds(rows, listOf(found("kitsu:7"), found("tt1")), BrowseFilters(query = "z")))
+    @Test fun withoutALimitNothingIsAskedBeyondTheVisibleCovers() {
+        assertEquals(emptyList<String>(), browseAskIds(rows, emptyList(), BrowseFilters()) { false })
+    }
+
+    @Test fun withALimitTheUnratedOfTheScopeAreAskedInOrderAndAllIsCappedAtSixty() {
+        val big = listOf("Big" to (1..100).map { found("kitsu:$it") })
+        val rated = setOf("2")
+        assertEquals((1..62).map { "$it" }.filter { it != "2" }.take(60), browseAskIds(big, emptyList(), BrowseFilters(limit = 3)) { it in rated })
+        assertEquals(99, browseAskIds(big, emptyList(), BrowseFilters(limit = 3, catalog = "Big")) { it in rated }.size)
+        assertEquals(listOf("3"), browseAskIds(rows, emptyList(), BrowseFilters(limit = 3, catalog = "New")) { false })
+        assertEquals(emptyList<String>(), browseAskIds(rows, emptyList(), BrowseFilters(limit = 3, catalog = "New")) { true })
+        assertEquals(listOf("7"), browseAskIds(rows, listOf(found("kitsu:7"), found("tt1")), BrowseFilters(limit = 3, query = "z")) { false })
     }
 
     @Test fun theLineSaysHowManyAreShownAndHowManyAreUnrated() {

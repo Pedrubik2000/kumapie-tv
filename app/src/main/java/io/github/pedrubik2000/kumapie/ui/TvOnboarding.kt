@@ -26,6 +26,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
@@ -226,15 +232,23 @@ internal fun TvDictionaries(settings: Settings) {
 @Composable
 fun RdMissingLine(settings: Settings, onSettings: () -> Unit) {
     if (!io.github.pedrubik2000.kumapie.data.Startup.rdMissing(settings)) return
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     DisposableEffect(Unit) {
         MissingKeyLine.shown = true
         onDispose {
             MissingKeyLine.shown = false
             MissingKeyLine.focused = false
+            MissingKeyLine.from = null
         }
     }
     Button(onClick = onSettings, modifier = Modifier.fillMaxWidth().wrapContentWidth().padding(top = 24.dp).focusRequester(MissingKeyLine.focus)
-        .onFocusChanged { MissingKeyLine.focused = it.isFocused }.focusProperties { down = MissingKeyLine.from ?: FocusRequester.Default }) {
+        .onFocusChanged { MissingKeyLine.focused = it.isFocused }.onPreviewKeyEvent { e ->
+            if (e.key != Key.DirectionDown) false
+            else {
+                if (e.type == KeyEventType.KeyDown && !MissingKeyLine.down()) focusManager.moveFocus(FocusDirection.Down)
+                true
+            }
+        }) {
         Text(tr("Real-Debrid key missing: no video will play"))
     }
 }

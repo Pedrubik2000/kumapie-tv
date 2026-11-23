@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import io.github.pedrubik2000.kumapie.data.AniListLists
@@ -55,6 +56,8 @@ class TvDiscoverFocusTest {
     private var searches = 0
     private var searchDelay = 0L
     private var savedDelay = 0L
+    private var saveDelay = 0L
+    private var onHomeList = emptyList<Found>()
     private var fresh: ((List<Mine>) -> Unit)? = null
 
     @Before fun forget() {
@@ -73,8 +76,8 @@ class TvDiscoverFocusTest {
         }
         override suspend fun discoverMeta(type: String, id: String) = JSONObject()
         override suspend fun discoverStreams(type: String, id: String) = JSONArray()
-        override suspend fun saved(): List<Found> { kotlinx.coroutines.delay(savedDelay); return emptyList() }
-        override suspend fun save(title: Found, on: Boolean): List<Found> { saves += title; return emptyList() }
+        override suspend fun saved(): List<Found> { kotlinx.coroutines.delay(savedDelay); return onHomeList }
+        override suspend fun save(title: Found, on: Boolean): List<Found> { kotlinx.coroutines.delay(saveDelay); saves += title; return emptyList() }
         override suspend fun seen(id: String, on: Boolean) = Unit
     }
 
@@ -455,10 +458,86 @@ class TvDiscoverFocusTest {
         assertTrue(hasText("TV · 12 episodes · 2023 · Adventure · AniList 85"))
     }
 
-    @Test fun picksWaitAtMostTwoSecondsForTheTitlesOnHome() {
-        savedDelay = 60_000
+    @Test fun picksWaitAtMostTwoSecondsForTheTitlesOnHomeAndALateAnswerIsAppliedAfterHeLeavesTheContent() {
+        logIn()
+        savedDelay = 10_000
+        onHomeList = listOf(title(3, "Dandadan"))
+        open()
+        rule.mainClock.autoAdvance = false
+        Thread.sleep(500)
+        rule.mainClock.advanceTimeBy(1_500)
+        assertTrue(hasText("Loading…") && !hasText("Dandadan"))
+        rule.mainClock.advanceTimeBy(700)
+        assertTrue(hasText("Dandadan"))
+        press(RIGHT)
+        rule.mainClock.advanceTimeBy(10_000)
+        assertTrue(hasText("Dandadan"))
+        rule.mainClock.autoAdvance = true
+        press(LEFT)
+        rule.waitUntil(5_000) { !hasText("Dandadan") && hasText("Kaiju") }
+    }
+
+    @Test fun plusHomeLearnsTheOnHomeSetFirstAndDoesNotSaveATitleAlreadyThere() {
+        logIn()
+        savedDelay = 10_000
+        onHomeList = listOf(title(3, "Dandadan"))
+        open()
+        waitFocus { it?.startsWith("Pick for me") == true }
+        rule.waitUntil(5_000) { hasText("Dandadan") }
+        press(RIGHT, OK)
+        rule.mainClock.advanceTimeBy(11_000)
+        rule.waitUntil(5_000) { !hasText("Dandadan") }
+        assertEquals(0, saves.size)
+    }
+
+    @Test fun aSaveInProgressIsNotLostWhenHeOpensATitleRightAfter() {
         openPick()
-        assertTrue(hasText("Kaiju"))
+        saveDelay = 3_000
+        press(RIGHT, OK, RIGHT, RIGHT, RIGHT, OK)
+        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
+        press(Key.Back.keyCode)
+        waitFocus { it?.contains("Kaiju") == true }
+        assertTrue(!hasText("Dandadan"))
+        assertEquals(1, saves.size)
+    }
+
+    @Test fun aListThatArrivesWhileTheTitlePageIsOpenDoesNotChangeThePickOnBack() {
+        openPick()
+        press(RIGHT, UP, OK)
+        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
+        refreshWithZed()
+        press(Key.Back.keyCode)
+        waitFocus { it == "Dandadan" }
+        assertTrue(!hasText("Zed"))
+    }
+
+    @Test fun searchingAgainWhileTheFirstSearchLoadsLeavesNoCancelledError() {
+        searchDelay = 1_500
+        open()
+        waitFocus { it?.startsWith("Browse") == true }
+        rule.waitUntil(5_000) { hasCard("Alpha") }
+        search("zeta")
+        rule.onNode(hasImeAction(androidx.compose.ui.text.input.ImeAction.Done)).requestFocus()
+        press(OK)
+        rule.onNode(hasSetTextAction()).performTextReplacement("eta")
+        rule.onNode(hasSetTextAction()).performImeAction()
+        rule.waitUntil(5_000) { hasCard("Zeta") }
+        assertTrue(!hasText("Try again"))
+    }
+
+    @Test fun downFromTheLineWhenItsReturnTargetIsGoneStillLeavesTheLine() {
+        logIn()
+        openWithTheLine()
+        waitFocus { it?.startsWith("Pick for me") == true }
+        rule.waitUntil(5_000) { hasText("Dandadan") }
+        press(RIGHT, UP, UP)
+        assertEquals(line, focused())
+        logIn(planning.take(1))
+        rule.waitUntil(5_000) { fresh != null }
+        rule.runOnIdle { fresh?.invoke(AniListLists.cached(prefs(), "pedro")) }
+        rule.waitUntil(5_000) { hasText("Nothing left to pick right now") }
+        press(DOWN)
+        assertTrue(focused()?.startsWith("Pick for me") == true)
     }
 
     private fun refreshWithZed() {
@@ -494,7 +573,7 @@ class TvDiscoverFocusTest {
         val jiten = queue()
         rule.setContent {
             androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.onBackKey { home++ }) {
-                DiscoverScreen(discovery, Settings(RuntimeEnvironment.getApplication()), jiten = jiten, read = { prefs, user, _, _, _ -> AniListLists.cached(prefs, user) })
+                DiscoverScreen(discovery, Settings(RuntimeEnvironment.getApplication()), jiten = jiten, read = { prefs, user, _, _, f -> fresh = f; AniListLists.cached(prefs, user) })
                 RdMissingLine(Settings(RuntimeEnvironment.getApplication()).apply { rdToken = ""; addons = emptyList() }) { lineOpened++ }
             }
         }

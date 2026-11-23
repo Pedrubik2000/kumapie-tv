@@ -14,7 +14,10 @@ import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.data.Settings
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 internal const val NEXT_PICKS = 4
 internal const val DUEL_SIZE = 8
@@ -33,6 +36,8 @@ internal class Picks(val current: Mine?, val next: List<Mine>)
 
 internal class Kept(val ids: Set<String>)
 
+internal fun <T> Result<T>.rethrowCancel(): Result<T> = onFailure { if (it is CancellationException) throw it }
+
 @Stable
 internal class PickState(private val store: PickStore) {
     var hidden by mutableStateOf(store.hidden())
@@ -41,6 +46,15 @@ internal class PickState(private val store: PickStore) {
     var added by mutableStateOf<Set<String>>(emptySet())
     var ready by mutableStateOf(false)
     var duel: Knockout? = null
+    var savedKnown = false
+
+    suspend fun onHomeIds(api: Discovery): Set<String>? {
+        if (savedKnown) return loaded.ids + added
+        val ids = runCatching { api.saved().map { it.id }.toSet() }.rethrowCancel().getOrNull() ?: return null
+        loaded = Kept(ids)
+        savedKnown = true
+        return ids + added
+    }
 
     fun notForMe(id: Int) {
         store.notForMe(id)
@@ -91,7 +105,7 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
 }
 
 @Stable
-internal class DiscoverHold(startMode: DiscoverMode, val pick: PickState, val browse: BrowseState) {
+internal class DiscoverHold(startMode: DiscoverMode, val pick: PickState, val browse: BrowseState, private val scope: CoroutineScope) {
     var mode by mutableStateOf(startMode)
     var inContent by mutableStateOf(false)
     var restoring by mutableStateOf(false)
@@ -114,10 +128,24 @@ internal class DiscoverHold(startMode: DiscoverMode, val pick: PickState, val br
         return from
     }
 
+    fun dropRestore() {
+        leftMode = null
+        leftFrom = null
+        restoring = false
+    }
+
     suspend fun giveUpRestoring() {
         if (!restoring) return
         delay(RESTORE_LIMIT_MS)
-        restoring = false
+        dropRestore()
+    }
+
+    fun addToHome(api: Discovery, found: Found, fromWinner: Boolean = false) {
+        scope.launch {
+            val known = pick.onHomeIds(api)
+            if (known != null && found.id in known) pick.onHome(found.id, fromWinner)
+            else runCatching { api.save(found, true) }.rethrowCancel().onSuccess { pick.onHome(found.id, fromWinner) }
+        }
     }
 }
 
@@ -133,7 +161,7 @@ internal class DiscoverEnv(val api: Discovery, val settings: Settings, val level
 internal fun LoadPicks(api: Discovery, pick: PickState, active: Boolean) {
     LaunchedEffect(Unit) {
         if (!active) return@LaunchedEffect
-        runCatching { api.saved().map { it.id }.toSet() }.onSuccess { pick.loaded = Kept(it) }
+        runCatching { api.saved().map { it.id }.toSet() }.rethrowCancel().onSuccess { pick.loaded = Kept(it); pick.savedKnown = true }
         pick.ready = true
     }
     LaunchedEffect(Unit) {
@@ -148,7 +176,7 @@ internal fun LoadBrowse(api: Discovery, state: BrowseState, active: Boolean) {
         if (!active || state.fresh) return@LaunchedEffect
         state.error = null
         if (state.rows == null) state.rows = (api as? Addons)?.lastBoard()
-        runCatching { api.board() }.onSuccess { state.rows = it; state.fresh = true }.onFailure { if (state.rows == null) state.error = it.message ?: it.toString() }
+        runCatching { api.board() }.rethrowCancel().onSuccess { state.rows = it; state.fresh = true }.onFailure { if (state.rows == null) state.error = it.message ?: it.toString() }
     }
     val query = state.filters.query
     LaunchedEffect(active, query, state.attempt) {
@@ -160,6 +188,6 @@ internal fun LoadBrowse(api: Discovery, state: BrowseState, active: Boolean) {
         }
         if (!active || (state.resultsFor == query && state.results != null)) return@LaunchedEffect
         state.results = null
-        runCatching { api.discover(query) }.onSuccess { state.results = it; state.resultsFor = query }.onFailure { state.searchError = it.message ?: it.toString() }
+        runCatching { api.discover(query) }.rethrowCancel().onSuccess { state.results = it; state.resultsFor = query }.onFailure { state.searchError = it.message ?: it.toString() }
     }
 }

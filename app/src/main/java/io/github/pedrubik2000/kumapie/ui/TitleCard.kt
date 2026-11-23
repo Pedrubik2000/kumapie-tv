@@ -77,10 +77,11 @@ private fun CardRows(data: CardData, format: String, edits: TitleEdits, finished
     CommitSoon(status)
     CommitSoon(score)
     val listed = status.shown != null
-    StepRow(tr("Status"), statusLabel(status.shown), Modifier.focusRequester(focus.status).focusProperties { up = focus.main; down = if (listed && edits.scoreOn) FocusRequester.Default else focus.episodes }, status::step, status::commit)
-    if (finished && (score.shown ?: 0.0) <= 0.0) Text(tr("You finished it. Rate it?"), color = Arcade.accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-    StepRow(tr("Your score"), scoreLabel(score.shown ?: 0.0, format),
-        Modifier.focusRequester(focus.score).focusProperties { canFocus = listed && edits.scoreOn; down = focus.episodes }, score::step, score::commit)
+    val current = if (edits.scoreOn) score.shown ?: 0.0 else data.score
+    StepRow(tr("Status"), statusLabel(status.shown), Modifier.focusRequester(focus.status).focusProperties { up = focus.main; down = if (listed && edits.scoreOn) FocusRequester.Default else focus.row }, status::step, status::commit)
+    if (finished && current <= 0.0) Text(tr("You finished it. Rate it?"), color = Arcade.accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+    StepRow(tr("Your score"), scoreLabel(current, format),
+        Modifier.focusRequester(focus.score).focusProperties { canFocus = listed && edits.scoreOn; down = focus.row }, score::step, score::commit)
     Progress(data)
     when {
         status.shown == "PLANNING" || !listed -> next?.let { CardNote(tr("Play Ep %d moves it to Watching on AniList.", it)) }

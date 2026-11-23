@@ -67,6 +67,7 @@ internal class TitleFocus {
     val status = FocusRequester()
     val score = FocusRequester()
     val episodes = FocusRequester()
+    val row = FocusRequester()
 }
 
 private fun Mine.data() = CardData(status, score, progress, episodes, average)
@@ -147,7 +148,7 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
     var touched by remember { mutableStateOf(false) }
     LaunchedEffect(page.meta != null, side) { if (!side) focus.main.focusSoon() }
     LaunchedEffect(side, ani.phase) {
-        if (!side && !touched && ani.phase == AniPhase.READY && finished && ani.data?.status != null && (ani.data.score <= 0.0)) focus.score.focusSoon()
+        if (!side && !touched && ani.phase == AniPhase.READY && finished && ani.data?.status != null && edits.scoreOn && ani.data.score <= 0.0) focus.score.focusSoon()
     }
     val play: (JSONObject?) -> Unit = { e -> page.play(e)?.let { context.startActivity(StreamActivity.intent(context, it)) } }
     Box(Modifier.fillMaxSize().onPreviewKeyEvent { touched = true; false }.onBackKey(page.picking != null) { page.closeFiles() }) {
@@ -180,9 +181,9 @@ private fun TitleInfo(page: TitlePage, mine: Mine?, levels: Levels?, kitsu: Stri
         levels?.of(kitsu)?.let { Box(Modifier.padding(top = 10.dp)) { DifficultyLine(it) } }
         Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (page.meta != null) Button(onClick = { onPlay(next) }, modifier = Modifier.focusRequester(focus.main)
-                .focusProperties { if (!side) down = focus.episodes; if (page.kept == null) right = cardRight }) { Text("▶ " + playLabel(page, next, finished)) }
+                .focusProperties { if (!side) down = focus.row; if (page.kept == null) right = cardRight }) { Text("▶ " + playLabel(page, next, finished)) }
             page.kept?.let { on ->
-                Button(onClick = { scope.launch { page.keep() } }, modifier = Modifier.focusProperties { if (!side) down = focus.episodes; right = cardRight }) {
+                Button(onClick = { scope.launch { page.keep() } }, modifier = Modifier.focusProperties { if (!side) down = focus.row; right = cardRight }) {
                     Text(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"))
                 }
             }

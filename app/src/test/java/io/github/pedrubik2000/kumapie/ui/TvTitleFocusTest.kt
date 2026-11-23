@@ -231,4 +231,34 @@ class TvTitleFocusTest {
         toStatus()
         assertTrue(hasText("‹  Rewatching  ›"))
     }
+
+    @Test fun whenTheFormatCannotBeReadHisRealScoreShowsAndNoRateLine() {
+        logIn()
+        open(listOf(true, true, true), FakeAniList({ entry("COMPLETED", 3, 8.0) }, { throw IOException("no") }))
+        waitFocus { it?.startsWith("▶") == true }
+        rule.waitUntil(5_000) { hasText("Status") }
+        assertTrue(hasText("‹  8  ›"))
+        assertTrue(!hasText("You finished it. Rate it?"))
+        assertTrue(focused()?.startsWith("▶") == true)
+    }
+
+    @Test fun downStillReachesAnEpisodeAfterTheRowWasScrolledFar() {
+        logIn()
+        open(List(30) { false }, FakeAniList({ entry("CURRENT", 1) }))
+        waitFocus { it?.startsWith("▶") == true }
+        press(Key.DirectionDown)
+        waitFocus { it == "Episode 1" }
+        repeat(20) { press(Key.DirectionRight) }
+        press(Key.DirectionUp)
+        waitFocus { it?.startsWith("▶") == true }
+        press(Key.DirectionDown)
+        waitFocus { it?.startsWith("Episode") == true }
+        press(Key.DirectionUp)
+        press(Key.DirectionRight)
+        press(Key.DirectionRight)
+        waitFocus { it == "Status" }
+        press(Key.DirectionDown)
+        press(Key.DirectionDown)
+        waitFocus { it?.startsWith("Episode") == true }
+    }
 }

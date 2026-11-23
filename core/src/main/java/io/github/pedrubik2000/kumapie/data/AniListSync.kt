@@ -31,6 +31,7 @@ class AniListSync(
     class Seen(val entry: AniList.Entry, val format: String?)
 
     private val fired = HashSet<String>()
+    private val store = Any()
 
     fun added(id: String) = queue(id) { it.put(ADDED, true) }
 
@@ -56,9 +57,9 @@ class AniListSync(
     suspend fun read(token: String, id: String): Seen {
         val title = titleOf(id) ?: throw java.io.IOException("not a kitsu title")
         val media = api.lookup(title) ?: throw java.io.IOException("no AniList mapping")
-        val entry = api.entry(token, media)
+        val entry = lock.withLock { apply(api.entry(token, media), pending().optJSONObject(title) ?: JSONObject(), today()) }
         val format = try { api.format(token) } catch (e: AniList.LoggedOut) { throw e } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
-        return Seen(apply(entry, pending().optJSONObject(title) ?: JSONObject(), today()), format)
+        return Seen(entry, format)
     }
 
     fun retry() { if (token().isNotEmpty()) scope.launch { lock.withLock { flush() } } }
@@ -72,16 +73,14 @@ class AniListSync(
     private fun queue(id: String, change: (JSONObject) -> Unit) {
         val title = titleOf(id) ?: return
         if (token().isEmpty()) return
-        scope.launch {
-            lock.withLock {
-                val all = pending()
-                val item = all.optJSONObject(title) ?: JSONObject().also { all.put(title, it) }
-                change(item)
-                item.put(AT, clock()).put(SRV, offset() != null)
-                prefs.edit().putString(QUEUE, all.toString()).apply()
-                flush()
-            }
+        synchronized(store) {
+            val all = pending()
+            val item = all.optJSONObject(title) ?: JSONObject().also { all.put(title, it) }
+            change(item)
+            item.put(AT, clock()).put(SRV, offset() != null)
+            prefs.edit().putString(QUEUE, all.toString()).apply()
         }
+        scope.launch { lock.withLock { flush() } }
     }
 
     private fun pending() = runCatching { JSONObject(prefs.getString(QUEUE, "{}").orEmpty()) }.getOrDefault(JSONObject())
@@ -98,14 +97,15 @@ class AniListSync(
             when (outcome) {
                 Outcome.STOP -> return
                 Outcome.KEEP -> continue
-                Outcome.DONE -> settle(title, token)
+                Outcome.DONE -> settle(title, token, item.toString())
             }
         }
     }
 
-    private fun settle(title: String, token: String) {
-        if (token() != token || !prefs.contains(QUEUE)) return
-        prefs.edit().putString(QUEUE, pending().also { it.remove(title) }.toString()).apply()
+    private fun settle(title: String, token: String, sent: String) = synchronized(store) {
+        if (token() != token || !prefs.contains(QUEUE)) return@synchronized
+        val all = pending()
+        if (all.optJSONObject(title)?.toString() == sent) prefs.edit().putString(QUEUE, all.also { it.remove(title) }.toString()).apply()
     }
 
     private fun failed(title: String, e: Exception): Outcome {

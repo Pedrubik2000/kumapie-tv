@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -73,7 +74,7 @@ internal fun EpisodeRow(page: TitlePage, blur: Boolean, focus: TitleFocus, onPla
             Heading(tr("Episodes"))
             Text(factLine(eps.size.takeIf { it > 0 }?.toString(), if (blur) tr("No spoilers on") else null), color = Colors.dim, fontSize = 14.sp)
         }
-        LazyRow(state = rememberLazyListState(at), horizontalArrangement = Arrangement.spacedBy(14.dp),
+        LazyRow(state = rememberLazyListState(at), modifier = Modifier.focusRequester(focus.row).focusRestorer(focus.episodes), horizontalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(start = RAIL, end = 32.dp, top = 10.dp, bottom = 8.dp)) {
             if (eps.isEmpty()) item {
                 EpisodeTile(title.background.ifEmpty { title.poster }, tr("Watch"), factLine(tr("Watch"), title.year.ifEmpty { null }, length),

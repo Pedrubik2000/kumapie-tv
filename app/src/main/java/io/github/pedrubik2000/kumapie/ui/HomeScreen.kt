@@ -229,6 +229,7 @@ private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> Li
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: (() -> Unit)?, server: Boolean = true, settingsLabel: String = tr("Settings"), hint: String? = null) {
     val retry = remember { FocusRequester() }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -237,9 +238,9 @@ fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: (() -> Unit)?, se
             Text(if (server) plainError(message) else message, color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
             if (server) Text(tr("Is the PC on, and Tailscale connected on the TV?"), color = Colors.dim)
             hint?.let { Text(it, color = Colors.dim) }
-            Row(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again")) }
-                if (onSettings != null) Button(onClick = onSettings) { Text(settingsLabel) }
+            androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again"), maxLines = 1, softWrap = false) }
+                if (onSettings != null) Button(onClick = onSettings) { Text(settingsLabel, maxLines = 1, softWrap = false) }
             }
         }
     }

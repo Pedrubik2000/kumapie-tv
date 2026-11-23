@@ -25,7 +25,10 @@ class AniListSync(
         val entry: suspend (String, Int) -> AniList.Entry,
         val save: suspend (String, Int, AniList.Entry, AniList.Entry) -> AniList.Entry,
         val offset: () -> Long? = { AniList.serverOffset },
+        val format: suspend (String) -> String = { AniList.viewer(it).second },
     )
+
+    class Seen(val entry: AniList.Entry, val format: String?)
 
     private val fired = HashSet<String>()
 
@@ -48,6 +51,14 @@ class AniListSync(
     fun watchingAt(episodeId: String, type: String, positionMs: Long, durationMs: Long) {
         if (durationMs <= 0 || positionMs <= durationMs / 8 || !fired.add(episodeId)) return
         episodeOf(episodeId, type == "movie")?.let { watching(episodeId, it) }
+    }
+
+    suspend fun read(token: String, id: String): Seen {
+        val title = titleOf(id) ?: throw java.io.IOException("not a kitsu title")
+        val media = api.lookup(title) ?: throw java.io.IOException("no AniList mapping")
+        val entry = api.entry(token, media)
+        val format = try { api.format(token) } catch (e: AniList.LoggedOut) { throw e } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
+        return Seen(apply(entry, pending().optJSONObject(title) ?: JSONObject(), today()), format)
     }
 
     fun retry() { if (token().isNotEmpty()) scope.launch { lock.withLock { flush() } } }

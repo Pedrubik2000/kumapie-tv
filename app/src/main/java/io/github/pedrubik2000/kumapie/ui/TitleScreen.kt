@@ -16,6 +16,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import io.github.pedrubik2000.kumapie.data.AniList
+import kotlinx.coroutines.CancellationException
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -63,25 +69,44 @@ internal class TitleFocus {
     val episodes = FocusRequester()
 }
 
+private fun Mine.data() = CardData(status, score, progress, episodes, average)
+
+private fun AniList.Entry.data(average: Int) = CardData(status, score, progress, episodes, average)
+
 @Composable
-private fun rememberAniState(settings: Settings, kitsu: String?, lists: suspend (Settings) -> List<Mine>?): AniState {
-    val user = settings.anilist
-    val on = settings.anilistToken.isNotEmpty() && user.isNotEmpty() && kitsu != null
-    val state by produceState(AniState(null, !on, false), kitsu, on) {
-        if (!on) return@produceState
-        val cached = withContext(Dispatchers.IO) { AniListLists.cached(settings.prefs, user) }
-        if (cached.isNotEmpty()) value = AniState(cached.firstOrNull { it.kitsuId == kitsu }, true, false)
-        val fresh = runCatching { lists(settings) }.getOrNull()
-        if (fresh != null) value = AniState(fresh.firstOrNull { it.kitsuId == kitsu }, true, false)
-        else if (!value.ready) value = AniState(null, false, true)
+private fun rememberAniState(settings: Settings, writer: AniListSync, title: Found, kitsu: String?, edits: TitleEdits): AniState {
+    val signedIn = settings.anilistToken.isNotEmpty() && kitsu != null
+    var again by remember { mutableIntStateOf(0) }
+    var opened by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (opened) again++ else opened = true }
+    val state by produceState(AniState(if (settings.anilistToken.isEmpty()) AniPhase.LOGGED_OUT else AniPhase.LOADING, null, settings.anilistFormat, null), kitsu, signedIn, again) {
+        if (!signedIn) return@produceState
+        val user = settings.anilist
+        val mine = withContext(Dispatchers.IO) { if (user.isEmpty()) null else AniListLists.cached(settings.prefs, user).firstOrNull { it.kitsuId == kitsu } }
+        if (value.phase != AniPhase.READY) value = AniState(AniPhase.LOADING, mine?.data(), settings.anilistFormat, mine)
+        value = try {
+            val seen = settings.withAniList { writer.read(it, title.id) }
+            if (seen == null) AniState(AniPhase.LOGGED_OUT, null, settings.anilistFormat, mine)
+            else {
+                val data = seen.entry.data(mine?.average ?: 0)
+                edits.rebase(data, seen.format)
+                seen.format?.let { settings.anilistFormat = it }
+                AniState(AniPhase.READY, data, settings.anilistFormat, mine)
+            }
+        } catch (e: AniList.LoggedOut) {
+            AniState(AniPhase.LOGGED_OUT, null, settings.anilistFormat, mine)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AniState(AniPhase.FAILED, null, settings.anilistFormat, mine)
+        }
     }
     return state
 }
 
-private fun titleFinished(mine: Mine?, eps: List<JSONObject>): Boolean =
-    mine?.let { it.status == "COMPLETED" || it.episodes?.let { n -> it.progress >= n } == true } == true ||
+private fun titleFinished(data: CardData?, eps: List<JSONObject>): Boolean =
+    data?.let { it.status == "COMPLETED" || it.episodes?.let { n -> it.progress >= n } == true } == true ||
         eps.isNotEmpty() && eps.all { it.optBoolean("watched") }
-
 @Composable
 private fun TitleBackdrop(api: Discovery, title: Found) {
     val context = LocalContext.current
@@ -95,9 +120,9 @@ private fun TitleBackdrop(api: Discovery, title: Found) {
     }
 }
 
+
 @Composable
-internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScope.() -> Unit, jiten: JitenQueue?,
-                         lists: suspend (Settings) -> List<Mine>?, sync: AniListSync?) {
+internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScope.() -> Unit, jiten: JitenQueue?, sync: AniListSync?) {
     val context = LocalContext.current
     val settings = remember { Settings(context) }
     val page = remember(title.id) {
@@ -107,30 +132,32 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
         }
     }
     val writer = sync ?: remember { (api as? Addons)?.sync ?: AniListSync(settings.prefs) }
+    val edits = remember(title.id) { TitleEdits({ writer.status(title.id, it) }, { writer.score(title.id, it) }) }
     val focus = remember { TitleFocus() }
     val scope = rememberCoroutineScope()
     LaunchedEffect(page) { page.loadKept() }
     LaunchedEffect(page) { page.load(withContext(Dispatchers.IO) { SavedMeta.get(context, title.id) }) }
     LaunchedEffect(page.picking) { page.loadFiles() }
     val kitsu = AniListSync.titleOf(title.id)?.removePrefix("kitsu:")
-    val loggedIn = settings.anilistToken.isNotEmpty()
-    val ani = rememberAniState(settings, kitsu, lists)
+    val ani = rememberAniState(settings, writer, title, kitsu, edits)
+    CommitOnExit(edits, ani.phase == AniPhase.READY)
     val side = page.error != null || page.meta == null || page.picking != null
-    val finished = titleFinished(ani.mine, page.episodes)
+    val finished = titleFinished(ani.data, page.episodes)
     val cardOn = kitsu != null && !side
-    LaunchedEffect(page.meta != null, side, ani.ready) {
-        if (side || !ani.ready) return@LaunchedEffect
-        (if (finished && ani.mine != null) focus.score else focus.main).focusSoon()
+    var touched by remember { mutableStateOf(false) }
+    LaunchedEffect(page.meta != null, side) { if (!side) focus.main.focusSoon() }
+    LaunchedEffect(side, ani.phase) {
+        if (!side && !touched && ani.phase == AniPhase.READY && finished && ani.data?.status != null && (ani.data.score <= 0.0)) focus.score.focusSoon()
     }
     val play: (JSONObject?) -> Unit = { e -> page.play(e)?.let { context.startActivity(StreamActivity.intent(context, it)) } }
-    Box(Modifier.fillMaxSize().onBackKey(page.picking != null) { page.closeFiles() }) {
+    Box(Modifier.fillMaxSize().onPreviewKeyEvent { touched = true; false }.onBackKey(page.picking != null) { page.closeFiles() }) {
         TitleBackdrop(api, title)
         Row(Modifier.fillMaxSize().padding(start = RAIL, top = 40.dp, end = 32.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-            TitleInfo(page, ani.mine, rememberLevels(rememberQueue(jiten)), kitsu, finished, side, cardOn && loggedIn, focus, play)
+            TitleInfo(page, ani.mine, rememberLevels(rememberQueue(jiten)), kitsu, finished, side, cardOn && ani.phase == AniPhase.READY, focus, play)
             if (side) TitleSide(api, page, focus, Modifier.weight(1f))
         }
-        if (cardOn) AniListCard(loggedIn, ani, settings.anilistFormat, finished, page.next?.optInt("number")?.takeIf { it > 0 }, focus,
-            { writer.status(title.id, it) }, { writer.score(title.id, it) }, Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 32.dp))
+        if (cardOn) AniListCard(ani, edits, finished, page.next?.optInt("number")?.takeIf { it > 0 }, focus,
+            Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 32.dp))
         if (page.meta != null && !side) EpisodeRow(page, settings.blurUnwatched, focus, play, { e -> scope.launch { page.mark(e) } },
             Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp))
         rail()

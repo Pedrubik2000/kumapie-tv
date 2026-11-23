@@ -76,7 +76,7 @@ import org.json.JSONObject
 @Composable
 fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Found? = null,
                    onHome: () -> Unit = {}, onReview: () -> Unit = {}, onSettings: () -> Unit = {}, onLibrary: () -> Unit = {},
-                   jiten: io.github.pedrubik2000.kumapie.lang.JitenQueue? = null, lists: suspend (io.github.pedrubik2000.kumapie.data.Settings) -> List<io.github.pedrubik2000.kumapie.data.Mine>? = ::liveLists,
+                   jiten: io.github.pedrubik2000.kumapie.lang.JitenQueue? = null,
                    sync: io.github.pedrubik2000.kumapie.data.AniListSync? = null) {
     val rail: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = { DiscoverRail(onHome, onReview, onSettings, onLibrary = onLibrary) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -106,7 +106,7 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
     val rowsState = androidx.compose.foundation.lazy.rememberLazyListState()
     val rowStates = remember { mutableMapOf<Int, androidx.compose.foundation.lazy.LazyListState>() }
     val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
-    open?.let { return Box(Modifier.onBackKey(start == null) { open = null }) { TitleScreen(api, it, rail, jiten, lists, sync) } }
+    open?.let { return Box(Modifier.onBackKey(start == null) { open = null }) { TitleScreen(api, it, rail, jiten, sync) } }
     val board = rows
     var kept by remember { mutableStateOf<Set<String>?>(null) } // the titles on Home, for the hero's + Home
     LaunchedEffect(Unit) { kept = runCatching { api.saved().map { it.id }.toSet() }.getOrNull() }

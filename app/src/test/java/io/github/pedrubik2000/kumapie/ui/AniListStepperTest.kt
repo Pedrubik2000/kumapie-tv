@@ -58,10 +58,6 @@ class AniListStepperTest {
         assertEquals(listOf("COMPLETED", "CURRENT"), sent)
     }
 
-    @Test fun rewatchingStartsAsWatching() {
-        assertEquals("CURRENT", statusStart("REPEATING"))
-        assertEquals(null, statusStart(null))
-    }
 
     @Test fun scoreStepsFollowTheScoreFormat() {
         assertEquals((0..100).map { it.toDouble() }, scoreSteps("POINT_100"))
@@ -91,5 +87,52 @@ class AniListStepperTest {
         assertEquals(7.7, scoreStart(scoreSteps("POINT_10_DECIMAL"), 7.7), 0.0)
         assertEquals(8.0, scoreStart(scoreSteps("POINT_10"), 7.9), 0.0)
         assertEquals(0.0, scoreStart(scoreSteps("POINT_100"), 0.0), 0.0)
+    }
+
+    @Test fun aRewatchKeepsRewatchingInWatchingsPlace() {
+        assertEquals(listOf("PLANNING", "REPEATING", "COMPLETED", "PAUSED", "DROPPED"), statusSteps("REPEATING"))
+        assertEquals(STATUS_STEPS, statusSteps("CURRENT"))
+        val s = Stepper(statusSteps("REPEATING"), "REPEATING") { sent += it }
+        s.step(1)
+        s.step(1)
+        s.step(-1)
+        s.step(-1)
+        s.commit()
+        assertEquals(emptyList<String>(), sent)
+    }
+
+    @Test fun aNewReadWithoutAnEditBecomesBothShownAndSent() {
+        val s = status("CURRENT")
+        s.rebase("PAUSED")
+        assertEquals("PAUSED", s.shown)
+        s.commit()
+        assertEquals(emptyList<String>(), sent)
+    }
+
+    @Test fun aNewReadKeepsTheEditAndOnlyMovesTheBaseline() {
+        val s = status("CURRENT")
+        s.step(1)
+        s.rebase("PAUSED")
+        assertEquals("COMPLETED", s.shown)
+        s.commit()
+        assertEquals(listOf("COMPLETED"), sent)
+    }
+
+    @Test fun anEditEqualToTheNewBaselineSendsNothing() {
+        val s = status("CURRENT")
+        s.step(1)
+        s.rebase("COMPLETED")
+        s.commit()
+        assertEquals(emptyList<String>(), sent)
+    }
+
+    @Test fun aChangedScaleDropsTheEdit() {
+        val out = ArrayList<Double>()
+        val s = Stepper(scoreSteps("POINT_10"), 5.0) { out += it }
+        s.step(1)
+        s.rebase(85.0, scoreSteps("POINT_100"))
+        assertEquals(85.0, s.shown!!, 0.0)
+        s.commit()
+        assertEquals(emptyList<Double>(), out)
     }
 }

@@ -6,6 +6,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.TitleDifficulty
 
 internal const val LIMIT_MAX = 5
+private const val RETURN_WINDOW_MS = 60 * 60_000L
 
 enum class LibraryList(private val statuses: Set<String>) {
     WATCHING(setOf("CURRENT", "REPEATING")), PLANNING(setOf("PLANNING")), COMPLETED(setOf("COMPLETED")),
@@ -44,9 +45,27 @@ class LibraryView(val items: List<Mine>, val total: Int, val unrated: Int)
 
 internal object LibraryMemory {
     var list: LibraryList? = null
-    var opened: Int? = null
     var account: String = ""
     var at: Long = 0
+    private var opened: Int? = null
+    private var openedFor = ""
+    private var openedAt = 0L
+
+    fun open(id: Int, user: String, now: Long = System.currentTimeMillis()) {
+        opened = id
+        openedFor = user
+        openedAt = now
+    }
+
+    fun takeOpened(user: String, now: Long = System.currentTimeMillis()): Int? =
+        opened?.takeIf { openedFor == user && now - openedAt < RETURN_WINDOW_MS }.also { opened = null }
+
+    fun forget() {
+        list = null
+        account = ""
+        at = 0
+        opened = null
+    }
 }
 
 internal var Settings.library: LibraryFilters

@@ -70,7 +70,7 @@ fun LibraryScreen(api: Discovery, settings: Settings, onHome: () -> Unit, onDisc
     val loggedIn = settings.anilistToken.isNotEmpty()
     val user = settings.anilist
     val scope = rememberCoroutineScope()
-    val returning = remember { LibraryMemory.opened != null }
+    val back = remember { LibraryMemory.takeOpened(user) }
     var all by remember { mutableStateOf<List<Mine>?>(null) }
     var kept by remember { mutableStateOf<Set<String>?>(null) }
     var keptFailed by remember { mutableStateOf(false) }
@@ -79,11 +79,12 @@ fun LibraryScreen(api: Discovery, settings: Settings, onHome: () -> Unit, onDisc
     LaunchedEffect(user, loggedIn) {
         all = if (!loggedIn || user.isEmpty()) emptyList()
         else withContext(Dispatchers.IO) {
-            val now = System.currentTimeMillis()
-            if (!returning && (LibraryMemory.account != user || now - LibraryMemory.at >= REFRESH_EVERY_MS)) {
-                LibraryMemory.account = user
-                LibraryMemory.at = now
-                read(settings.prefs, user, settings.anilistToken, scope) { all = it }
+            if (back == null && (LibraryMemory.account != user || System.currentTimeMillis() - LibraryMemory.at >= REFRESH_EVERY_MS)) {
+                read(settings.prefs, user, settings.anilistToken, scope) {
+                    LibraryMemory.account = user
+                    LibraryMemory.at = System.currentTimeMillis()
+                    all = it
+                }
             } else AniListLists.cached(settings.prefs, user)
         }
     }
@@ -93,7 +94,7 @@ fun LibraryScreen(api: Discovery, settings: Settings, onHome: () -> Unit, onDisc
         when {
             !loggedIn -> LoggedOut(onSettings, entry)
             lists == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
-            else -> LibraryBody(lists, kept, keptFailed, settings, entry, rail, api, jiten, Live(focusIn, touched), onOpen)
+            else -> LibraryBody(lists, kept, keptFailed, settings, entry, rail, api, jiten, Live(focusIn, touched), back, onOpen)
         }
         DiscoverRail(onHome, onReview, onSettings, onDiscover = onDiscover, library = true, focus = rail, toRows = entry.takeIf { !loggedIn || all != null })
     }
@@ -120,7 +121,7 @@ private class Nav {
 
 @Composable
 private fun LibraryBody(all: List<Mine>, kept: Set<String>?, keptFailed: Boolean, settings: Settings, entry: FocusRequester, rail: Map<String, FocusRequester>,
-                        api: Discovery, jiten: JitenQueue?, live: Live, onOpen: (Found) -> Unit) {
+                        api: Discovery, jiten: JitenQueue?, live: Live, restore: Int?, onOpen: (Found) -> Unit) {
     var list by remember { mutableStateOf(LibraryMemory.list ?: openingList(all)) }
     LaunchedEffect(all.isNotEmpty()) { if (list == null) list = openingList(all) }
     val current = list ?: LibraryList.WATCHING
@@ -131,7 +132,6 @@ private fun LibraryBody(all: List<Mine>, kept: Set<String>?, keptFailed: Boolean
     var display by remember { mutableStateOf<Shown?>(null) }
     LaunchedEffect(built, inGrid) { built?.let { if (!inGrid || display == null) display = it } }
     val items = display?.view?.items.orEmpty()
-    val restore = remember { LibraryMemory.opened.also { LibraryMemory.opened = null } }
     val grid = rememberLazyGridState()
     val focus = remember(current) { LibFocus() }
     val nav = remember { Nav() }
@@ -151,7 +151,7 @@ private fun LibraryBody(all: List<Mine>, kept: Set<String>?, keptFailed: Boolean
             }
             if (items.isNotEmpty()) LibraryGrid(items, display?.list ?: current, levels, grid,
                 Modifier.focusRequester(nav.grid).onBackKey { runCatching { entry.requestFocus() } }.onFocusChanged { inGrid = it.hasFocus }.focusRestorer(nav.enter),
-                focus, entry, nav) { m -> LibraryMemory.opened = m.anilistId; onOpen(m.found()) }
+                focus, entry, nav) { m -> LibraryMemory.open(m.anilistId, settings.anilist); onOpen(m.found()) }
         }
         Button(onClick = { val f = filters.copy(sort = filters.sort.next()); filters = f; settings.library = f },
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 28.dp).focusRequester(nav.sort)
@@ -212,7 +212,7 @@ private fun KeepFocus(display: Shown?, restore: Int?, grid: LazyGridState, focus
 private fun Asks(levels: Levels?, all: List<Mine>, current: LibraryList, needed: Boolean, grid: LazyGridState, items: List<Mine>) {
     val owner = remember { Any() }
     AskVisible(levels, grid, items)
-    DisposableEffect(levels) { onDispose { levels?.drop(owner) } }
+    DisposableEffect(levels) { onDispose { levels?.release(owner) } }
     LaunchedEffect(levels, current, needed, all) {
         levels ?: return@LaunchedEffect
         withContext(Dispatchers.Default) {

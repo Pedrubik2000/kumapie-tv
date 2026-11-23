@@ -16,6 +16,7 @@ class JitenQueue(
     private val queued = HashSet<String>()
     private val shared = HashSet<String>()
     private val lent = HashMap<Any, MutableSet<String>>()
+    private val released = java.util.Collections.newSetFromMap(java.util.WeakHashMap<Any, Boolean>())
     private var blockedUntil = 0L
     private val failed = HashMap<String, Long>()
     private val flow = MutableStateFlow<Map<String, TitleDifficulty?>>(emptyMap())
@@ -32,7 +33,8 @@ class JitenQueue(
 
     @Synchronized
     fun ask(kitsuIds: List<String>, priority: Boolean = true, owner: Any? = null) {
-        val wanted = kitsuIds.distinct().filter { !isFresh(it) && clock() - (failed[it] ?: -RETRY_MS) >= RETRY_MS }
+        if (owner != null && owner in released) return
+        val wanted = kitsuIds.distinct().filter { !isFresh(it) && clock() - (failedAt(it) ?: -RETRY_MS) >= RETRY_MS }
         if (priority) {
             val moving = wanted.filter { it in queued }.toSet()
             if (moving.isNotEmpty()) pending.removeAll(moving)
@@ -40,6 +42,12 @@ class JitenQueue(
             queued += wanted
         } else wanted.filter { queued.add(it) }.forEach { pending.addLast(it) }
         if (priority || owner == null) shared += wanted else lent.getOrPut(owner) { HashSet() } += wanted
+    }
+
+    @Synchronized
+    fun release(owner: Any) {
+        released += owner
+        drop(owner)
     }
 
     @Synchronized
@@ -62,15 +70,24 @@ class JitenQueue(
     private fun back(kitsu: String) {
         pending.addFirst(kitsu)
         queued += kitsu
+        shared += kitsu
     }
+
+    @Synchronized
+    private fun fail(kitsu: String) {
+        failed[kitsu] = clock()
+    }
+
+    @Synchronized
+    private fun failedAt(kitsu: String): Long? = failed[kitsu]
 
     suspend fun step(): Boolean {
         val kitsu = next() ?: return false
         var asked = false
         val id = if (store.knowsKitsu(kitsu)) store.anilistOf(kitsu) else {
             asked = true
-            val found = runCatching { resolve(kitsu) }.getOrElse { failed[kitsu] = clock(); delay(RESOLVE_GAP_MS); return true }
-            found.also { store.linkKitsu(kitsu, it) }
+            val found = runCatching { resolve(kitsu) }.getOrElse { fail(kitsu); delay(RESOLVE_GAP_MS); return true }
+            store.linkResolved(kitsu, found)
         }
         if (id == null) {
             if (asked) delay(RESOLVE_GAP_MS)
@@ -92,7 +109,7 @@ class JitenQueue(
                 blockedUntil = clock() + REFUSED_MS
                 back(kitsu)
             }
-            JitenResult.Failed -> failed[kitsu] = clock()
+            JitenResult.Failed -> fail(kitsu)
         }
         return true
     }

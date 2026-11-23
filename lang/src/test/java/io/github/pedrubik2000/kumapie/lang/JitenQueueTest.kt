@@ -171,4 +171,35 @@ class JitenQueueTest {
         drain(q)
         assertEquals(listOf("kitsu:2", "kitsu:3"), resolved)
     }
+
+    @Test fun aTitleBackedOffAfterA429StaysSharedWhenAnOwnerAsksAndLeaves() {
+        var limited = true
+        val q = queue(Canned { if (limited) Reply(429, "", 30) else jitenOk(it) })
+        q.ask(listOf("kitsu:1"))
+        drain(q)
+        q.ask(listOf("kitsu:1"), false, "library")
+        q.drop("library")
+        limited = false
+        now += 31_000
+        drain(q)
+        assertNotNull(q.cached("kitsu:1"))
+    }
+
+    @Test fun anEmptyResolveDoesNotOverwriteAMappingKnownByThen() {
+        val store = JitenStore(file) { now }
+        val paced = JitenPaced(Canned(::jitenOk), 500, { now }, { now += it })
+        val q = JitenQueue(store, JitenApi(paced), { store.linkAll(mapOf(it to 154587)); null }, { idle }, { now })
+        q.ask(listOf("kitsu:1"))
+        drain(q)
+        assertEquals(154587, store.anilistOf("kitsu:1"))
+        assertNotNull(q.cached("kitsu:1"))
+    }
+
+    @Test fun aReleasedOwnerCanNeverQueueAgain() {
+        val q = queue(Canned(::jitenOk))
+        q.release("library")
+        q.ask(listOf("kitsu:1"), false, "library")
+        drain(q)
+        assertEquals(emptyList<String>(), resolved)
+    }
 }

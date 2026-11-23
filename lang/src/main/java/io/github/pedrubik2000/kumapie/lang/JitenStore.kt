@@ -48,6 +48,13 @@ class JitenStore(private val file: File, private val clock: () -> Long = System:
     }
 
     @Synchronized
+    fun linkResolved(kitsu: String, anilistId: Int?): Int? {
+        anilistOf(kitsu)?.let { return it }
+        linkKitsu(kitsu, anilistId)
+        return anilistId
+    }
+
+    @Synchronized
     fun linkAll(ids: Map<String, Int>) {
         var changed = false
         ids.forEach { (k, v) -> if ((anilist[k] ?: 0) <= 0 && v > 0) { anilist[k] = v; changed = true } }

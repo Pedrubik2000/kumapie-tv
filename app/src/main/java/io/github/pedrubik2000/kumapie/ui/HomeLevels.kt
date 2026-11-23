@@ -17,11 +17,13 @@ import kotlinx.coroutines.withContext
 class Levels(private val queue: JitenQueue, private val results: State<Map<String, TitleDifficulty?>>) {
     fun of(kitsu: String?): TitleDifficulty? = kitsu?.let { results.value[it] ?: queue.cached(it) }
 
-    val loaded: Int get() = results.value.size
+    val loaded: Any get() = results.value
 
     fun ask(ids: List<String>, priority: Boolean, owner: Any? = null) = queue.ask(ids, priority, owner)
 
     fun drop(owner: Any) = queue.drop(owner)
+
+    fun release(owner: Any) = queue.release(owner)
 
     fun know(all: List<Mine>) = queue.know(all.associate { it.kitsuId to it.anilistId })
 

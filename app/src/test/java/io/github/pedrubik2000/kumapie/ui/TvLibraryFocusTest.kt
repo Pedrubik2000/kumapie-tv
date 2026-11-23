@@ -49,14 +49,12 @@ class TvLibraryFocusTest {
     private val opened = ArrayList<Found>()
 
     @Before fun forget() {
-        LibraryMemory.list = null
-        LibraryMemory.opened = null
-        LibraryMemory.account = ""
-        LibraryMemory.at = 0
+        LibraryMemory.forget()
     }
 
     private var refresh: ((List<Mine>) -> Unit)? = null
     private var reads = 0
+    private var autoFresh = false
 
     private fun discovery(kept: List<Found> = emptyList(), slow: Long = 0) = object : Discovery {
         override suspend fun board() = emptyList<Pair<String, List<Found>>>()
@@ -95,7 +93,7 @@ class TvLibraryFocusTest {
     private fun open(kept: List<Found> = emptyList(), jiten: JitenQueue = queue(), slow: Long = 0) {
         rule.setContent {
             if (showing) LibraryScreen(discovery(kept, slow), Settings(RuntimeEnvironment.getApplication()), onHome = {}, onDiscover = {}, onReview = {}, onSettings = {},
-                onOpen = { opened += it; showing = false }, jiten = jiten, read = { prefs, user, _, _, fresh -> reads++; refresh = fresh; AniListLists.cached(prefs, user) })
+                onOpen = { opened += it; showing = false }, jiten = jiten, read = { prefs, user, _, _, fresh -> reads++; refresh = fresh; AniListLists.cached(prefs, user).also { if (autoFresh) fresh(it) } })
         }
     }
 
@@ -293,7 +291,7 @@ class TvLibraryFocusTest {
     private fun returnTo(list: LibraryList, cover: Int, filters: LibraryFilters) {
         Settings(RuntimeEnvironment.getApplication()).library = filters
         LibraryMemory.list = list
-        LibraryMemory.opened = cover
+        LibraryMemory.open(cover, "pedro")
     }
 
     private fun expectFocusOn(name: String) {
@@ -340,7 +338,7 @@ class TvLibraryFocusTest {
         assertTrue(focused()?.startsWith("Planning") == true)
     }
 
-    @Test fun aRefreshThatEmptiesTheListLeavesAListRowFocused() {
+    @Test fun aRefreshThatEmptiesTheListKeepsFocusOnTheColumnRow() {
         logIn()
         open()
         waitFocus { it?.startsWith("Watching") == true }
@@ -365,6 +363,7 @@ class TvLibraryFocusTest {
     }
 
     @Test fun theListIsReadOnceInTenMinutesNotOnEveryEntry() {
+        autoFresh = true
         logIn()
         open()
         waitFocus { it?.startsWith("Watching") == true }

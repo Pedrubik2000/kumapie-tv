@@ -3,6 +3,7 @@ package io.github.pedrubik2000.kumapie.ui
 import android.content.Context
 import android.net.Uri
 import io.github.pedrubik2000.kumapie.data.Addons
+import io.github.pedrubik2000.kumapie.data.AniList
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Multipart
 import io.github.pedrubik2000.kumapie.data.Settings
@@ -55,7 +56,8 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
         if (method == "POST" && header("Content-Type").startsWith("multipart/form-data")) return@use answer(c, 200, upload(input, length, header("Content-Type")))
         if (method == "POST") {
             val body = String(read(input, length.coerceAtMost(8192)), Charsets.UTF_8)
-            save(body.split('&').mapNotNull { p -> p.split('=', limit = 2).takeIf { it.size == 2 }?.let { URLDecoder.decode(it[0], "UTF-8") to URLDecoder.decode(it[1], "UTF-8").trim() } }.toMap())
+            val failed = save(body.split('&').mapNotNull { p -> p.split('=', limit = 2).takeIf { it.size == 2 }?.let { URLDecoder.decode(it[0], "UTF-8") to URLDecoder.decode(it[1], "UTF-8").trim() } }.toMap())
+            if (failed != null) return@use answer(c, 200, "<h1>${tr("AniList did not accept that token")}</h1><p>${tr("Copy the whole token from the AniList page and try again.")}</p>")
             onSaved()
             return@use answer(c, 200, "<h1>✓ ${tr("Saved")}</h1><p>${tr("Look at your TV: kumapie has it.")}</p>")
         }
@@ -93,10 +95,12 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
         return said
     }
 
-    private fun save(f: Map<String, String>) {
+    private suspend fun save(f: Map<String, String>): Throwable? {
         f["jimaku"]?.takeIf { it.isNotEmpty() }?.let { settings.jimakuKey = it }
         settings.setSources(kitsu = f["kitsu"] == "on", english = f["english"] == "on", rd = f["rd"].orEmpty())
         f["anilist"]?.let { settings.anilist = it }
+        if (f["anilist_logout"] == "1") settings.logOutAniList()
+        return f["anilist_token"]?.takeIf { it.isNotEmpty() }?.let { t -> runCatching { settings.logInAniList(t) }.exceptionOrNull() }
     }
 
     private fun form(): String {
@@ -118,6 +122,11 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
             <label><input type="checkbox" name="english"${tick(Addons.OPENSUBTITLES)}> ${tr("English under the lines: OpenSubtitles (free, no account)")}</label>
             <p>${tr("Your AniList lists (optional): what you're watching and plan to watch, at the top of Discover. Your profile must be public.")}</p>
             <input name="anilist" placeholder="${tr("AniList username")}" value="${settings.anilist.replace("\"", "")}" autocomplete="off">
+            <h2>AniList${set(settings.anilistToken.isNotEmpty())}</h2>
+            <p>${tr("Log in so kumapie keeps your AniList in step: a title you add goes to Planning, one you start to Watching, one you finish to Completed. Log in there, then copy the token it shows and paste it here.")}
+            <a href="${AniList.loginUrl(AniList.TV_CLIENT)}" target="_blank">${tr("Log in with AniList")}</a></p>
+            <input name="anilist_token" placeholder="${tr("AniList token")}" autocomplete="off">
+            <label><input type="checkbox" name="anilist_logout" value="1"> ${tr("Log out of AniList")}</label>
             <button>${tr("Save")}</button>
             </form>
             <h2>${tr("A Japanese dictionary")}</h2>

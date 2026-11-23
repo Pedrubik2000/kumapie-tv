@@ -79,6 +79,8 @@ class Settings(context: Context) {
         }
     }
 
+    fun logOutAniList() = prefs.edit().putString("anilist_token", "").putBoolean("anilist_logged_out", false).apply()
+
     suspend fun logInAniList(token: String): String {
         val (name, format) = AniList.viewer(token)
         anilistToken = token; anilistFormat = format; anilist = name

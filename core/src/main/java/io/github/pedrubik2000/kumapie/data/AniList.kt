@@ -49,7 +49,7 @@ object AniList {
     }
 
     /** AniList ids -> Kitsu ids, 20 per request, kept in [store] (a mapping doesn't change). */
-    private fun kitsuIds(ids: List<Int>, store: SharedPreferences): Map<Int, String> {
+    internal fun kitsuIds(ids: List<Int>, store: SharedPreferences): Map<Int, String> {
         val cache = JSONObject(store.getString(CACHE, "{}") ?: "{}")
         for (chunk in ids.filter { !cache.has(it.toString()) }.distinct().chunked(20)) runCatching {
             val url = "https://kitsu.io/api/edge/mappings?filter[externalSite]=anilist/anime&filter[externalId]=${chunk.joinToString(",")}" +
@@ -154,7 +154,7 @@ object AniList {
             .put("day", p.getOrNull(2) ?: JSONObject.NULL)
     }
 
-    private fun gql(token: String, query: String, variables: JSONObject): JSONObject {
+    internal fun gql(token: String, query: String, variables: JSONObject): JSONObject {
         val (code, text) = post("https://graphql.anilist.co", JSONObject().put("query", query).put("variables", variables).toString(), token)
         val answer = runCatching { JSONObject(text) }.getOrNull()
         val error = answer?.optJSONArray("errors")?.optJSONObject(0)?.optString("message")

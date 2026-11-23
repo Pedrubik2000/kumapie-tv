@@ -46,6 +46,7 @@ sealed interface Screen {
     data object Stats : Screen
     data class Discover(val open: io.github.pedrubik2000.kumapie.data.Found? = null) : Screen
     data class Review(val lang: String) : Screen
+    data object Library : Screen
 }
 
 var Settings.profile: String
@@ -64,6 +65,7 @@ class MainActivity : ComponentActivity() {
         io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-tv-")
         val settings = Settings(this)
         io.github.pedrubik2000.kumapie.data.AniListSync(settings.prefs).retry()
+        io.github.pedrubik2000.kumapie.data.TitleLevels.start(applicationContext)
         fromAdb(intent, settings)
         window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.DeviceSync.start(applicationContext) }, 8000)
         if (settings.server.isBlank()) window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() }, 5000)
@@ -136,13 +138,15 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
         is Screen.Discover -> {
             val addons = remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }
             io.github.pedrubik2000.kumapie.ui.DiscoverScreen(addons, (stack.last() as Screen.Discover).open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
-                onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) })
+                onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) }, onLibrary = { stack.add(Screen.Library) })
         }
+        Screen.Library -> io.github.pedrubik2000.kumapie.ui.LibraryScreen(onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
+            onDiscover = { stack.add(Screen.Discover()) }, onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) })
         else -> HomeScreen(remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }, settings, "", "",
             onShow = { s -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, s.episodes.first()))) },
             onPlay = { s, e -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e))) },
             onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) }, onProfiles = {}, onReview = { stack.add(Screen.Review(it)) },
-            onDiscover = { stack.add(Screen.Discover()) }, onDiscovered = { stack.add(Screen.Discover(it)) })
+            onDiscover = { stack.add(Screen.Discover()) }, onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.add(Screen.Library) })
     }
     if (stack.last().let { it == Screen.Home || it is Screen.Discover }) io.github.pedrubik2000.kumapie.ui.RdMissingLine(settings) { stack.add(Screen.Settings) }
 }
@@ -172,9 +176,11 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
             },
             onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
             onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.add(Screen.Discover()) },
-            onDiscovered = { stack.add(Screen.Discover(it)) })
+            onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.add(Screen.Library) })
         is Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api, screen.open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
-            onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) })
+            onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) }, onLibrary = { stack.add(Screen.Library) })
+        Screen.Library -> io.github.pedrubik2000.kumapie.ui.LibraryScreen(onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
+            onDiscover = { stack.add(Screen.Discover()) }, onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) })
         is Screen.Review -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(io.github.pedrubik2000.kumapie.ui.pcReview(api, screen.lang))
         Screen.Stats -> StatsScreen({ api.stats() }, onSettings = { stack.add(Screen.Settings) })
         is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })

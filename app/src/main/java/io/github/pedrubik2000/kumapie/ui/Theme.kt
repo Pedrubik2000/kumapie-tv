@@ -117,3 +117,12 @@ fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Un
         },
     )
 }
+
+object DifficultyColours {
+    val blue = Color(0xFF3F7FD6)
+    val green = Color(0xFF2E9E5B)
+    val lime = Color(0xFF6E9A1C)
+    val orange = Color(0xFFD9741A)
+    val red = Color(0xFFD33B3B)
+    val purple = Color(0xFF8A47C9)
+}

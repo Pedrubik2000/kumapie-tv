@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -74,8 +75,8 @@ import org.json.JSONObject
  */
 @Composable
 fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Found? = null,
-                   onHome: () -> Unit = {}, onReview: () -> Unit = {}, onSettings: () -> Unit = {}) {
-    val rail: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = { DiscoverRail(onHome, onReview, onSettings) }
+                   onHome: () -> Unit = {}, onReview: () -> Unit = {}, onSettings: () -> Unit = {}, onLibrary: () -> Unit = {}) {
+    val rail: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = { DiscoverRail(onHome, onReview, onSettings, onLibrary = onLibrary) }
     var query by rememberSaveable { mutableStateOf("") }
     var searched by rememberSaveable { mutableStateOf("") }
     var found by remember { mutableStateOf<List<Found>?>(null) }
@@ -190,15 +191,16 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
 
 /** Home's left edge on Discover's pages: the bear, a dark strip and the round buttons, Discover selected. */
 @Composable
-private fun androidx.compose.foundation.layout.BoxScope.DiscoverRail(onHome: () -> Unit, onReview: () -> Unit, onSettings: () -> Unit) {
-    val focus = remember { mutableMapOf<String, FocusRequester>() }
+internal fun androidx.compose.foundation.layout.BoxScope.DiscoverRail(onHome: () -> Unit, onReview: () -> Unit, onSettings: () -> Unit,
+    onLibrary: () -> Unit = {}, onDiscover: () -> Unit = {}, library: Boolean = false, focus: MutableMap<String, FocusRequester> = remember { mutableMapOf() }) {
     androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(io.github.pedrubik2000.kumapie.R.drawable.bear), "kumapie",
         Modifier.padding(start = 20.dp, top = 20.dp).size(64.dp))
     Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).background(Brush.horizontalGradient(
         0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
     Rail(listOf(
         RailItem(androidx.compose.material.icons.Icons.Default.Home, tr("Home"), back = false, onClick = onHome),
-        RailItem(androidx.compose.material.icons.Icons.Default.Explore, tr("Discover"), selected = true) {},
+        RailItem(androidx.compose.material.icons.Icons.Default.VideoLibrary, tr("Library"), back = false, selected = library, onClick = onLibrary),
+        RailItem(androidx.compose.material.icons.Icons.Default.Explore, tr("Discover"), back = false, selected = !library, onClick = onDiscover),
         RailItem(androidx.compose.material.icons.Icons.Default.Style, tr("Review"), back = false, onClick = onReview),
         RailItem(androidx.compose.material.icons.Icons.Default.Settings, tr("Settings"), back = false, onClick = onSettings),
     ), focus, null, Modifier.align(Alignment.TopStart).padding(top = 100.dp))

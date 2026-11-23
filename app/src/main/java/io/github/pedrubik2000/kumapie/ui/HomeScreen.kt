@@ -131,7 +131,7 @@ private fun HomeHeader(totals: LangTotal?, langs: List<String>, lang: String?, o
     Box(Modifier.fillMaxWidth().padding(start = 20.dp, end = 32.dp, top = 20.dp)) {
         Image(painterResource(R.drawable.bear), "kumapie", Modifier.align(Alignment.TopStart).size(64.dp))
         Row(Modifier.align(Alignment.TopEnd).padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            totals?.let { Text(statsLine(it), color = Color.White.copy(alpha = 0.9f), fontSize = 18.sp, style = Arcade.label) }
+            totals?.let { Text(statsLine(it), color = Color.White.copy(alpha = 0.75f), fontSize = 14.sp) }
             if (langs.size > 1) Button(padding = TAB, onClick = { onLang(langs[(langs.indexOf(lang) + 1) % langs.size]) }) {
                 Text((lang?.let { Lang.of(it).displayName } ?: "") + "  ▾")
             }

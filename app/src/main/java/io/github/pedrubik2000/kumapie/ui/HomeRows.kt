@@ -16,6 +16,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -53,10 +56,10 @@ private val ROW_PADDING = PaddingValues(start = RAIL, end = 32.dp, top = 12.dp, 
 @Stable
 internal class RowCtx(
     val d: HomeData, val focus: HomeFocus, val api: Discovery, val levels: Levels?, val first: FocusRequester, val below: FocusRequester,
-    val toTop: () -> Unit, val onShow: (Show) -> Unit, val onPlay: (Show, Episode) -> Unit, val onDiscovered: (Found) -> Unit, val onLogin: () -> Unit,
+    val toTop: () -> Unit, val scrollTo: (Int) -> Unit, val onShow: (Show) -> Unit, val onPlay: (Show, Episode) -> Unit, val onDiscovered: (Found) -> Unit, val onLogin: () -> Unit,
 ) {
     fun card(row: Int, index: Int, target: () -> HeroTarget?): Modifier {
-        var m: Modifier = Modifier.onFocusChanged { if (it.isFocused) { target()?.let { t -> focus.target = t }; focus.row = row } }
+        var m: Modifier = Modifier.onFocusChanged { if (it.isFocused) { target()?.let { t -> focus.target = t }; focus.row = row; scrollTo(row) } }
         if (index == 0 && row == 0) m = m.focusRequester(if (d.going.isEmpty()) first else below)
         if (row == 0 && d.going.isNotEmpty()) m = m.onPreviewKeyEvent { e ->
             (e.type == KeyEventType.KeyDown && e.key == Key.DirectionUp).also { if (it) toTop() }
@@ -77,12 +80,14 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
         scope.launch { runCatching { list.scrollToItem(0) }; first.focusSoon(); runCatching { list.scrollToItem(0) } }
         Unit
     }
-    val ctx = remember(d, levels) { RowCtx(d, focus, api, levels, first, below, toTop, onShow, onPlay, onDiscovered, onLogin) }
+    val ctx = remember(d, levels) { RowCtx(d, focus, api, levels, first, below, toTop, { i -> scope.launch { runCatching { list.animateScrollToItem(i) } }; Unit }, onShow, onPlay, onDiscovered, onLogin) }
     LaunchedEffect(d.resume) { if (focus.target == null || focus.target is ResumeTarget) focus.target = d.resume }
     AskLevels(levels, d.askRows, focus)
     Box(Modifier.fillMaxSize()) {
         HomeHero(focus, d.warm, api, levels, first, below, onPlay, onShow)
-        LazyColumn(Modifier.fillMaxSize().rowsBelowHero(focus).backToTop(ctx, list, toTop), state = list) { homeRows(ctx) }
+        CompositionLocalProvider(LocalBringIntoViewSpec provides HeadingFirst) {
+            LazyColumn(Modifier.fillMaxSize().rowsBelowHero(focus).backToTop(ctx, list, toTop), state = list, contentPadding = PaddingValues(bottom = 240.dp)) { homeRows(ctx) }
+        }
     }
     LaunchedEffect(d.going) { takeRailLast()?.let { railFocus[it] }?.focusSoon() ?: first.focusSoon() }
 }
@@ -123,7 +128,7 @@ private fun RowHead(label: String, nav: RowNav?) =
 
 private fun LazyListScope.goingRow(c: RowCtx, nav: RowNav?) = item(key = "going") {
     val going = c.d.going
-    Column {
+    WithTvScroll { Column {
         RowHead(tr("Continue watching"), nav)
         LazyRow(state = remember(going) { LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = ROW_PADDING) {
             itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
@@ -131,11 +136,11 @@ private fun LazyListScope.goingRow(c: RowCtx, nav: RowNav?) = item(key = "going"
                 ResumeCard(s, e, c.card(0, i, target), width = 220.dp, picture = titlePicture(s, e, c.api)) { c.onPlay(s, e) }
             }
         }
-    }
+    } }
 }
 
 private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: Int, mines: List<io.github.pedrubik2000.kumapie.data.Mine>, watching: Boolean) = item(key = key) {
-    Column {
+    WithTvScroll { Column {
         RowHead(label, rowNav(c.d.names, row))
         LazyRow(state = remember(mines) { LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = ROW_PADDING) {
             itemsIndexed(mines, key = { _, m -> m.kitsuId }) { i, m ->
@@ -144,13 +149,13 @@ private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: I
                     percent = c.levels?.of(m.kitsuId)?.percent) { c.onDiscovered(m.found()) }
             }
         }
-    }
+    } }
 }
 
 private fun LazyListScope.loginRow(c: RowCtx) = item(key = "login") {
     Row(Modifier.padding(start = RAIL, top = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(tr("Log in with AniList to see your lists here"), color = Colors.dim)
-        Button(onClick = c.onLogin, modifier = if (c.d.names.isEmpty()) Modifier.focusRequester(c.first) else Modifier.onFocusChanged { if (it.isFocused) c.focus.row = c.d.names.size }) { Text(tr("Log in")) }
+        Button(onClick = c.onLogin, modifier = if (c.d.names.isEmpty()) Modifier.focusRequester(c.first) else Modifier.onFocusChanged { if (it.isFocused) { c.focus.row = c.d.names.size; c.scrollTo(c.d.names.size) } }) { Text(tr("Log in")) }
     }
 }
 
@@ -159,13 +164,23 @@ private fun LazyListScope.libraryRows(c: RowCtx) {
     shows.forEachIndexed { r, (label, list) ->
         item(key = "kind-$r") {
             val row = c.d.names.size + r
-            Box { Shelf(label, inset = RAIL) {
+            val at = row + if (c.d.loggedIn) 0 else 1
+            WithTvScroll { Shelf(label, inset = RAIL) {
                 itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
                     val start = c.d.names.isEmpty() && c.d.loggedIn && r == 0 && i == 0
                     Poster(s.poster, shortTitle(s.shown), levelLine(s), null,
-                        (if (start) Modifier.focusRequester(c.first) else Modifier).onFocusChanged { if (it.isFocused) c.focus.row = row }) { c.onShow(s) }
+                        (if (start) Modifier.focusRequester(c.first) else Modifier).onFocusChanged { if (it.isFocused) { c.focus.row = row; c.scrollTo(at) } }) { c.onShow(s) }
                 }
             } }
         }
     }
 }
+
+@OptIn(ExperimentalFoundationApi::class)
+private val HeadingFirst = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun WithTvScroll(content: @Composable () -> Unit) = CompositionLocalProvider(LocalBringIntoViewSpec provides TvScroll, content = content)

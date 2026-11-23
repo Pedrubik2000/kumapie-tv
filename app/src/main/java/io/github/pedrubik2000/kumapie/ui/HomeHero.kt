@@ -59,8 +59,10 @@ private val HERO_HEIGHT = 390.dp
 private const val PICTURE_DEBOUNCE_MS = 250L
 private val FADE_TALL = Brush.verticalGradient(0.5f to Color.Black, 1f to Color.Transparent)
 private val FADE_SHORT = Brush.verticalGradient(0.4f to Color.Black, 0.85f to Color.Transparent)
-private val SCRIM_LEFT = Brush.horizontalGradient(0f to Arcade.background.copy(alpha = 0.9f), 0.65f to Color.Transparent)
-private val SCRIM_TOP = Brush.verticalGradient(0f to Arcade.background.copy(alpha = 0.6f), 0.25f to Color.Transparent)
+private val SCRIM_LEFT = Brush.horizontalGradient(0f to Arcade.background, 0.24f to Arcade.background.copy(alpha = 0.93f), 0.5f to Arcade.background.copy(alpha = 0.66f),
+    0.8f to Arcade.background.copy(alpha = 0.22f), 1f to Arcade.background.copy(alpha = 0.1f))
+private val SCRIM_BOTTOM = Brush.verticalGradient(0.45f to Color.Transparent, 0.75f to Arcade.background.copy(alpha = 0.6f), 1f to Arcade.background)
+private val SCRIM_TOP = Brush.verticalGradient(0f to Arcade.background.copy(alpha = 0.85f), 0.22f to Color.Transparent)
 private val WHITE_DIM = Color.White.copy(alpha = 0.85f)
 
 @Composable
@@ -73,6 +75,7 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
             .drawWithContent { drawContent(); drawRect(if (focus.tall) FADE_TALL else FADE_SHORT, blendMode = BlendMode.DstIn) }) {
             Cover(picture, "", Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null)
             Box(Modifier.matchParentSize().background(SCRIM_LEFT))
+            Box(Modifier.matchParentSize().background(SCRIM_BOTTOM))
             Box(Modifier.matchParentSize().background(SCRIM_TOP))
         }
         when (val t = focus.target) {

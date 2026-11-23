@@ -156,6 +156,27 @@ class TvHomeFocusTest {
         assertEquals(1, tags.size)
     }
 
+    @Test fun theFocusedRowsHeadingSitsBelowTheHero() {
+        logIn(mine("1", "Frieren", "CURRENT", progress = 11, episodes = 28), mine("2", "Dandadan", "PLANNING", progress = 0, episodes = 12))
+        openHome()
+        waitForCard("Frieren")
+        press(DOWN, DOWN)
+        rule.waitForIdle()
+        val heroBottom = 250 * 2f
+        rule.onNodeWithText("Watching on AniList").fetchSemanticsNode().boundsInRoot.let { assert(it.top >= heroBottom) { "heading at ${it.top}" } }
+        press(DOWN)
+        rule.waitForIdle()
+        rule.onNodeWithText("Planning on AniList").fetchSemanticsNode().boundsInRoot.let { assert(it.top >= heroBottom) { "heading at ${it.top}" } }
+    }
+
+    @Test fun theLoginLineSitsBelowTheHeroWhenFocused() {
+        openHome()
+        press(DOWN, DOWN)
+        rule.waitForIdle()
+        assertEquals("Log in", focused())
+        rule.onNodeWithText("Log in with AniList to see your lists here").fetchSemanticsNode().boundsInRoot.let { assert(it.top >= 250 * 2f) { "line at ${it.top}" } }
+    }
+
     @Test fun withoutATokenTheLoginLineTakesTheAniListRows() {
         openHome()
         rule.onNodeWithText("Log in with AniList to see your lists here").assertExists()

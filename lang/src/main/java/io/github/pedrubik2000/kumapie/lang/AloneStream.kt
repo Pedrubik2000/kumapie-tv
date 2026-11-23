@@ -16,6 +16,7 @@ class AloneStream(
     onError: (String?) -> Unit,
 ) {
     private val t0 = android.os.SystemClock.elapsedRealtime()
+    private val sync = io.github.pedrubik2000.kumapie.data.AniListSync(prefs)
 
     val live = LiveLines(player, jimaku = {
         runCatching { Jimaku.lines(prefs.getString("jimaku_key", "").orEmpty(), show, null, episodeNumber(id), file, duration = ::duration) }
@@ -96,6 +97,7 @@ class AloneStream(
 
     fun savePlace(positionMs: Long, durationMs: Long) {
         if (durationMs <= 0) return
+        sync.watchingAt(id, positionMs, durationMs)
         val at = place(positionMs / 1000.0, durationMs / 1000.0)
         addons?.played(id, at, durationMs / 1000.0) ?: prefs.edit().putFloat("alone_pos_$id", at.toFloat()).apply()
         prefs.edit().putString(fileKey(id), file).apply()

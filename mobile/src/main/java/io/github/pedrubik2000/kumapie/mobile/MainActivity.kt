@@ -77,6 +77,7 @@ class MainActivity : ComponentActivity() {
         // kumapie-vX.Y.Z-mobile.apk (sorts after kumapie-tv-*, see release.yml)
         io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-v")
         val settings = Settings(this)
+        io.github.pedrubik2000.kumapie.data.AniListSync(settings.prefs).retry()
         if (settings.server.isBlank()) io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() // no PC: streams' words
         io.github.pedrubik2000.kumapie.data.Jimaku.cache = cacheDir // an episode's lines kept for the next time it opens
         // Downloaded voices (Settings > Word audio) before the device's own: Thorsten (German), Michael (English).

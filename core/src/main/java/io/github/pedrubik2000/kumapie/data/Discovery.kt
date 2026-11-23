@@ -38,6 +38,7 @@ interface Discovery {
 class Addons(urls: List<String>, private val store: SharedPreferences) : Discovery {
     private val bases = urls.map(::base).filter { it.isNotEmpty() }.distinct()
     private val manifests = java.util.concurrent.ConcurrentHashMap<String, JSONObject>()
+    val sync by lazy { AniListSync(store) }
 
     private suspend fun manifests(): List<Pair<String, JSONObject>> = kotlinx.coroutines.coroutineScope {
         bases.map { b ->
@@ -158,6 +159,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
 
     override suspend fun save(title: Found, on: Boolean): List<Found> {
         val kept = saved().filter { it.id != title.id } + if (on) listOf(title) else emptyList()
+        if (on) sync.added(title.id)
         store.edit().putString(SAVED, JSONArray().also { a ->
             kept.forEach { a.put(JSONObject().put("id", it.id).put("type", it.type).put("name", it.name).put("poster", it.poster).put("year", it.year).put("name_ja", it.nameJa)) }
         }.toString()).apply()

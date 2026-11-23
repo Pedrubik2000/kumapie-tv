@@ -104,6 +104,16 @@ class KnockoutTest {
     }
 }
 
+class CandidatesTest {
+    private val ranked = listOf(mine(1), mine(2), mine(3), mine(4))
+
+    @Test fun skippedNotForMeAndOnHomeAreAllLeftOutKeepingTheOrder() {
+        assertEquals(listOf(4), candidates(ranked, setOf(1, 3), setOf("kitsu:k2")).map { it.anilistId })
+        assertEquals(listOf(1, 2, 3, 4), candidates(ranked, emptySet(), emptySet()).map { it.anilistId })
+        assertEquals(listOf(1, 3), candidates(ranked, setOf(2), setOf("kitsu:k4")).map { it.anilistId })
+    }
+}
+
 class BrowseViewTest {
     private fun found(id: String) = Found(id, "series", id, "", "2024")
 
@@ -140,6 +150,12 @@ class BrowseViewTest {
         val v = view(BrowseFilters(limit = 5, notOnList = true), setOf("1"))
         assertEquals(listOf("kitsu:2"), ids(v))
         assertEquals(2, v.unrated)
+    }
+
+    @Test fun onlyTheSelectedCatalogOrTheSearchIsAskedAndAllAsksNothing() {
+        assertEquals(emptyList<String>(), browseAskIds(rows, emptyList(), BrowseFilters()))
+        assertEquals(listOf("3"), browseAskIds(rows, emptyList(), BrowseFilters(catalog = "New")))
+        assertEquals(listOf("7"), browseAskIds(rows, listOf(found("kitsu:7"), found("tt1")), BrowseFilters(query = "z")))
     }
 
     @Test fun theLineSaysHowManyAreShownAndHowManyAreUnrated() {
@@ -201,6 +217,18 @@ class PickStoreTest {
         (1..230).forEach { skipper.skip(it) }
         assertEquals(200, skipper.hidden().size)
         assertTrue(30 !in skipper.hidden() && 31 in skipper.hidden() && 230 in skipper.hidden())
+    }
+
+    @Test fun aSkipMadeWithTheClockInTheFutureDoesNotHideTheTitleForGood() {
+        val store = store()
+        now += 30 * day
+        store.skip(7)
+        now -= 30 * day
+        assertEquals(emptySet<Int>(), store.hidden())
+        now += 3 * day
+        store.skip(8)
+        now -= 3 * day
+        assertEquals(setOf(8), store.hidden())
     }
 
     @Test fun theSameStoreReadAgainSeesWhatWasKept() {

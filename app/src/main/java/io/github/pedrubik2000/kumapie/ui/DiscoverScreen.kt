@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -53,47 +54,58 @@ import kotlinx.coroutines.withContext
 fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
                    onHome: () -> Unit = {}, onReview: () -> Unit = {}, onSettings: () -> Unit = {}, onLibrary: () -> Unit = {},
                    jiten: JitenQueue? = null, sync: AniListSync? = null, read: LibraryRead = AniListLists::cacheFirst) {
-    remember { DiscoverMemory.forget() }
     var open by remember { mutableStateOf(start) }
+    val lists by rememberLists(settings, read, start != null)
+    val hold = remember {
+        DiscoverHold(if (settings.anilistToken.isNotEmpty()) DiscoverMode.PICK else DiscoverMode.BROWSE, PickState(PickStore(settings.prefs)),
+            BrowseState(BrowseFilters(limit = settings.browseLimit), settings))
+    }
+    val frozen = hold.inContent || open != null
+    val ranked = rememberFrozen(rememberRanked(lists), frozen)
+    val kept = rememberFrozen(hold.pick.loaded, frozen)
+    LoadPicks(api, hold.pick, start == null)
     open?.let { f ->
         return Box(Modifier.onBackKey(start == null) { open = null }) {
             TitleScreen(api, f, { DiscoverRail(onHome, onReview, onSettings, onLibrary = onLibrary) }, jiten, sync)
         }
     }
-    DiscoverBody(api, settings, jiten, read, DiscoverEdges(onHome, onReview, onSettings, onLibrary)) { open = it }
+    DiscoverBody(api, settings, jiten, DiscoverEdges(onHome, onReview, onSettings, onLibrary), lists, ranked, kept?.ids.orEmpty(), hold) { open = it }
 }
 
 internal class DiscoverEdges(val onHome: () -> Unit, val onReview: () -> Unit, val onSettings: () -> Unit, val onLibrary: () -> Unit)
 
 @Composable
-private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?, read: LibraryRead, edges: DiscoverEdges, onOpen: (Found) -> Unit) {
-    val back = remember { DiscoverMemory.take() }
+private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?, edges: DiscoverEdges, lists: List<Mine>?, ranked: Ranked?, kept: Set<String>,
+                         hold: DiscoverHold, onOpen: (Found) -> Unit) {
     val loggedIn = settings.anilistToken.isNotEmpty()
     val entry = remember { FocusRequester() }
     val rail = remember { mutableMapOf<String, FocusRequester>() }
     val live = remember { Live() }
     val link = remember { Link() }
-    val lists by rememberLists(settings, read, back != null)
+    val returning = remember { hold.returning }
     val levels = rememberLevels(rememberQueue(jiten))
     KnowIds(levels, lists.orEmpty())
-    var mode by remember { mutableStateOf(back?.mode ?: if (loggedIn) DiscoverMode.PICK else DiscoverMode.BROWSE) }
-    val pick = remember { PickState(PickStore(settings.prefs)) }
-    val browse = remember { BrowseState(back?.filters ?: BrowseFilters(limit = settings.browseLimit), settings) }
-    val ranked = rememberRanked(lists)
-    val picks = rememberPicks(ranked, pick)
+    val mode = hold.mode
+    val pick = hold.pick
+    val browse = hold.browse
+    val field = remember(ranked, pick.hidden, kept, pick.added) { ranked?.let { candidates(it.list, pick.hidden, kept + pick.added) } }
+    val picks = remember(field, pick.chosen, pick.ready) { if (field == null || !pick.ready) null else pickFrom(field, pick.chosen) }
+    DisposableEffect(Unit) { onDispose { hold.inContent = false } }
     LoadBrowse(api, browse, mode == DiscoverMode.BROWSE)
-    LaunchedEffect(Unit) { runCatching { api.saved().map { it.id }.toSet() }.onSuccess { pick.kept = it }.onFailure { pick.failed = true } }
-    LaunchedEffect(Unit) { if (back?.cover == null) entry.focusSoon() }
-    EntryWhenIdle(mode, mode == DiscoverMode.BROWSE, live, entry)
-    val env = DiscoverEnv(api, settings, levels, link, entry, edges.onSettings) { f, cover -> DiscoverMemory.open(mode, cover, browse.filters); onOpen(f) }
+    LaunchedEffect(Unit) { if (!returning) entry.focusSoon() }
+    LaunchedEffect(Unit) { hold.giveUpRestoring() }
+    EntryWhenIdle(mode, mode == DiscoverMode.BROWSE || hold.restoring, live, entry)
+    val env = DiscoverEnv(api, settings, levels, link, entry, edges.onSettings, hold, onOpen)
     val clearSearch = mode == DiscoverMode.BROWSE && browse.filters.query.isNotEmpty()
-    Box(live.track(Modifier.fillMaxSize()).onBackKey(clearSearch) { browse.pick(browse.filters.copy(query = "")) }) {
-        when (mode) {
-            DiscoverMode.PICK -> PickContent(env, picks, ranked, pick)
-            DiscoverMode.DUEL -> DuelContent(env, ranked, pick)
-            DiscoverMode.BROWSE -> BrowseContent(env, browse, lists, live, back?.takeIf { it.mode == DiscoverMode.BROWSE }?.cover)
+    Box(live.track(Modifier.fillMaxSize()).onBackKey(clearSearch) { runCatching { entry.requestFocus() }; browse.pick(browse.filters.copy(query = "")) }) {
+        Box(Modifier.fillMaxSize().onFocusChanged { hold.inContent = it.hasFocus }) {
+            when (mode) {
+                DiscoverMode.PICK -> PickContent(env, picks, ranked, pick)
+                DiscoverMode.DUEL -> DuelContent(env, field.takeIf { pick.ready }, ranked, pick, kept + pick.added)
+                DiscoverMode.BROWSE -> BrowseContent(env, browse, lists, live)
+            }
         }
-        DiscoverColumn(mode, entry, link, { rail[tr("Discover")] ?: FocusRequester.Default }, { mode = it }, Modifier.padding(start = RAIL, top = 28.dp)) { sides ->
+        DiscoverColumn(mode, entry, link, { rail[tr("Discover")] ?: FocusRequester.Default }, { hold.mode = it }, Modifier.padding(start = RAIL, top = 28.dp)) { sides ->
             when (mode) {
                 DiscoverMode.PICK -> NextPicks(picks?.next.orEmpty(), levels, sides) { pick.chosen = it.anilistId }
                 DiscoverMode.BROWSE -> BrowseFilterRows(browse, loggedIn, sides)
@@ -104,22 +116,17 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
     }
 }
 
+private fun pickFrom(field: List<Mine>, chosen: Int?): Picks {
+    val current = field.firstOrNull { it.anilistId == chosen } ?: field.firstOrNull()
+    return Picks(current, field.filter { it !== current }.take(NEXT_PICKS))
+}
+
 @Composable
 private fun rememberRanked(lists: List<Mine>?): Ranked? {
     val ranked by produceState<Ranked?>(null, lists) {
         value = lists?.let { l -> withContext(Dispatchers.Default) { Ranked(planningOrder(l), bestItems(l)) } }
     }
     return ranked
-}
-
-@Composable
-private fun rememberPicks(ranked: Ranked?, p: PickState): Picks? = remember(ranked, p.hidden, p.kept, p.failed, p.chosen) {
-    if (ranked == null || (p.kept == null && !p.failed)) null
-    else {
-        val left = ranked.list.filter { it.anilistId !in p.hidden && "kitsu:${it.kitsuId}" !in p.kept.orEmpty() }
-        val current = left.firstOrNull { it.anilistId == p.chosen } ?: left.firstOrNull()
-        Picks(current, left.filter { it !== current }.take(NEXT_PICKS))
-    }
 }
 
 @Composable

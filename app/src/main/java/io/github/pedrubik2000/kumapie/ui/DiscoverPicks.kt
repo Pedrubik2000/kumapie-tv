@@ -18,7 +18,7 @@ internal class PickStore(private val prefs: SharedPreferences, private val clock
 
     private fun skips(): List<Pair<Int, Long>> = prefs.getString(SKIPPED, "").orEmpty().split(',').mapNotNull { p ->
         p.split(':').let { (it.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null) to (it.getOrNull(1)?.toLongOrNull() ?: return@mapNotNull null) }
-    }.filter { clock() - it.second < SKIP_DAYS * DAY_MS }
+    }.filter { clock() - it.second < SKIP_DAYS * DAY_MS && it.second - clock() <= SKIP_DAYS * DAY_MS }
 
     fun never(): Set<Int> = nevers().toSet()
 
@@ -33,6 +33,9 @@ internal class PickStore(private val prefs: SharedPreferences, private val clock
         prefs.edit().putString(SKIPPED, kept.joinToString(",") { "${it.first}:${it.second}" }).apply()
     }
 }
+
+internal fun candidates(ranked: List<Mine>, hidden: Set<Int>, onHome: Set<String>): List<Mine> =
+    ranked.filter { it.anilistId !in hidden && "kitsu:${it.kitsuId}" !in onHome }
 
 internal fun scaleTo10(format: String): Double? = when (format) {
     "POINT_100" -> 0.1

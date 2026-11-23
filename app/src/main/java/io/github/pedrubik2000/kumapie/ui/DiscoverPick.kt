@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,9 +60,9 @@ private fun PickBig(env: DiscoverEnv, m: Mine, ranked: Ranked?, state: PickState
     Box(Modifier.fillMaxSize().onBackKey { runCatching { env.entry.requestFocus() } }) {
         HeroBackdrop(heroPicture(target, env.api), { FADE_SHORT }, Modifier.fillMaxWidth().height(460.dp))
         PickText(env, m, ranked, state, cover)
-        Card(onClick = { env.open(m.found()) }, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), colors = arcadeCardColors(),
+        Card(onClick = { env.open(m.found(), "cover") }, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), colors = arcadeCardColors(),
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 56.dp, end = 48.dp).width(170.dp).aspectRatio(2f / 3f).focusRequester(cover)
-                .focusProperties { left = env.link.to }) {
+                .focusProperties { left = env.link.to; up = MissingKeyLine.up(cover) }) {
             Cover(m.cover, m.shown(), Modifier.fillMaxSize(), fontSize = 13.sp, description = m.shown())
         }
     }
@@ -75,11 +76,18 @@ private fun PickText(env: DiscoverEnv, m: Mine, ranked: Ranked?, state: PickStat
         }.orEmpty()
     }
     val title = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        when (env.hold.take(DiscoverMode.PICK)) {
+            "title" -> title.focusSoon()
+            "cover" -> cover.focusSoon()
+        }
+        env.hold.restoring = false
+    }
     Column(Modifier.padding(start = CONTENT_START, top = 56.dp).width(620.dp)) {
         Eyebrow((tr("Pick for me") + " · " + tr("From your Planning list")).uppercase())
-        Card(onClick = { env.open(m.found()) }, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(),
+        Card(onClick = { env.open(m.found(), "title") }, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(),
             scale = CardDefaults.scale(focusedScale = 1f),
-            modifier = Modifier.focusRequester(title).focusProperties { left = env.entry; right = cover; down = env.link.to }) {
+            modifier = Modifier.focusRequester(title).focusProperties { left = env.entry; right = cover; down = env.link.to; up = MissingKeyLine.up(title) }) {
             Text(m.shown(), color = Color.White, fontSize = 44.sp, lineHeight = 50.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 8.dp))
         }

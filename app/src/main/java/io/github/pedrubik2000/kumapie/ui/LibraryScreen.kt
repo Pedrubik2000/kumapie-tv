@@ -103,7 +103,7 @@ private fun LibraryBody(all: List<Mine>, kept: Set<String>?, keptFailed: Boolean
             }
             if (items.isNotEmpty()) CoverGrid(items, { it.anilistId }, grid,
                 Modifier.focusRequester(nav.grid).onBackKey { runCatching { entry.requestFocus() } }.onFocusChanged { inGrid = it.hasFocus }.focusRestorer(nav.enter),
-                focus, entry, nav, sort) { m, card ->
+                focus, entry, nav, { sort }) { m, card ->
                 val d = display?.list ?: current
                 val progress = m.episodes?.takeIf { it > 0 && m.progress > 0 && d != LibraryList.COMPLETED }?.let { m.progress.toFloat() / it }
                 Poster(m.cover, m.shown(), if (m.progress > 0) m.progressLine() else "", progress, card, percent = levels?.of(m.kitsuId)?.percent, width = 83.dp) {

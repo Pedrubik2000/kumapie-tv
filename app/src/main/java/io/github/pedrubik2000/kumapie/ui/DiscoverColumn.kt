@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -28,10 +29,15 @@ private val NEXT_PADDING = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
 @Composable
 internal fun DiscoverColumn(mode: DiscoverMode, entry: FocusRequester, link: Link, toRail: () -> FocusRequester, onMode: (DiscoverMode) -> Unit,
                             modifier: Modifier, extras: @Composable ColumnScope.(Modifier) -> Unit) {
+    val firstRow = remember { FocusRequester() }
     val sides = Modifier.fillMaxWidth().focusProperties { if (link.ready) right = link.to; left = toRail() }
     Column(modifier.width(PANEL_WIDTH).arcadePanel().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Title(tr("Discover"), fontSize = 26.sp)
-        DiscoverMode.entries.forEach { m -> ListRow(m.label(), null, m == mode, { onMode(m) }, sides.then(if (m == mode) Modifier.focusRequester(entry) else Modifier)) }
+        DiscoverMode.entries.forEachIndexed { i, m ->
+            val place = if (m == mode) Modifier.focusRequester(entry) else if (i == 0) Modifier.focusRequester(firstRow) else Modifier
+            val toLine = if (i == 0) Modifier.focusProperties { up = MissingKeyLine.up(if (m == mode) entry else firstRow) } else Modifier
+            ListRow(m.label(), null, m == mode, { onMode(m) }, sides.then(place).then(toLine))
+        }
         extras(sides)
     }
 }

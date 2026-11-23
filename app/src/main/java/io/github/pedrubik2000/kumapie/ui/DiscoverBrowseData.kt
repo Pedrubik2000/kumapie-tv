@@ -5,8 +5,6 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.TitleDifficulty
 
-private const val RETURN_WINDOW_MS = 60 * 60_000L
-
 internal enum class DiscoverMode {
     PICK, DUEL, BROWSE;
 
@@ -48,18 +46,8 @@ internal var Settings.browseLimit: Int
     get() = prefs.getInt("discover_limit", 0).coerceIn(0, LIMIT_MAX)
     set(v) = prefs.edit().putInt("discover_limit", v).apply()
 
-internal object DiscoverMemory {
-    class Back(val mode: DiscoverMode, val cover: String?, val filters: BrowseFilters, val at: Long)
-
-    private var back: Back? = null
-
-    fun open(mode: DiscoverMode, cover: String?, filters: BrowseFilters, now: Long = System.currentTimeMillis()) {
-        back = Back(mode, cover, filters, now)
-    }
-
-    fun take(now: Long = System.currentTimeMillis()): Back? = back?.takeIf { now - it.at < RETURN_WINDOW_MS }.also { back = null }
-
-    fun forget() {
-        back = null
-    }
-}
+internal fun browseAskIds(rows: List<Pair<String, List<Found>>>, results: List<Found>, f: BrowseFilters): List<String> = when {
+    f.query.isNotEmpty() -> results
+    f.catalog.isEmpty() -> emptyList()
+    else -> rows.firstOrNull { it.first == f.catalog }?.second.orEmpty()
+}.mapNotNull(::kitsuOf).distinct()

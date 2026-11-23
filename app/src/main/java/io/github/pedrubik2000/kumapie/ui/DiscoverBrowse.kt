@@ -32,7 +32,8 @@ import kotlinx.coroutines.withContext
 private class BrowseShown(val filters: BrowseFilters, val view: BrowseView)
 
 @Composable
-internal fun BrowseContent(env: DiscoverEnv, state: BrowseState, lists: List<Mine>?, live: Live, restore: String?) {
+internal fun BrowseContent(env: DiscoverEnv, state: BrowseState, lists: List<Mine>?, live: Live) {
+    val restore = remember { env.hold.take(DiscoverMode.BROWSE) }
     val loggedIn = env.settings.anilistToken.isNotEmpty()
     val filters = state.filters
     val onList = remember(lists) { lists.orEmpty().map { it.kitsuId }.toSet() }
@@ -48,7 +49,8 @@ internal fun BrowseContent(env: DiscoverEnv, state: BrowseState, lists: List<Min
     LinkWhen(env.link, items.isNotEmpty())
     LaunchedEffect(display?.filters) { if (display != null) { if (seen) grid.scrollToItem(0) else seen = true } }
     KeepFocus(display, restore, { d, id -> d.view.items.indexOfFirst { it.id == id } }, grid, focus, nav, env.entry, live)
-    BrowseAsks(env.levels, ids, filters.limit > 0, grid, items)
+    val askIds = remember(state.rows, state.results, filters) { browseAskIds(state.rows.orEmpty(), state.results.orEmpty(), filters) }
+    BrowseAsks(env.levels, askIds, filters.limit > 0, grid, items)
     Box(Modifier.fillMaxSize()) {
         BrowseHero(env, filters, items, focus)
         Column(Modifier.padding(start = CONTENT_START, end = 28.dp, top = HERO_BOTTOM)) {
@@ -66,9 +68,9 @@ private fun BrowseHero(env: DiscoverEnv, filters: BrowseFilters, items: List<Fou
 @Composable
 private fun BrowseBody(env: DiscoverEnv, state: BrowseState, display: BrowseShown?, items: List<Found>, grid: LazyGridState, focus: LibFocus, nav: GridNav,
                        inGrid: (Boolean) -> Unit) {
-    val error = state.error
+    val error = if (state.filters.query.isNotEmpty()) state.searchError else state.error
     when {
-        error != null -> ErrorBox(error, onRetry = { state.fresh = false; state.attempt++ }, onSettings = null, server = env.api is Api)
+        error != null -> ErrorBox(error, onRetry = state::retry, onSettings = null, server = env.api is Api)
         display == null -> Text(tr("Loading…"), color = Colors.dim)
         else -> {
             Text(remember(display) { browseLine(display.filters, display.view) }, color = Colors.dim, fontSize = 14.sp)
@@ -77,7 +79,7 @@ private fun BrowseBody(env: DiscoverEnv, state: BrowseState, display: BrowseShow
     }
     if (items.isNotEmpty() && error == null) CoverGrid(items, { it.id }, grid,
         Modifier.focusRequester(nav.grid).onBackKey { backFromGrid(state, env.entry) }.onFocusChanged { inGrid(it.hasFocus) }.focusRestorer(nav.enter),
-        focus, env.entry, nav, FocusRequester.Default) { f, card ->
+        focus, env.entry, nav, { MissingKeyLine.up(nav.grid) }) { f, card ->
         Poster(f.poster, f.shownName, f.year, null, card, percent = kitsuOf(f)?.let { env.levels?.of(it) }?.percent, width = 83.dp) {
             env.open(f, f.id)
         }
@@ -85,7 +87,8 @@ private fun BrowseBody(env: DiscoverEnv, state: BrowseState, display: BrowseShow
 }
 
 private fun backFromGrid(state: BrowseState, entry: FocusRequester) {
-    if (state.filters.query.isNotEmpty()) state.pick(state.filters.copy(query = "")) else runCatching { entry.requestFocus() }
+    runCatching { entry.requestFocus() }
+    if (state.filters.query.isNotEmpty()) state.pick(state.filters.copy(query = ""))
 }
 
 @Composable

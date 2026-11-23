@@ -22,6 +22,7 @@ import androidx.compose.ui.test.requestFocus
 import io.github.pedrubik2000.kumapie.data.AniListLists
 import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Found
+import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.lang.JitenApi
 import io.github.pedrubik2000.kumapie.lang.JitenHttp
@@ -49,20 +50,30 @@ class TvDiscoverFocusTest {
     private val saves = ArrayList<Found>()
     private var showing by mutableStateOf(true)
     private var home = 0
+    private var lineOpened = 0
+    private var boards = 0
+    private var searches = 0
+    private var searchDelay = 0L
+    private var savedDelay = 0L
+    private var fresh: ((List<Mine>) -> Unit)? = null
 
     @Before fun forget() {
-        DiscoverMemory.forget()
         LibraryMemory.forget()
     }
 
     private fun title(id: Int, name: String) = Found("kitsu:$id", "series", name, "/p/$id.jpg", "2024")
 
     private val discovery = object : Discovery {
-        override suspend fun board() = listOf("Popular" to listOf(title(11, "Alpha"), title(12, "Beta")), "New" to listOf(title(13, "Delta"), title(14, "Echo")))
-        override suspend fun discover(q: String) = listOf(title(15, "Zeta"), title(16, "Eta"))
+        override suspend fun board(): List<Pair<String, List<Found>>> { boards++; return listOf("Popular" to listOf(title(11, "Alpha"), title(12, "Beta")), "New" to listOf(title(13, "Delta"), title(14, "Echo"))) }
+        override suspend fun discover(q: String): List<Found> {
+            searches++
+            kotlinx.coroutines.delay(searchDelay)
+            if (q == "boom") error("search failed")
+            return listOf(title(15, "Zeta"), title(16, "Eta"))
+        }
         override suspend fun discoverMeta(type: String, id: String) = JSONObject()
         override suspend fun discoverStreams(type: String, id: String) = JSONArray()
-        override suspend fun saved() = emptyList<Found>()
+        override suspend fun saved(): List<Found> { kotlinx.coroutines.delay(savedDelay); return emptyList() }
         override suspend fun save(title: Found, on: Boolean): List<Found> { saves += title; return emptyList() }
         override suspend fun seen(id: String, on: Boolean) = Unit
     }
@@ -100,7 +111,7 @@ class TvDiscoverFocusTest {
         val jiten = queue()
         rule.setContent {
             androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.onBackKey { home++ }) {
-                if (showing) DiscoverScreen(discoverApi, settings, start = start, jiten = jiten, read = { prefs, user, _, _, _ -> AniListLists.cached(prefs, user) })
+                if (showing) DiscoverScreen(discoverApi, settings, start = start, jiten = jiten, read = { prefs, user, _, _, f -> fresh = f; AniListLists.cached(prefs, user) })
             }
         }
     }
@@ -213,8 +224,8 @@ class TvDiscoverFocusTest {
             press(OK)
             rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
             press(Key.Back.keyCode)
-            waitFocus { it?.startsWith("Pick for me") == true }
-            rule.waitUntil(5_000) { hasText("Dandadan") }
+            waitFocus { it?.contains("Dandadan") == true }
+            assertTrue(focused()?.startsWith("Pick for me") != true)
         }
         assertEquals(0, home)
     }
@@ -227,7 +238,7 @@ class TvDiscoverFocusTest {
         assertTrue(focused()?.startsWith("Pick for me") == true)
     }
 
-    @Test fun theKnockoutRunsToAWinnerWithLeftRightAndOk() {
+    private fun playToTheWinner() {
         openPick()
         selectDuel()
         assertTrue(hasRound(1))
@@ -255,12 +266,17 @@ class TvDiscoverFocusTest {
         press(LEFT, OK)
         rule.waitUntil(5_000) { hasText("Last one standing") }
         waitFocus { it == "+ Home" }
+    }
+
+    @Test fun theKnockoutRunsToAWinnerWithLeftRightAndOk() {
+        playToTheWinner()
         press(OK)
         rule.waitUntil(5_000) { saves.size == 1 }
         assertEquals("Dandadan", saves.single().name)
+        waitFocus { it == "✓ On Home" }
         press(RIGHT, RIGHT, OK)
         rule.waitUntil(5_000) { hasRound(1) }
-        waitFocus { it?.contains("Dandadan") == true }
+        waitFocus { it?.contains("Kaiju") == true }
     }
 
     @Test fun withFewerThanTwoCandidatesThereIsOneQuietLine() {
@@ -376,6 +392,147 @@ class TvDiscoverFocusTest {
         rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
         press(DOWN)
         rule.waitUntil(2_000) { focused()?.startsWith("Episode 2") == true }
+    }
+
+    @Test fun theBoardIsAskedOnceAcrossATitlePageAndBack() {
+        open()
+        waitFocus { it?.startsWith("Browse") == true }
+        rule.waitUntil(5_000) { hasCard("Alpha") }
+        press(RIGHT, OK)
+        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
+        press(Key.Back.keyCode)
+        rule.waitUntil(5_000) { focused() == "Alpha" }
+        assertEquals(1, boards)
+    }
+
+    @Test fun aSlowSearchIsNotRunAgainOnReturn() {
+        searchDelay = 1_500
+        open()
+        waitFocus { it?.startsWith("Browse") == true }
+        rule.waitUntil(5_000) { hasCard("Alpha") }
+        search("zeta")
+        rule.waitUntil(5_000) { hasCard("Zeta") }
+        rule.onNode(androidx.compose.ui.test.hasContentDescription("Zeta")).requestFocus()
+        press(OK)
+        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
+        press(Key.Back.keyCode)
+        rule.waitUntil(5_000) { focused() == "Zeta" }
+        assertEquals(1, searches)
+        assertEquals(1, boards)
+    }
+
+    @Test fun aFailedSearchLeavesNoErrorOnceItIsClearedAndTheBoardIsNotAskedAgain() {
+        open()
+        waitFocus { it?.startsWith("Browse") == true }
+        rule.waitUntil(5_000) { hasCard("Alpha") }
+        search("boom")
+        rule.waitUntil(5_000) { hasText("search failed") }
+        press(Key.Back.keyCode)
+        rule.waitUntil(5_000) { hasCard("Alpha") && !hasText("search failed") }
+        assertEquals(1, boards)
+    }
+
+    @Test fun theWinnerOpenedAndBackIsStillTheWinnerWithOpenFocused() {
+        playToTheWinner()
+        press(RIGHT, OK)
+        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
+        press(Key.Back.keyCode)
+        waitFocus { it == "Open" }
+        assertTrue(hasText("Last one standing"))
+    }
+
+    @Test fun aChosenNextPickOpenedAndBackIsStillThePickWithItsCardFocused() {
+        openPick()
+        rows(DOWN, 3)
+        press(OK)
+        rule.waitUntil(5_000) { hasText("TV · 12 episodes · 2023 · Adventure · AniList 85") }
+        press(RIGHT, UP)
+        assertEquals("Kaiju", focused())
+        press(OK)
+        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
+        press(Key.Back.keyCode)
+        waitFocus { it == "Kaiju" }
+        assertTrue(hasText("TV · 12 episodes · 2023 · Adventure · AniList 85"))
+    }
+
+    @Test fun picksWaitAtMostTwoSecondsForTheTitlesOnHome() {
+        savedDelay = 60_000
+        openPick()
+        assertTrue(hasText("Kaiju"))
+    }
+
+    private fun refreshWithZed() {
+        logIn(planning + mine(11, "Zed", "PLANNING", 99))
+        rule.waitUntil(5_000) { fresh != null }
+        rule.runOnIdle { fresh?.invoke(AniListLists.cached(prefs(), "pedro")) }
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_000)
+    }
+
+    @Test fun aFreshListDoesNotChangeThePickWhileHeIsOnItsButtonsOnlyAfterHeLeaves() {
+        openPick()
+        press(RIGHT)
+        assertEquals("+ Home", focused())
+        refreshWithZed()
+        assertTrue(hasText("Dandadan") && !hasText("Zed"))
+        press(LEFT)
+        rule.waitUntil(5_000) { hasText("Zed") }
+    }
+
+    @Test fun aFreshListDoesNotResetTheBracketWhileHeIsInItOnlyAfterHeLeaves() {
+        openPick()
+        selectDuel()
+        press(RIGHT)
+        refreshWithZed()
+        assertTrue(hasCard("Dandadan") && !hasCard("Zed"))
+        press(LEFT)
+        rule.waitUntil(5_000) { hasCard("Zed") }
+    }
+
+    private fun openWithTheLine() {
+        seedPictures()
+        val jiten = queue()
+        rule.setContent {
+            androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.onBackKey { home++ }) {
+                DiscoverScreen(discovery, Settings(RuntimeEnvironment.getApplication()), jiten = jiten, read = { prefs, user, _, _, _ -> AniListLists.cached(prefs, user) })
+                RdMissingLine(Settings(RuntimeEnvironment.getApplication()).apply { rdToken = ""; addons = emptyList() }) { lineOpened++ }
+            }
+        }
+    }
+
+    private val line = "Real-Debrid key missing: no video will play"
+
+    @Test fun upFromTheTopOfTheContentReachesTheLineStaysThereOkOpensSettingsAndBackLeaves() {
+        logIn()
+        openWithTheLine()
+        waitFocus { it?.startsWith("Pick for me") == true }
+        rule.waitUntil(5_000) { hasText("Dandadan") }
+        press(RIGHT, UP)
+        assertEquals("Dandadan", focused())
+        press(UP)
+        assertEquals(line, focused())
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.waitForIdle()
+        assertEquals(line, focused())
+        press(DOWN)
+        assertEquals("Dandadan", focused())
+        press(UP, OK)
+        assertEquals(1, lineOpened)
+        press(Key.Back.keyCode)
+        assertEquals(1, home)
+    }
+
+    @Test fun upFromTheFirstColumnRowReachesTheLineAndDownComesBack() {
+        openWithTheLine()
+        waitFocus { it?.startsWith("Browse") == true }
+        rule.waitUntil(5_000) { hasCard("Alpha") }
+        rule.mainClock.autoAdvance = false
+        press(UP, UP, UP)
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.mainClock.autoAdvance = true
+        assertEquals(line, focused())
+        press(DOWN)
+        assertTrue(focused()?.startsWith("Pick for me") == true)
     }
 
     private companion object {

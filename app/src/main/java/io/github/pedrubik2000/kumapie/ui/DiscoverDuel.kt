@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -23,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -43,29 +45,29 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-internal fun DuelContent(env: DiscoverEnv, ranked: Ranked?, state: PickState) {
+internal fun DuelContent(env: DiscoverEnv, field: List<Mine>?, ranked: Ranked?, state: PickState, onHomeIds: Set<String>) {
     val loggedIn = env.settings.anilistToken.isNotEmpty()
-    val field = remember(ranked, state.never) { ranked?.list.orEmpty().filter { it.anilistId !in state.never }.take(DUEL_SIZE) }
-    val playable = loggedIn && field.size >= 2
+    val playable = loggedIn && field != null && field.size >= 2
     LinkWhen(env.link, !loggedIn || playable)
-    AskTitles(env.levels, null, field.map { it.kitsuId })
+    AskTitles(env.levels, null, field.orEmpty().map { it.kitsuId })
     when {
         !loggedIn -> LoginPrompt(env)
-        ranked == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
+        field == null || ranked == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
         !playable -> Text(tr("Not enough titles on your Planning list to choose between"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
-        else -> Bracket(env, field, ranked)
+        else -> Bracket(env, field.take(DUEL_SIZE), ranked, state, onHomeIds)
     }
 }
 
 @Composable
-private fun Bracket(env: DiscoverEnv, field: List<Mine>, ranked: Ranked) {
-    val ids = remember(field) { field.map { it.anilistId } }
-    var game by remember(ids) { mutableStateOf(Knockout(ids)) }
-    val byId = remember(field) { field.associateBy { it.anilistId } }
-    val reasons by produceState(emptyMap<Int, String>(), ids, ranked) {
+private fun Bracket(env: DiscoverEnv, field: List<Mine>, ranked: Ranked, state: PickState, onHomeIds: Set<String>) {
+    val fieldIds = remember(field) { field.map { it.anilistId } }
+    val saved = state.duel
+    var game by remember(if (saved != null) null else fieldIds) { mutableStateOf(saved ?: Knockout(fieldIds)) }
+    val byId = remember(ranked) { ranked.list.associateBy { it.anilistId } }
+    val reasons by produceState(emptyMap<Int, String>(), game.entrants, ranked) {
         val tenth = scaleTo10(env.settings.anilistFormat)
         value = withContext(Dispatchers.Default) {
-            field.mapNotNull { m -> whyLines(m, BestForYou.why(ranked.items, m.anilistId), tenth).firstOrNull()?.let { m.anilistId to it } }.toMap()
+            game.entrants.mapNotNull { byId[it] }.mapNotNull { m -> whyLines(m, BestForYou.why(ranked.items, m.anilistId), tenth).firstOrNull()?.let { m.anilistId to it } }.toMap()
         }
     }
     val scope = rememberCoroutineScope()
@@ -76,9 +78,14 @@ private fun Bracket(env: DiscoverEnv, field: List<Mine>, ranked: Ranked) {
             if (pair != null) Duel(env, game, pair, byId, reasons) { first ->
                 val next = game.choose(first)
                 game = next
+                state.duel = next
                 if (next.winner != null) scope.launch { env.link.to.focusSoon() }
             }
-            if (winner != null) Winner(env, winner, onAgain = { game = Knockout(ids); scope.launch { env.link.to.focusSoon() } })
+            if (winner != null) Winner(env, winner, onHomeIds, state, onAgain = {
+                state.duel = null
+                game = Knockout(fieldIds)
+                scope.launch { env.link.to.focusSoon() }
+            })
             Strip(game, byId)
         }
     }
@@ -94,7 +101,7 @@ private fun Duel(env: DiscoverEnv, game: Knockout, pair: Pair<Int, Int>, byId: M
         listOf(pair.first, pair.second).forEachIndexed { i, id ->
             val m = byId[id] ?: return@forEachIndexed
             DuelCard(m, env.levels?.of(m.kitsuId), reasons[id],
-                (if (i == 0) Modifier.focusRequester(env.link.to).focusProperties { left = env.entry } else Modifier).weight(1f)) { onChoose(i == 0) }
+                (if (i == 0) Modifier.focusRequester(env.link.to).focusProperties { left = env.entry; up = MissingKeyLine.up(env.link.to) } else Modifier).weight(1f)) { onChoose(i == 0) }
             if (i == 0) Box(Modifier.size(44.dp).background(Arcade.band, CircleShape), contentAlignment = Alignment.Center) {
                 Text(tr("OR"), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
@@ -121,10 +128,15 @@ private fun DuelCard(m: Mine, level: TitleDifficulty?, reason: String?, modifier
 }
 
 @Composable
-private fun Winner(env: DiscoverEnv, m: Mine, onAgain: () -> Unit) {
+private fun Winner(env: DiscoverEnv, m: Mine, onHomeIds: Set<String>, state: PickState, onAgain: () -> Unit) {
     val scope = rememberCoroutineScope()
     val found = remember(m) { m.found() }
-    var added by remember(m) { mutableStateOf(false) }
+    val added = found.id in onHomeIds
+    val openButton = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        if (env.hold.take(DiscoverMode.DUEL) == "open") openButton.focusSoon()
+        env.hold.restoring = false
+    }
     Text(tr("Last one standing"), color = WHITE_DIM, fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)
     Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         Cover(m.cover, m.shown(), Modifier.width(120.dp).height(180.dp).clip(PosterSlab), fontSize = 13.sp, description = null)
@@ -133,9 +145,11 @@ private fun Winner(env: DiscoverEnv, m: Mine, onAgain: () -> Unit) {
             Text(pickFacts(m), color = WHITE_DIM, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
             env.levels?.of(m.kitsuId)?.let { Box(Modifier.padding(top = 8.dp)) { DifficultyLine(it) } }
             Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { scope.launch { runCatching { env.api.save(found, true) }.onSuccess { added = true } } },
-                    modifier = Modifier.focusRequester(env.link.to).focusProperties { left = env.entry }) { Text(if (added) "✓ " + tr("On Home") else "+ " + tr("Home")) }
-                Button(onClick = { env.open(found) }) { Text(tr("Open")) }
+                Button(onClick = { if (!added) scope.launch { runCatching { env.api.save(found, true) }.onSuccess { state.onHome(found.id, fromWinner = true) } } },
+                    modifier = Modifier.focusRequester(env.link.to).focusProperties { left = env.entry; up = MissingKeyLine.up(env.link.to) }) {
+                    Text(if (added) "✓ " + tr("On Home") else "+ " + tr("Home"))
+                }
+                Button(onClick = { env.open(found, "open") }, modifier = Modifier.focusRequester(openButton)) { Text(tr("Open")) }
                 Button(onClick = onAgain) { Text(tr("Again")) }
             }
         }

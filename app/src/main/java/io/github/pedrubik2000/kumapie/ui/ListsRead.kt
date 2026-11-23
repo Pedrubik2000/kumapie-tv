@@ -53,10 +53,10 @@ internal class Live {
 
 @Composable
 internal fun EntryWhenIdle(shown: Any?, off: Boolean, live: Live, entry: FocusRequester) {
-    LaunchedEffect(shown, live.focusIn.value, off) {
-        if (shown == null || off || live.focusIn.value) return@LaunchedEffect
+    LaunchedEffect(shown, live.focusIn.value, off, MissingKeyLine.focused) {
+        if (shown == null || off || live.focusIn.value || MissingKeyLine.focused) return@LaunchedEffect
         withFrameNanos { }
         withFrameNanos { }
-        if (!live.focusIn.value) entry.focusSoon()
+        if (!live.focusIn.value && !MissingKeyLine.focused) entry.focusSoon()
     }
 }

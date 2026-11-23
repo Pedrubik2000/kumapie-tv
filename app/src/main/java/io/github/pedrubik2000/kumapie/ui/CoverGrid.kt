@@ -47,13 +47,13 @@ internal fun <T : Any> rememberFrozen(built: T?, frozen: Boolean): T? {
 
 @Composable
 internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState, modifier: Modifier, focus: LibFocus, entry: FocusRequester,
-                           nav: GridNav, above: FocusRequester, cell: @Composable (T, Modifier) -> Unit) =
+                           nav: GridNav, above: () -> FocusRequester, cell: @Composable (T, Modifier) -> Unit) =
     LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize(), state, contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         itemsIndexed(items, key = { _, m -> id(m) }) { i, m ->
             val first by remember(i) { derivedStateOf { state.firstVisibleItemIndex == i } }
             val card = Modifier.onFocusChanged { if (it.isFocused) focus.id = id(m) }
-                .focusProperties { if (i % COLUMNS == 0) left = entry; if (i < COLUMNS) up = above }
+                .focusProperties { if (i % COLUMNS == 0) left = entry; if (i < COLUMNS) up = above() }
                 .then(if (nav.target?.let { id(m) == it } ?: first) Modifier.focusRequester(nav.enter) else Modifier)
             cell(m, card)
         }

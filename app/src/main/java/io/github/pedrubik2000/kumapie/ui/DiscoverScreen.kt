@@ -45,9 +45,11 @@ import kotlinx.coroutines.withContext
 @Composable
 fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
                    onHome: () -> Unit = {}, onReview: () -> Unit = {}, onSettings: () -> Unit = {}, onLibrary: () -> Unit = {},
-                   onStats: () -> Unit = {}, jiten: JitenQueue? = null, sync: AniListSync? = null, read: LibraryRead = AniListLists::cacheFirst) {
+                   onStats: () -> Unit = {}, jiten: JitenQueue? = null, sync: AniListSync? = null, read: LibraryRead = AniListLists::cacheFirst,
+                   onDiscover: () -> Unit = {}) {
     var open by remember { mutableStateOf(start) }
     val nav = RailNav(onHome, onLibrary, {}, onReview, onStats, onSettings)
+    val titleNav = RailNav(onHome, onLibrary, if (start == null) ({ open = null }) else onDiscover, onReview, onStats, onSettings)
     val lists by rememberLists(settings, read, start != null)
     val scope = rememberCoroutineScope()
     val hold = remember {
@@ -66,7 +68,7 @@ fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
     LoadPicks(api, hold.pick, start == null)
     open?.let { f ->
         return Box(Modifier.onBackKey(start == null) { open = null }) {
-            TitleScreen(api, f, { DiscoverRail(api, nav, null) }, jiten, sync, onSettings)
+            TitleScreen(api, f, { DiscoverRail(api, titleNav, null) }, jiten, sync, onSettings)
         }
     }
     DiscoverBody(api, settings, jiten, nav, lists, ranked, kept?.ids.orEmpty(), hold) { open = it }

@@ -230,6 +230,7 @@ private fun TvAbout(settings: Settings, onUpdate: (Updater.Release) -> Unit) {
         }
     }
     Text(tr("Version %s", BuildConfig.VERSION_NAME), color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
+    Text(io.github.pedrubik2000.kumapie.lang.TitleDifficulty.credit(), color = Colors.dim)
 }
 
 const val ISSUES = "https://github.com/Pedrubik2000/kumapie-tv/issues"

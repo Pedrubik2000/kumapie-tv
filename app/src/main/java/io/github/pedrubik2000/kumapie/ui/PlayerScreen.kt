@@ -106,7 +106,7 @@ fun rememberPlayer(video: String, resume: Double?, lang: String? = null): ExoPla
             prepare()
         }
     }
-    DisposableEffect(Unit) { onDispose { player.release() } }
+    DisposableEffect(Unit) { io.github.pedrubik2000.kumapie.data.Playing.on = true; onDispose { io.github.pedrubik2000.kumapie.data.Playing.on = false; player.release() } }
     return player
 }
 

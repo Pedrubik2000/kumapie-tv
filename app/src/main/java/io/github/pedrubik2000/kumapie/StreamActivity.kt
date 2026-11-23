@@ -55,6 +55,16 @@ class StreamActivity : ComponentActivity() {
     private var alone: LiveLines? = null
     private var aloneView: PlayerView? = null
 
+    override fun onStart() {
+        super.onStart()
+        io.github.pedrubik2000.kumapie.data.Playing.on = true
+    }
+
+    override fun onStop() {
+        io.github.pedrubik2000.kumapie.data.Playing.on = false
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val settings = Settings(this)

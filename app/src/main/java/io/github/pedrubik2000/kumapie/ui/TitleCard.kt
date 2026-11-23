@@ -60,7 +60,7 @@ internal fun AniListCard(state: AniState, edits: TitleEdits, finished: Boolean, 
             state.phase == AniPhase.FAILED -> {
                 CardNote(tr("Couldn't read your AniList list"))
                 Button(onClick = { if (!state.busy) { focus.retried = true; state.retry() } },
-                    modifier = Modifier.focusRequester(focus.status).focusProperties { up = focus.main; down = focus.row }) {
+                    modifier = Modifier.onFocusChanged { if (it.isFocused) focus.retried = true }.focusRequester(focus.status).focusProperties { up = focus.main; down = focus.row }) {
                     Text(if (state.busy) tr("Trying…") else tr("Try again"))
                 }
             }

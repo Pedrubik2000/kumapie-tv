@@ -34,6 +34,21 @@ class TitlePageNameTest {
         assertEquals("葬送のフリーレン", page.shown.shownName)
     }
 
+    @Test fun aMarkedEpisodeShowsWatchedBeforeTheReloadAnswers() = runBlocking {
+        var shownWhileSaving: Boolean? = null
+        lateinit var page: TitlePage
+        val episode = JSONObject().put("id", "kitsu:1:1").put("number", 1)
+        val withEpisode = JSONObject().put("id", "kitsu:1").put("name", "Sousou no Frieren").put("episodes", JSONArray().put(episode))
+        val slow = object : Discovery by discovery {
+            override suspend fun discoverMeta(type: String, id: String) = withEpisode
+            override suspend fun seen(id: String, on: Boolean) { shownWhileSaving = page.episodes.single().optBoolean("watched") }
+        }
+        page = TitlePage(slow, Found("kitsu:1", "series", "Sousou no Frieren", "", "2023"))
+        page.load()
+        page.mark(page.episodes.single())
+        assertEquals(true, shownWhileSaving)
+    }
+
     @Test fun aTitleWithoutOneStaysInEnglish() = runBlocking {
         val page = TitlePage(discovery, Found("kitsu:1", "series", "Sousou no Frieren", "", "2023"))
         page.load()

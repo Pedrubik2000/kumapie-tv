@@ -45,7 +45,10 @@ class TitlePage(
     }
 
     suspend fun mark(e: JSONObject) {
-        runCatching { d.seen(e.getString("id"), !e.optBoolean("watched")) }
+        val id = e.getString("id")
+        val on = !e.optBoolean("watched")
+        meta = meta?.let { m -> JSONObject(m.toString()).also { c -> c.optJSONArray("episodes").objects().firstOrNull { it.optString("id") == id }?.put("watched", on) } }
+        runCatching { d.seen(id, on) }
         load()
     }
 

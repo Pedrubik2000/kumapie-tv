@@ -75,7 +75,9 @@ import org.json.JSONObject
  */
 @Composable
 fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Found? = null,
-                   onHome: () -> Unit = {}, onReview: () -> Unit = {}, onSettings: () -> Unit = {}, onLibrary: () -> Unit = {}) {
+                   onHome: () -> Unit = {}, onReview: () -> Unit = {}, onSettings: () -> Unit = {}, onLibrary: () -> Unit = {},
+                   jiten: io.github.pedrubik2000.kumapie.lang.JitenQueue? = null, lists: suspend (io.github.pedrubik2000.kumapie.data.Settings) -> List<io.github.pedrubik2000.kumapie.data.Mine>? = ::liveLists,
+                   sync: io.github.pedrubik2000.kumapie.data.AniListSync? = null) {
     val rail: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = { DiscoverRail(onHome, onReview, onSettings, onLibrary = onLibrary) }
     var query by rememberSaveable { mutableStateOf("") }
     var searched by rememberSaveable { mutableStateOf("") }
@@ -104,7 +106,7 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
     val rowsState = androidx.compose.foundation.lazy.rememberLazyListState()
     val rowStates = remember { mutableMapOf<Int, androidx.compose.foundation.lazy.LazyListState>() }
     val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
-    open?.let { return Box(Modifier.onBackKey(start == null) { open = null }) { TitleScreen(api, it, rail) } }
+    open?.let { return Box(Modifier.onBackKey(start == null) { open = null }) { TitleScreen(api, it, rail, jiten, lists, sync) } }
     val board = rows
     var kept by remember { mutableStateOf<Set<String>?>(null) } // the titles on Home, for the hero's + Home
     LaunchedEffect(Unit) { kept = runCatching { api.saved().map { it.id }.toSet() }.getOrNull() }
@@ -220,170 +222,8 @@ private fun androidx.compose.foundation.layout.BoxScope.Backdrop(image: String) 
 
 /** The title's logo (fanart.tv), else its name. */
 @Composable
-private fun TitleLogo(f: Found) {
+internal fun TitleLogo(f: Found) {
     if (f.logo.isNotEmpty()) AsyncImage(f.logo, f.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
         modifier = Modifier.padding(top = 4.dp).height(64.dp).widthIn(max = 420.dp))
     else Text(f.shownName, color = Color.White, fontSize = 38.sp, lineHeight = 44.sp, style = Arcade.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-}
-
-/**
- * A title, Stremio's way: its backdrop, logo, rating, runtime and genres, ▶ (the episode after the last watched, else
- * the first the PC got ready, else the first one's files), + HOME and its text on the left; its episodes (or the picked
- * one's files) on the right. Holding OK on an episode offers other files and watched / not watched (✓).
- */
-@Composable
-private fun TitleScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, title: Found,
-                        rail: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {}) {
-    val context = LocalContext.current
-    val page = remember(title.id) {
-        io.github.pedrubik2000.kumapie.data.TitlePage(api, title) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.data.SavedMeta.put(context, title.id, it) }
-            io.github.pedrubik2000.kumapie.data.Backdrops.put(context, title.id, it.optString("background"))
-        }
-    }
-    var menu by remember { mutableStateOf<JSONObject?>(null) } // the episode OK was held on
-    val main = remember { FocusRequester() } // the ▶ button
-    val toEps = remember { FocusRequester() } // Down from the hero: the next episode's card (it went to the round buttons)
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(page) { page.loadKept() }
-    LaunchedEffect(page) { page.load(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.data.SavedMeta.get(context, title.id) }) }
-    LaunchedEffect(page.picking) { page.loadFiles() }
-    val meta = page.meta
-    val error = page.error
-    val picking = page.picking
-    val files = page.files
-    val t = page.shown
-    val eps = page.episodes
-    val next = page.next
-    fun play(e: JSONObject?) { page.play(e)?.let { context.startActivity(StreamActivity.intent(context, it)) } }
-    // The files or an episode's menu on the right; else the episodes as a row of wide cards at the bottom (mockups 2026-11-18).
-    val side = error != null || meta == null || picking != null || menu != null
-    LaunchedEffect(meta != null, side) { if (meta != null && !side) main.focusSoon() }
-    Box(Modifier.fillMaxSize().onBackKey(picking != null || menu != null) { if (picking != null) page.closeFiles() else menu = null }) {
-    Backdrop(t.background.ifEmpty { t.poster })
-    Row(Modifier.fillMaxSize().padding(start = RAIL, top = 40.dp, end = 32.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-        Column(Modifier.width(520.dp)) {
-            Text(tr("Discover").uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)
-            TitleLogo(t)
-            Text(t.line, color = Colors.text, fontSize = 16.sp, modifier = Modifier.padding(top = 6.dp))
-            Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (meta != null) {
-                    Button(onClick = { play(next) }, modifier = Modifier.focusRequester(main).focusProperties { if (!side) down = toEps }) {
-                        Text(("▶ " + if (next != null) tr("Episode %1\$d", next.optInt("number")) +
-                            (if (next.optBoolean("ready") && next.optString("source").isNotEmpty()) " · " + next.optString("source") else "") else tr("Watch")))
-                    }
-                }
-                page.kept?.let { on ->
-                    Button(onClick = { scope.launch { page.keep() } },
-                        modifier = Modifier.focusProperties { if (!side) down = toEps }) {
-                        Text(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"))
-                    }
-                }
-            }
-            Text(t.description.replace(Regex("""\s+"""), " "), color = Colors.dim, fontSize = 14.sp, maxLines = if (side) 8 else 3, overflow = TextOverflow.Ellipsis)
-        }
-        val m = meta
-        val pick = picking
-        // Left from the list: the ▶ button (the D-pad picked "+ Home", nearer the top of the list).
-        if (side) Box(Modifier.weight(1f).focusProperties {
-            onExit = { if (requestedFocusDirection == androidx.compose.ui.focus.FocusDirection.Left && meta != null) { cancelFocusChange(); main.requestFocus() } }
-        }.focusGroup()) { when {
-            error != null -> ErrorBox(error, onRetry = { scope.launch { page.retry() } }, onSettings = null, server = api is Api)
-            m == null -> Text(tr("Loading…"), color = Colors.dim)
-            pick == null && menu != null -> {
-                val e = menu!!
-                val watched = e.optBoolean("watched")
-                Column {
-                    Heading(tr("Episode %1\$d", e.optInt("number")))
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(12.dp)) {
-                        item { Line(0, tr("Other files"), "", null) { menu = null; page.others(e) } }
-                        item { Line(1, if (watched) tr("Mark not watched") else tr("Mark watched"), "", null) { menu = null; scope.launch { page.mark(e) } } }
-                    }
-                }
-            }
-            pick != null -> {
-                // Files this device can't decode (by their names: HEVC 10 bit, AV1…) go last, saying why. A name never says the level: "may".
-                val list = remember(files) {
-                    files?.map { f -> page.missing(f).let { no -> if (no.isEmpty()) f else JSONObject(f.toString()).put("label", "✗ " + tr("May not play here: %1\$s", no.joinToString(", ")) + " · " + f.optString("label")) } }
-                }
-                Column {
-                    Heading(pick.second)
-                    when {
-                        list == null -> Text(if (api is Api) tr("Asking Torrentio…") else tr("Asking your addons…"), color = Colors.dim)
-                        list.isEmpty() -> Text(tr("No files found for this"), color = Colors.dim)
-                        else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(12.dp)) {
-                            itemsIndexed(list) { i, f ->
-                                Line(i, f.optString("label"), f.optString("about"), null) {
-                                    // An addon's stream (no PC): a link that plays as it is, with its live Japanese lines.
-                                    // Its title goes on Home, to come back to (no PC keeps "Continue watching").
-                                    scope.launch { context.startActivity(StreamActivity.intent(context, page.pick(pick, f))) }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            else -> {}
-        } }
-    }
-    meta?.let { m ->
-        if (!side) Column(Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp)) {
-            Heading(tr("Episodes"), Modifier.padding(start = RAIL))
-            // The row starts at the next episode (▶'s), which Down from the hero focuses.
-            val at = remember(m) { eps.indexOf(next).coerceAtLeast(0) }
-            LazyRow(state = androidx.compose.foundation.lazy.rememberLazyListState(at), horizontalArrangement = Arrangement.spacedBy(20.dp),
-                contentPadding = PaddingValues(start = RAIL, end = 32.dp, top = 8.dp, bottom = 8.dp)) {
-                if (eps.isEmpty()) item { EpisodeCard(tr("Watch"), m.optString("year"), null, "", Modifier.focusRequester(toEps)) { play(null) } }
-                itemsIndexed(eps, key = { _, e -> e.getString("id") }) { i, e ->
-                    val ready = e.optBoolean("ready") // the PC got a file ready for it: no file list, it starts at once
-                    val mark = if (e.optBoolean("watched")) "✓" else if (ready) "▶" else ""
-                    val source = if (ready) e.optString("source") else ""
-                    EpisodeCard(tr("Episode %1\$d", e.optInt("number")), listOf(source, e.optString("title")).filter { it.isNotEmpty() }.joinToString(" · "),
-                        e.optString("thumb"), mark, if (i == at) Modifier.focusRequester(toEps) else Modifier, onLongClick = { menu = e }) { play(e) }
-                }
-            }
-        }
-    }
-    rail()
-    }
-}
-
-/** An episode as a wide card (Home's Continue watching look): its picture with ✓ / ▶ on it, its number and title under it. */
-@Composable
-private fun EpisodeCard(name: String, line: String, thumb: String?, mark: String, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
-    Column(Modifier.width(200.dp)) {
-        Card(onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab),
-            colors = arcadeCardColors(), modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                .semantics { contentDescription = name }) { // its name is under the card: TalkBack (and the tests) read it here
-            Box(Modifier.fillMaxSize().background(Colors.background.copy(alpha = 0.6f))) {
-                // A picture that doesn't load (metahub has none for some seasons: 404) leaves the dark card.
-                var failed by remember(thumb) { mutableStateOf(false) }
-                if (!thumb.isNullOrEmpty() && !failed) AsyncImage(thumb, null, contentScale = ContentScale.Crop, onError = { failed = true }, modifier = Modifier.fillMaxSize())
-                if (mark.isNotEmpty()) Text(mark, color = Color.White, fontSize = 16.sp, modifier = Modifier.padding(8.dp)
-                    .background(Colors.background.copy(alpha = 0.75f), androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp))
-            }
-        }
-        Text(name, color = Colors.text, fontSize = 16.sp, maxLines = 1, modifier = Modifier.padding(top = 8.dp))
-        Text(line, color = Colors.dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-/** One focusable line of the episode / file list ([i] 0 takes the focus first). */
-@Composable
-private fun Line(i: Int, text: String, line: String, thumb: String?, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
-    val first = remember { FocusRequester() }
-    Card(onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab),
-        modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)) {
-        Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            // A picture that doesn't load (metahub has none for some seasons: 404) leaves no empty frame.
-            var failed by remember(thumb) { mutableStateOf(false) }
-            if (!thumb.isNullOrEmpty() && !failed) AsyncImage(thumb, null, contentScale = ContentScale.Crop, onError = { failed = true },
-                modifier = Modifier.width(160.dp).aspectRatio(16f / 9f))
-            Column {
-                Text(text, color = Colors.text, fontSize = 18.sp)
-                Text(line, color = Colors.dim, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-    if (i == 0) LaunchedEffect(Unit) { first.focusSoon() }
 }

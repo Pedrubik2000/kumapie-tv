@@ -120,7 +120,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
 }
 
 @Composable
-private fun rememberQueue(given: JitenQueue?): JitenQueue? {
+internal fun rememberQueue(given: JitenQueue?): JitenQueue? {
     val context = LocalContext.current
     val queue by produceState(given) { if (value == null) value = withContext(Dispatchers.IO) { TitleLevels.of(context) } }
     return queue

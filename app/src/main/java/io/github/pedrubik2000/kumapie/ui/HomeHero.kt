@@ -59,11 +59,11 @@ private val HERO_HEIGHT = 390.dp
 private const val PICTURE_DEBOUNCE_MS = 250L
 private val FADE_TALL = Brush.verticalGradient(0.5f to Color.Black, 1f to Color.Transparent)
 private val FADE_SHORT = Brush.verticalGradient(0.4f to Color.Black, 0.85f to Color.Transparent)
-private val SCRIM_LEFT = Brush.horizontalGradient(0f to Arcade.background, 0.24f to Arcade.background.copy(alpha = 0.93f), 0.5f to Arcade.background.copy(alpha = 0.66f),
+internal val SCRIM_LEFT = Brush.horizontalGradient(0f to Arcade.background, 0.24f to Arcade.background.copy(alpha = 0.93f), 0.5f to Arcade.background.copy(alpha = 0.66f),
     0.8f to Arcade.background.copy(alpha = 0.22f), 1f to Arcade.background.copy(alpha = 0.1f))
-private val SCRIM_BOTTOM = Brush.verticalGradient(0.45f to Color.Transparent, 0.75f to Arcade.background.copy(alpha = 0.6f), 1f to Arcade.background)
-private val SCRIM_TOP = Brush.verticalGradient(0f to Arcade.background.copy(alpha = 0.85f), 0.22f to Color.Transparent)
-private val WHITE_DIM = Color.White.copy(alpha = 0.85f)
+internal val SCRIM_BOTTOM = Brush.verticalGradient(0.45f to Color.Transparent, 0.75f to Arcade.background.copy(alpha = 0.6f), 1f to Arcade.background)
+internal val SCRIM_TOP = Brush.verticalGradient(0f to Arcade.background.copy(alpha = 0.85f), 0.22f to Color.Transparent)
+internal val WHITE_DIM = Color.White.copy(alpha = 0.85f)
 
 @Composable
 internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discovery, levels: Levels?, first: FocusRequester, below: FocusRequester,
@@ -105,7 +105,7 @@ private fun heroPicture(focus: HomeFocus, api: Discovery): String {
 }
 
 @Composable
-private fun Eyebrow(text: String) =
+internal fun Eyebrow(text: String) =
     Text(text, color = WHITE_DIM, fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)
 
 @Composable
@@ -157,7 +157,7 @@ private fun Chip(text: String, current: Boolean) {
 }
 
 @Composable
-private fun DifficultyLine(d: io.github.pedrubik2000.kumapie.lang.TitleDifficulty) =
+internal fun DifficultyLine(d: io.github.pedrubik2000.kumapie.lang.TitleDifficulty) =
     Text(buildAnnotatedString {
         append(tr("Difficulty") + " ")
         withStyle(SpanStyle(color = bandColour(d.percent), fontWeight = FontWeight.Bold)) { append("${d.percent}%") }

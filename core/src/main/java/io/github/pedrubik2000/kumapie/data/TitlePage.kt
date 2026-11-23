@@ -19,7 +19,8 @@ class TitlePage(
     var files by mutableStateOf<List<JSONObject>?>(null)
     var kept by mutableStateOf<Boolean?>(null)
 
-    private val going = d.goingNow()?.firstOrNull { it.first.id == title.id }?.second?.id
+    val resuming = d.goingNow()?.firstOrNull { it.first.id == title.id }?.second
+    private val going = resuming?.id
 
     val shown get() = meta?.let(d::found) ?: title
     val episodes get() = meta?.optJSONArray("episodes")?.objects().orEmpty()

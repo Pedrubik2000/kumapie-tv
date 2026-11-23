@@ -3,7 +3,6 @@
   <ManuallySuppressedIssues/>
   <CurrentIssues>
     <ID>LongMethod:DiscoverScreen.kt:@Composable fun DiscoverScreen</ID>
-    <ID>LongMethod:DiscoverScreen.kt:@Composable private fun TitleScreen</ID>
     <ID>LongMethod:HomeScreen.kt:@Composable fun HomeScreen</ID>
     <ID>LongMethod:PlayerScreen.kt:@Composable fun ScenePlayer</ID>
     <ID>LongMethod:StatsScreen.kt:@Composable private fun StatsContent</ID>

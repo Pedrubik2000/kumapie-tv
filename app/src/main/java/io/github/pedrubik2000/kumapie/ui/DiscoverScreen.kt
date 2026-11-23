@@ -11,12 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Style
-import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -54,8 +48,9 @@ import kotlinx.coroutines.withContext
 @Composable
 fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
                    onHome: () -> Unit = {}, onReview: () -> Unit = {}, onSettings: () -> Unit = {}, onLibrary: () -> Unit = {},
-                   jiten: JitenQueue? = null, sync: AniListSync? = null, read: LibraryRead = AniListLists::cacheFirst) {
+                   onStats: () -> Unit = {}, jiten: JitenQueue? = null, sync: AniListSync? = null, read: LibraryRead = AniListLists::cacheFirst) {
     var open by remember { mutableStateOf(start) }
+    val nav = RailNav(onHome, onLibrary, {}, onReview, onStats, onSettings)
     val lists by rememberLists(settings, read, start != null)
     val scope = rememberCoroutineScope()
     val hold = remember {
@@ -74,16 +69,14 @@ fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
     LoadPicks(api, hold.pick, start == null)
     open?.let { f ->
         return Box(Modifier.onBackKey(start == null) { open = null }) {
-            TitleScreen(api, f, { DiscoverRail(onHome, onReview, onSettings, onLibrary = onLibrary) }, jiten, sync, onSettings)
+            TitleScreen(api, f, { DiscoverRail(api, nav, RailAt.DISCOVER) }, jiten, sync, onSettings)
         }
     }
-    DiscoverBody(api, settings, jiten, DiscoverEdges(onHome, onReview, onSettings, onLibrary), lists, ranked, kept?.ids.orEmpty(), hold) { open = it }
+    DiscoverBody(api, settings, jiten, nav, lists, ranked, kept?.ids.orEmpty(), hold) { open = it }
 }
 
-internal class DiscoverEdges(val onHome: () -> Unit, val onReview: () -> Unit, val onSettings: () -> Unit, val onLibrary: () -> Unit)
-
 @Composable
-private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?, edges: DiscoverEdges, lists: List<Mine>?, ranked: Ranked?, kept: Set<String>,
+private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?, edges: RailNav, lists: List<Mine>?, ranked: Ranked?, kept: Set<String>,
                          hold: DiscoverHold, onOpen: (Found) -> Unit) {
     val loggedIn = settings.anilistToken.isNotEmpty()
     val entry = remember { FocusRequester() }
@@ -125,7 +118,7 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
                 DiscoverMode.DUEL -> Unit
             }
         }
-        DiscoverRail(edges.onHome, edges.onReview, edges.onSettings, onLibrary = edges.onLibrary, focus = rail, toRows = entry)
+        DiscoverRail(api, edges, RailAt.DISCOVER, rail, entry)
         HintBar()
     }
 }
@@ -166,19 +159,12 @@ internal fun AskTitles(levels: Levels?, first: String?, ids: List<String>) {
 }
 
 @Composable
-internal fun BoxScope.DiscoverRail(onHome: () -> Unit, onReview: () -> Unit, onSettings: () -> Unit,
-    onLibrary: () -> Unit = {}, onDiscover: () -> Unit = {}, library: Boolean = false, focus: MutableMap<String, FocusRequester> = remember { mutableMapOf() },
+internal fun BoxScope.DiscoverRail(api: Discovery, nav: RailNav, at: RailAt, focus: MutableMap<String, FocusRequester> = remember { mutableMapOf() },
     toRows: FocusRequester? = null) {
     Image(painterResource(R.drawable.bear), "kumapie", Modifier.padding(start = 20.dp, top = 20.dp).size(64.dp))
     Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).background(Brush.horizontalGradient(
         0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
-    Rail(listOf(
-        RailItem(Icons.Default.Home, tr("Home"), back = false, onClick = onHome),
-        RailItem(Icons.Default.VideoLibrary, tr("Library"), back = false, selected = library, onClick = onLibrary),
-        RailItem(Icons.Default.Explore, tr("Discover"), back = false, selected = !library, onClick = onDiscover),
-        RailItem(Icons.Default.Style, tr("Review"), back = false, onClick = onReview),
-        RailItem(Icons.Default.Settings, tr("Settings"), back = false, onClick = onSettings),
-    ), focus, toRows, Modifier.align(Alignment.TopStart).padding(top = 100.dp))
+    MainRail(api, "ja", at, nav, focus, toRows)
 }
 
 @Composable

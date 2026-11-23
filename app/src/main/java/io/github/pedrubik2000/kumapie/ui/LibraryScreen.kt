@@ -38,7 +38,7 @@ private class LibraryShown(val list: LibraryList, val filters: LibraryFilters, v
 
 @Composable
 fun LibraryScreen(api: Discovery, settings: Settings, onHome: () -> Unit, onDiscover: () -> Unit, onReview: () -> Unit, onSettings: () -> Unit,
-                  onOpen: (Found) -> Unit, jiten: JitenQueue? = null, read: LibraryRead = AniListLists::cacheFirst) {
+                  onOpen: (Found) -> Unit, onStats: () -> Unit = {}, jiten: JitenQueue? = null, read: LibraryRead = AniListLists::cacheFirst) {
     val rail = remember { mutableMapOf<String, FocusRequester>() }
     val entry = remember { FocusRequester() }
     val loggedIn = settings.anilistToken.isNotEmpty()
@@ -55,7 +55,7 @@ fun LibraryScreen(api: Discovery, settings: Settings, onHome: () -> Unit, onDisc
             lists == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
             else -> LibraryBody(lists, kept, keptFailed, settings, entry, rail, api, jiten, live, back, onOpen)
         }
-        DiscoverRail(onHome, onReview, onSettings, onDiscover = onDiscover, library = true, focus = rail, toRows = entry.takeIf { !loggedIn || all != null })
+        DiscoverRail(api, RailNav(onHome, {}, onDiscover, onReview, onStats, onSettings), RailAt.LIBRARY, focus = rail, toRows = entry.takeIf { !loggedIn || all != null })
         HintBar()
     }
 }

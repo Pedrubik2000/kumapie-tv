@@ -17,13 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Style
-import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -92,21 +86,12 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
     val totals by produceState<LangTotal?>(null, lang) {
         value = lang?.let { l -> runCatching { if (api is Api) api.stats().langs[l] else aloneTotal(context, settings, l, shows.orEmpty()) }.getOrNull() }
     }
-    val due by produceState<Int?>(null, lang) { value = lang?.let { runCatching {
-        if (api is Api) api.srsDue(it).let { d -> d.due + d.new } else io.github.pedrubik2000.kumapie.lang.ownDueCount(context, it) }.getOrNull() } }
     val data = rememberHomeData(settings, lists, shows, lang, streams)
     val focus = remember(data != null) { HomeFocus(data?.resume) }
     val railFocus = remember { mutableMapOf<String, FocusRequester>() }
     val first = remember { FocusRequester() }
-    val rail = listOfNotNull(
-        RailItem(Icons.Default.Home, tr("Home"), selected = true) {},
-        RailItem(Icons.Default.VideoLibrary, tr("Library"), onClick = onLibrary),
-        RailItem(Icons.Default.Explore, tr("Discover"), onClick = onDiscover).takeIf { lang == "ja" },
-        due?.let { n -> RailItem(Icons.Default.Style, tr("Review"), badge = n) { lang?.let(onReview) } },
-        RailItem(Icons.Default.BarChart, tr("Stats"), onClick = onStats),
-        RailItem(Icons.Default.Person, who, back = false, onClick = onProfiles).takeIf { api is Api },
-        RailItem(Icons.Default.Settings, tr("Settings"), onClick = onSettings),
-    )
+    val rail = RailNav({}, onLibrary, onDiscover, { lang?.let(onReview) }, onStats, onSettings)
+    val profileItem = RailItem(Icons.Default.Person, who, back = false, onClick = onProfiles).takeIf { api is Api }
     val settle = remember(data) { { data?.resume?.let { focus.target = it }; Unit } }
     Box(Modifier.fillMaxSize()) {
         when {
@@ -118,7 +103,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
         HomeHeader(totals, langs, lang) { next -> picked = next; settings.prefs.edit().putString("home_lang_$profile", next).apply() }
         Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).fadeTop(0.1f).background(Brush.horizontalGradient(
             0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
-        Rail(rail, railFocus, first.takeIf { data != null }, Modifier.align(Alignment.TopStart).padding(top = 100.dp), onFocused = settle)
+        MainRail(api, lang, RailAt.HOME, rail, railFocus, first.takeIf { data != null }, profileItem, settle)
         HomeHintBar(focus)
     }
 }

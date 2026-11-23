@@ -21,7 +21,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import io.github.pedrubik2000.kumapie.data.AniList
 import kotlinx.coroutines.CancellationException
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -168,7 +170,7 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
         if (!side && !touched && ani.phase == AniPhase.READY && finished && ani.data?.status != null && edits.scoreOn && ani.data.score <= 0.0) focus.score.focusSoon()
     }
     val play: (JSONObject?) -> Unit = { e -> page.play(e)?.let { context.startActivity(StreamActivity.intent(context, it)) } }
-    Box(Modifier.fillMaxSize().onPreviewKeyEvent { touched = true; if (it.key != androidx.compose.ui.input.key.Key.DirectionCenter) focus.retried = false; false }.onBackKey(page.picking != null) { page.closeFiles() }) {
+    Box(Modifier.fillMaxSize().onPreviewKeyEvent { touched = true; if (it.type == KeyEventType.KeyDown && it.key != androidx.compose.ui.input.key.Key.DirectionCenter) focus.retried = false; false }.onBackKey(page.picking != null) { page.closeFiles() }) {
         TitleBackdrop(api, title)
         Row(Modifier.fillMaxSize().padding(start = RAIL, top = 40.dp, end = 32.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
             TitleInfo(page, ani.mine, rememberLevels(rememberQueue(jiten)), kitsu, finished, side, cardOn && (ani.phase == AniPhase.READY || ani.phase == AniPhase.FAILED), focus, play)

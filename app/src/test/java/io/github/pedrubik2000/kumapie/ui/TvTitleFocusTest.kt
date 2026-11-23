@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import androidx.lifecycle.Lifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -8,7 +9,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.isFocused
-import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -56,7 +58,7 @@ class FakeAniList(var entry: suspend () -> AniList.Entry, var format: suspend ()
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w960dp-h540dp-television-xhdpi")
 class TvTitleFocusTest {
-    @get:Rule val rule = createComposeRule()
+    @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
     private val title = Found("kitsu:5", "series", "Alpha", "/p/alpha.jpg", "2020")
     private var shown by mutableStateOf(true)
@@ -194,6 +196,22 @@ class TvTitleFocusTest {
         assertEquals("Try again", focused())
         fake.entry = { entry("CURRENT", 1) }
         press(Key.DirectionCenter)
+        rule.waitUntil(5_000) { hasText("Status") && !hasText("Couldn't read your AniList list") }
+        waitFocus { it == "Status" }
+    }
+
+    @Test fun comingBackToTheAppWhileTryAgainHasFocusAndTheReReadWorksPutsTheFocusOnStatus() {
+        logIn()
+        val fake = FakeAniList({ throw IOException("down") })
+        open(listOf(true, false, false), fake)
+        waitFocus { it?.startsWith("▶") == true }
+        rule.waitUntil(5_000) { hasText("Couldn't read your AniList list") }
+        press(Key.DirectionRight)
+        press(Key.DirectionRight)
+        assertEquals("Try again", focused())
+        fake.entry = { entry("CURRENT", 1) }
+        rule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         rule.waitUntil(5_000) { hasText("Status") && !hasText("Couldn't read your AniList list") }
         waitFocus { it == "Status" }
     }

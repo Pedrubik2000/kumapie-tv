@@ -64,12 +64,17 @@ internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState,
             restRow(state, i, with(density) { 12.dp.roundToPx() })?.let { state.animateScrollToItem(it * COLUMNS) }
         }
     }
-    LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize().clipToBounds(), state, contentPadding = PaddingValues(top = 8.dp, bottom = bottom),
+    LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize().clipToBounds(), state, contentPadding = PaddingValues(start = 12.dp, top = 14.dp, end = 12.dp, bottom = bottom),
         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         itemsIndexed(items, key = { _, m -> id(m) }) { i, m ->
             val first by remember(i) { derivedStateOf { state.firstVisibleItemIndex == i } }
             val card = Modifier.onFocusChanged { if (it.isFocused) focus.id = id(m) }
-                .focusProperties { if (i % COLUMNS == 0) left = entry; if (i < COLUMNS) up = above() }
+                .focusProperties {
+                    if (i % COLUMNS == 0) left = entry
+                    if (i < COLUMNS) up = above()
+                    if (i >= items.lastIndex / COLUMNS * COLUMNS) down = FocusRequester.Cancel
+                    if (i % COLUMNS == COLUMNS - 1 || i == items.lastIndex) right = FocusRequester.Cancel
+                }
                 .then(if (nav.target?.let { id(m) == it } ?: first) Modifier.focusRequester(nav.enter) else Modifier)
             cell(m, card)
         }

@@ -71,11 +71,13 @@ internal fun ListRow(label: String, count: Int?, selected: Boolean, onRest: () -
 }
 
 @Composable
-internal fun CheckRow(label: String, checked: Boolean, modifier: Modifier, onToggle: () -> Unit) =
-    Button(onClick = onToggle, modifier = modifier, padding = ROW_PADDING) {
-        Box(Modifier.size(18.dp).background(if (checked) Arcade.accent else Color.Transparent, RoundedCornerShape(4.dp))
-            .border(2.dp, if (checked) Arcade.accent else WHITE_DIM, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
-            if (checked) Text("✓", color = Color.Black, fontSize = 13.sp)
+internal fun CheckRow(label: String, checked: Boolean, modifier: Modifier, onToggle: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    Button(onClick = onToggle, modifier = modifier.onFocusChanged { focused = it.isFocused }, padding = ROW_PADDING) {
+        Box(Modifier.size(18.dp).background(if (!checked) Color.Transparent else if (focused) Color.Black else Arcade.accent, RoundedCornerShape(4.dp))
+            .border(2.dp, if (focused) Color.Black else if (checked) Arcade.accent else WHITE_DIM, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+            if (checked) Text("✓", color = if (focused) Color.White else Color.Black, fontSize = 13.sp)
         }
         Text(label, modifier = Modifier.padding(start = 10.dp))
     }
+}

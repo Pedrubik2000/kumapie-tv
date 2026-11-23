@@ -16,14 +16,21 @@ object Backdrops {
     private const val HERO = " hero" // not a title id
     private val missing = java.util.Collections.synchronizedSet(HashSet<String>())
 
-    private fun store(context: Context) = context.getSharedPreferences("backdrops", Context.MODE_PRIVATE)
+    private fun store(context: Context) = context.getSharedPreferences("backdrops_kitsu", Context.MODE_PRIVATE)
 
     /** The saved picture of [id], or null (not asked yet / none). */
     fun saved(context: Context, id: String): String? = store(context).getString(id, null)
 
     fun put(context: Context, id: String, image: String) {
+        if (kitsuNumber(id) == null) keep(context, id, image)
+    }
+
+    private fun keep(context: Context, id: String, image: String) {
         if (image.isNotEmpty() && saved(context, id) == null) store(context).edit().putString(id, image).apply()
     }
+
+    private fun kitsuNumber(id: String): String? =
+        id.removePrefix("kitsu:").takeIf { id.startsWith("kitsu:") && it.isNotEmpty() && it.all(Char::isDigit) && it !in noKitsuCover }
 
     /** The picture Home's top showed last: decoded again as the TV app opens, before Home asks for it. */
     fun lastHero(context: Context): String? = store(context).getString(HERO, null)
@@ -42,14 +49,14 @@ object Backdrops {
         saved(context, id)?.let { return it }
         if (id in missing) return null
         var asked = true
-        val n = id.removePrefix("kitsu:").takeIf { id.startsWith("kitsu:") && it.isNotEmpty() && it.all(Char::isDigit) && it !in noKitsuCover }
+        val n = kitsuNumber(id)
         if (n != null) {
             val cover = runCatching { kitsu(n) }.onFailure { asked = false }.getOrDefault("")
-            if (cover.isNotEmpty()) { put(context, id, cover); return cover }
+            if (cover.isNotEmpty()) { keep(context, id, cover); return cover }
         }
         val image = runCatching { meta() }.onFailure { asked = false }.getOrDefault("")
         if (image.isEmpty()) { if (asked) missing += id; return null }
-        if (asked) put(context, id, image)
+        if (asked) keep(context, id, image)
         return image
     }
 

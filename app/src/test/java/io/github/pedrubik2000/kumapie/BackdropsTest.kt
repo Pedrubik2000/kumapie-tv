@@ -49,4 +49,12 @@ class BackdropsTest {
         assertEquals("K", hero("kitsu:6"))
         assertEquals(emptyList<String>(), calls)
     }
+
+    @Test fun aTitlePagesBackgroundNeverBlocksTheKitsuCover() {
+        Backdrops.put(context, "kitsu:7", "M")
+        assertNull(Backdrops.saved(context, "kitsu:7"))
+        assertEquals("K", hero("kitsu:7"))
+        Backdrops.put(context, "tt7", "M")
+        assertEquals("M", Backdrops.saved(context, "tt7"))
+    }
 }

@@ -120,8 +120,8 @@ private fun LazyListScope.homeRows(c: RowCtx) {
 
 @Composable
 private fun RowHead(label: String, nav: RowNav?) =
-    Row(Modifier.padding(start = RAIL, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Bottom) {
-        Heading(label)
+    Row(Modifier.padding(start = RAIL, top = 8.dp, end = if (rememberHintRoom() > 0.dp) HINT_PILL_WIDTH else 0.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Bottom) {
+        Heading(label, Modifier.weight(1f, fill = false), maxLines = 1)
         nav?.let { n ->
             Text(n.position, color = Arcade.accent, fontSize = 16.sp, style = Arcade.label)
             n.up?.let { Text("▲ $it", color = Colors.dim, fontSize = 16.sp) }

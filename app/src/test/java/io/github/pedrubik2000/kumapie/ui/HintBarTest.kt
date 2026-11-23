@@ -21,6 +21,18 @@ class HintBarTest {
         HintKind.entries.forEach { assert(hintOf(it).size <= 3) { "$it" } }
     }
 
+    @Test fun aLateRefreshFromABlurredItemNeverTakesTheLineBack() {
+        val a = Any()
+        val b = Any()
+        Hints.focus(a, HintKind.COVER)
+        Hints.focus(b, HintKind.CHECK)
+        Hints.refresh(a, HintKind.COVER)
+        assertEquals("OK On / off", Hints.line())
+        Hints.refresh(b, HintKind.PLAY)
+        assertEquals("OK Play", Hints.line())
+        Hints.blur(b)
+    }
+
     @Test fun theBarFollowsTheFocusedElementAndEmptiesWhenItLeaves() {
         val a = Any()
         val b = Any()

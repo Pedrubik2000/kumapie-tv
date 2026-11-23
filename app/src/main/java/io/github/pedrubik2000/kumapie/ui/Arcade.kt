@@ -45,6 +45,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -189,8 +190,8 @@ fun Title(white: String, yellow: String = "", fontSize: TextUnit = 34.sp, modifi
 
 /** A section heading: white, semibold (the phone's row titles). */
 @Composable
-fun Heading(text: String, modifier: Modifier = Modifier) =
-    Text(text, color = Colors.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = modifier)
+fun Heading(text: String, modifier: Modifier = Modifier, maxLines: Int = Int.MAX_VALUE) =
+    Text(text, color = Colors.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = maxLines, overflow = TextOverflow.Ellipsis, modifier = modifier)
 
 // ------------------------------------------------------------ remote or gamepad: the last one used
 

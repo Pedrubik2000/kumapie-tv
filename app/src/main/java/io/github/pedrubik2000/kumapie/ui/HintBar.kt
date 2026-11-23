@@ -53,6 +53,10 @@ internal object Hints {
         shown = kind
     }
 
+    fun refresh(by: Any, kind: HintKind) {
+        if (owner === by) shown = kind
+    }
+
     fun blur(by: Any) {
         if (owner === by) {
             owner = null
@@ -68,7 +72,7 @@ internal fun Modifier.hint(kind: HintKind): Modifier {
     val by = remember { Any() }
     var focused by remember { mutableStateOf(false) }
     DisposableEffect(by) { onDispose { Hints.blur(by) } }
-    LaunchedEffect(kind, focused) { if (focused) Hints.focus(by, kind) }
+    LaunchedEffect(kind, focused) { if (focused) Hints.refresh(by, kind) }
     return onFocusChanged {
         focused = it.isFocused
         if (it.isFocused) Hints.focus(by, kind) else Hints.blur(by)
@@ -76,6 +80,7 @@ internal fun Modifier.hint(kind: HintKind): Modifier {
 }
 
 internal val HINT_ROOM = 52.dp
+internal val HINT_PILL_WIDTH = 380.dp
 
 @Composable
 internal fun rememberHintRoom(): androidx.compose.ui.unit.Dp {

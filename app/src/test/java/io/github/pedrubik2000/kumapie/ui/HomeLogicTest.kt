@@ -33,6 +33,13 @@ class HomeLogicTest {
         assertNull(rowNav(names.take(1), 0))
     }
 
+    @Test fun aGenresLineShowsAtMostThreeGenres() {
+        assertEquals("Comedy, Super Power, Fantasy", capGenres("Comedy, Super Power, Fantasy, Drama, Action, Friendship, Adventure"))
+        assertEquals("A, B", capGenres("A,B"))
+        assertEquals("", capGenres(""))
+        assertEquals("2020 · A, B, C", io.github.pedrubik2000.kumapie.data.Found("x", "series", "n", "p", "2020", genres = "A, B, C, D, E").line)
+    }
+
     @Test fun theColourFollowsJitensLabelNotThePercentageBands() {
         fun colour(raw: Double) = difficultyColour(io.github.pedrubik2000.kumapie.lang.TitleDifficulty(raw, 1, null, null))
         assertEquals(DifficultyColours.blue, colour(0.5))

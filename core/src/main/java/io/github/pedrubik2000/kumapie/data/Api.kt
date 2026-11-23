@@ -458,7 +458,7 @@ data class Found(
     val shownName get() = nameJa.ifEmpty { name }
 
     /** "2023-2024 · ★ 8.9 · 24 min · Adventure, Comedy" */
-    val line get() = listOf(year, rating.takeIf { it.isNotEmpty() }?.let { "★ $it" }.orEmpty(), runtime, genres).filter { it.isNotEmpty() }.joinToString(" · ")
+    val line get() = listOf(year, rating.takeIf { it.isNotEmpty() }?.let { "★ $it" }.orEmpty(), runtime, genres.split(',').map { it.trim() }.filter { it.isNotEmpty() }.take(3).joinToString(", ")).filter { it.isNotEmpty() }.joinToString(" · ")
 }
 
 data class ServerInfo(val api: Int, val language: String, val translation: String, val episodes: Int)

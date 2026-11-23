@@ -3,6 +3,10 @@ package io.github.pedrubik2000.kumapie.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -117,7 +121,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
         Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).fadeTop(0.1f).background(Brush.horizontalGradient(
             0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
         Rail(rail, railFocus, first.takeIf { data != null }, Modifier.align(Alignment.TopStart).padding(top = 100.dp), onFocused = settle)
-        HintBar()
+        HomeHintBar(focus)
     }
 }
 
@@ -151,15 +155,25 @@ private var railLast: String? = null
 internal fun takeRailLast(): String? = railLast.also { railLast = null }
 
 @Composable
+private fun BoxScope.HomeHintBar(focus: HomeFocus) = HintBar(top = rowsTop(focus.tall) + 4.dp)
+
+@Composable
 internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequester>, toRows: FocusRequester?, modifier: Modifier, onFocused: () -> Unit = {}) {
-    Column(modifier.padding(start = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    var railFocus by remember { mutableStateOf<String?>(null) }
+    Column(modifier.drawBehind {
+        if (railFocus != null) drawRect(Brush.horizontalGradient(0f to Arcade.band.copy(alpha = 0.97f), 0.75f to Arcade.band.copy(alpha = 0.9f), 1f to Color.Transparent, endX = RAIL_BAND.toPx()),
+            Offset(0f, -2000f), Size(RAIL_BAND.toPx(), 6000f))
+    }.padding(start = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         items.forEach { item -> androidx.compose.runtime.key(item.label) {
             var focused by remember { mutableStateOf(false) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box {
                     androidx.tv.material3.IconButton(onClick = { if (item.back && !item.selected) railLast = item.label; item.onClick() },
                         modifier = Modifier.size(56.dp).focusRequester(focus.getOrPut(item.label) { FocusRequester() })
-                            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused() }.focusProperties { toRows?.let { right = it } },
+                            .onFocusChanged {
+                                focused = it.isFocused
+                                if (it.isFocused) { railFocus = item.label; onFocused() } else if (railFocus == item.label) railFocus = null
+                            }.focusProperties { toRows?.let { right = it } },
                         colors = androidx.tv.material3.IconButtonDefaults.colors(
                             containerColor = Colors.background.copy(alpha = 0.55f), contentColor = Color.White,
                             focusedContainerColor = Color.White, focusedContentColor = Color.Black),
@@ -176,6 +190,8 @@ internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequeste
         } }
     }
 }
+
+private val RAIL_BAND = 300.dp
 
 internal val TAB = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
 

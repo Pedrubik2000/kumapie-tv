@@ -195,7 +195,8 @@ private fun TitleInfo(page: TitlePage, mine: Mine?, levels: Levels?, kitsu: Stri
         Eyebrow(factLine(kindText(mine), (mine?.year?.takeIf { it > 0 }?.toString() ?: t.year).ifEmpty { null },
             episodesText(mine?.episodes ?: page.episodes.size)).uppercase())
         TitleLogo(t)
-        Text(factLine(t.genres.ifEmpty { mine?.genres?.joinToString(", ") }), color = WHITE_DIM, fontSize = 18.sp, modifier = Modifier.padding(top = 6.dp))
+        Text(factLine(capGenres(t.genres).ifEmpty { mine?.genres?.take(GENRES_SHOWN)?.joinToString(", ") }), color = WHITE_DIM, fontSize = 18.sp, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         levels?.of(kitsu)?.let { Box(Modifier.padding(top = 10.dp)) { DifficultyLine(it) } }
         Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (page.meta != null) Button(onClick = { onPlay(next) }, modifier = Modifier.focusRequester(focus.main)

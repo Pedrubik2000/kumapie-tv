@@ -33,6 +33,10 @@ fun statsLine(s: LangTotal): String = listOf(
     "%,d".format(s.known) + " " + tr("Words known").lowercase(),
 ).joinToString(" · ")
 
+internal const val GENRES_SHOWN = 3
+
+fun capGenres(genres: String): String = genres.split(',').map { it.trim() }.filter { it.isNotEmpty() }.take(GENRES_SHOWN).joinToString(", ")
+
 fun factLine(vararg parts: String?): String = parts.filterNot { it.isNullOrBlank() }.joinToString(" · ")
 
 fun episodesText(total: Int?): String? = total?.takeIf { it > 1 }?.let { tr("%d episodes", it) }
@@ -50,7 +54,7 @@ fun Mine.statusName(): String = when (status) {
 }
 
 fun Mine.found() = Found("kitsu:$kitsuId", "anime", shown(), cover, year.takeIf { it > 0 }?.toString().orEmpty(), banner, "", "",
-    genres.joinToString(", "), average.takeIf { it > 0 }?.let { "%.1f".format(it / 10.0) }.orEmpty(), "", "")
+    genres.take(GENRES_SHOWN).joinToString(", "), average.takeIf { it > 0 }?.let { "%.1f".format(it / 10.0) }.orEmpty(), "", "")
 
 fun Show.kitsuId(): String? = id.takeIf { it.startsWith("kitsu:") }?.removePrefix("kitsu:")?.takeIf { it.isNotEmpty() }
 
@@ -83,12 +87,12 @@ fun HeroTarget.kitsu(): String? = when (this) {
 
 fun ContinueTarget.facts(): String = factLine(
     episodesText(mine?.episodes ?: show.episodes.size), (mine?.year?.takeIf { it > 0 } ?: show.year)?.toString(),
-    mine?.genres?.takeIf { it.isNotEmpty() }?.joinToString(", "),
+    mine?.genres?.takeIf { it.isNotEmpty() }?.take(GENRES_SHOWN)?.joinToString(", "),
     if (show.lang == "ja" && (episode.scenes > 0 || episode.ready)) "✓ " + tr("Japanese subtitles") else null,
 )
 
 fun ListTarget.facts(): String = factLine(
-    episodesText(mine.episodes), mine.year.takeIf { it > 0 }?.toString(), mine.genres.takeIf { it.isNotEmpty() }?.joinToString(", "),
+    episodesText(mine.episodes), mine.year.takeIf { it > 0 }?.toString(), mine.genres.takeIf { it.isNotEmpty() }?.take(GENRES_SHOWN)?.joinToString(", "),
 )
 
 fun ListTarget.chips(): List<String> = listOfNotNull(

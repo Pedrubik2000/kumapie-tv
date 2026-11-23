@@ -51,6 +51,8 @@ import kotlinx.coroutines.launch
 
 private val ROWS_TOP_TALL = 290.dp
 private val ROWS_TOP_SHORT = 250.dp
+
+internal fun rowsTop(tall: Boolean) = if (tall) ROWS_TOP_TALL else ROWS_TOP_SHORT
 private val ROW_PADDING = PaddingValues(start = RAIL, end = 32.dp, top = 12.dp, bottom = 24.dp)
 
 @Stable

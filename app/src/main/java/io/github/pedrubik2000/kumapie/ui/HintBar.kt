@@ -84,11 +84,11 @@ internal fun rememberHintRoom(): androidx.compose.ui.unit.Dp {
 }
 
 @Composable
-internal fun BoxScope.HintBar() {
+internal fun BoxScope.HintBar(top: androidx.compose.ui.unit.Dp? = null) {
     val kind = Hints.shown ?: return
     val context = LocalContext.current
     if (!remember { Settings(context).showHelp }) return
-    Row(Modifier.align(Alignment.BottomEnd).padding(end = 32.dp, bottom = 10.dp).background(Arcade.band.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
+    Row((if (top == null) Modifier.align(Alignment.BottomEnd).padding(end = 32.dp, bottom = 10.dp) else Modifier.align(Alignment.TopEnd).padding(end = 32.dp, top = top)).background(Arcade.band.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
         .padding(horizontal = 14.dp, vertical = 6.dp).testTag("hints"), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         hintOf(kind).forEach { (keys, word) ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

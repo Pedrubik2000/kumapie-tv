@@ -197,7 +197,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         if (settings.server.isEmpty()) WordSync.ensure { DeviceFiles(context, listOf(language)).elsewhere() }
         if (cardIndex.due == null) kotlinx.coroutines.runBlocking { loadCards() }
         if (pkgNow() == SrsCards.PKG) runCatching { cardIndex.update(anki.cards(SrsCards.PKG, search), anki.due(SrsCards.PKG)) }
-        return cardIndex.known(snapshot?.words?.keys.orEmpty() + imported, marked, ::extraKnown, ::status)
+        return cardIndex.known(snapshot?.words?.keys.orEmpty() + imported, marked, { it in imported }, ::status)
     }
 
     /** This language's word cards by form and kuma3's queue today: [EpisodeDetail] words' [io.github.pedrubik2000.kumapie.data.Word.card]. */

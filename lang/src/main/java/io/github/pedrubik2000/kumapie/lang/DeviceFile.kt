@@ -189,7 +189,10 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
     }
 
     fun export(): Exported {
-        val o = payload().put("counted", JSONObject().apply { languages.forEach { put(it.lang.code, JSONArray(it.known.knownList())) } })
+        val o = payload().put("counted", JSONObject().apply { languages.forEach { l ->
+            kotlinx.coroutines.runBlocking { if (!l.known.loadCards()) runCatching { l.known.readCards() } }
+            put(l.lang.code, JSONArray(l.known.knownList()))
+        } })
         val out = File(requireNotNull(shared) { "no shared storage" }, "${DeviceFile.PREFIX}${safe(progress.device)}.json")
         File(out.path + ".part").apply { writeText(o.toString()) }.renameTo(out)
         val cards = o.getJSONObject("cards")

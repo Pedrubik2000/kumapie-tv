@@ -152,7 +152,7 @@ A dark, desaturated violet field with one warm brown accent and a small, strictl
 ### Named Rules
 **The One Brown Rule.** Bear brown means "act here / you are here / how far along": play, progress, the current selection, focus. Nothing decorative is brown, and secondary actions (the tablet rail's "+") stay surface-coloured so play is the first brown on screen.
 
-**The Colour Means Something Rule.** Green, yellow, red and blue are reserved for word state and level/ease; orange only marks counts and "today" in stats and help. They never appear as decoration, category colour or chrome.
+**The Colour Means Something Rule.** Where words are shown (subtitles, word lists, cards, the i+N level badges), green, yellow, red and blue mean word state and level and nothing else; orange only marks counts and "today" in stats and help. Outside words, colour is free to carry other meaning: a title's difficulty badge has its own six-band scale (blue, green, lime, orange, red, purple, easiest to hardest), and that scale is used for nothing but difficulty. Colour is still never decoration or chrome.
 
 ## Typography
 
@@ -243,7 +243,7 @@ Every other show in progress, one row each.
 - **Do** leave room for TV focus growth (10%) in row padding.
 
 ### Don't:
-- **Don't** use green, yellow, red or blue for anything but word state and level/ease, or orange as a word colour.
+- **Don't** give green, yellow, red or blue another meaning where words are shown, use orange as a word colour, or use any of them as decoration.
 - **Don't** show an episode frame where a poster is missing; unseen episode pictures stay blurred.
 - **Don't** add drop shadows; depth is tonal.
 - **Don't** let the resume card grow past 600dp wide in one column.

@@ -16,6 +16,8 @@ import kotlinx.coroutines.withContext
 class Levels(private val queue: JitenQueue, private val results: State<Map<String, TitleDifficulty?>>) {
     fun of(kitsu: String?): TitleDifficulty? = kitsu?.let { results.value[it] ?: queue.cached(it) }
 
+    val loaded: Int get() = results.value.size
+
     fun ask(ids: List<String>, priority: Boolean) = queue.ask(ids, priority)
 }
 

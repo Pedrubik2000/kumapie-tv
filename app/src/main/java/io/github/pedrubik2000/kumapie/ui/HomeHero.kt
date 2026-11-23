@@ -58,7 +58,7 @@ class HomeFocus(first: HeroTarget?) {
 private val HERO_HEIGHT = 390.dp
 private const val PICTURE_DEBOUNCE_MS = 250L
 private val FADE_TALL = Brush.verticalGradient(0.5f to Color.Black, 1f to Color.Transparent)
-private val FADE_SHORT = Brush.verticalGradient(0.4f to Color.Black, 0.85f to Color.Transparent)
+internal val FADE_SHORT = Brush.verticalGradient(0.4f to Color.Black, 0.85f to Color.Transparent)
 internal val SCRIM_LEFT = Brush.horizontalGradient(0f to Arcade.background, 0.24f to Arcade.background.copy(alpha = 0.93f), 0.5f to Arcade.background.copy(alpha = 0.66f),
     0.8f to Arcade.background.copy(alpha = 0.22f), 1f to Arcade.background.copy(alpha = 0.1f))
 internal val SCRIM_BOTTOM = Brush.verticalGradient(0.45f to Color.Transparent, 0.75f to Arcade.background.copy(alpha = 0.6f), 1f to Arcade.background)
@@ -68,16 +68,10 @@ internal val WHITE_DIM = Color.White.copy(alpha = 0.85f)
 @Composable
 internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discovery, levels: Levels?, first: FocusRequester, below: FocusRequester,
                       onPlay: (Show, Episode) -> Unit, onShow: (Show) -> Unit) {
-    val picture = heroPicture(focus, api)
+    val picture = heroPicture(focus.target, api)
     Box(Modifier.fillMaxWidth().height(HERO_HEIGHT)) {
         GlyphWarm(warm.first, warm.second, Modifier.matchParentSize())
-        Box(Modifier.matchParentSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-            .drawWithContent { drawContent(); drawRect(if (focus.tall) FADE_TALL else FADE_SHORT, blendMode = BlendMode.DstIn) }) {
-            Cover(picture, "", Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null)
-            Box(Modifier.matchParentSize().background(SCRIM_LEFT))
-            Box(Modifier.matchParentSize().background(SCRIM_BOTTOM))
-            Box(Modifier.matchParentSize().background(SCRIM_TOP))
-        }
+        HeroBackdrop(picture, { if (focus.tall) FADE_TALL else FADE_SHORT }, Modifier.matchParentSize())
         when (val t = focus.target) {
             is ResumeTarget -> ResumeText(t, first, below, onPlay, onShow)
             is ContinueTarget -> InfoText(t, t.facts(), emptyList(), null, levels)
@@ -88,9 +82,18 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
 }
 
 @Composable
-private fun heroPicture(focus: HomeFocus, api: Discovery): String {
+internal fun HeroBackdrop(picture: String, fade: () -> Brush, modifier: Modifier) =
+    Box(modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+        .drawWithContent { drawContent(); drawRect(fade(), blendMode = BlendMode.DstIn) }) {
+        Cover(picture, "", Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null)
+        Box(Modifier.matchParentSize().background(SCRIM_LEFT))
+        Box(Modifier.matchParentSize().background(SCRIM_BOTTOM))
+        Box(Modifier.matchParentSize().background(SCRIM_TOP))
+    }
+
+@Composable
+internal fun heroPicture(target: HeroTarget?, api: Discovery): String {
     val context = LocalContext.current
-    val target = focus.target
     var picture by remember { mutableStateOf(target?.let { Backdrops.saved(context, it.key) ?: it.fallback() }.orEmpty()) }
     var settled by remember { mutableStateOf(false) }
     LaunchedEffect(target?.key) {

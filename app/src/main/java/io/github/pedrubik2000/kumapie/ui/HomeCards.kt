@@ -44,8 +44,8 @@ internal fun Shelf(title: String, inset: Dp = 16.dp, content: LazyListScope.() -
 }
 
 @Composable
-internal fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, percent: Int? = null, onClick: () -> Unit) {
-    Column(Modifier.width(110.dp)) {
+internal fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, percent: Int? = null, width: Dp = 110.dp, onClick: () -> Unit) {
+    Column(Modifier.width(width)) {
         Card(onClick = onClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), colors = arcadeCardColors(), modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
             Box(Modifier.fillMaxSize()) {
                 Cover(image, title.replace('.', ' ').replace('_', ' '), Modifier.fillMaxSize(), fontSize = 13.sp, description = title)

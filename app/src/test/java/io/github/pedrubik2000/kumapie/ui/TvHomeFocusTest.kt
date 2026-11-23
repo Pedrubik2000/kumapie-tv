@@ -68,7 +68,7 @@ class TvHomeFocusTest {
     private fun openHome(queue: JitenQueue? = null) {
         rule.setContent {
             val settings = Settings(LocalContext.current)
-            if (screen == "library") LibraryScreen(onHome = { screen = "home" }, onDiscover = {}, onReview = {}, onSettings = {})
+            if (screen == "library") LibraryScreen(Api("http://127.0.0.1:${server.address.port}"), settings, onHome = { screen = "home" }, onDiscover = {}, onReview = {}, onSettings = {}, onOpen = {})
             else if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro",
                 onShow = {}, onPlay = { _, _ -> }, onSettings = {}, onStats = { home = false }, onProfiles = {},
                 onLibrary = { screen = "library" }, jiten = queue, lists = { null })
@@ -185,13 +185,13 @@ class TvHomeFocusTest {
         rule.onAllNodesWithText("Planning on AniList").fetchSemanticsNodes().let { assertEquals(0, it.size) }
     }
 
-    @Test fun theLibraryRoundButtonOpensItsPlaceholder() {
+    @Test fun theLibraryRoundButtonOpensItsScreen() {
         openHome()
         rule.onNodeWithContentDescription("Library").requestFocus()
         press(OK)
         rule.waitUntil(5_000) { screen == "library" }
-        rule.onNodeWithText("Coming soon").assertExists()
-        rule.waitUntil(5_000) { focused() == "Library" }
+        rule.onNodeWithText("Log in with AniList to see your lists here").assertExists()
+        rule.waitUntil(5_000) { focused() == "Log in" }
     }
 
     @Test fun backInTheRowsGoesUpToResume() {

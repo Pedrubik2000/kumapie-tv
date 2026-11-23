@@ -153,11 +153,16 @@ private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: I
 }
 
 private fun LazyListScope.loginRow(c: RowCtx) = item(key = "login") {
-    Row(Modifier.padding(start = RAIL, top = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(tr("Log in with AniList to see your lists here"), color = Colors.dim)
-        Button(onClick = c.onLogin, modifier = if (c.d.names.isEmpty()) Modifier.focusRequester(c.first) else Modifier.onFocusChanged { if (it.isFocused) { c.focus.row = c.d.names.size; c.scrollTo(c.d.names.size) } }) { Text(tr("Log in")) }
-    }
+    LoginLine(Modifier.padding(start = RAIL, top = 16.dp, bottom = 16.dp),
+        if (c.d.names.isEmpty()) Modifier.focusRequester(c.first) else Modifier.onFocusChanged { if (it.isFocused) { c.focus.row = c.d.names.size; c.scrollTo(c.d.names.size) } }, c.onLogin)
 }
+
+@Composable
+internal fun LoginLine(modifier: Modifier, button: Modifier, onLogin: () -> Unit) =
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(tr("Log in with AniList to see your lists here"), color = Colors.dim)
+        Button(onClick = onLogin, modifier = button) { Text(tr("Log in")) }
+    }
 
 private fun LazyListScope.libraryRows(c: RowCtx) {
     val shows = c.d.library.filter { it.second.isNotEmpty() }

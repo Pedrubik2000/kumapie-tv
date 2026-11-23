@@ -194,7 +194,8 @@ fun DiscoverScreen(api: io.github.pedrubik2000.kumapie.data.Discovery, start: Fo
 /** Home's left edge on Discover's pages: the bear, a dark strip and the round buttons, Discover selected. */
 @Composable
 internal fun androidx.compose.foundation.layout.BoxScope.DiscoverRail(onHome: () -> Unit, onReview: () -> Unit, onSettings: () -> Unit,
-    onLibrary: () -> Unit = {}, onDiscover: () -> Unit = {}, library: Boolean = false, focus: MutableMap<String, FocusRequester> = remember { mutableMapOf() }) {
+    onLibrary: () -> Unit = {}, onDiscover: () -> Unit = {}, library: Boolean = false, focus: MutableMap<String, FocusRequester> = remember { mutableMapOf() },
+    toRows: FocusRequester? = null) {
     androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(io.github.pedrubik2000.kumapie.R.drawable.bear), "kumapie",
         Modifier.padding(start = 20.dp, top = 20.dp).size(64.dp))
     Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).background(Brush.horizontalGradient(
@@ -205,7 +206,7 @@ internal fun androidx.compose.foundation.layout.BoxScope.DiscoverRail(onHome: ()
         RailItem(androidx.compose.material.icons.Icons.Default.Explore, tr("Discover"), back = false, selected = !library, onClick = onDiscover),
         RailItem(androidx.compose.material.icons.Icons.Default.Style, tr("Review"), back = false, onClick = onReview),
         RailItem(androidx.compose.material.icons.Icons.Default.Settings, tr("Settings"), back = false, onClick = onSettings),
-    ), focus, null, Modifier.align(Alignment.TopStart).padding(top = 100.dp))
+    ), focus, toRows, Modifier.align(Alignment.TopStart).padding(top = 100.dp))
 }
 
 /** A backdrop over the whole screen, dark where the text and rows are (left and bottom). */

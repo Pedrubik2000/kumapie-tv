@@ -22,8 +22,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -36,6 +39,10 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -119,20 +126,27 @@ private fun LazyListScope.homeRows(c: RowCtx) {
 }
 
 @Composable
-private fun RowHead(label: String, nav: RowNav?) =
-    Row(Modifier.padding(start = RAIL, top = 8.dp, end = if (rememberHintRoom() > 0.dp) HINT_PILL_WIDTH else 0.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Bottom) {
-        Heading(label, Modifier.weight(1f, fill = false), maxLines = 1)
+private fun RowHead(label: String, nav: RowNav?, focus: HomeFocus) {
+    val pillLine = with(LocalDensity.current) { (rowsTop(focus.tall) + HINT_ROOM).toPx() }
+    var top by remember { mutableFloatStateOf(Float.MAX_VALUE) }
+    val reserve = if (rememberHintRoom() > 0.dp && top < pillLine) HINT_PILL_WIDTH else 0.dp
+    Row(Modifier.onGloballyPositioned { top = it.positionInRoot().y }.padding(start = RAIL, top = 8.dp, end = reserve),
+        horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Bottom) {
+        Heading(label, maxLines = 1)
         nav?.let { n ->
-            Text(n.position, color = Arcade.accent, fontSize = 16.sp, style = Arcade.label)
-            n.up?.let { Text("▲ $it", color = Colors.dim, fontSize = 16.sp) }
-            n.down?.let { Text("▼ $it", color = Colors.dim, fontSize = 16.sp) }
+            Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Bottom) {
+                Text(n.position, color = Arcade.accent, fontSize = 16.sp, style = Arcade.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                n.up?.let { Text("▲ $it", color = Colors.dim, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                n.down?.let { Text("▼ $it", color = Colors.dim, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
         }
     }
+}
 
 private fun LazyListScope.goingRow(c: RowCtx, nav: RowNav?) = item(key = "going") {
     val going = c.d.going
     WithTvScroll { Column {
-        RowHead(tr("Continue watching"), nav)
+        RowHead(tr("Continue watching"), nav, c.focus)
         LazyRow(state = remember(going) { LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = ROW_PADDING) {
             itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
                 val target = { ContinueTarget(s, e, i, going.size, c.d.byKitsu[s.kitsuId()]) }
@@ -144,7 +158,7 @@ private fun LazyListScope.goingRow(c: RowCtx, nav: RowNav?) = item(key = "going"
 
 private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: Int, mines: List<io.github.pedrubik2000.kumapie.data.Mine>, watching: Boolean) = item(key = key) {
     WithTvScroll { Column {
-        RowHead(label, rowNav(c.d.names, row))
+        RowHead(label, rowNav(c.d.names, row), c.focus)
         LazyRow(state = remember(mines) { LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = ROW_PADDING) {
             itemsIndexed(mines, key = { _, m -> m.anilistId }) { i, m ->
                 val progress = m.episodes?.takeIf { watching && it > 0 }?.let { m.progress.toFloat() / it }

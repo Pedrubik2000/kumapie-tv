@@ -174,6 +174,17 @@ class TvLibraryFocusTest {
         assertEquals("Dandadan", focused())
     }
 
+    @Test fun leftFromACoverInTheFirstColumnOfTheSecondRowGoesToTheSelectedList() {
+        logIn((10..18).map { mine(it, "T$it", "PLANNING") })
+        open()
+        waitFocus { it?.startsWith("Planning") == true }
+        rule.waitUntil(5_000) { hasCard("T10") }
+        press(RIGHT, DOWN)
+        assertEquals("T16", focused())
+        press(LEFT)
+        assertTrue(focused()?.startsWith("Planning") == true)
+    }
+
     @Test fun leftFromTheColumnGoesToTheRailAndRightComesBackToTheSelectedList() {
         logIn()
         open()

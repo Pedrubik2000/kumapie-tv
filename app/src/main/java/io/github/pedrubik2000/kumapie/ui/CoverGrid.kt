@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -49,16 +50,21 @@ internal fun <T : Any> rememberFrozen(built: T?, frozen: Boolean): T? {
 @Composable
 internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState, modifier: Modifier, focus: LibFocus, entry: FocusRequester,
                            nav: GridNav, above: () -> FocusRequester, cell: @Composable (T, Modifier) -> Unit) {
+    val density = LocalDensity.current
+    var bottom by remember { mutableStateOf(24.dp) }
     LaunchedEffect(state, items) {
         snapshotFlow { focus.id }.collectLatest { fid ->
             val i = items.indexOfFirst { id(it) == fid }
             if (i < 0) return@collectLatest
+            repeat(3) { withFrameNanos { } }
+            while (state.isScrollInProgress) withFrameNanos { }
             withFrameNanos { }
-            withFrameNanos { }
-            if (!rowIsWhole(state, i)) state.animateScrollToItem(i / COLUMNS * COLUMNS)
+            val room = restRoom(state)
+            if (room != null) bottom = with(density) { room.toDp() }.coerceAtLeast(24.dp)
+            restRow(state, i, with(density) { 12.dp.roundToPx() })?.let { state.animateScrollToItem(it * COLUMNS) }
         }
     }
-    LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize().clipToBounds(), state, contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+    LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize().clipToBounds(), state, contentPadding = PaddingValues(top = 8.dp, bottom = bottom),
         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         itemsIndexed(items, key = { _, m -> id(m) }) { i, m ->
             val first by remember(i) { derivedStateOf { state.firstVisibleItemIndex == i } }
@@ -70,12 +76,23 @@ internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState,
     }
 }
 
-private fun rowIsWhole(state: LazyGridState, index: Int): Boolean {
+private fun rowHeight(state: LazyGridState): Int = state.layoutInfo.visibleItemsInfo.maxOfOrNull { it.size.height } ?: 0
+
+private fun restRoom(state: LazyGridState): Int? {
+    val h = rowHeight(state)
+    if (h == 0) return null
+    return state.layoutInfo.viewportSize.height - state.layoutInfo.beforeContentPadding - h
+}
+
+private fun restRow(state: LazyGridState, index: Int, spacing: Int): Int? {
+    val h = rowHeight(state)
+    if (h == 0) return null
     val info = state.layoutInfo
-    val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return false
-    val whole = item.offset.y >= info.beforeContentPadding && item.offset.y + item.size.height <= info.viewportEndOffset
-    val aboveCut = index / COLUMNS - 1 == state.firstVisibleItemIndex / COLUMNS && state.firstVisibleItemScrollOffset != 0
-    return whole && !aboveCut
+    val both = 2 * h + spacing <= info.viewportSize.height - info.beforeContentPadding
+    val row = index / COLUMNS
+    val first = if (both && row > 0) row - 1 else row
+    val resting = state.firstVisibleItemIndex == first * COLUMNS && state.firstVisibleItemScrollOffset == 0
+    return first.takeIf { !resting }
 }
 
 @Composable

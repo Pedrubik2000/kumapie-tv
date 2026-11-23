@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.R
 import io.github.pedrubik2000.kumapie.data.AniListLists
@@ -182,7 +183,7 @@ internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequeste
                         androidx.tv.material3.Icon(item.icon, item.label, Modifier.size(26.dp))
                     }
                     if (item.badge > 0) Text(if (item.badge > 99) "99+" else "${item.badge}", color = Color.White, fontSize = 11.sp,
-                        modifier = Modifier.align(Alignment.TopEnd).background(Colors.unknown, androidx.compose.foundation.shape.CircleShape).padding(horizontal = 5.dp))
+                        modifier = Modifier.zIndex(2f).align(Alignment.TopEnd).background(Colors.unknown, androidx.compose.foundation.shape.CircleShape).padding(horizontal = 5.dp))
                 }
                 if (focused) Text(item.label, color = Color.White, fontSize = 16.sp, style = Arcade.label,
                     modifier = Modifier.padding(start = 12.dp).background(Arcade.band, RoundedCornerShape(12.dp)).border(1.dp, Arcade.line, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 4.dp))

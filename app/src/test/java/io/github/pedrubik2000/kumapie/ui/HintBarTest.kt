@@ -17,6 +17,16 @@ class HintBarTest {
         assertEquals("OK Choose · ▼ Rows", hintText(HintKind.HERO))
     }
 
+    @Test fun aRailItemShowsItsNameWithTheKeyAndTheCurrentOneWithoutIt() {
+        val a = Any()
+        Hints.focus(a, HintKind.RAIL, "Library")
+        assertEquals("OK Library", Hints.line())
+        Hints.refresh(a, HintKind.RAIL_HERE, "Home")
+        assertEquals("Home", Hints.line())
+        Hints.blur(a)
+        assertEquals(null, Hints.line())
+    }
+
     @Test fun noHintHasMoreThanThreeParts() {
         HintKind.entries.forEach { assert(hintOf(it).size <= 3) { "$it" } }
     }

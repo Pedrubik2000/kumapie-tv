@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -18,13 +19,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 
-internal enum class HintKind { PLAY, EPISODE, EPISODE_FILES, VALUE, ROW, CHECK, COVER, DUEL, PICK, CHOOSE, NEXT, HERO, SELECT }
+internal enum class HintKind { PLAY, EPISODE, EPISODE_FILES, VALUE, ROW, CHECK, COVER, DUEL, PICK, CHOOSE, NEXT, HERO, SELECT, RAIL, RAIL_HERE }
+
+internal val HintKind.isRail: Boolean get() = this == HintKind.RAIL || this == HintKind.RAIL_HERE
 
 internal fun hintOf(kind: HintKind): List<Pair<String, String>> = when (kind) {
     HintKind.PLAY -> listOf("OK" to tr("Play"))
@@ -40,47 +46,57 @@ internal fun hintOf(kind: HintKind): List<Pair<String, String>> = when (kind) {
     HintKind.NEXT -> listOf("OK" to tr("Show this one"))
     HintKind.HERO -> listOf("OK" to tr("Choose"), "▼" to tr("Rows"))
     HintKind.SELECT -> listOf("OK" to tr("Select"))
+    HintKind.RAIL, HintKind.RAIL_HERE -> emptyList()
 }
 
-internal fun hintText(kind: HintKind): String = hintOf(kind).joinToString(" · ") { "${it.first} ${it.second}" }
+internal fun hintText(kind: HintKind, name: String = ""): String =
+    if (kind.isRail) (if (kind == HintKind.RAIL) "OK $name" else name)
+    else hintOf(kind).joinToString(" · ") { "${it.first} ${it.second}" }
 
 internal object Hints {
     var shown by mutableStateOf<HintKind?>(null)
+    var name by mutableStateOf("")
     private var owner: Any? = null
 
-    fun focus(by: Any, kind: HintKind) {
+    fun focus(by: Any, kind: HintKind, name: String = "") {
         owner = by
         shown = kind
+        this.name = name
     }
 
-    fun refresh(by: Any, kind: HintKind) {
-        if (owner === by) shown = kind
+    fun refresh(by: Any, kind: HintKind, name: String = "") {
+        if (owner === by) {
+            shown = kind
+            this.name = name
+        }
     }
 
     fun blur(by: Any) {
         if (owner === by) {
             owner = null
             shown = null
+            name = ""
         }
     }
 
-    fun line(): String? = shown?.let(::hintText)
+    fun line(): String? = shown?.let { hintText(it, name) }
 }
 
 @Composable
-internal fun Modifier.hint(kind: HintKind): Modifier {
+internal fun Modifier.hint(kind: HintKind, name: String = ""): Modifier {
     val by = remember { Any() }
     var focused by remember { mutableStateOf(false) }
     DisposableEffect(by) { onDispose { Hints.blur(by) } }
-    LaunchedEffect(kind, focused) { if (focused) Hints.refresh(by, kind) }
+    LaunchedEffect(kind, name, focused) { if (focused) Hints.refresh(by, kind, name) }
     return onFocusChanged {
         focused = it.isFocused
-        if (it.isFocused) Hints.focus(by, kind) else Hints.blur(by)
+        if (it.isFocused) Hints.focus(by, kind, name) else Hints.blur(by)
     }
 }
 
 internal val HINT_ROOM = 52.dp
 internal val HINT_PILL_WIDTH = 380.dp
+private val RAIL_NAME_WIDTH = 260.dp
 
 @Composable
 internal fun rememberHintRoom(): androidx.compose.ui.unit.Dp {
@@ -92,10 +108,15 @@ internal fun rememberHintRoom(): androidx.compose.ui.unit.Dp {
 internal fun BoxScope.HintBar(top: androidx.compose.ui.unit.Dp? = null) {
     val kind = Hints.shown ?: return
     val context = LocalContext.current
-    if (!remember { Settings(context).showHelp }) return
+    if (!kind.isRail && !remember { Settings(context).showHelp }) return
     Row((if (top == null) Modifier.align(Alignment.BottomEnd).padding(end = 32.dp, bottom = 10.dp) else Modifier.align(Alignment.TopEnd).padding(end = 32.dp, top = top)).background(Arcade.band.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
         .padding(horizontal = 14.dp, vertical = 6.dp).testTag("hints"), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        hintOf(kind).forEach { (keys, word) ->
+        if (kind.isRail) Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (kind == HintKind.RAIL) KeyCap("OK", WHITE_DIM)
+            Text(Hints.name, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = RAIL_NAME_WIDTH))
+        }
+        else hintOf(kind).forEach { (keys, word) ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 KeyCap(keys, WHITE_DIM)
                 Text(word, color = Colors.dim, fontSize = 14.sp)

@@ -2,7 +2,6 @@ package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
@@ -23,7 +21,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -57,7 +54,6 @@ import io.github.pedrubik2000.kumapie.data.libraryRows
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.JitenQueue
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 suspend fun FocusRequester.focusSoon() {
@@ -141,37 +137,31 @@ private fun BoxScope.HomeHintBar(focus: HomeFocus) = HintBar(top = rowsTop(focus
 @Composable
 internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequester>, toRows: FocusRequester?, modifier: Modifier, onFocused: () -> Unit = {}) {
     val current = items.firstOrNull { it.selected }?.label
-    val scope = rememberCoroutineScope()
     Column(modifier.padding(start = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         items.forEach { item -> androidx.compose.runtime.key(item.label) {
-            var focused by remember { mutableStateOf(false) }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box {
-                    androidx.tv.material3.IconButton(onClick = { if (item.back && !item.selected) railLast = item.label; item.onClick() },
-                        modifier = Modifier.size(56.dp).focusRequester(focus.getOrPut(item.label) { FocusRequester() })
-                            .onFocusChanged {
-                                focused = it.isFocused
-                                if (it.isFocused) {
-                                    onFocused()
-                                    if (RailGate.left && current != null && item.label != current) {
-                                        RailGate.left = false
-                                        scope.launch { focus[current]?.focusSoon() }
-                                    }
+            Box {
+                androidx.tv.material3.IconButton(onClick = { if (item.back && !item.selected) railLast = item.label; item.onClick() },
+                    modifier = Modifier.size(56.dp).focusRequester(focus.getOrPut(item.label) { FocusRequester() })
+                        .hint(if (item.selected) HintKind.RAIL_HERE else HintKind.RAIL, item.label)
+                        .onFocusChanged {
+                            if (it.isFocused) {
+                                onFocused()
+                                if (RailGate.left && current != null && item.label != current) {
+                                    RailGate.left = false
+                                    runCatching { focus[current]?.requestFocus() }
                                 }
-                            }.focusProperties { toRows?.let { right = it } },
-                        colors = androidx.tv.material3.IconButtonDefaults.colors(
-                            containerColor = Colors.background.copy(alpha = 0.55f), contentColor = if (item.selected) Arcade.accent else Color.White,
-                            focusedContainerColor = Color.White, focusedContentColor = Color.Black),
-                        border = androidx.tv.material3.IconButtonDefaults.border(border = androidx.tv.material3.Border(
-                            if (item.selected) androidx.compose.foundation.BorderStroke(2.dp, Arcade.accent)
-                            else androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))))) {
-                        androidx.tv.material3.Icon(item.icon, item.label, Modifier.size(26.dp))
-                    }
-                    if (item.badge > 0) Text(if (item.badge > 99) "99+" else "${item.badge}", color = Color.White, fontSize = 11.sp,
-                        modifier = Modifier.zIndex(2f).align(Alignment.TopEnd).background(Colors.unknown, androidx.compose.foundation.shape.CircleShape).padding(horizontal = 5.dp))
+                            }
+                        }.focusProperties { toRows?.let { right = it } },
+                    colors = androidx.tv.material3.IconButtonDefaults.colors(
+                        containerColor = Colors.background.copy(alpha = 0.55f), contentColor = if (item.selected) Arcade.accent else Color.White,
+                        focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+                    border = androidx.tv.material3.IconButtonDefaults.border(border = androidx.tv.material3.Border(
+                        if (item.selected) androidx.compose.foundation.BorderStroke(2.dp, Arcade.accent)
+                        else androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))))) {
+                    androidx.tv.material3.Icon(item.icon, item.label, Modifier.size(26.dp))
                 }
-                if (focused) Text(item.label, color = Color.White, fontSize = 16.sp, style = Arcade.label,
-                    modifier = Modifier.padding(start = 12.dp).background(Arcade.band, RoundedCornerShape(12.dp)).border(1.dp, Arcade.line, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
+                if (item.badge > 0) Text(if (item.badge > 99) "99+" else "${item.badge}", color = Color.White, fontSize = 11.sp,
+                    modifier = Modifier.zIndex(2f).align(Alignment.TopEnd).background(Colors.unknown, androidx.compose.foundation.shape.CircleShape).padding(horizontal = 5.dp))
             }
         } }
     }

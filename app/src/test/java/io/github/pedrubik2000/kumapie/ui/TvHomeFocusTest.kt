@@ -182,6 +182,18 @@ class TvHomeFocusTest {
         assertEquals(1, discoverCalls)
     }
 
+    @Test fun aFocusedRailItemPutsItsNameInTheHintLineAndTheContentGivesItsHintBack() {
+        openHome()
+        rule.onNodeWithContentDescription("Stats").requestFocus()
+        rule.waitForIdle()
+        assertEquals("OK Stats", Hints.line())
+        rule.onNodeWithContentDescription("Home").requestFocus()
+        rule.waitForIdle()
+        assertEquals("Home", Hints.line())
+        press(RIGHT)
+        assertEquals("OK Choose · ▼ Rows", Hints.line())
+    }
+
     @Test fun theHintLineFollowsTheFocusFromTheHeroToACover() {
         openHome()
         assertEquals("OK Choose · ▼ Rows", Hints.line())

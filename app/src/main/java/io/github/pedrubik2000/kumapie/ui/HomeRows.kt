@@ -23,7 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -128,9 +129,10 @@ private fun LazyListScope.homeRows(c: RowCtx) {
 @Composable
 private fun RowHead(label: String, nav: RowNav?, focus: HomeFocus) {
     val pillLine = with(LocalDensity.current) { (rowsTop(focus.tall) + HINT_ROOM).toPx() }
-    var top by remember { mutableFloatStateOf(Float.MAX_VALUE) }
-    val reserve = if (rememberHintRoom() > 0.dp && top < pillLine) HINT_PILL_WIDTH else 0.dp
-    Row(Modifier.onGloballyPositioned { top = it.positionInRoot().y }.padding(start = RAIL, top = 8.dp, end = reserve),
+    var inBand by remember { mutableStateOf(true) }
+    val railNamed by remember { derivedStateOf { Hints.shown?.isRail == true } }
+    val reserve = if ((rememberHintRoom() > 0.dp || railNamed) && inBand) HINT_PILL_WIDTH else 0.dp
+    Row(Modifier.onGloballyPositioned { (it.positionInRoot().y < pillLine).let { b -> if (b != inBand) inBand = b } }.padding(start = RAIL, top = 8.dp, end = reserve),
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Bottom) {
         Heading(label, maxLines = 1)
         nav?.let { n ->

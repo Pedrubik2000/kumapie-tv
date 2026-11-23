@@ -4,6 +4,7 @@ import io.github.pedrubik2000.kumapie.data.BestForYou.Why
 import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.lang.TitleDifficulty
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -262,6 +263,15 @@ class PickStoreTest {
         assertEquals(setOf(9), store.hidden())
         store.undoSkip(9)
         assertEquals(emptySet<Int>(), store.hidden())
+    }
+
+    @Test fun undoLastSaysWhetherItRestoredAnything() {
+        val state = PickState(store(), { 0L })
+        assertFalse(state.undoLast())
+        state.notForMe(5, "x")
+        assertTrue(state.undoLast())
+        assertEquals(5, state.chosen)
+        assertFalse(state.undoLast())
     }
 
     @Test fun theUndoIsLiveForSixSecondsOnTheClockAndGoneAfter() {

@@ -66,7 +66,7 @@ private fun EmptyPick(env: DiscoverEnv, undo: Undo?, state: PickState) {
     Column(Modifier.padding(start = CONTENT_START, top = 100.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(tr("Nothing left to pick right now. Add titles to your Planning list on AniList, or open Browse."), color = Colors.dim)
         if (undo != null) {
-            Button(onClick = { state.toHome = true; state.undoLast() }, modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(env.link.to).focusProperties { left = env.entry }) { Text("↶ " + tr("Undo")) }
+            Button(onClick = { state.toHome = state.undoLast() }, modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(env.link.to).focusProperties { left = env.entry }) { Text("↶ " + tr("Undo")) }
             LaunchedEffect(Unit) { env.link.to.focusSoon() }
         }
     }

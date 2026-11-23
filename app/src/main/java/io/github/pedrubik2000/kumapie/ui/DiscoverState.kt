@@ -85,13 +85,14 @@ internal class PickState(private val store: PickStore, val clock: () -> Long = S
 
     fun liveUndo(): Undo? = undo?.takeIf { clock() < it.until }
 
-    fun undoLast() {
-        val u = undo ?: return
+    fun undoLast(): Boolean {
+        val u = undo ?: return false
         if (u.skip) store.undoSkip(u.id) else store.undoNotForMe(u.id)
         hidden = store.hidden()
         chosen = u.id
         duel = null
         undo = null
+        return true
     }
 
     fun onHome(found: String, fromWinner: Boolean = false) {

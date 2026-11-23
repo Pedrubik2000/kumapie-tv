@@ -34,7 +34,7 @@ import io.github.pedrubik2000.kumapie.lang.JitenQueue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private class Shown(val list: LibraryList, val filters: LibraryFilters, val view: LibraryView)
+private class LibraryShown(val list: LibraryList, val filters: LibraryFilters, val view: LibraryView)
 
 @Composable
 fun LibraryScreen(api: Discovery, settings: Settings, onHome: () -> Unit, onDiscover: () -> Unit, onReview: () -> Unit, onSettings: () -> Unit,
@@ -120,15 +120,15 @@ private fun LibraryBody(all: List<Mine>, kept: Set<String>?, keptFailed: Boolean
 }
 
 @Composable
-private fun rememberBuilt(all: List<Mine>, current: LibraryList, filters: LibraryFilters, kept: Set<String>?, keptFailed: Boolean, levels: Levels?): Shown? {
+private fun rememberBuilt(all: List<Mine>, current: LibraryList, filters: LibraryFilters, kept: Set<String>?, keptFailed: Boolean, levels: Levels?): LibraryShown? {
     val needed = filters.needsLevels
     val loaded = if (needed) levels?.loaded else null
     val ready = (!needed || levels != null) && (!filters.onHome || kept != null || keptFailed)
-    val built by produceState<Shown?>(null, all, current, filters, kept, keptFailed, levels, loaded, ready) {
+    val built by produceState<LibraryShown?>(null, all, current, filters, kept, keptFailed, levels, loaded, ready) {
         if (!ready) return@produceState
         value = withContext(Dispatchers.Default) {
             val numbers = if (needed) levels?.snapshot(current.of(all).map { it.kitsuId }).orEmpty() else emptyMap()
-            Shown(current, filters, libraryView(all, current, filters, kept.orEmpty()) { numbers[it] })
+            LibraryShown(current, filters, libraryView(all, current, filters, kept.orEmpty()) { numbers[it] })
         }
     }
     return built

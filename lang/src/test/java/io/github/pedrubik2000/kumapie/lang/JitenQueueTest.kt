@@ -35,6 +35,21 @@ class JitenQueueTest {
         assertNotNull(q.results.value["kitsu:1"])
     }
 
+    @Test fun aFailedIdLookupIsNotKeptAsNoMappingAndDoesNotStopTheQueue() {
+        var offline = true
+        val store = JitenStore(file) { now }
+        val paced = JitenPaced(Canned(::jitenOk), 500, { now }, { now += it })
+        val q = JitenQueue(store, JitenApi(paced), { if (offline) error("offline") else ids[it] }, { idle }, { now })
+        q.ask(listOf("kitsu:1"))
+        drain(q)
+        assertTrue(!store.knowsKitsu("kitsu:1"))
+        offline = false
+        now += JitenQueue.RETRY_MS
+        q.ask(listOf("kitsu:1"))
+        drain(q)
+        assertEquals(2.68, q.cached("kitsu:1")!!.raw, 0.0)
+    }
+
     @Test fun twoRequestsASecondAtMost() {
         val stamps = mutableListOf<Long>()
         val q = queue(Canned { stamps += now; jitenOk(it) })

@@ -42,7 +42,10 @@ class JitenQueue(
 
     suspend fun step(): Boolean {
         val kitsu = next() ?: return false
-        val id = if (store.knowsKitsu(kitsu)) store.anilistOf(kitsu) else resolve(kitsu).also { store.linkKitsu(kitsu, it) }
+        val id = if (store.knowsKitsu(kitsu)) store.anilistOf(kitsu) else {
+            val found = runCatching { resolve(kitsu) }.getOrElse { failed[kitsu] = clock(); return true }
+            found.also { store.linkKitsu(kitsu, it) }
+        }
         if (id == null) {
             flow.value = flow.value + (kitsu to null)
             return true

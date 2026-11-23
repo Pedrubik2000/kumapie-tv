@@ -46,7 +46,7 @@ internal enum class AniPhase { LOADING, FAILED, LOGGED_OUT, READY }
 
 internal class CardData(val status: String?, val score: Double, val progress: Int, val episodes: Int?, val average: Int)
 
-internal class AniState(val phase: AniPhase, val data: CardData?, val format: String, val mine: io.github.pedrubik2000.kumapie.data.Mine?)
+internal class AniState(val phase: AniPhase, val data: CardData?, val format: String, val mine: io.github.pedrubik2000.kumapie.data.Mine?, val retry: () -> Unit = {})
 
 @Composable
 internal fun AniListCard(state: AniState, edits: TitleEdits, finished: Boolean, next: Int?, focus: TitleFocus, modifier: Modifier) {
@@ -55,7 +55,10 @@ internal fun AniListCard(state: AniState, edits: TitleEdits, finished: Boolean, 
         val data = state.data
         when {
             state.phase == AniPhase.LOGGED_OUT -> CardNote(tr("Log in with AniList to see your list here"))
-            state.phase == AniPhase.FAILED -> CardNote(tr("Couldn't read your AniList list"))
+            state.phase == AniPhase.FAILED -> {
+                CardNote(tr("Couldn't read your AniList list"))
+                Button(onClick = state.retry, modifier = Modifier.focusRequester(focus.status).focusProperties { up = focus.main; down = focus.row }) { Text(tr("Try again")) }
+            }
             data == null -> CardNote(tr("Loading…"))
             state.phase == AniPhase.LOADING -> {
                 RowFace(tr("Status"), statusLabel(data.status), false, false, Modifier)

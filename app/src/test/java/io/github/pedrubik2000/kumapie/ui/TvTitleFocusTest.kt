@@ -165,8 +165,22 @@ class TvTitleFocusTest {
         waitFocus { it?.startsWith("▶") == true }
         rule.waitUntil(5_000) { hasText("Couldn't read your AniList list") }
         repeat(3) { press(Key.DirectionRight) }
-        assertEquals("+ Home", focused())
+        assertEquals("Try again", focused())
         assertEquals(0, fake.saved.size)
+    }
+
+    @Test fun theFailedCardOffersTryAgainWithRightFromTheButtonsAndItReReads() {
+        logIn()
+        val fake = FakeAniList({ throw IOException("down") })
+        open(listOf(true, false, false), fake)
+        waitFocus { it?.startsWith("▶") == true }
+        rule.waitUntil(5_000) { hasText("Couldn't read your AniList list") }
+        press(Key.DirectionRight)
+        press(Key.DirectionRight)
+        assertEquals("Try again", focused())
+        fake.entry = { entry("CURRENT", 1) }
+        press(Key.DirectionCenter)
+        rule.waitUntil(5_000) { hasText("Status") && !hasText("Couldn't read your AniList list") }
     }
 
     @Test fun whileTheReadIsLoadingPlayHasTheFocusAndRightStopsAtHome() {

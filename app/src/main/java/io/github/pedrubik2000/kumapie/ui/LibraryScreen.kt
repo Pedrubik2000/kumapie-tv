@@ -99,7 +99,7 @@ private fun LibraryBody(all: List<Mine>, kept: Set<String>?, keptFailed: Boolean
         Column(Modifier.padding(start = CONTENT_START, end = 28.dp, top = HERO_BOTTOM)) {
             display?.let { d ->
                 Text(remember(d, keptFailed) { libraryLine(d.list, d.filters, d.view, keptFailed) }, color = Colors.dim, fontSize = 14.sp)
-                if (items.isEmpty()) Text(if (d.view.total == 0) tr("Nothing in this list yet") else tr("Nothing here with these filters"), color = Colors.dim, modifier = Modifier.padding(top = 12.dp))
+                if (items.isEmpty()) Text(if (d.view.total == 0) tr("Nothing in this list yet. Pick another list on the left.") else tr("Nothing here with these filters. Change DIFFICULTY or SHOW ONLY on the left."), color = Colors.dim, modifier = Modifier.padding(top = 12.dp))
             }
             if (items.isNotEmpty()) CoverGrid(items, { it.anilistId }, grid,
                 Modifier.focusRequester(nav.grid).onBackKey { runCatching { entry.requestFocus() } }.onFocusChanged { inGrid = it.hasFocus }.focusRestorer(nav.enter),

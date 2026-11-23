@@ -53,7 +53,7 @@ internal fun DuelContent(env: DiscoverEnv, field: List<Mine>?, ranked: Ranked?, 
     when {
         !loggedIn -> LoginPrompt(env)
         field == null || ranked == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
-        !playable -> Text(tr("Not enough titles on your Planning list to choose between"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
+        !playable -> Text(tr("Not enough titles on your Planning list to choose between. Add more on AniList, or open Browse."), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
         else -> Bracket(env, field.take(DUEL_SIZE), ranked, state, onHomeIds)
     }
 }

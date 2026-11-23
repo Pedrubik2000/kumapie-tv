@@ -74,7 +74,7 @@ private fun BrowseBody(env: DiscoverEnv, state: BrowseState, display: BrowseShow
         display == null -> Text(tr("Loading…"), color = Colors.dim)
         else -> {
             Text(remember(display) { browseLine(display.filters, display.view) }, color = Colors.dim, fontSize = 14.sp)
-            if (items.isEmpty()) Text(tr("Nothing found"), color = Colors.dim, modifier = Modifier.padding(top = 12.dp))
+            if (items.isEmpty()) Text(tr("Nothing found. Change the search or the FILTERS on the left."), color = Colors.dim, modifier = Modifier.padding(top = 12.dp))
         }
     }
     if (items.isNotEmpty() && error == null) CoverGrid(items, { it.id }, grid,

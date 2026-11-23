@@ -53,7 +53,7 @@ class TvHomeFocusTest {
         takeRailLast()
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { x ->
-            val body = if (x.requestURI.path == "/api/tv/shows") SHOWS.toByteArray() else ByteArray(0)
+            val body = if (x.requestURI.path == "/api/tv/shows") showsBody.toByteArray() else ByteArray(0)
             x.sendResponseHeaders(if (body.isEmpty()) 404 else 200, if (body.isEmpty()) -1 else body.size.toLong())
             x.responseBody.use { it.write(body) }
         }
@@ -62,6 +62,8 @@ class TvHomeFocusTest {
 
     @After fun stopServer() = server.stop(0)
 
+    private var showsBody = SHOWS
+    private var discoverCalls = 0
     private var home by mutableStateOf(true)
     private var screen by mutableStateOf("home")
 
@@ -71,7 +73,7 @@ class TvHomeFocusTest {
             if (screen == "library") LibraryScreen(Api("http://127.0.0.1:${server.address.port}"), settings, onHome = { screen = "home" }, onDiscover = {}, onReview = {}, onSettings = {}, onOpen = {})
             else if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro",
                 onShow = {}, onPlay = { _, _ -> }, onSettings = {}, onStats = { home = false }, onProfiles = {},
-                onLibrary = { screen = "library" }, jiten = queue, lists = { null })
+                onLibrary = { screen = "library" }, onDiscover = { discoverCalls++ }, jiten = queue, lists = { null })
         }
         rule.waitUntil(5_000) { focused() == RESUME }
     }
@@ -167,6 +169,17 @@ class TvHomeFocusTest {
         press(DOWN)
         rule.waitForIdle()
         rule.onNodeWithText("Planning on AniList").fetchSemanticsNode().boundsInRoot.let { assert(it.top >= heroBottom) { "heading at ${it.top}" } }
+    }
+
+    @Test fun withNothingInProgressTheFirstFocusIsFindSomethingToWatchAndOkOpensDiscover() {
+        showsBody = """{"shows":[${show("c", "Gamma", "shows", episode("c1", null, 0))}]}"""
+        rule.setContent {
+            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), Settings(LocalContext.current), "p", "Pedro", onShow = {}, onPlay = { _, _ -> },
+                onSettings = {}, onStats = {}, onProfiles = {}, onDiscover = { discoverCalls++ }, lists = { null })
+        }
+        rule.waitUntil(5_000) { focused() == "Find something to watch" }
+        press(OK)
+        assertEquals(1, discoverCalls)
     }
 
     @Test fun theLoginLineSitsBelowTheHeroWhenFocused() {

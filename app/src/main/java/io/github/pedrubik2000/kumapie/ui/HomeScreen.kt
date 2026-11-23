@@ -111,7 +111,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
             error != null -> Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error, onRetry = { attempt++ }, onSettings = onSettings) }
             shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
             lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
-            data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings)
+            data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover)
         }
         HomeHeader(totals, langs, lang) { next -> picked = next; settings.prefs.edit().putString("home_lang_$profile", next).apply() }
         Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).fadeTop(0.1f).background(Brush.horizontalGradient(
@@ -228,16 +228,17 @@ private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> Li
 }
 
 @Composable
-fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: (() -> Unit)?, server: Boolean = true) {
+fun ErrorBox(message: String, onRetry: () -> Unit, onSettings: (() -> Unit)?, server: Boolean = true, settingsLabel: String = tr("Settings"), hint: String? = null) {
     val retry = remember { FocusRequester() }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Title(if (server) tr("Can't reach the dojo server") else tr("That didn't work"), fontSize = 26.sp)
             Text(if (server) plainError(message) else message, color = Colors.dim, modifier = Modifier.padding(vertical = 12.dp))
             if (server) Text(tr("Is the PC on, and Tailscale connected on the TV?"), color = Colors.dim)
+            hint?.let { Text(it, color = Colors.dim) }
             Row(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = onRetry, modifier = Modifier.focusRequester(retry)) { Text(tr("Try again")) }
-                if (onSettings != null) Button(onClick = onSettings) { Text(tr("Settings")) }
+                if (onSettings != null) Button(onClick = onSettings) { Text(settingsLabel) }
             }
         }
     }

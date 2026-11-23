@@ -74,7 +74,7 @@ fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
     LoadPicks(api, hold.pick, start == null)
     open?.let { f ->
         return Box(Modifier.onBackKey(start == null) { open = null }) {
-            TitleScreen(api, f, { DiscoverRail(onHome, onReview, onSettings, onLibrary = onLibrary) }, jiten, sync)
+            TitleScreen(api, f, { DiscoverRail(onHome, onReview, onSettings, onLibrary = onLibrary) }, jiten, sync, onSettings)
         }
     }
     DiscoverBody(api, settings, jiten, DiscoverEdges(onHome, onReview, onSettings, onLibrary), lists, ranked, kept?.ids.orEmpty(), hold) { open = it }

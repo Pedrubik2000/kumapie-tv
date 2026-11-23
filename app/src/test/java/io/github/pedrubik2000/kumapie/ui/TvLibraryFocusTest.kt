@@ -292,12 +292,12 @@ class TvLibraryFocusTest {
         open()
         waitFocus { it?.startsWith("Watching") == true }
         press(DOWN, DOWN, OK)
-        rule.waitUntil(5_000) { hasText("Nothing in this list yet") }
+        rule.waitUntil(5_000) { hasText("Nothing in this list yet. Pick another list on the left.") }
         press(UP, OK)
         rule.waitUntil(5_000) { hasCard("Dandadan") }
         rule.onNodeWithText("On Home").requestFocus()
         press(OK)
-        rule.waitUntil(5_000) { hasText("Nothing here with these filters") }
+        rule.waitUntil(5_000) { hasText("Nothing here with these filters. Change DIFFICULTY or SHOW ONLY on the left.") }
     }
 
     @Test fun okOnACoverOpensItAndComingBackFocusesItAgain() {
@@ -328,7 +328,7 @@ class TvLibraryFocusTest {
 
     private fun expectFocusOn(name: String) {
         var nothing = false
-        rule.waitUntil(5_000) { nothing = nothing || hasText("Nothing here with these filters"); focusedCard() == name }
+        rule.waitUntil(5_000) { nothing = nothing || hasText("Nothing here with these filters. Change DIFFICULTY or SHOW ONLY on the left."); focusedCard() == name }
         assertTrue(!nothing)
     }
 
@@ -376,7 +376,7 @@ class TvLibraryFocusTest {
         waitFocus { it?.startsWith("Watching") == true }
         rule.waitUntil(5_000) { hasCard("Frieren") }
         fresh(entryOf(3, "Dandadan", "PLANNING"))
-        rule.waitUntil(5_000) { hasText("Nothing in this list yet") }
+        rule.waitUntil(5_000) { hasText("Nothing in this list yet. Pick another list on the left.") }
         assertTrue(focused()?.startsWith("Watching") == true)
     }
 

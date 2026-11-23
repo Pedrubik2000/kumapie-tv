@@ -102,7 +102,7 @@ private fun rememberAniState(settings: Settings, writer: AniListSync, title: Fou
             AniState(AniPhase.FAILED, null, settings.anilistFormat, mine)
         }
     }
-    return state
+    return AniState(state.phase, state.data, state.format, state.mine) { again++ }
 }
 
 private fun titleFinished(data: CardData?, eps: List<JSONObject>): Boolean =
@@ -123,7 +123,7 @@ private fun TitleBackdrop(api: Discovery, title: Found) {
 
 
 @Composable
-internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScope.() -> Unit, jiten: JitenQueue?, sync: AniListSync?) {
+internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScope.() -> Unit, jiten: JitenQueue?, sync: AniListSync?, onSettings: (() -> Unit)? = null) {
     val context = LocalContext.current
     val settings = remember { Settings(context) }
     val page = remember(title.id) {
@@ -154,8 +154,8 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
     Box(Modifier.fillMaxSize().onPreviewKeyEvent { touched = true; false }.onBackKey(page.picking != null) { page.closeFiles() }) {
         TitleBackdrop(api, title)
         Row(Modifier.fillMaxSize().padding(start = RAIL, top = 40.dp, end = 32.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-            TitleInfo(page, ani.mine, rememberLevels(rememberQueue(jiten)), kitsu, finished, side, cardOn && ani.phase == AniPhase.READY, focus, play)
-            if (side) TitleSide(api, page, focus, Modifier.weight(1f))
+            TitleInfo(page, ani.mine, rememberLevels(rememberQueue(jiten)), kitsu, finished, side, cardOn && (ani.phase == AniPhase.READY || ani.phase == AniPhase.FAILED), focus, play)
+            if (side) TitleSide(api, page, focus, onSettings, Modifier.weight(1f))
         }
         if (cardOn) AniListCard(ani, edits, finished, page.next?.optInt("number")?.takeIf { it > 0 }, focus,
             Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 32.dp))
@@ -204,14 +204,15 @@ private fun playLabel(page: TitlePage, next: JSONObject?, finished: Boolean): St
 }
 
 @Composable
-private fun TitleSide(api: Discovery, page: TitlePage, focus: TitleFocus, modifier: Modifier) {
+private fun TitleSide(api: Discovery, page: TitlePage, focus: TitleFocus, onSettings: (() -> Unit)?, modifier: Modifier) {
     val scope = rememberCoroutineScope()
     val pick = page.picking
     Box(modifier.focusProperties {
         onExit = { if (requestedFocusDirection == FocusDirection.Left && page.meta != null) { cancelFocusChange(); focus.main.requestFocus() } }
     }.focusGroup().arcadePanel().padding(16.dp)) {
         when {
-            page.error != null -> ErrorBox(page.error.orEmpty(), onRetry = { scope.launch { page.retry() } }, onSettings = null, server = api is Api)
+            page.error != null -> ErrorBox(page.error.orEmpty(), onRetry = { scope.launch { page.retry() } }, onSettings = onSettings, server = api is Api,
+                settingsLabel = tr("Addons in Settings"), hint = tr("Add or fix an addon in Settings, then try again.").takeIf { page.error == tr("None of your addons knows this title") })
             page.meta == null -> Text(tr("Loading…"), color = Colors.dim)
             pick != null -> PickFiles(api, page, pick)
         }

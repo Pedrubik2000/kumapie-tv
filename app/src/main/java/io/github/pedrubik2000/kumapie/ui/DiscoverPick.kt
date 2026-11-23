@@ -49,7 +49,7 @@ internal fun PickContent(env: DiscoverEnv, picks: Picks?, ranked: Ranked?, state
     when {
         !loggedIn -> LoginPrompt(env)
         picks == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
-        m == null -> Text(tr("Nothing left to pick right now"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
+        m == null -> Text(tr("Nothing left to pick right now. Add titles to your Planning list on AniList, or open Browse."), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
         else -> PickBig(env, m, ranked, state)
     }
 }

@@ -52,6 +52,7 @@ class TvDiscoverFocusTest {
     private var showing by mutableStateOf(true)
     private var home = 0
     private var lineOpened = 0
+    private var settingsCalls = 0
     private var boards = 0
     private var searches = 0
     private var searchDelay = 0L
@@ -114,7 +115,7 @@ class TvDiscoverFocusTest {
         val jiten = queue()
         rule.setContent {
             androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.onBackKey { home++ }) {
-                if (showing) DiscoverScreen(discoverApi, settings, start = start, jiten = jiten, read = { prefs, user, _, _, f -> fresh = f; AniListLists.cached(prefs, user) })
+                if (showing) DiscoverScreen(discoverApi, settings, start = start, onSettings = { settingsCalls++ }, jiten = jiten, read = { prefs, user, _, _, f -> fresh = f; AniListLists.cached(prefs, user) })
             }
         }
     }
@@ -263,7 +264,7 @@ class TvDiscoverFocusTest {
         logIn(planning.take(1))
         open()
         waitFocus { it?.startsWith("Pick for me") == true }
-        rule.waitUntil(5_000) { hasText("Nothing left to pick right now") }
+        rule.waitUntil(5_000) { hasText("Nothing left to pick right now. Add titles to your Planning list on AniList, or open Browse.") }
         assertTrue(focused()?.startsWith("Pick for me") == true)
     }
 
@@ -317,7 +318,7 @@ class TvDiscoverFocusTest {
 
     private fun selectQuietDuel() {
         press(DOWN, OK)
-        rule.waitUntil(5_000) { hasText("Not enough titles on your Planning list to choose between") }
+        rule.waitUntil(5_000) { hasText("Not enough titles on your Planning list to choose between. Add more on AniList, or open Browse.") }
     }
 
     @Test fun browseCatalogRowStepsAndTheGridChangesThenRightEntersAndLeftReturns() {
@@ -413,6 +414,17 @@ class TvDiscoverFocusTest {
         press(RIGHT)
         rule.waitUntil(5_000) { !hasCard("Alpha") && hasCard("Beta") }
         assertTrue(hasText("1 of 2 shown"))
+    }
+
+    @Test fun aTitleNoAddonKnowsOffersTryAgainAndAddonsInSettings() {
+        val broken = object : Discovery by discovery { override suspend fun discoverMeta(type: String, id: String): JSONObject = error("None of your addons knows this title") }
+        open(broken, start = Found("alpha", "series", "Alpha", "/p/alpha.jpg", "2024"))
+        rule.waitUntil(5_000) { hasText("Add or fix an addon in Settings, then try again.") }
+        waitFocus { it == "Try again" }
+        press(RIGHT)
+        assertEquals("Addons in Settings", focused())
+        press(OK)
+        assertEquals(1, settingsCalls)
     }
 
     @Test fun aDeepLinkOpensTheTitlePageAtOnce() {
@@ -562,7 +574,7 @@ class TvDiscoverFocusTest {
         logIn(planning.take(1))
         rule.waitUntil(5_000) { fresh != null }
         rule.runOnIdle { fresh?.invoke(AniListLists.cached(prefs(), "pedro")) }
-        rule.waitUntil(5_000) { hasText("Nothing left to pick right now") }
+        rule.waitUntil(5_000) { hasText("Nothing left to pick right now. Add titles to your Planning list on AniList, or open Browse.") }
         press(DOWN)
         assertTrue(focused()?.startsWith("Pick for me") == true)
     }

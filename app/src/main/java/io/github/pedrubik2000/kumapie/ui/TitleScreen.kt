@@ -165,6 +165,7 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
         if (page.meta != null && !side) EpisodeRow(page, settings.blurUnwatched, focus, play, { e -> scope.launch { page.mark(e) } },
             Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp))
         rail()
+        HintBar()
     }
 }
 

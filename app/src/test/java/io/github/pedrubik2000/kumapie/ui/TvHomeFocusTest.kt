@@ -182,6 +182,13 @@ class TvHomeFocusTest {
         assertEquals(1, discoverCalls)
     }
 
+    @Test fun theHintLineFollowsTheFocusFromTheHeroToACover() {
+        openHome()
+        assertEquals("OK Choose · ▼ Rows", Hints.line())
+        press(DOWN)
+        assertEquals("OK Open", Hints.line())
+    }
+
     @Test fun theLoginLineSitsBelowTheHeroWhenFocused() {
         openHome()
         press(DOWN, DOWN)

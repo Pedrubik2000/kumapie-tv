@@ -46,7 +46,7 @@ internal fun ColumnScope.NextPicks(next: List<Mine>, levels: Levels?, sides: Mod
     Section(tr("Next picks").uppercase())
     next.forEachIndexed { i, m ->
         key(i) {
-            FlatButton({ onPick(m) }, sides) {
+            FlatButton({ onPick(m) }, sides.hint(HintKind.NEXT)) {
                 Cover(m.cover, "", Modifier.width(32.dp).height(48.dp).clip(RoundedCornerShape(6.dp)), showTitle = false, description = null)
                 Column(Modifier.padding(start = 10.dp)) {
                     Text(m.shown(), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

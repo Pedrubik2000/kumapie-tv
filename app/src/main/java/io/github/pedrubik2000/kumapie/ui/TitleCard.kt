@@ -131,7 +131,7 @@ private fun stepKey(e: KeyEvent, onStep: (Int) -> Unit): Boolean {
 @Composable
 internal fun StepRow(label: String, value: String, modifier: Modifier, onStep: (Int) -> Unit, onLeave: () -> Unit, flat: Boolean = false) {
     var focused by remember { mutableStateOf(false) }
-    RowFace(label, value, focused, flat, modifier
+    RowFace(label, value, focused, flat, modifier.hint(HintKind.VALUE)
         .onFocusChanged { if (focused && !it.isFocused) onLeave(); focused = it.isFocused }
         .onKeyEvent { stepKey(it, onStep) }
         .semantics(mergeDescendants = true) {}

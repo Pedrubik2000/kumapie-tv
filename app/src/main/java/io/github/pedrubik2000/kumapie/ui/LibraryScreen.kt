@@ -56,6 +56,7 @@ fun LibraryScreen(api: Discovery, settings: Settings, onHome: () -> Unit, onDisc
             else -> LibraryBody(lists, kept, keptFailed, settings, entry, rail, api, jiten, live, back, onOpen)
         }
         DiscoverRail(onHome, onReview, onSettings, onDiscover = onDiscover, library = true, focus = rail, toRows = entry.takeIf { !loggedIn || all != null })
+        HintBar()
     }
 }
 
@@ -113,7 +114,7 @@ private fun LibraryBody(all: List<Mine>, kept: Set<String>?, keptFailed: Boolean
             }
         }
         Button(onClick = { val f = filters.copy(sort = filters.sort.next()); filters = f; settings.library = f },
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 28.dp).focusRequester(sort)
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 28.dp).hint(HintKind.CHOOSE).focusRequester(sort)
                 .onBackKey { runCatching { entry.requestFocus() } }
                 .focusProperties { down = if (items.isEmpty()) FocusRequester.Default else nav.grid; left = entry }) { Text(tr("Sort: %s", filters.sort.label())) }
     }

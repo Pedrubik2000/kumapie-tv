@@ -78,7 +78,7 @@ internal fun EpisodeRow(page: TitlePage, blur: Boolean, focus: TitleFocus, onPla
             contentPadding = PaddingValues(start = 8.dp, end = 32.dp, top = 10.dp, bottom = 8.dp)) {
             if (eps.isEmpty()) item {
                 EpisodeTile(title.background.ifEmpty { title.poster }, tr("Watch"), factLine(tr("Watch"), title.year.ifEmpty { null }, length),
-                    TileLook(false, null, false, false), focusEpisode(focus, true), null) { onPlay(null) }
+                    TileLook(false, null, false, false), focusEpisode(focus, true).hint(HintKind.PLAY), null) { onPlay(null) }
             }
             itemsIndexed(eps, key = { _, e -> e.getString("id") }) { i, e ->
                 val watched = e.optBoolean("watched")
@@ -88,7 +88,7 @@ internal fun EpisodeRow(page: TitlePage, blur: Boolean, focus: TitleFocus, onPla
                 val caption = factLine(tr("Ep %d", e.optInt("number")), if (watched) tr("Watched") else left ?: length)
                 val ready = e.optBoolean("ready")
                 EpisodeTile(e.optString("thumb"), tr("Episode %1\$d", e.optInt("number")), caption, look,
-                    focusEpisode(focus, i == at).onPreviewKeyEvent { k ->
+                    focusEpisode(focus, i == at).hint(if (ready) HintKind.EPISODE_FILES else HintKind.EPISODE).onPreviewKeyEvent { k ->
                         (ready && k.key == Key.DirectionDown).also { if (it && k.type == KeyEventType.KeyDown) page.others(e) }
                     }, { onMark(e) }) { onPlay(e) }
             }

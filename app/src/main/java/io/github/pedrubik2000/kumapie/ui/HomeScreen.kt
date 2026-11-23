@@ -117,6 +117,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
         Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).fadeTop(0.1f).background(Brush.horizontalGradient(
             0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
         Rail(rail, railFocus, first.takeIf { data != null }, Modifier.align(Alignment.TopStart).padding(top = 100.dp), onFocused = settle)
+        HintBar()
     }
 }
 

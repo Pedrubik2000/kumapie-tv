@@ -125,8 +125,8 @@ private fun ResumeText(t: ResumeTarget, first: FocusRequester, below: FocusReque
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         if (e.duration > 0) ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(380.dp).padding(top = 12.dp))
         Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = { onPlay(t.show, e) }, modifier = Modifier.focusRequester(first).focusProperties { down = below }) { Text("▶  " + tr("Resume")) }
-            Button(onClick = { onShow(t.show) }, modifier = Modifier.focusProperties { down = below }) { Text(tr("Episodes")) }
+            Button(onClick = { onPlay(t.show, e) }, modifier = Modifier.hint(HintKind.HERO).focusRequester(first).focusProperties { down = below }) { Text("▶  " + tr("Resume")) }
+            Button(onClick = { onShow(t.show) }, modifier = Modifier.hint(HintKind.HERO).focusProperties { down = below }) { Text(tr("Episodes")) }
         }
     }
 }

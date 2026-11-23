@@ -110,6 +110,17 @@ class TvTitleFocusTest {
 
     private fun hasText(t: String) = rule.onAllNodesWithText(t).fetchSemanticsNodes().isNotEmpty()
 
+    @Test fun theHintLineFollowsTheFocusFromAValueRowToAnEpisode() {
+        logIn()
+        open(listOf(true, false, false), FakeAniList({ entry("CURRENT", 1) }))
+        toStatus()
+        assertEquals("◀▶ Change · ▲▼ Leave", Hints.line())
+        press(Key.DirectionDown)
+        press(Key.DirectionDown)
+        assertEquals("Episode 2", focused())
+        assertEquals("OK Play · Hold OK Mark watched", Hints.line())
+    }
+
     @Test fun downFromPlayLandsOnTheNextUpEpisodeAndUpComesBack() {
         open(listOf(true, false, false))
         waitFocus { it?.startsWith("▶") == true }

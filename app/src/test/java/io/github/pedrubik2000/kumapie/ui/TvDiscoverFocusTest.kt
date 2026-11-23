@@ -162,6 +162,17 @@ class TvDiscoverFocusTest {
         rule.waitUntil(5_000) { hasCard("Alpha") }
     }
 
+    @Test fun theHintLineFollowsTheFocusFromAModeRowToThePickButtons() {
+        openPick()
+        assertEquals("OK Select · ▶ Titles", Hints.line())
+        press(RIGHT)
+        assertEquals("OK Choose · ▲ Title", Hints.line())
+        press(LEFT, DOWN, OK)
+        rule.waitUntil(5_000) { hasText("Keep one") }
+        press(RIGHT)
+        assertEquals("◀▶ Choose · OK Keep", Hints.line())
+    }
+
     @Test fun movingOverTheModeRowsChangesNothingOkSelectsAndRightEntersTheSelectedMode() {
         openPick()
         press(DOWN, DOWN)

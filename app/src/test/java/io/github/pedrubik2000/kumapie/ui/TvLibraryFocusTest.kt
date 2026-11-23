@@ -11,6 +11,7 @@ import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -204,6 +205,17 @@ class TvLibraryFocusTest {
         assertEquals("T18", focused())
         press(RIGHT, DOWN)
         assertEquals("T18", focused())
+    }
+
+    @Test fun theHintLineFollowsTheFocusFromAListRowToACover() {
+        logIn()
+        open()
+        waitFocus { it?.startsWith("Watching") == true }
+        assertEquals("OK Select · ▶ Titles", Hints.line())
+        rule.waitUntil(5_000) { hasCard("Frieren") }
+        press(RIGHT)
+        assertEquals("OK Open", Hints.line())
+        assertTrue(rule.onAllNodesWithTag("hints").fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test fun leftFromTheColumnGoesToTheRailAndRightComesBackToTheSelectedList() {

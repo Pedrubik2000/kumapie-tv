@@ -113,7 +113,7 @@ private fun Duel(env: DiscoverEnv, game: Knockout, pair: Pair<Int, Int>, byId: M
 
 @Composable
 private fun DuelCard(m: Mine, level: TitleDifficulty?, reason: String?, modifier: Modifier, onClick: () -> Unit) {
-    Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.height(360.dp).semantics { contentDescription = m.shown() }) {
+    Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.DUEL).height(360.dp).semantics { contentDescription = m.shown() }) {
         Column(Modifier.fillMaxSize().background(Arcade.slab)) {
             Cover(m.banner.ifEmpty { m.cover }, "", Modifier.fillMaxWidth().height(110.dp), showTitle = false, alignment = Alignment.TopCenter, description = null)
             Row(Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -147,11 +147,11 @@ private fun Winner(env: DiscoverEnv, m: Mine, onHomeIds: Set<String>, state: Pic
             env.levels?.of(m.kitsuId)?.let { Box(Modifier.padding(top = 8.dp)) { DifficultyLine(it) } }
             Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = { if (!added) env.hold.addToHome(env.api, found, fromWinner = true) },
-                    modifier = Modifier.focusRequester(env.link.to).focusProperties { left = env.entry; up = MissingKeyLine.up(env.link.to) }) {
+                    modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(env.link.to).focusProperties { left = env.entry; up = MissingKeyLine.up(env.link.to) }) {
                     Text(if (added) "✓ " + tr("On Home") else "+ " + tr("Home"))
                 }
-                Button(onClick = { env.open(found, "open") }, modifier = Modifier.focusRequester(openButton)) { Text(tr("Open")) }
-                Button(onClick = onAgain) { Text(tr("Again")) }
+                Button(onClick = { env.open(found, "open") }, modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(openButton)) { Text(tr("Open")) }
+                Button(onClick = onAgain, modifier = Modifier.hint(HintKind.CHOOSE)) { Text(tr("Again")) }
             }
         }
     }

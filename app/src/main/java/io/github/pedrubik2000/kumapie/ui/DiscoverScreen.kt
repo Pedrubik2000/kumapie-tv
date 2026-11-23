@@ -126,6 +126,7 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
             }
         }
         DiscoverRail(edges.onHome, edges.onReview, edges.onSettings, onLibrary = edges.onLibrary, focus = rail, toRows = entry)
+        HintBar()
     }
 }
 

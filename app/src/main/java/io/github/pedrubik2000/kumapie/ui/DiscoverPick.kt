@@ -69,7 +69,7 @@ private fun PickBig(env: DiscoverEnv, m: Mine, ranked: Ranked?, state: PickState
         Row(Modifier.fillMaxWidth().padding(start = CONTENT_START, top = 56.dp, end = 40.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             PickText(env, m, ranked, state, cover, Modifier.weight(1f))
             Card(onClick = { env.open(m.found(), "cover") }, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), colors = arcadeCardColors(),
-                modifier = Modifier.width(140.dp).aspectRatio(2f / 3f).focusRequester(cover).focusProperties { left = env.link.to; up = MissingKeyLine.up(cover) }) {
+                modifier = Modifier.hint(HintKind.COVER).width(140.dp).aspectRatio(2f / 3f).focusRequester(cover).focusProperties { left = env.link.to; up = MissingKeyLine.up(cover) }) {
                 Cover(m.cover, m.shown(), Modifier.fillMaxSize(), fontSize = 13.sp, description = m.shown())
             }
         }
@@ -95,7 +95,7 @@ private fun PickText(env: DiscoverEnv, m: Mine, ranked: Ranked?, state: PickStat
         Eyebrow((tr("Pick for me") + " · " + tr("From your Planning list")).uppercase())
         Card(onClick = { env.open(m.found(), "title") }, shape = arcadeCardShape(RowSlab), border = CardDefaults.border(border = Border.None, focusedBorder = Border(BorderStroke(3.dp, Color.White), shape = RowSlab)),
             colors = arcadeCardColors(), scale = CardDefaults.scale(focusedScale = 1f),
-            modifier = Modifier.fillMaxWidth().focusRequester(title).focusProperties { left = env.entry; right = cover; down = env.link.to; up = MissingKeyLine.up(title) }) {
+            modifier = Modifier.hint(HintKind.COVER).fillMaxWidth().focusRequester(title).focusProperties { left = env.entry; right = cover; down = env.link.to; up = MissingKeyLine.up(title) }) {
             Text(m.shown(), color = Color.White, fontSize = 40.sp, lineHeight = 46.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 8.dp))
         }
@@ -122,7 +122,7 @@ private fun PickButtons(env: DiscoverEnv, m: Mine, state: PickState, title: Focu
     val found = remember(m) { m.found() }
     Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(onClick = { env.hold.addToHome(env.api, found) },
-            padding = BUTTON_PADDING, modifier = Modifier.focusRequester(env.link.to).focusProperties { left = env.entry; up = title; down = FocusRequester.Cancel }) { Text("+ " + tr("Home")) }
+            padding = BUTTON_PADDING, modifier = Modifier.hint(HintKind.PICK).focusRequester(env.link.to).focusProperties { left = env.entry; up = title; down = FocusRequester.Cancel }) { Text("+ " + tr("Home")) }
         val undo = state.undo
         LaunchedEffect(undo) {
             if (undo == null) return@LaunchedEffect
@@ -130,8 +130,8 @@ private fun PickButtons(env: DiscoverEnv, m: Mine, state: PickState, title: Focu
             if (state.undo === undo) state.undo = null
         }
         Button(onClick = { if (undo?.skip == false) state.undoLast() else state.notForMe(m.anilistId, m.shown()) }, padding = BUTTON_PADDING,
-            modifier = Modifier.focusProperties { down = FocusRequester.Cancel }) { Text(if (undo?.skip == false) "↶ " + tr("Undo") else "✕ " + tr("Not for me")) }
+            modifier = Modifier.hint(HintKind.PICK).focusProperties { down = FocusRequester.Cancel }) { Text(if (undo?.skip == false) "↶ " + tr("Undo") else "✕ " + tr("Not for me")) }
         Button(onClick = { if (undo?.skip == true) state.undoLast() else state.skip(m.anilistId) }, padding = BUTTON_PADDING,
-            modifier = Modifier.focusProperties { right = cover; down = FocusRequester.Cancel }) { Text(if (undo?.skip == true) "↶ " + tr("Undo") else "» " + tr("Skip")) }
+            modifier = Modifier.hint(HintKind.PICK).focusProperties { right = cover; down = FocusRequester.Cancel }) { Text(if (undo?.skip == true) "↶ " + tr("Undo") else "» " + tr("Skip")) }
     }
 }

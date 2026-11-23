@@ -18,6 +18,7 @@ class EmbeddedEnglishTest {
         var cues = emptyList<Jimaku.Line>()
         var open = emptySet<Int>()
         fun at(now: Double, vararg texts: String) = LiveLines.grow(cues, open, texts.toList(), now).let { cues = it.first; open = it.second }
+        fun seek(from: Double) { cues = LiveLines.stop(cues, open, from); open = emptySet() }
         fun sane() = cues.all { it.end > it.start }
     }
 
@@ -63,17 +64,70 @@ class EmbeddedEnglishTest {
         assertEquals(listOf("A", "B"), t.cues.map { it.text })
         assertTrue(t.sane())
         assertEquals(103.0, t.cues[0].end, 0.0)
+        t.seek(106.0)
         t.at(400.0, "A")
         assertEquals("far away is a new line", 3, t.cues.size)
+        assertEquals("B closed where the player left", 106.0, t.cues[1].end, 0.0)
+        assertTrue(t.sane())
     }
 
-    @Test fun aSignComingAndGoingDuringALineDoesNotRepeatIt() {
+    @Test fun aCueKeepsItsTrueLength() {
+        val t = Track()
+        t.at(10.0, "Long.")
+        t.at(17.0)
+        assertEquals(listOf(Jimaku.Line(10.0, 17.0, "Long.")), t.cues)
+    }
+
+    @Test fun seekingAwayWhileACueIsOpenLeavesASaneEnd() {
+        val t = Track()
+        t.at(10.0, "A")
+        t.seek(12.0)
+        t.at(500.0, "B")
+        t.seek(501.0)
+        t.at(2.0, "C")
+        t.seek(1.0)
+        assertTrue(t.sane())
+        assertEquals(listOf(12.0, 501.0, 2.1), t.cues.map { it.end })
+        assertTrue(t.open.isEmpty() || t.open == setOf(2))
+    }
+
+    @Test fun theSameWordTwiceBackToBackStaysTwoCuesUnderTwoScenes() {
+        val t = Track()
+        t.at(10.0, "Yes.")
+        t.at(11.0)
+        t.at(11.2, "Yes.")
+        assertEquals(2, t.cues.size)
+        val scenes = listOf(10.0 to 11.0, 11.2 to 12.0).mapIndexed { i, (a, b) ->
+            io.github.pedrubik2000.kumapie.data.Scene("s$i", i, a, b, true, null, false, emptyList(), emptyList(), emptyMap())
+        }
+        val out = AloneStream.withEnglish(scenes, t.cues, t.open)
+        assertEquals(listOf(1, 1), out.map { it.english.size })
+    }
+
+    @Test fun replayingALineGivesOneCopyWithASaneSpan() {
+        val t = Track()
+        t.at(100.0, "Line.")
+        t.at(103.0)
+        t.seek(103.5)
+        t.at(100.1, "Line.")
+        t.at(103.0)
+        assertEquals(listOf(Jimaku.Line(100.0, 103.0, "Line.")), t.cues)
+    }
+
+    @Test fun aCueAtTheTopOfTheScreenIsASignNotDialogue() {
+        val b = androidx.media3.common.text.Cue.Builder().setText("NEXT TIME")
+        assertTrue(LiveLines.top(b.setLine(0.05f, androidx.media3.common.text.Cue.LINE_TYPE_FRACTION).build()))
+        assertFalse(LiveLines.top(b.setLine(0.95f, androidx.media3.common.text.Cue.LINE_TYPE_FRACTION).build()))
+        assertFalse(LiveLines.top(androidx.media3.common.text.Cue.Builder().setText("x").build()))
+    }
+
+    @Test fun aSecondCueComingAndGoingDuringALineDoesNotRepeatIt() {
         val t = Track()
         t.at(20.0, "Hello.")
         t.at(21.0, "Hello.", "NEXT TIME")
         t.at(22.0, "Hello.")
         t.at(23.0)
-        assertEquals(listOf("Hello." to 23.0, "NEXT TIME" to 22.0), t.cues.map { it.text to it.end })
+        assertEquals(listOf(23.0), t.cues.filter { it.text == "Hello." }.map { it.end })
         assertEquals("Hi.", Jimaku.notes("(sighs) Hi."))
         assertEquals("Hi.", Jimaku.notes("Hi. (laughs)"))
     }

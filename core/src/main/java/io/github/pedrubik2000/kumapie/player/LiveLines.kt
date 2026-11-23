@@ -64,7 +64,7 @@ class LiveLines(
         private set
     var englishTrack by mutableStateOf(false)
         private set
-    var englishOpen = emptySet<Int>()
+    var englishOpen by mutableStateOf(emptySet<Int>())
         private set
     private val refs = ArrayList<Double>() // when the file's other track showed a line (seconds of video)
     val refCount get() = refs.size
@@ -108,12 +108,18 @@ class LiveLines(
         else if (!canFit) stop()
     }
 
+    override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+        if (englishOpen.isEmpty()) return
+        english = stop(english, englishOpen, oldPosition.positionMs / 1000.0)
+        englishOpen = emptySet()
+    }
+
     override fun onCues(cueGroup: CueGroup) {
         // Either track's line starts are the video's own clock: Jimaku's file is fitted to them ([fit]).
         if (cueGroup.cues.any { it !in shown }) refs += player.currentPosition / 1000.0
         shown = cueGroup.cues
         if (englishTrack) {
-            val texts = cueGroup.cues.map { io.github.pedrubik2000.kumapie.data.Jimaku.notes(io.github.pedrubik2000.kumapie.data.Jimaku.plain(it.text?.toString().orEmpty())) }
+            val texts = cueGroup.cues.filterNot(::top).map { io.github.pedrubik2000.kumapie.data.Jimaku.notes(io.github.pedrubik2000.kumapie.data.Jimaku.plain(it.text?.toString().orEmpty())) }
                 .filter { it.isNotEmpty() }.distinct()
             val (grown, open) = grow(english, englishOpen, texts, player.currentPosition / 1000.0)
             if (grown != english) english = grown
@@ -190,18 +196,23 @@ class LiveLines(
         /** A track label that says signs, songs or forced only ("English Signs/Song [commie]", "Forced"). */
         fun notDialogue(label: String) = Regex("""sign|song|forced|karaoke|\bop\b|\bed\b""",RegexOption.IGNORE_CASE).containsMatchIn(label)
 
+        fun stop(cues: List<io.github.pedrubik2000.kumapie.data.Jimaku.Line>, open: Set<Int>, at: Double) =
+            cues.mapIndexed { i, c -> if (i in open) c.copy(end = maxOf(at, c.start + 0.1)) else c }
+
+        fun top(c: androidx.media3.common.text.Cue) = c.lineType == androidx.media3.common.text.Cue.LINE_TYPE_FRACTION && c.line != androidx.media3.common.text.Cue.DIMEN_UNSET && c.line < 0.5f
+
         fun grow(cues: List<io.github.pedrubik2000.kumapie.data.Jimaku.Line>, open: Set<Int>, texts: List<String>, now: Double):
             Pair<List<io.github.pedrubik2000.kumapie.data.Jimaku.Line>, Set<Int>> {
             val out = cues.toMutableList()
             val still = HashSet<Int>()
             for (i in open) {
                 val c = out[i]
-                if (c.text in texts) still += i else if (now > c.start) out[i] = c.copy(end = minOf(c.end, now))
+                if (c.text in texts) still += i else if (now > c.start) out[i] = c.copy(end = maxOf(now, c.start + 0.1))
             }
             for (t in texts) {
                 if (still.any { out[it].text == t }) continue
-                val j = out.indexOfLast { it.text == t && now >= it.start - 3 && now <= it.end + 1 }
-                if (j >= 0) out[j] = out[j].copy(start = minOf(out[j].start, now), end = maxOf(out[j].end, now + 5))
+                val j = out.indexOfLast { it.text == t && now >= it.start - 3 && now <= it.end }
+                if (j >= 0) out[j] = out[j].copy(start = minOf(out[j].start, now))
                 else out += io.github.pedrubik2000.kumapie.data.Jimaku.Line(now, now + 5, t)
                 still += if (j >= 0) j else out.lastIndex
             }

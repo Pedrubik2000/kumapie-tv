@@ -393,7 +393,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
                 }
             }.getOrElse { error = it.message; return@LaunchedEffect }
         }
-        LaunchedEffect(live.fitted, live.pieces, live.english, ctl) { ctl?.let { s.fitLanded(it::shift); s.piecesLanded(it::shift); s.englishLanded(it) } }
+        LaunchedEffect(live.fitted, live.pieces, live.english, ctl, ctl?.scenes) { ctl?.let { s.fitLanded(it::shift); s.piecesLanded(it::shift); s.englishLanded(it) } }
     } else LaunchedEffect(Unit) {
         runCatching {
             // The polling is shared with the TV (core data/Streaming.kt).

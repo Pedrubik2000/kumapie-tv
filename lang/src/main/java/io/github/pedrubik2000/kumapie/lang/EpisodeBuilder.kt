@@ -30,7 +30,7 @@ object EpisodeBuilder {
             val start = round3(p[0].start)
             val end = round3(p.maxOf { it.end })
             val en = JSONArray()
-            english.forEachIndexed { k, e -> if (owner[k] == i) en.put(JSONArray().put(e.start).put(e.end).put(e.text.replace(Regex("""\s*\([^)]*\)"""), "").trim())) }
+            english.forEachIndexed { k, e -> if (owner[k] == i) en.put(JSONArray().put(e.start).put(e.end).put(io.github.pedrubik2000.kumapie.data.Jimaku.notes(e.text))) }
             val sceneCues = JSONArray()
             for (c in p) {
                 val t = toks.next()

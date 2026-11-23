@@ -64,7 +64,8 @@ class LiveLines(
         private set
     var englishTrack by mutableStateOf(false)
         private set
-    private var englishText = ""
+    var englishOpen = emptySet<Int>()
+        private set
     private val refs = ArrayList<Double>() // when the file's other track showed a line (seconds of video)
     val refCount get() = refs.size
     private var shown = emptyList<androidx.media3.common.text.Cue>() // the last group: a line ending under another isn't a new one
@@ -112,9 +113,11 @@ class LiveLines(
         if (cueGroup.cues.any { it !in shown }) refs += player.currentPosition / 1000.0
         shown = cueGroup.cues
         if (englishTrack) {
-            val text = io.github.pedrubik2000.kumapie.data.Jimaku.plain(cueGroup.cues.joinToString(" ") { it.text?.toString().orEmpty() })
-            english = grow(english, englishText, text, player.currentPosition / 1000.0)
-            englishText = text
+            val texts = cueGroup.cues.map { io.github.pedrubik2000.kumapie.data.Jimaku.notes(io.github.pedrubik2000.kumapie.data.Jimaku.plain(it.text?.toString().orEmpty())) }
+                .filter { it.isNotEmpty() }.distinct()
+            val (grown, open) = grow(english, englishOpen, texts, player.currentPosition / 1000.0)
+            if (grown != english) english = grown
+            englishOpen = open
         }
         if (needJimaku) return
         // Netflix's Japanese track is closed captions: （モモ）, （男子生徒の話し声）, ♪ go, as in a Jimaku file. Line by line,
@@ -187,11 +190,22 @@ class LiveLines(
         /** A track label that says signs, songs or forced only ("English Signs/Song [commie]", "Forced"). */
         fun notDialogue(label: String) = Regex("""sign|song|forced|karaoke|\bop\b|\bed\b""",RegexOption.IGNORE_CASE).containsMatchIn(label)
 
-        fun grow(cues: List<io.github.pedrubik2000.kumapie.data.Jimaku.Line>, before: String, after: String, now: Double): List<io.github.pedrubik2000.kumapie.data.Jimaku.Line> {
-            if (after == before) return cues
-            val closed = if (before.isNotEmpty() && cues.isNotEmpty()) cues.dropLast(1) + cues.last().copy(end = minOf(cues.last().end, now)) else cues
-            if (after.isEmpty() || closed.any { it.text == after && kotlin.math.abs(it.start - now) < 3 }) return closed
-            return closed + io.github.pedrubik2000.kumapie.data.Jimaku.Line(now, now + 5, after)
+        fun grow(cues: List<io.github.pedrubik2000.kumapie.data.Jimaku.Line>, open: Set<Int>, texts: List<String>, now: Double):
+            Pair<List<io.github.pedrubik2000.kumapie.data.Jimaku.Line>, Set<Int>> {
+            val out = cues.toMutableList()
+            val still = HashSet<Int>()
+            for (i in open) {
+                val c = out[i]
+                if (c.text in texts) still += i else if (now > c.start) out[i] = c.copy(end = minOf(c.end, now))
+            }
+            for (t in texts) {
+                if (still.any { out[it].text == t }) continue
+                val j = out.indexOfLast { it.text == t && now >= it.start - 3 && now <= it.end + 1 }
+                if (j >= 0) out[j] = out[j].copy(start = minOf(out[j].start, now), end = maxOf(out[j].end, now + 5))
+                else out += io.github.pedrubik2000.kumapie.data.Jimaku.Line(now, now + 5, t)
+                still += if (j >= 0) j else out.lastIndex
+            }
+            return out to still
         }
 
         private const val MIN_REFS = 8

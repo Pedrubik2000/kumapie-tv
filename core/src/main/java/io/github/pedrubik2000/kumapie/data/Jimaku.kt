@@ -115,6 +115,8 @@ object Jimaku {
 
     private const val CUTS = 3
 
+    fun notes(text: String): String = text.replace(Regex("""\s*\([^)]*\)"""), "").trim()
+
     fun owner(spans: List<Pair<Double, Double>>, start: Double, end: Double): Int = spans.indices.maxByOrNull { i ->
         val (a, b) = spans[i]
         val overlap = minOf(b, end) - maxOf(a, start)

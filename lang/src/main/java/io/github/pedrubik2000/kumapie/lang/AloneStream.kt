@@ -37,7 +37,8 @@ class AloneStream(
 
     suspend fun build(context: android.content.Context, languages: Languages, duration: Double, position: () -> Double, onWait: () -> Unit): EpisodeDetail {
         val tLines = android.os.SystemClock.elapsedRealtime()
-        val english = runCatching { englishFiles?.await()?.let { Addons.fitEnglish(it, live.lines.map { l -> l.first + live.offset }, duration) }.takeUnless { live.englishTrack } }.getOrNull().orEmpty()
+        val english = runCatching { englishFiles?.await()?.let { Addons.fitEnglish(it, live.lines.map { l -> l.first + live.offset }, duration) } }.getOrNull().orEmpty()
+        addonPlaced = english.isNotEmpty()
         val tEnglish = android.os.SystemClock.elapsedRealtime()
         var ep: EpisodeDetail? = null
         while (ep == null) {
@@ -69,8 +70,12 @@ class AloneStream(
     }
 
     fun englishLanded(ctl: io.github.pedrubik2000.kumapie.player.SceneController) {
-        if (live.english.isNotEmpty()) ctl.rejoin(withEnglish(ctl.scenes, live.english), emptySet())
+        if (!useEmbedded(addonPlaced, live.english)) return
+        val placed = withEnglish(ctl.scenes, live.english, live.englishOpen)
+        if (placed.map { it.english } != ctl.scenes.map { it.english }) ctl.rejoin(placed, emptySet())
     }
+
+    private var addonPlaced = false
 
     private var fitApplied = false
     private var moved = 1
@@ -143,10 +148,14 @@ class AloneStream(
             }
         }
 
-        fun withEnglish(scenes: List<io.github.pedrubik2000.kumapie.data.Scene>, cues: List<Jimaku.Line>): List<io.github.pedrubik2000.kumapie.data.Scene> {
+        fun useEmbedded(addonPlaced: Boolean, embedded: List<Jimaku.Line>) = !addonPlaced && embedded.isNotEmpty()
+
+        fun withEnglish(scenes: List<io.github.pedrubik2000.kumapie.data.Scene>, cues: List<Jimaku.Line>, open: Set<Int> = emptySet()): List<io.github.pedrubik2000.kumapie.data.Scene> {
             val spans = scenes.map { it.start to it.end }
-            val by = cues.sortedBy { it.start }.groupBy { Jimaku.owner(spans, it.start, it.end) }
-            return scenes.mapIndexed { i, s -> s.copy(english = by[i].orEmpty().map { io.github.pedrubik2000.kumapie.data.Line(it.start, it.end, it.text) }) }
+            val by = cues.withIndex().groupBy { (i, c) -> Jimaku.owner(spans, c.start, if (i in open) c.start + 0.001 else c.end) }
+            return scenes.mapIndexed { i, s ->
+                s.copy(english = by[i].orEmpty().map { it.value }.sortedBy { it.start }.map { io.github.pedrubik2000.kumapie.data.Line(it.start, it.end, it.text) })
+            }
         }
 
         fun episodeNumber(id: String) = id.substringAfterLast(':').toIntOrNull()

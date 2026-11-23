@@ -4,6 +4,7 @@ import io.github.pedrubik2000.kumapie.data.Addons
 import io.github.pedrubik2000.kumapie.data.Jimaku
 import io.github.pedrubik2000.kumapie.player.LiveLines
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -13,23 +14,84 @@ import org.junit.Test
  * file, unless it is the other cut ([Addons.fitEnglish] by duration).
  */
 class EmbeddedEnglishTest {
+    private class Track {
+        var cues = emptyList<Jimaku.Line>()
+        var open = emptySet<Int>()
+        fun at(now: Double, vararg texts: String) = LiveLines.grow(cues, open, texts.toList(), now).let { cues = it.first; open = it.second }
+        fun sane() = cues.all { it.end > it.start }
+    }
+
     @Test fun aCueOpensWhenItShowsAndClosesWhenItGoes() {
-        var c = LiveLines.grow(emptyList(), "", "Hello.", 10.0)
-        assertEquals(listOf(Jimaku.Line(10.0, 15.0, "Hello.")), c)
-        c = LiveLines.grow(c, "Hello.", "", 12.5)
-        assertEquals(listOf(Jimaku.Line(10.0, 12.5, "Hello.")), c)
-        assertEquals("same group again", c, LiveLines.grow(c, "", "", 13.0))
+        val t = Track()
+        t.at(10.0, "Hello.")
+        assertEquals(listOf(Jimaku.Line(10.0, 15.0, "Hello.")), t.cues)
+        t.at(12.5)
+        assertEquals(listOf(Jimaku.Line(10.0, 12.5, "Hello.")), t.cues)
+        t.at(13.0)
+        assertEquals(1, t.cues.size)
     }
 
     @Test fun oneLineReplacingAnotherClosesTheFirst() {
-        val c = LiveLines.grow(LiveLines.grow(emptyList(), "", "A", 1.0), "A", "B", 3.0)
-        assertEquals(listOf(Jimaku.Line(1.0, 3.0, "A"), Jimaku.Line(3.0, 8.0, "B")), c)
+        val t = Track()
+        t.at(1.0, "A")
+        t.at(3.0, "B")
+        assertEquals(listOf(Jimaku.Line(1.0, 3.0, "A"), Jimaku.Line(3.0, 8.0, "B")), t.cues)
     }
 
-    @Test fun seekingBackDoesNotRepeatACue() {
-        val seen = LiveLines.grow(emptyList(), "", "Hello.", 10.0)
-        assertEquals(1, LiveLines.grow(seen, "", "Hello.", 11.0).size)
-        assertEquals(2, LiveLines.grow(seen, "", "Hello.", 400.0).size)
+    @Test fun anEmptyGroupAtAnEarlierPositionNeverInvertsACue() {
+        val t = Track()
+        t.at(10.0, "Hello.")
+        t.at(9.5)
+        assertTrue(t.sane())
+        t.at(9.5, "Hello.")
+        assertEquals(listOf(Jimaku.Line(9.5, 15.0, "Hello.")), t.cues)
+        t.at(12.0, "Other.")
+        t.at(13.0)
+        assertEquals("only the open cue was closed", listOf("Hello." to 12.0, "Other." to 13.0), t.cues.map { it.text to it.end })
+    }
+
+    @Test fun seekingBackFortySecondsAndPlayingAgainAddsNothing() {
+        val t = Track()
+        t.at(100.0, "A")
+        t.at(103.0)
+        t.at(105.0, "B")
+        t.at(108.0)
+        t.at(60.0)
+        t.at(100.2, "A")
+        t.at(103.0)
+        t.at(105.1, "B")
+        assertEquals(listOf("A", "B"), t.cues.map { it.text })
+        assertTrue(t.sane())
+        assertEquals(103.0, t.cues[0].end, 0.0)
+        t.at(400.0, "A")
+        assertEquals("far away is a new line", 3, t.cues.size)
+    }
+
+    @Test fun aSignComingAndGoingDuringALineDoesNotRepeatIt() {
+        val t = Track()
+        t.at(20.0, "Hello.")
+        t.at(21.0, "Hello.", "NEXT TIME")
+        t.at(22.0, "Hello.")
+        t.at(23.0)
+        assertEquals(listOf("Hello." to 23.0, "NEXT TIME" to 22.0), t.cues.map { it.text to it.end })
+        assertEquals("Hi.", Jimaku.notes("(sighs) Hi."))
+        assertEquals("Hi.", Jimaku.notes("Hi. (laughs)"))
+    }
+
+    @Test fun anOpenCueBelongsToTheSceneItStartsIn() {
+        val scenes = listOf(10.0 to 11.8, 12.2 to 16.0).mapIndexed { i, (a, b) ->
+            io.github.pedrubik2000.kumapie.data.Scene("s$i", i, a, b, true, null, false, emptyList(), emptyList(), emptyMap())
+        }
+        val cues = listOf(Jimaku.Line(10.1, 15.1, "Hello."))
+        assertEquals(listOf("Hello."), AloneStream.withEnglish(scenes, cues, setOf(0))[0].english.map { it.text })
+        assertEquals("closed: by overlap", listOf("Hello."), AloneStream.withEnglish(scenes, cues)[1].english.map { it.text })
+    }
+
+    @Test fun addonEnglishPlacedWinsEmbeddedFillsIn() {
+        val cue = listOf(Jimaku.Line(1.0, 2.0, "x"))
+        assertFalse(AloneStream.useEmbedded(true, cue))
+        assertTrue(AloneStream.useEmbedded(false, cue))
+        assertFalse(AloneStream.useEmbedded(false, emptyList()))
     }
 
     @Test fun aCueGoesUnderTheLineItOverlapsMost() {

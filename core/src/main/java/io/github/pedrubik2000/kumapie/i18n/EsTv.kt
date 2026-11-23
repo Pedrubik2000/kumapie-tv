@@ -73,6 +73,14 @@ internal val esTv: Map<String, String> = mapOf(
     "Your AniList lists (optional): what you're watching and plan to watch, at the top of Discover. Your profile must be public." to
         "Tus listas de AniList (opcional): lo que estás viendo y planeas ver, arriba en Descubrir. Tu perfil debe ser público.",
     "AniList username" to "Usuario de AniList",
+    "AniList did not accept that token" to "AniList no aceptó ese token",
+    "Copy the whole token from the AniList page and try again." to "Copia el token completo de la página de AniList e inténtalo de nuevo.",
+    "Log in so kumapie keeps your AniList in step: a title you add goes to Planning, one you start to Watching, one you finish to Completed. Log in there, then copy the token it shows and paste it here." to
+        "Inicia sesión para que kumapie mantenga tu AniList al día: un título que añades pasa a Planeado, uno que empiezas a Viendo, uno que terminas a Completado. Inicia sesión allí, copia el token que te muestra y pégalo aquí.",
+    "Log in with AniList" to "Iniciar sesión con AniList",
+    "AniList token" to "Token de AniList",
+    "Log out of AniList" to "Cerrar sesión de AniList",
+    "AniList login: your lists stay in step" to "Sesión de AniList: tus listas van al día",
     "✓ %d titles in your lists" to "✓ %d títulos en tus listas",
     "Check" to "Comprobar",
     "Next" to "Siguiente",

@@ -175,6 +175,7 @@ internal fun PhonePage(settings: Settings, onSaved: () -> Unit = {}) {
             row(Addons.KITSU in settings.addons, "Kitsu")
             row(Addons.OPENSUBTITLES in settings.addons, tr("English subtitles (OpenSubtitles)"))
             row(settings.anilist.isNotEmpty(), "AniList" + settings.anilist.let { if (it.isEmpty()) "" else ": $it" })
+            row(settings.anilistToken.isNotEmpty(), tr("AniList login: your lists stay in step"))
         }
     }
 }

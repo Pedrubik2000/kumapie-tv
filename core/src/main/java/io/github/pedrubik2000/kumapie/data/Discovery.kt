@@ -35,7 +35,7 @@ interface Discovery {
         o.optString("background"), o.optString("logo"), o.optString("description"), o.optString("genres"), o.optString("rating"), o.optString("runtime"), o.optString("name_ja"))
 }
 
-class Addons(urls: List<String>, private val store: SharedPreferences) : Discovery {
+class Addons(urls: List<String>, private val store: SharedPreferences, val sync: AniListSync = AniListSync(store)) : Discovery {
     private val bases = urls.map(::base).filter { it.isNotEmpty() }.distinct()
     private val manifests = java.util.concurrent.ConcurrentHashMap<String, JSONObject>()
 
@@ -156,7 +156,9 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         return titles.map { f -> if (f.nameJa.isNotEmpty()) f else store.getString("alone_ja_${f.id}", null)?.takeIf { it.isNotEmpty() }?.let { f.copy(nameJa = it) } ?: f }
     }
 
-    override suspend fun save(title: Found, on: Boolean): List<Found> {
+    override suspend fun save(title: Found, on: Boolean): List<Found> = keep(title, on).also { if (on) sync.added(title.id) }
+
+    private suspend fun keep(title: Found, on: Boolean): List<Found> {
         val kept = saved().filter { it.id != title.id } + if (on) listOf(title) else emptyList()
         store.edit().putString(SAVED, JSONArray().also { a ->
             kept.forEach { a.put(JSONObject().put("id", it.id).put("type", it.type).put("name", it.name).put("poster", it.poster).put("year", it.year).put("name_ja", it.nameJa)) }
@@ -206,7 +208,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
 
     suspend fun keepFromPc(saved: List<Found>, going: List<Pair<Show, Episode>>) {
         (going.map { (s, e) -> Found(s.id, if (e.id == s.id) "movie" else "series", s.title, s.poster, "", nameJa = s.titleJa) } + saved)
-            .distinctBy { it.id }.reversed().forEach { save(it, true) }
+            .distinctBy { it.id }.reversed().forEach { keep(it, true) }
         for ((_, e) in going) {
             val n = e.id.substringAfterLast(':').toIntOrNull()
             if (nextId("series", e.id) != null && n != null) for (i in 1 until n) seen(e.id.substringBeforeLast(':') + ":$i", true)

@@ -60,6 +60,11 @@ class LiveLines(
     /** The file has a subtitle track whose line starts [fit] can use; without one, waiting for a fit is pointless. */
     var canFit by mutableStateOf(false)
         private set
+    var english by mutableStateOf(emptyList<io.github.pedrubik2000.kumapie.data.Jimaku.Line>())
+        private set
+    var englishTrack by mutableStateOf(false)
+        private set
+    private var englishText = ""
     private val refs = ArrayList<Double>() // when the file's other track showed a line (seconds of video)
     val refCount get() = refs.size
     private var shown = emptyList<androidx.media3.common.text.Cue>() // the last group: a line ending under another isn't a new one
@@ -86,6 +91,7 @@ class LiveLines(
         android.util.Log.i("LiveLines", "text tracks: " + tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }.joinToString { g ->
             (0 until g.length).joinToString { "${g.getTrackFormat(it).language} '${g.getTrackFormat(it).label.orEmpty()}'" } } +
             "; fit listens to " + dialogue(tracks)?.let { (g, i) -> "'${g.getTrackFormat(i).label.orEmpty()}'" })
+        englishTrack = needJimaku && dialogue(tracks)?.let { (g, i) -> g.getTrackFormat(i).let { f -> f.language.orEmpty().startsWith("en") || f.label.orEmpty().contains("english", true) } } == true
         tracksKnown = true
         if (stopWhenKnown && !canFit) stop()
     }
@@ -105,6 +111,11 @@ class LiveLines(
         // Either track's line starts are the video's own clock: Jimaku's file is fitted to them ([fit]).
         if (cueGroup.cues.any { it !in shown }) refs += player.currentPosition / 1000.0
         shown = cueGroup.cues
+        if (englishTrack) {
+            val text = io.github.pedrubik2000.kumapie.data.Jimaku.plain(cueGroup.cues.joinToString(" ") { it.text?.toString().orEmpty() })
+            english = grow(english, englishText, text, player.currentPosition / 1000.0)
+            englishText = text
+        }
         if (needJimaku) return
         // Netflix's Japanese track is closed captions: （モモ）, （男子生徒の話し声）, ♪ go, as in a Jimaku file. Line by line,
         // so a two-line cue keeps its break.
@@ -175,6 +186,13 @@ class LiveLines(
 
         /** A track label that says signs, songs or forced only ("English Signs/Song [commie]", "Forced"). */
         fun notDialogue(label: String) = Regex("""sign|song|forced|karaoke|\bop\b|\bed\b""",RegexOption.IGNORE_CASE).containsMatchIn(label)
+
+        fun grow(cues: List<io.github.pedrubik2000.kumapie.data.Jimaku.Line>, before: String, after: String, now: Double): List<io.github.pedrubik2000.kumapie.data.Jimaku.Line> {
+            if (after == before) return cues
+            val closed = if (before.isNotEmpty() && cues.isNotEmpty()) cues.dropLast(1) + cues.last().copy(end = minOf(cues.last().end, now)) else cues
+            if (after.isEmpty() || closed.any { it.text == after && kotlin.math.abs(it.start - now) < 3 }) return closed
+            return closed + io.github.pedrubik2000.kumapie.data.Jimaku.Line(now, now + 5, after)
+        }
 
         private const val MIN_REFS = 8
         private const val OTHERS_AFTER = 30

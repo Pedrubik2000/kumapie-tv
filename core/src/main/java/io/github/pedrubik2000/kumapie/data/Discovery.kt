@@ -106,7 +106,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         return out
     }
 
-    suspend fun english(type: String, id: String, japanese: List<Double>): List<Jimaku.Line> = fitEnglish(englishFiles(type, id), japanese)
+    suspend fun english(type: String, id: String, japanese: List<Double>): List<Jimaku.Line> = Companion.fitEnglish(englishFiles(type, id), japanese)
 
     suspend fun englishFiles(type: String, id: String): List<List<Jimaku.Line>> {
         val asked = imdb(type, id) ?: return emptyList()
@@ -116,12 +116,6 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         }.filter { it.optString("lang") in setOf("eng", "en") }.take(MAX_ENGLISH)
         return files.mapNotNull { f -> runCatching { Jimaku.cues("en.srt", bytes(f.getString("url")), Jimaku::plain) }.getOrNull() }
     }
-
-    fun fitEnglish(files: List<List<Jimaku.Line>>, japanese: List<Double>): List<Jimaku.Line> = files.mapNotNull { lines ->
-        if (lines.size * 2 < japanese.size) return@mapNotNull null
-        val at = io.github.pedrubik2000.kumapie.player.LiveLines.place(japanese, lines.map { it.start }) ?: return@mapNotNull null
-        lines.mapIndexed { i, l -> Jimaku.Line(at[i], at[i] + l.end - l.start, l.text) }
-    }.maxByOrNull { ls -> ls.count { l -> japanese.any { kotlin.math.abs(it - l.start) <= 0.3 } } }.orEmpty()
 
     private suspend fun imdb(type: String, id: String): String? {
         if (id.startsWith("tt")) return id
@@ -246,6 +240,11 @@ class Addons(urls: List<String>, private val store: SharedPreferences) : Discove
         const val KITSU = "https://anime-kitsu.strem.fun/manifest.json"
         const val OPENSUBTITLES = "https://opensubtitles-v3.strem.io/manifest.json"
         fun torrentio(rdToken: String) = "https://torrentio.strem.fun/realdebrid=${rdToken.trim()}/manifest.json"
+        fun fitEnglish(files: List<List<Jimaku.Line>>, japanese: List<Double>, duration: Double? = null): List<Jimaku.Line> = files.filter { Jimaku.fitsLength(it, duration) }.mapNotNull { lines ->
+            if (lines.size * 2 < japanese.size) return@mapNotNull null
+            val at = io.github.pedrubik2000.kumapie.player.LiveLines.place(japanese, lines.map { it.start }) ?: return@mapNotNull null
+            lines.mapIndexed { i, l -> Jimaku.Line(at[i], at[i] + l.end - l.start, l.text) }
+        }.maxByOrNull { ls -> ls.count { l -> japanese.any { kotlin.math.abs(it - l.start) <= 0.3 } } }.orEmpty()
 
         fun sources(current: List<String>, kitsu: Boolean, english: Boolean, rd: String): List<String> {
             val kept = current.filterNot { it == KITSU || it == OPENSUBTITLES || (rd.isNotBlank() && "torrentio.strem.fun" in it) }

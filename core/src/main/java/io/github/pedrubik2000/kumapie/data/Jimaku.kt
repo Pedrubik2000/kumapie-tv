@@ -115,6 +115,12 @@ object Jimaku {
 
     private const val CUTS = 3
 
+    fun owner(spans: List<Pair<Double, Double>>, start: Double, end: Double): Int = spans.indices.maxByOrNull { i ->
+        val (a, b) = spans[i]
+        val overlap = minOf(b, end) - maxOf(a, start)
+        if (overlap > 0) overlap else -minOf(kotlin.math.abs(start - b), kotlin.math.abs(a - end))
+    } ?: -1
+
     fun fitsLength(lines: List<Line>, duration: Double?): Boolean = duration == null || duration <= 0 || lines.isEmpty() ||
         lines.last().start <= duration + 120 && lines.maxOf { it.end } >= duration * 0.6
 

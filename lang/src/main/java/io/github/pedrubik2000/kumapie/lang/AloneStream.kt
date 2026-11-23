@@ -37,7 +37,7 @@ class AloneStream(
 
     suspend fun build(context: android.content.Context, languages: Languages, duration: Double, position: () -> Double, onWait: () -> Unit): EpisodeDetail {
         val tLines = android.os.SystemClock.elapsedRealtime()
-        val english = runCatching { englishFiles?.await()?.let { addons!!.fitEnglish(it, live.lines.map { l -> l.first + live.offset }) } }.getOrNull().orEmpty()
+        val english = runCatching { englishFiles?.await()?.let { Addons.fitEnglish(it, live.lines.map { l -> l.first + live.offset }, duration) }.takeUnless { live.englishTrack } }.getOrNull().orEmpty()
         val tEnglish = android.os.SystemClock.elapsedRealtime()
         var ep: EpisodeDetail? = null
         while (ep == null) {
@@ -66,6 +66,10 @@ class AloneStream(
         saveOffset()
         fitApplied = true
         return true
+    }
+
+    fun englishLanded(ctl: io.github.pedrubik2000.kumapie.player.SceneController) {
+        if (live.english.isNotEmpty()) ctl.rejoin(withEnglish(ctl.scenes, live.english), emptySet())
     }
 
     private var fitApplied = false
@@ -137,6 +141,12 @@ class AloneStream(
                 if (lines.isNotEmpty()) model.words(lines.map { it.text }, background = true)
                 android.util.Log.i("kumapie", "prefetched ${show.title} ${e.id}: ${lines.size} lines in ${android.os.SystemClock.elapsedRealtime() - t} ms")
             }
+        }
+
+        fun withEnglish(scenes: List<io.github.pedrubik2000.kumapie.data.Scene>, cues: List<Jimaku.Line>): List<io.github.pedrubik2000.kumapie.data.Scene> {
+            val spans = scenes.map { it.start to it.end }
+            val by = cues.sortedBy { it.start }.groupBy { Jimaku.owner(spans, it.start, it.end) }
+            return scenes.mapIndexed { i, s -> s.copy(english = by[i].orEmpty().map { io.github.pedrubik2000.kumapie.data.Line(it.start, it.end, it.text) }) }
         }
 
         fun episodeNumber(id: String) = id.substringAfterLast(':').toIntOrNull()

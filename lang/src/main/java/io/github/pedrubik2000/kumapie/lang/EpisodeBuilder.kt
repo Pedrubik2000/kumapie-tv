@@ -22,7 +22,8 @@ object EpisodeBuilder {
         val toks = kept.map { words.getOrElse(it) { emptyList() } }.iterator()
         val lines = ArrayList<MutableList<Cue>>()
         for (c in once) if (lines.isNotEmpty() && kotlin.math.abs(c.start - lines.last()[0].start) < SAME) lines.last() += c else lines += mutableListOf(c)
-        val owner = english.map { e -> nearest(lines, e) }
+        val spans = lines.map { it[0].start to it.last().end }
+        val owner = english.map { e -> io.github.pedrubik2000.kumapie.data.Jimaku.owner(spans, e.start, e.end) }
         val all = JSONObject()
         val scenes = JSONArray()
         lines.forEachIndexed { i, p ->
@@ -76,14 +77,6 @@ object EpisodeBuilder {
         if (pos < text.length) out.put(JSONArray().put(text.substring(pos)).put(JSONObject.NULL))
         return out
     }
-
-    /** The line a translation belongs to: the one it overlaps most, else the closest. */
-    private fun nearest(lines: List<List<Cue>>, e: Cue): Int = lines.indices.maxByOrNull { i ->
-        val a = lines[i][0].start
-        val b = lines[i].last().end
-        val overlap = minOf(b, e.end) - maxOf(a, e.start)
-        if (overlap > 0) overlap else -minOf(kotlin.math.abs(e.start - b), kotlin.math.abs(a - e.end))
-    } ?: -1
 
     /**
      * A Jimaku stream's episode made on the device without a PC (TV and phone): its lines moved by [offset] (the fit

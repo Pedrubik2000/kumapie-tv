@@ -293,4 +293,9 @@ internal val esTv: Map<String, String> = mapOf(
     "Kept on this TV (no USB drive plugged in)." to "Se guardan en esta TV (no hay una memoria USB conectada).",
     "Kept on: the USB drive" to "Se guardan en: la memoria USB",
     "Kept on: this TV" to "Se guardan en: esta TV",
+    "Beginner" to "Principiante",
+    "Average" to "Medio",
+    "Expert" to "Experto",
+    "Insane" to "Locura",
+    "Difficulty: Jiten (CC BY-SA 4.0)" to "Dificultad: Jiten (CC BY-SA 4.0)",
 )

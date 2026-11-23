@@ -47,7 +47,7 @@ internal fun LibraryColumn(all: List<Mine>, list: LibraryList, filters: LibraryF
         Title(tr("Library"), fontSize = 26.sp)
         Section("ANILIST")
         LibraryList.entries.forEach { l ->
-            ListRow(l.label(), counts.getValue(l), l == list, { onList(l) }, sides.then(if (l == list) Modifier.focusRequester(entry) else Modifier))
+            ListRow(l.label(), counts.getValue(l), l == list, { onList(l) }, sides.then(if (l == list) Modifier.focusRequester(entry) else Modifier), toGrid != null)
         }
         Section(tr("Show only").uppercase())
         CheckRow(tr("In progress"), filters.inProgress, sides) { onFilters(filters.copy(inProgress = !filters.inProgress)) }
@@ -71,8 +71,8 @@ internal fun FlatButton(onClick: () -> Unit, modifier: Modifier, selected: Boole
         border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None)) { ProvideTextStyle(Arcade.label) { content() } }
 
 @Composable
-internal fun ListRow(label: String, count: Int?, selected: Boolean, onSelect: () -> Unit, modifier: Modifier) =
-    FlatButton(onSelect, modifier.hint(HintKind.ROW), selected) {
+internal fun ListRow(label: String, count: Int?, selected: Boolean, onSelect: () -> Unit, modifier: Modifier, canEnter: Boolean = true) =
+    FlatButton(onSelect, modifier.hint(if (canEnter) HintKind.ROW else HintKind.SELECT), selected) {
         Text(label, modifier = Modifier.weight(1f))
         count?.let { Text("$it", color = LocalContentColor.current.copy(alpha = 0.6f)) }
     }

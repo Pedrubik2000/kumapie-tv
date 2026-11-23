@@ -34,7 +34,7 @@ internal fun DiscoverColumn(mode: DiscoverMode, entry: FocusRequester, link: Lin
         DiscoverMode.entries.forEachIndexed { i, m ->
             val place = if (m == mode) Modifier.focusRequester(entry) else if (i == 0) Modifier.focusRequester(firstRow) else Modifier
             val toLine = if (i == 0) Modifier.focusProperties { up = MissingKeyLine.up(if (m == mode) entry else firstRow) } else Modifier
-            ListRow(m.label(), null, m == mode, { onMode(m) }, sides.then(place).then(toLine))
+            ListRow(m.label(), null, m == mode, { onMode(m) }, sides.then(place).then(toLine), link.ready)
         }
         extras(sides)
     }

@@ -36,12 +36,14 @@ internal class Picks(val current: Mine?, val next: List<Mine>)
 
 internal class Kept(val ids: Set<String>)
 
-internal class Undo(val skip: Boolean, val id: Int)
+internal const val UNDO_MS = 6_000L
+
+internal class Undo(val skip: Boolean, val id: Int, val until: Long)
 
 internal fun <T> Result<T>.rethrowCancel(): Result<T> = onFailure { if (it is CancellationException) throw it }
 
 @Stable
-internal class PickState(private val store: PickStore) {
+internal class PickState(private val store: PickStore, val clock: () -> Long = System::currentTimeMillis) {
     var hidden by mutableStateOf(store.hidden())
     var chosen by mutableStateOf<Int?>(null)
     var loaded by mutableStateOf(Kept(emptySet()))
@@ -64,7 +66,7 @@ internal class PickState(private val store: PickStore) {
         hidden = store.hidden()
         chosen = null
         duel = null
-        undo = Undo(false, id)
+        undo = Undo(false, id, clock() + UNDO_MS)
     }
 
     fun skip(id: Int) {
@@ -72,8 +74,10 @@ internal class PickState(private val store: PickStore) {
         hidden = store.hidden()
         chosen = null
         duel = null
-        undo = Undo(true, id)
+        undo = Undo(true, id, clock() + UNDO_MS)
     }
+
+    fun liveUndo(): Undo? = undo?.takeIf { clock() < it.until }
 
     fun undoLast() {
         val u = undo ?: return
@@ -129,6 +133,7 @@ internal class DiscoverHold(startMode: DiscoverMode, val pick: PickState, val br
     val returning: Boolean get() = leftFrom != null
 
     fun leave(from: Any?) {
+        pick.undo = null
         leftMode = mode
         leftFrom = from
         restoring = mode != DiscoverMode.BROWSE

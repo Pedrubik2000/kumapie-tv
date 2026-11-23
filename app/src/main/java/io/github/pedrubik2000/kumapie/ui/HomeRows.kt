@@ -85,7 +85,7 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
     KnowIds(levels, d.all)
     AskLevels(levels, d.askRows, focus)
     Box(Modifier.fillMaxSize()) {
-        HomeHero(focus, d.warm, api, levels, first, below, d.names.isEmpty(), onPlay, onShow, onDiscover)
+        HomeHero(focus, d.warm, api, levels, first, below, d.names.isEmpty(), !d.loggedIn || d.library.any { it.second.isNotEmpty() }, onPlay, onShow, onDiscover)
         CompositionLocalProvider(LocalBringIntoViewSpec provides HeadingFirst) {
             LazyColumn(Modifier.fillMaxSize().rowsBelowHero(focus).backToTop(ctx, list, toTop), state = list, contentPadding = PaddingValues(bottom = 240.dp)) { homeRows(ctx) }
         }
@@ -155,7 +155,7 @@ private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: I
 
 private fun LazyListScope.loginRow(c: RowCtx) = item(key = "login") {
     LoginLine(Modifier.padding(start = RAIL, top = 16.dp, bottom = 16.dp),
-        Modifier.onFocusChanged { if (it.isFocused) { c.focus.row = c.d.names.size; c.scrollTo(c.d.names.size) } }, c.onLogin)
+        (if (c.d.names.isEmpty()) Modifier.focusRequester(c.below) else Modifier).onFocusChanged { if (it.isFocused) { c.focus.row = c.d.names.size; c.scrollTo(c.d.names.size) } }, c.onLogin)
 }
 
 @Composable
@@ -173,8 +173,9 @@ private fun LazyListScope.libraryRows(c: RowCtx) {
             val at = row + if (c.d.loggedIn) 0 else 1
             WithTvScroll { Shelf(label, inset = RAIL) {
                 itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
+                    val start = c.d.names.isEmpty() && c.d.loggedIn && r == 0 && i == 0
                     Poster(s.poster, shortTitle(s.shown), levelLine(s), null,
-                        Modifier.onFocusChanged { if (it.isFocused) { c.focus.row = row; c.scrollTo(at) } }) { c.onShow(s) }
+                        (if (start) Modifier.focusRequester(c.below) else Modifier).onFocusChanged { if (it.isFocused) { c.focus.row = row; c.scrollTo(at) } }) { c.onShow(s) }
                 }
             } }
         }

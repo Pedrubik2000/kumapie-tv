@@ -67,7 +67,7 @@ internal val WHITE_DIM = Color.White.copy(alpha = 0.85f)
 
 @Composable
 internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discovery, levels: Levels?, first: FocusRequester, below: FocusRequester,
-                      emptyHome: Boolean, onPlay: (Show, Episode) -> Unit, onShow: (Show) -> Unit, onDiscover: () -> Unit) {
+                      emptyHome: Boolean, hasBelow: Boolean, onPlay: (Show, Episode) -> Unit, onShow: (Show) -> Unit, onDiscover: () -> Unit) {
     val picture = heroPicture(focus.target, api)
     Box(Modifier.fillMaxWidth().height(HERO_HEIGHT)) {
         GlyphWarm(warm.first, warm.second, Modifier.matchParentSize())
@@ -79,7 +79,8 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
             is FoundTarget -> Unit
             null -> Row(Modifier.padding(start = RAIL, top = 96.dp, end = 32.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim, modifier = Modifier.weight(1f, fill = false))
-                Button(onClick = onDiscover, modifier = (if (emptyHome) Modifier.focusRequester(first) else Modifier).focusProperties { down = below }) { Text(tr("Find something to watch")) }
+                Button(onClick = onDiscover, modifier = (if (emptyHome) Modifier.focusRequester(first) else Modifier)
+                    .focusProperties { if (emptyHome) down = if (hasBelow) below else FocusRequester.Cancel }) { Text(tr("Find something to watch")) }
             }
         }
     }

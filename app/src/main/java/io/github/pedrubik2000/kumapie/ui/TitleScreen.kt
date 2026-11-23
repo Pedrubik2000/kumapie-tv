@@ -21,6 +21,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import io.github.pedrubik2000.kumapie.data.AniList
 import kotlinx.coroutines.CancellationException
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -69,6 +70,7 @@ internal class TitleFocus {
     val score = FocusRequester()
     val episodes = FocusRequester()
     val row = FocusRequester()
+    var retried = false
 }
 
 private fun Mine.data() = CardData(status, score, progress, episodes, average)
@@ -85,7 +87,8 @@ private fun rememberAniState(settings: Settings, writer: AniListSync, title: Fou
         if (!signedIn) return@produceState
         val user = settings.anilist
         val mine = withContext(Dispatchers.IO) { if (user.isEmpty()) null else AniListLists.cached(settings.prefs, user).firstOrNull { it.kitsuId == kitsu } }
-        if (value.phase != AniPhase.READY) value = AniState(AniPhase.LOADING, mine?.data(), settings.anilistFormat, mine)
+        if (value.phase == AniPhase.FAILED) value = AniState(AniPhase.FAILED, null, settings.anilistFormat, mine, busy = true)
+        else if (value.phase != AniPhase.READY) value = AniState(AniPhase.LOADING, mine?.data(), settings.anilistFormat, mine)
         value = try {
             val seen = settings.withAniList { writer.read(it, title.id) }
             if (seen == null) AniState(AniPhase.LOGGED_OUT, null, settings.anilistFormat, mine)
@@ -103,7 +106,7 @@ private fun rememberAniState(settings: Settings, writer: AniListSync, title: Fou
             AniState(AniPhase.FAILED, null, settings.anilistFormat, mine)
         }
     }
-    return AniState(state.phase, state.data, state.format, state.mine) { again++ }
+    return AniState(state.phase, state.data, state.format, state.mine, state.busy) { again++ }
 }
 
 private fun titleFinished(data: CardData?, eps: List<JSONObject>): Boolean =
@@ -147,6 +150,17 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
     CommitOnExit(edits, ani.phase == AniPhase.READY)
     val side = page.error != null || page.meta == null || page.picking != null
     val finished = titleFinished(ani.data, page.episodes)
+    var wasFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(ani.phase) {
+        if (ani.phase == AniPhase.FAILED) wasFailed = true
+        else if (ani.phase == AniPhase.READY && wasFailed) {
+            wasFailed = false
+            if (focus.retried) {
+                focus.retried = false
+                focus.status.focusSoon()
+            }
+        }
+    }
     val cardOn = kitsu != null && !side
     var touched by remember { mutableStateOf(false) }
     LaunchedEffect(page.meta != null, side) { if (!side) focus.main.focusSoon() }
@@ -154,7 +168,7 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
         if (!side && !touched && ani.phase == AniPhase.READY && finished && ani.data?.status != null && edits.scoreOn && ani.data.score <= 0.0) focus.score.focusSoon()
     }
     val play: (JSONObject?) -> Unit = { e -> page.play(e)?.let { context.startActivity(StreamActivity.intent(context, it)) } }
-    Box(Modifier.fillMaxSize().onPreviewKeyEvent { touched = true; false }.onBackKey(page.picking != null) { page.closeFiles() }) {
+    Box(Modifier.fillMaxSize().onPreviewKeyEvent { touched = true; if (it.key != androidx.compose.ui.input.key.Key.DirectionCenter) focus.retried = false; false }.onBackKey(page.picking != null) { page.closeFiles() }) {
         TitleBackdrop(api, title)
         Row(Modifier.fillMaxSize().padding(start = RAIL, top = 40.dp, end = 32.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
             TitleInfo(page, ani.mine, rememberLevels(rememberQueue(jiten)), kitsu, finished, side, cardOn && (ani.phase == AniPhase.READY || ani.phase == AniPhase.FAILED), focus, play)
@@ -163,7 +177,7 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
         if (cardOn) AniListCard(ani, edits, finished, page.next?.optInt("number")?.takeIf { it > 0 }, focus,
             Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 32.dp), syncState)
         if (page.meta != null && !side) EpisodeRow(page, settings.blurUnwatched, focus, play, { e -> scope.launch { page.mark(e) } },
-            Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp))
+            Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp + if (settings.showHelp) HINT_ROOM else 0.dp))
         rail()
         HintBar()
     }

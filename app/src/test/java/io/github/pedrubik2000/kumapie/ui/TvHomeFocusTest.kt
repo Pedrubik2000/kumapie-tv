@@ -189,6 +189,28 @@ class TvHomeFocusTest {
         assertEquals("OK Open", Hints.line())
     }
 
+    private fun openEmptyHome() {
+        showsBody = """{"shows":[${show("c", "Gamma", "shows", episode("c1", null, 0))}]}"""
+        rule.setContent {
+            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), Settings(LocalContext.current), "p", "Pedro", onShow = {}, onPlay = { _, _ -> },
+                onSettings = {}, onStats = {}, onProfiles = {}, onDiscover = { discoverCalls++ }, lists = { null })
+        }
+        rule.waitUntil(5_000) { focused() == "Find something to watch" }
+    }
+
+    @Test fun downFromFindSomethingToWatchReachesTheLoginButtonWhenLoggedOut() {
+        openEmptyHome()
+        press(DOWN)
+        rule.waitUntil(5_000) { focused() == "Log in" }
+    }
+
+    @Test fun downFromFindSomethingToWatchReachesTheRowBelowWhenLoggedIn() {
+        Settings(RuntimeEnvironment.getApplication()).prefs.edit().putString("anilist_token", "t").putString("anilist_user", "pedro").commit()
+        openEmptyHome()
+        press(DOWN)
+        rule.waitUntil(5_000) { focused().let { it != null && it != "Find something to watch" } }
+    }
+
     @Test fun theLoginLineSitsBelowTheHeroWhenFocused() {
         openHome()
         press(DOWN, DOWN)

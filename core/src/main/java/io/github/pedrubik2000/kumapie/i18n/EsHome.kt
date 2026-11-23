@@ -117,6 +117,7 @@ internal val esHome: Map<String, String> = mapOf(
     "Show: %s" to "Serie: %s",
     "Which show is it?" to "¿Qué serie es?",
     "Pick for me" to "Elige por mí",
+    "Trying…" to "Intentando…",
     "Hold" to "Mantén",
     "Change" to "Cambiar",
     "Leave" to "Salir",

@@ -79,8 +79,11 @@ class TvTitleFocusTest {
         Settings(RuntimeEnvironment.getApplication()).prefs.edit().putString("anilist_token", "t").commit()
     }
 
-    private fun syncOf(fake: FakeAniList) = AniListSync(Settings(RuntimeEnvironment.getApplication()).prefs, api = fake.api,
+    private fun syncOf(fake: FakeAniList): AniListSync {
+        AniListSync.resetState()
+        return AniListSync(Settings(RuntimeEnvironment.getApplication()).prefs, api = fake.api,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined))
+    }
 
     private fun open(watched: List<Boolean>, fake: FakeAniList = FakeAniList({ entry(null) }), sync: AniListSync = syncOf(fake)) {
         val app = RuntimeEnvironment.getApplication()
@@ -192,6 +195,23 @@ class TvTitleFocusTest {
         fake.entry = { entry("CURRENT", 1) }
         press(Key.DirectionCenter)
         rule.waitUntil(5_000) { hasText("Status") && !hasText("Couldn't read your AniList list") }
+        waitFocus { it == "Status" }
+    }
+
+    @Test fun whenTheRetryFailsAgainTheFocusStaysOnTryAgain() {
+        logIn()
+        val fake = FakeAniList({ throw IOException("down") })
+        open(listOf(true, false, false), fake)
+        waitFocus { it?.startsWith("▶") == true }
+        rule.waitUntil(5_000) { hasText("Couldn't read your AniList list") }
+        press(Key.DirectionRight)
+        press(Key.DirectionRight)
+        assertEquals("Try again", focused())
+        val before = fake.reads
+        press(Key.DirectionCenter)
+        rule.waitUntil(5_000) { fake.reads > before }
+        rule.waitForIdle()
+        assertEquals("Try again", focused())
     }
 
     @Test fun whileTheReadIsLoadingPlayHasTheFocusAndRightStopsAtHome() {
@@ -239,8 +259,9 @@ class TvTitleFocusTest {
         toStatus()
         assertTrue(hasText("‹  Watching  ›"))
         press(Key.DirectionRight)
-        rule.waitUntil(5_000) { fake.saved.isNotEmpty() }
-        assertEquals(listOf("COMPLETED"), fake.saved.map { it.status })
+        rule.waitUntil(5_000) { fake.saved.any { it.status == "COMPLETED" } }
+        assertTrue(fake.saved.none { it.status == "PLANNING" })
+        assertEquals("COMPLETED", fake.saved.last().status)
     }
 
     @Test fun theScoreStepsInTheFormatReadNowNotTheOneSavedAtLogin() {

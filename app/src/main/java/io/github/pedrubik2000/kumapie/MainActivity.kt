@@ -54,6 +54,11 @@ var Settings.profile: String
     set(value) = prefs.edit().putString("profile", value).apply()
 
 class MainActivity : ComponentActivity() {
+    override fun onStart() {
+        super.onStart()
+        io.github.pedrubik2000.kumapie.data.AniListSync(Settings(this).prefs).retry()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (android.os.Build.VERSION.SDK_INT >= 31) splashScreen.setOnExitAnimationListener { it.remove() }

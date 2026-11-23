@@ -268,6 +268,29 @@ class TvDiscoverFocusTest {
         assertEquals("✕ Not for me", focused())
     }
 
+    @Test fun theUndoIsNotOfferedAgainAfterATitlePageAndBack() {
+        openPick()
+        press(RIGHT, RIGHT, OK)
+        assertEquals("↶ Undo", focused())
+        press(RIGHT, RIGHT, OK)
+        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
+        press(Key.Back.keyCode)
+        rule.waitUntil(5_000) { focused() != null && focused()?.startsWith("▶") != true }
+        assertTrue(!hasText("↶ Undo"))
+    }
+
+    @Test fun theLastPickRejectedStillOffersUndoFocused() {
+        logIn(planning.take(2))
+        open()
+        waitFocus { it?.startsWith("Pick for me") == true }
+        rule.waitUntil(5_000) { hasText("Dandadan") }
+        press(RIGHT, RIGHT, OK)
+        waitFocus { it == "↶ Undo" }
+        assertTrue(hasText("Nothing left to pick right now. Add titles to your Planning list on AniList, or open Browse."))
+        press(OK)
+        rule.waitUntil(5_000) { hasText("Dandadan") }
+    }
+
     @Test fun skipAlsoOffersUndo() {
         openPick()
         press(RIGHT, RIGHT, RIGHT, OK)

@@ -3,6 +3,7 @@ package io.github.pedrubik2000.kumapie.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -64,7 +65,7 @@ internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState,
             restRow(state, i, with(density) { 12.dp.roundToPx() })?.let { state.animateScrollToItem(it * COLUMNS) }
         }
     }
-    LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize().clipToBounds(), state, contentPadding = PaddingValues(start = 12.dp, top = 14.dp, end = 12.dp, bottom = bottom),
+    LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize().padding(bottom = rememberHintRoom()).clipToBounds(), state, contentPadding = PaddingValues(start = 12.dp, top = 14.dp, end = 12.dp, bottom = bottom),
         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         itemsIndexed(items, key = { _, m -> id(m) }) { i, m ->
             val first by remember(i) { derivedStateOf { state.firstVisibleItemIndex == i } }

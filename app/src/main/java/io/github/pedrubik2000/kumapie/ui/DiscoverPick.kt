@@ -39,20 +39,36 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val UNDO_MS = 6_000L
 private val BUTTON_PADDING = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
 
 @Composable
 internal fun PickContent(env: DiscoverEnv, picks: Picks?, ranked: Ranked?, state: PickState) {
     val loggedIn = env.settings.anilistToken.isNotEmpty()
     val m = picks?.current
-    LinkWhen(env.link, !loggedIn || m != null)
+    val undo = state.liveUndo()
+    LaunchedEffect(state.undo) {
+        val u = state.undo ?: return@LaunchedEffect
+        delay((u.until - state.clock()).coerceAtLeast(0))
+        if (state.undo === u) state.undo = null
+    }
+    LinkWhen(env.link, !loggedIn || m != null || undo != null)
     AskTitles(env.levels, m?.kitsuId, picks?.let { p -> listOfNotNull(p.current) + p.next }.orEmpty().map { it.kitsuId })
     when {
         !loggedIn -> LoginPrompt(env)
         picks == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
-        m == null -> Text(tr("Nothing left to pick right now. Add titles to your Planning list on AniList, or open Browse."), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
+        m == null -> EmptyPick(env, undo, state)
         else -> PickBig(env, m, ranked, state)
+    }
+}
+
+@Composable
+private fun EmptyPick(env: DiscoverEnv, undo: Undo?, state: PickState) {
+    Column(Modifier.padding(start = CONTENT_START, top = 100.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(tr("Nothing left to pick right now. Add titles to your Planning list on AniList, or open Browse."), color = Colors.dim)
+        if (undo != null) {
+            Button(onClick = state::undoLast, modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(env.link.to).focusProperties { left = env.entry }) { Text("↶ " + tr("Undo")) }
+            LaunchedEffect(Unit) { env.link.to.focusSoon() }
+        }
     }
 }
 
@@ -123,12 +139,7 @@ private fun PickButtons(env: DiscoverEnv, m: Mine, state: PickState, title: Focu
     Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(onClick = { env.hold.addToHome(env.api, found) },
             padding = BUTTON_PADDING, modifier = Modifier.hint(HintKind.PICK).focusRequester(env.link.to).focusProperties { left = env.entry; up = title; down = FocusRequester.Cancel }) { Text("+ " + tr("Home")) }
-        val undo = state.undo
-        LaunchedEffect(undo) {
-            if (undo == null) return@LaunchedEffect
-            delay(UNDO_MS)
-            if (state.undo === undo) state.undo = null
-        }
+        val undo = state.liveUndo()
         Button(onClick = { if (undo?.skip == false) state.undoLast() else state.notForMe(m.anilistId, m.shown()) }, padding = BUTTON_PADDING,
             modifier = Modifier.hint(HintKind.PICK).focusProperties { down = FocusRequester.Cancel }) { Text(if (undo?.skip == false) "↶ " + tr("Undo") else "✕ " + tr("Not for me")) }
         Button(onClick = { if (undo?.skip == true) state.undoLast() else state.skip(m.anilistId) }, padding = BUTTON_PADDING,

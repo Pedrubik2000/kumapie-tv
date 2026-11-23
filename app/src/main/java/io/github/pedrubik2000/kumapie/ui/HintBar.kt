@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,7 +24,7 @@ import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 
-internal enum class HintKind { PLAY, EPISODE, EPISODE_FILES, VALUE, ROW, CHECK, COVER, DUEL, PICK, CHOOSE, NEXT, HERO }
+internal enum class HintKind { PLAY, EPISODE, EPISODE_FILES, VALUE, ROW, CHECK, COVER, DUEL, PICK, CHOOSE, NEXT, HERO, SELECT }
 
 internal fun hintOf(kind: HintKind): List<Pair<String, String>> = when (kind) {
     HintKind.PLAY -> listOf("OK" to tr("Play"))
@@ -38,6 +39,7 @@ internal fun hintOf(kind: HintKind): List<Pair<String, String>> = when (kind) {
     HintKind.CHOOSE -> listOf("OK" to tr("Choose"))
     HintKind.NEXT -> listOf("OK" to tr("Show this one"))
     HintKind.HERO -> listOf("OK" to tr("Choose"), "▼" to tr("Rows"))
+    HintKind.SELECT -> listOf("OK" to tr("Select"))
 }
 
 internal fun hintText(kind: HintKind): String = hintOf(kind).joinToString(" · ") { "${it.first} ${it.second}" }
@@ -64,8 +66,21 @@ internal object Hints {
 @Composable
 internal fun Modifier.hint(kind: HintKind): Modifier {
     val by = remember { Any() }
+    var focused by remember { mutableStateOf(false) }
     DisposableEffect(by) { onDispose { Hints.blur(by) } }
-    return onFocusChanged { if (it.isFocused) Hints.focus(by, kind) else Hints.blur(by) }
+    LaunchedEffect(kind, focused) { if (focused) Hints.focus(by, kind) }
+    return onFocusChanged {
+        focused = it.isFocused
+        if (it.isFocused) Hints.focus(by, kind) else Hints.blur(by)
+    }
+}
+
+internal val HINT_ROOM = 52.dp
+
+@Composable
+internal fun rememberHintRoom(): androidx.compose.ui.unit.Dp {
+    val context = LocalContext.current
+    return remember { if (Settings(context).showHelp) HINT_ROOM else 0.dp }
 }
 
 @Composable

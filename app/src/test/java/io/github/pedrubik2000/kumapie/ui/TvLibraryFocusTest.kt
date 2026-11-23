@@ -207,6 +207,16 @@ class TvLibraryFocusTest {
         assertEquals("T18", focused())
     }
 
+    @Test fun anEmptyListsRowDoesNotPromiseTheTitlesToTheRight() {
+        logIn()
+        open()
+        waitFocus { it?.startsWith("Watching") == true }
+        press(DOWN, DOWN, OK)
+        rule.waitUntil(5_000) { hasText("Nothing in this list yet. Pick another list on the left.") }
+        assertTrue(focused()?.startsWith("Completed") == true)
+        assertEquals("OK Select", Hints.line())
+    }
+
     @Test fun theHintLineFollowsTheFocusFromAListRowToACover() {
         logIn()
         open()

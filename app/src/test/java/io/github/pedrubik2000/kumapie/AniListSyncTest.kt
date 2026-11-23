@@ -53,11 +53,14 @@ class AniListSyncTest {
     }, { _, media, before, after ->
         saved += Triple(media, before, after)
         after.copy(updatedAt = (clock + skew) / 1000 + jitter).also { entries[media] = it }
-    }, { if (offsetKnown) skew else null })
+    }, { if (offsetKnown) skew else null }, { "POINT_10" })
 
     private fun sync() = AniListSync(prefs, api, CoroutineScope(Dispatchers.Unconfined), { "2026-11-23" }, { clock }, { ms, f -> laters += ms to f })
 
-    @Before fun login() { prefs.edit().clear().putString("anilist_token", "t").commit() }
+    @Before fun login() {
+        prefs.edit().clear().putString("anilist_token", "t").commit()
+        AniListSync.resetState()
+    }
 
     @Test fun theStateOfATitleIsNoneThenSavedOnceTheWriteWasSent() {
         val s = sync()
@@ -75,6 +78,25 @@ class AniListSyncTest {
         failure = null
         s.retry()
         assertEquals(AniListSync.SyncState.SAVED, s.stateOf("kitsu:1"))
+    }
+
+    @Test fun anOfflineChangeWaitsAndASuccessfulReadSendsItAndTheStateIsSaved() {
+        val s = sync()
+        failure = java.io.IOException("offline")
+        s.status("kitsu:1", "CURRENT")
+        assertEquals(AniListSync.SyncState.WAITING, s.stateOf("kitsu:1"))
+        assertTrue(saved.isEmpty())
+        failure = null
+        runBlocking { s.read("t", "kitsu:1") }
+        assertEquals(1, saved.size)
+        assertEquals(AniListSync.SyncState.SAVED, s.stateOf("kitsu:1"))
+    }
+
+    @Test fun theStateIsSharedByEveryInstance() {
+        val a = sync()
+        val b = sync()
+        a.status("kitsu:1", "CURRENT")
+        assertEquals(AniListSync.SyncState.SAVED, b.stateOf("kitsu:1"))
     }
 
     @Test fun addedPlansOnlyWhenOnNoList() {

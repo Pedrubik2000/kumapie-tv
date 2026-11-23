@@ -264,6 +264,17 @@ class PickStoreTest {
         assertEquals(emptySet<Int>(), store.hidden())
     }
 
+    @Test fun theUndoIsLiveForSixSecondsOnTheClockAndGoneAfter() {
+        var t = 1_000L
+        val state = PickState(store(), { t })
+        state.notForMe(5, "x")
+        assertTrue(state.liveUndo() != null)
+        t += 5_999
+        assertTrue(state.liveUndo() != null)
+        t += 2
+        assertEquals(null, state.liveUndo())
+    }
+
     @Test fun theSameStoreReadAgainSeesWhatWasKept() {
         val p = prefs()
         store(p).notForMe(3)

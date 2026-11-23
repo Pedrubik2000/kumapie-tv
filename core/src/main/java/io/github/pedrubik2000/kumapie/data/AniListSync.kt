@@ -9,6 +9,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -35,10 +36,6 @@ class AniListSync(
     enum class SyncState { NONE, SAVED, WAITING }
 
     private val fired = HashSet<String>()
-    private val store = Any()
-    private val sent = HashSet<String>()
-    private val stuck = HashSet<String>()
-    private val version = MutableStateFlow(0)
 
     val changes: StateFlow<Int> get() = version
 
@@ -53,12 +50,16 @@ class AniListSync(
         }
     }
 
-    private fun mark(title: String, saved: Boolean, waiting: Boolean) {
+    private fun mark(title: String, saved: Boolean, waiting: Boolean?) {
         synchronized(store) {
             if (saved) sent.add(title) else sent.remove(title)
-            if (waiting) stuck.add(title) else stuck.remove(title)
+            when (waiting) {
+                true -> stuck.add(title)
+                false -> stuck.remove(title)
+                null -> Unit
+            }
         }
-        version.value++
+        version.update { it + 1 }
     }
 
     fun added(id: String) = queue(id) { it.put(ADDED, true) }
@@ -84,10 +85,11 @@ class AniListSync(
 
     suspend fun read(token: String, id: String): Seen {
         val title = titleOf(id) ?: throw java.io.IOException("not a kitsu title")
-        mark(title, saved = false, waiting = title in stuck)
+        mark(title, saved = false, waiting = null)
         val media = api.lookup(title) ?: throw java.io.IOException("no AniList mapping")
         val entry = lock.withLock { apply(api.entry(token, media), pending().optJSONObject(title) ?: JSONObject(), today()) }
         val format = try { api.format(token) } catch (e: AniList.LoggedOut) { throw e } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
+        if (synchronized(store) { pending().length() > 0 }) retry()
         return Seen(entry, format)
     }
 
@@ -194,6 +196,19 @@ class AniListSync(
     }
 
     companion object {
+        private val store = Any()
+        private val sent = HashSet<String>()
+        private val stuck = HashSet<String>()
+        private val version = MutableStateFlow(0)
+
+        fun resetState() {
+            synchronized(store) {
+                sent.clear()
+                stuck.clear()
+            }
+            version.update { it + 1 }
+        }
+
         private const val QUEUE = "anilist_queue"
         private const val PAUSE = "anilist_pause"
         private const val AT = "at"
@@ -222,6 +237,7 @@ class AniListSync(
         }
 
         fun forget(prefs: SharedPreferences) {
+            resetState()
             val e = prefs.edit().remove(QUEUE).remove(PAUSE).remove(OWN).remove("anilist_viewer")
             prefs.all.keys.filter { it.startsWith(AniListLists.CACHE) }.forEach { e.remove(it) }
             e.apply()

@@ -74,4 +74,14 @@ class WordSyncTest {
         assertEquals("de|baum", out.getJSONObject("Phone").getJSONArray("keys").getString(0))
         assertNotEquals(out.toString(), WordSync.carded(mine, null, "TV").toString())
     }
+
+    @Test fun aSharedCardsFormNeverSilencesTheRefusalOfAWordCardedOnlyOnTheOtherDevice() {
+        val dog = "ja|犬\tいぬ"
+        val fish = "ja|魚	さかな"
+        val carded = WordSync.own("Chromecast-aaa", 5, listOf(fish, dog), mapOf(dog to listOf("魚")))
+        val rated = JSONArray().put(JSONObject().put("id", 1).put("key", dog).put("time", 1000L).put("ease", 3))
+        WordSync.words = WordSync.elsewhere(rated, carded, "SM-T970-bbb", setOf(dog), { fsrs }, now = 1000L)
+        assertEquals("the shared card's form is the higher state", "k", WordSync.state("ja", "魚"))
+        assertTrue("but 魚 is carded only on the other device: still refused", WordSync.refusal("ja", fish)!!.contains("Chromecast-aaa"))
+    }
 }

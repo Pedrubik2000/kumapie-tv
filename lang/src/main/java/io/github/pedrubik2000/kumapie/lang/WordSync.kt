@@ -16,6 +16,8 @@ object WordSync {
 
     fun state(lang: String, form: String): String? = words[lang]?.get(form)?.state
 
+    fun cardElsewhere(lang: String, form: String): Elsewhere? = words[lang]?.get(form)?.takeIf { !it.shared }
+
     fun ensure(load: () -> Unit) { if (!loaded) synchronized(this) { if (!loaded) { runCatching(load); loaded = true } } }
 
     fun carded(mine: JSONObject, theirs: JSONObject?, device: String): JSONObject {
@@ -68,14 +70,14 @@ object WordSync {
             val form = key.substringAfter('|').lowercase()
             val main = setOf(form, form.substringBefore('\t'))
             for (w in if (shared) forms[key].orEmpty() - main else main + forms[key].orEmpty())
-                out.getOrPut(lang) { HashMap() }.merge(w, e) { a, b -> if (max(a.state, b.state) == a.state && !(a.shared && a.state == b.state)) a else b }
+                out.getOrPut(lang) { HashMap() }.merge(w, e) { a, b -> Elsewhere(max(a.state, b.state)!!, (listOf(a, b).firstOrNull { !it.shared } ?: a).device, a.shared && b.shared) }
         }
         return out
     }
 
     fun refusal(lang: String, key: String?): String? {
         val form = key?.substringAfter('|')?.lowercase() ?: return null
-        val e = words[lang]?.get(form)?.takeIf { !it.shared } ?: return null
+        val e = cardElsewhere(lang, form) ?: return null
         if (insist) return null
         return synchronized(warned) { if (warned.add("$lang|$form")) tr("Already a card on %s. Mine it again to make one here too.", e.device) else null }
     }

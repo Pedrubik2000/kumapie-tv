@@ -52,6 +52,8 @@ class CardIndex(private val lang: String = "") {
         })
     }
 
+    fun rateable(form: String): String? = form.lowercase().let { f -> if (f !in byForm && WordSync.words[lang]?.get(f)?.shared == true) null else state(form) }
+
     /** Every form with a card of its own. */
     fun forms(): Set<String> = byForm.keys
 

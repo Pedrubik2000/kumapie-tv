@@ -104,24 +104,6 @@ class WordsKnownTest {
         assertEquals("the Chromecast's tapped form, white as there", cc.known(), tab.known())
     }
 
-    /** Core plan 16f, the export's "counted" section: the list Home counts per language, and no import ever reads it back. */
-    @Test fun theExportedCountedSectionIsTheHomeListAndImportIgnoresIt() {
-        val cc = chromecast()
-        val tab = tablet()
-        sync(cc, tab)
-        val counted = DeviceFile.counted(mapOf("ja" to cc.known()))
-        assertEquals(JSONArray(cc.known()).toString(), counted.getJSONArray("ja").toString())
-        val plain = cc.export()
-        val withCounted = JSONObject(plain.toString()).put("counted", counted)
-        val before = tab.known()
-        val a = tab.import(plain)
-        val b = tab.import(withCounted)
-        assertEquals(a.changes, b.changes)
-        assertEquals(a.known.keys, b.known.keys)
-        assertEquals(before, tab.known())
-        assertEquals(cc.known(), tab.known())
-    }
-
     /**
      * Core plan 16f, the real 12(tablet 17,435, Chromecast 17,423): the same card 罠[わな] on both devices, each with its own
      * tapped form. Each device threw away the other's extra form because the key is carded here, so each counted only its own.

@@ -78,4 +78,18 @@ class RateFlowTest {
         assertNull("no card anywhere: nothing made", flow.rate("川", 3, 2_000, watch, Miner.Request(episode, scene(2), 5)))
         assertEquals(listOf(4), mined)
     }
+
+    @Test fun aFormOnlyHeldForASharedCardNeverMakesACardHere() = runBlocking {
+        val mined = mutableListOf<Int>()
+        val flow = RateFlow(
+            answer = { _, _, _, _ -> null }, takeBack = { false }, refreshDue = {}, recontext = { _, _ -> },
+            elsewhere = { WordSync.cardElsewhere("ja", it) != null }, mineHere = { at -> mined += at.line },
+        )
+        WordSync.words = mapOf("ja" to mapOf("罠を" to WordSync.Elsewhere("k", "Chromecast-aaa", true), "森" to WordSync.Elsewhere("k", "Chromecast-aaa")))
+        assertNull(flow.rate("罠を", 3, 2_000, watch, Miner.Request(episode, scene(2), 4)))
+        assertTrue("a card of this key is here: nothing made", mined.isEmpty())
+        flow.rate("森", 3, 2_000, watch, Miner.Request(episode, scene(2), 5))
+        assertEquals("a word carded only elsewhere still gets its card", listOf(5), mined)
+        WordSync.words = emptyMap()
+    }
 }

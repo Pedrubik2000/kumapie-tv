@@ -16,7 +16,7 @@ class RateFlow(
 ) {
     constructor(known: KnownWords, miner: Miner) :
         this(known::rate, known::undo, { known.refreshDue(force = true) }, { notes, at -> miner.recontext(notes, at) },
-            { known.cardIndex.cards(it).isEmpty() && WordSync.state(known.lang.code, it.lowercase()) != null },
+            { known.cardIndex.cards(it).isEmpty() && WordSync.cardElsewhere(known.lang.code, it.lowercase()) != null },
             { at ->
                 WordSync.insist = true
                 try { miner.mine(at) {} } finally { WordSync.insist = false }

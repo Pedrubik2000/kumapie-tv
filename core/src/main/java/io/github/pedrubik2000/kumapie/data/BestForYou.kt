@@ -28,7 +28,30 @@ object BestForYou {
         return items.filter { it.anime && it.status == "PLANNING" && it.id in rank }.sortedByDescending { rank.getValue(it.id) }.map { it.id }
     }
 
+    class Why(val feature: String, val pull: Double, val scored: Int, val average: Double, val finished: Int)
+
+    fun why(items: List<Item>, id: Int, top: Int = 3): List<Why> {
+        val target = items.firstOrNull { it.id == id } ?: return emptyList()
+        val w = weights(items)
+        val used = target.features.filter { it in w }
+        val share = sqrt(used.size.toDouble())
+        return used.map { it to w.getValue(it) / share }.filter { it.second > 0 }.sortedByDescending { it.second }.take(top).map { (f, pull) ->
+            val rated = items.filter { it.status in RATED && f in it.features }
+            val scores = rated.map { it.score }.filter { it > 0 }
+            Why(f, pull, scores.size, scores.sum() / maxOf(scores.size, 1), rated.count { it.status != "DROPPED" })
+        }
+    }
+
     fun rank(items: List<Item>): Map<Int, Double> {
+        val w = weights(items)
+        val cands = items.filter { it.status in OPEN && it.published != "CANCELLED" }
+        val fit = cands.map { d -> d.features.filter { it in w }.let { fs -> if (fs.isEmpty()) 0.0 else fs.fold(0.0) { a, f -> a + w.getValue(f) } / sqrt(fs.size.toDouble()) } }
+        val zf = z(fit, fit)
+        val za = z(cands.map { it.average?.toDouble() }, cands.map { (it.average ?: 0).toDouble() })
+        return cands.indices.associate { cands[it].id to 0.6 * zf[it] + 0.4 * za[it] }
+    }
+
+    private fun weights(items: List<Item>): Map<String, Double> {
         val rated = items.filter { it.status in RATED }
         val scores = rated.map { it.score }.filter { it > 0 }
         val mean = scores.sum() / maxOf(scores.size, 1)
@@ -40,11 +63,7 @@ object BestForYou {
             for (f in d.features) { w[f] = (w[f] ?: 0.0) + v; n[f] = (n[f] ?: 0) + 1 }
         }
         for (f in w.keys) w[f] = w.getValue(f) / (n.getValue(f) + 2)
-        val cands = items.filter { it.status in OPEN && it.published != "CANCELLED" }
-        val fit = cands.map { d -> d.features.filter { it in w }.let { fs -> if (fs.isEmpty()) 0.0 else fs.fold(0.0) { a, f -> a + w.getValue(f) } / sqrt(fs.size.toDouble()) } }
-        val zf = z(fit, fit)
-        val za = z(cands.map { it.average?.toDouble() }, cands.map { (it.average ?: 0).toDouble() })
-        return cands.indices.associate { cands[it].id to 0.6 * zf[it] + 0.4 * za[it] }
+        return w
     }
 
     private fun z(values: List<Double?>, forMean: List<Double>): List<Double> {

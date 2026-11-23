@@ -10,10 +10,12 @@ import io.github.pedrubik2000.kumapie.data.shortTitle
 import io.github.pedrubik2000.kumapie.data.shown
 import io.github.pedrubik2000.kumapie.i18n.tr
 
+internal fun bestItems(all: List<Mine>): List<BestForYou.Item> =
+    all.map { BestForYou.Item(it.anilistId, true, it.status, it.score, "", it.average.takeIf { a -> a > 0 }, it.genres) }
+
 fun planningOrder(all: List<Mine>): List<Mine> {
     val byId = all.associateBy { it.anilistId }
-    val items = all.map { BestForYou.Item(it.anilistId, true, it.status, it.score, "", it.average.takeIf { a -> a > 0 }, it.genres) }
-    return BestForYou.planning(items).mapNotNull { byId[it] }
+    return BestForYou.planning(bestItems(all)).mapNotNull { byId[it] }
 }
 
 @Stable

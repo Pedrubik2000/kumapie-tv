@@ -70,10 +70,15 @@ data class ListTarget(val mine: Mine) : HeroTarget {
     override val key get() = "kitsu:${mine.kitsuId}"
 }
 
+data class FoundTarget(val found: Found) : HeroTarget {
+    override val key get() = found.id
+}
+
 fun HeroTarget.kitsu(): String? = when (this) {
     is ResumeTarget -> show.kitsuId()
     is ContinueTarget -> show.kitsuId()
     is ListTarget -> mine.kitsuId
+    is FoundTarget -> kitsuOf(found)
 }
 
 fun ContinueTarget.facts(): String = factLine(
@@ -96,12 +101,14 @@ fun HeroTarget.eyebrow(): String = when (this) {
     is ResumeTarget -> tr("Continue watching")
     is ContinueTarget -> tr("Continue watching") + " · " + tr("%1\$d of %2\$d", index + 1, of)
     is ListTarget -> if (mine.watching) tr("Watching on AniList") else tr("Planning on AniList") + " · " + tr("Not started")
+    is FoundTarget -> ""
 }.uppercase()
 
 fun HeroTarget.title(): String = when (this) {
     is ResumeTarget -> shortTitle(show.shown)
     is ContinueTarget -> shortTitle(show.shown)
     is ListTarget -> mine.shown()
+    is FoundTarget -> found.shownName
 }
 
 fun bandColour(percent: Int): Color = when {
@@ -117,6 +124,11 @@ fun HeroTarget.fallback(): String = when (this) {
     is ResumeTarget -> episode.thumb.ifEmpty { show.poster }
     is ContinueTarget -> episode.thumb.ifEmpty { show.poster }
     is ListTarget -> mine.banner.ifEmpty { mine.cover }
+    is FoundTarget -> found.background.ifEmpty { found.poster }
 }
 
-fun HeroTarget.type(): String = if (this is ResumeTarget && episode.id == show.id) "movie" else "series"
+fun HeroTarget.type(): String = when {
+    this is ResumeTarget && episode.id == show.id -> "movie"
+    this is FoundTarget -> found.type
+    else -> "series"
+}

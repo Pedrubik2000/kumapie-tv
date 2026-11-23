@@ -76,6 +76,7 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
             is ResumeTarget -> ResumeText(t, first, below, onPlay, onShow)
             is ContinueTarget -> InfoText(t, t.facts(), emptyList(), null, levels)
             is ListTarget -> InfoText(t, t.facts(), t.chips(), planningLine(t), levels)
+            is FoundTarget -> Unit
             null -> Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 110.dp))
         }
     }

@@ -86,7 +86,7 @@ class TvTitleFocusTest {
         val app = RuntimeEnvironment.getApplication()
         app.getSharedPreferences("backdrops_kitsu", 0).edit().putString("kitsu:5", "/b/5.jpg").commit()
         val queue = JitenQueue(JitenStore(File(app.cacheDir, "jiten-title-${System.nanoTime()}.json")), JitenApi(JitenHttp), resolve = { null }, idle = { false })
-        rule.setContent { if (shown) DiscoverScreen(discovery(watched), start = title, jiten = queue, sync = sync) }
+        rule.setContent { if (shown) DiscoverScreen(discovery(watched), Settings(RuntimeEnvironment.getApplication()), start = title, jiten = queue, sync = sync) }
     }
 
     private fun focused(): String? = rule.onAllNodes(isFocused()).fetchSemanticsNodes().firstOrNull()?.config?.let { c ->

@@ -33,10 +33,13 @@ object Jiten {
             .filter { it.size == 2 && it[0] in sets && it[1].isNotBlank() }.map { it[1] }.toSet()
 
     /** The words ranked 1..[n] in the global frequency list (CSV "Word,Form,Rank", ordered by rank). */
-    fun top(n: Int): Set<String> {
+    fun top(n: Int, transport: JitenTransport = JitenHttp): Set<String> {
         val out = HashSet<String>()
         if (n <= 0) return out
-        open("$API/frequency-list/download?downloadType=csv").inputStream.bufferedReader().useLines { lines ->
+        val url = "$API/frequency-list/download?downloadType=csv"
+        val reply = transport.get(url, userAgent())
+        if (reply.code != 200) error("${URL(url).host}: HTTP ${reply.code} for $url")
+        reply.body.bufferedReader().useLines { lines ->
             for (line in lines.drop(1)) {
                 val cols = line.split(',')
                 val rank = cols.lastOrNull()?.toIntOrNull() ?: continue
@@ -46,6 +49,10 @@ object Jiten {
         }
         return out
     }
+
+    @Volatile var appVersion = "0.0.0"
+
+    fun userAgent() = "kumapie/$appVersion (https://github.com/Pedrubik2000/kumapie-tv)"
 
     private fun open(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
         connectTimeout = 15_000

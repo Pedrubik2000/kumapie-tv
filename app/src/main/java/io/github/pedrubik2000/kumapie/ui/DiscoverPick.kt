@@ -66,7 +66,7 @@ private fun EmptyPick(env: DiscoverEnv, undo: Undo?, state: PickState) {
     Column(Modifier.padding(start = CONTENT_START, top = 100.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(tr("Nothing left to pick right now. Add titles to your Planning list on AniList, or open Browse."), color = Colors.dim)
         if (undo != null) {
-            Button(onClick = state::undoLast, modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(env.link.to).focusProperties { left = env.entry }) { Text("↶ " + tr("Undo")) }
+            Button(onClick = { state.toHome = true; state.undoLast() }, modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(env.link.to).focusProperties { left = env.entry }) { Text("↶ " + tr("Undo")) }
             LaunchedEffect(Unit) { env.link.to.focusSoon() }
         }
     }
@@ -136,6 +136,12 @@ private fun Why(lines: List<String>) {
 @Composable
 private fun PickButtons(env: DiscoverEnv, m: Mine, state: PickState, title: FocusRequester, cover: FocusRequester) {
     val found = remember(m) { m.found() }
+    LaunchedEffect(Unit) {
+        if (state.toHome) {
+            state.toHome = false
+            env.link.to.focusSoon()
+        }
+    }
     Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(onClick = { env.hold.addToHome(env.api, found) },
             padding = BUTTON_PADDING, modifier = Modifier.hint(HintKind.PICK).focusRequester(env.link.to).focusProperties { left = env.entry; up = title; down = FocusRequester.Cancel }) { Text("+ " + tr("Home")) }

@@ -275,6 +275,15 @@ class PickStoreTest {
         assertEquals(null, state.liveUndo())
     }
 
+    @Test fun theUndoSurvivesPressingTheModeAlreadyShownAndDiesOnARealChange() {
+        val state = PickState(store(), { 0L })
+        state.notForMe(5, "x")
+        state.modeChanged(DiscoverMode.PICK, DiscoverMode.PICK)
+        assertTrue(state.undo != null)
+        state.modeChanged(DiscoverMode.PICK, DiscoverMode.DUEL)
+        assertEquals(null, state.undo)
+    }
+
     @Test fun theSameStoreReadAgainSeesWhatWasKept() {
         val p = prefs()
         store(p).notForMe(3)

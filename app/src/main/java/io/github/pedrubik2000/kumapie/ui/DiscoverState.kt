@@ -77,6 +77,12 @@ internal class PickState(private val store: PickStore, val clock: () -> Long = S
         undo = Undo(true, id, clock() + UNDO_MS)
     }
 
+    fun modeChanged(from: DiscoverMode, to: DiscoverMode) {
+        if (from != to) undo = null
+    }
+
+    var toHome = false
+
     fun liveUndo(): Undo? = undo?.takeIf { clock() < it.until }
 
     fun undoLast() {

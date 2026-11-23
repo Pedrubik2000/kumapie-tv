@@ -118,7 +118,7 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
                 DiscoverMode.BROWSE -> BrowseContent(env, browse, lists, live)
             }
         }
-        DiscoverColumn(mode, entry, link, { rail[tr("Discover")] ?: FocusRequester.Default }, { hold.pick.undo = null; hold.mode = it }, Modifier.padding(start = RAIL, top = 28.dp)) { sides ->
+        DiscoverColumn(mode, entry, link, { rail[tr("Discover")] ?: FocusRequester.Default }, { hold.pick.modeChanged(hold.mode, it); hold.mode = it }, Modifier.padding(start = RAIL, top = 28.dp)) { sides ->
             when (mode) {
                 DiscoverMode.PICK -> NextPicks(picks?.next.orEmpty(), levels, sides) { pick.chosen = it.anilistId }
                 DiscoverMode.BROWSE -> BrowseFilterRows(browse, loggedIn, sides)

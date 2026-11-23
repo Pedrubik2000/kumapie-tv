@@ -17,6 +17,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -47,8 +48,17 @@ internal fun <T : Any> rememberFrozen(built: T?, frozen: Boolean): T? {
 
 @Composable
 internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState, modifier: Modifier, focus: LibFocus, entry: FocusRequester,
-                           nav: GridNav, above: () -> FocusRequester, cell: @Composable (T, Modifier) -> Unit) =
-    LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize(), state, contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+                           nav: GridNav, above: () -> FocusRequester, cell: @Composable (T, Modifier) -> Unit) {
+    LaunchedEffect(state, items) {
+        snapshotFlow { focus.id }.collectLatest { fid ->
+            val i = items.indexOfFirst { id(it) == fid }
+            if (i < 0) return@collectLatest
+            withFrameNanos { }
+            withFrameNanos { }
+            if (!rowIsWhole(state, i)) state.animateScrollToItem(i / COLUMNS * COLUMNS)
+        }
+    }
+    LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize().clipToBounds(), state, contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         itemsIndexed(items, key = { _, m -> id(m) }) { i, m ->
             val first by remember(i) { derivedStateOf { state.firstVisibleItemIndex == i } }
@@ -58,6 +68,15 @@ internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState,
             cell(m, card)
         }
     }
+}
+
+private fun rowIsWhole(state: LazyGridState, index: Int): Boolean {
+    val info = state.layoutInfo
+    val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return false
+    val whole = item.offset.y >= info.beforeContentPadding && item.offset.y + item.size.height <= info.viewportEndOffset
+    val aboveCut = index / COLUMNS - 1 == state.firstVisibleItemIndex / COLUMNS && state.firstVisibleItemScrollOffset != 0
+    return whole && !aboveCut
+}
 
 @Composable
 internal fun <D : Any> KeepFocus(display: D?, restore: Any?, indexOf: (D, Any) -> Int, grid: LazyGridState, focus: LibFocus, nav: GridNav,

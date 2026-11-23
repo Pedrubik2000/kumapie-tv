@@ -2,6 +2,7 @@ package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -169,7 +170,7 @@ internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequeste
                         modifier = Modifier.align(Alignment.TopEnd).background(Colors.unknown, androidx.compose.foundation.shape.CircleShape).padding(horizontal = 5.dp))
                 }
                 if (focused) Text(item.label, color = Color.White, fontSize = 16.sp, style = Arcade.label,
-                    modifier = Modifier.padding(start = 12.dp).background(Colors.background.copy(alpha = 0.7f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
+                    modifier = Modifier.padding(start = 12.dp).background(Arcade.band, RoundedCornerShape(12.dp)).border(1.dp, Arcade.line, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
             }
         } }
     }

@@ -210,6 +210,16 @@ class TvDiscoverFocusTest {
         assertEquals(1, saves.size)
     }
 
+    @Test fun downFromThePickButtonsGoesNowhereAndNextPicksAreReachedOnlyFromTheColumn() {
+        openPick()
+        press(RIGHT, DOWN)
+        assertEquals("+ Home", focused())
+        press(RIGHT, DOWN)
+        assertEquals("✕ Not for me", focused())
+        press(RIGHT, DOWN)
+        assertEquals("» Skip", focused())
+    }
+
     @Test fun okOnANextPickMakesItTheCurrentOneAndKeepsTheRow() {
         openPick()
         rows(DOWN, 3)

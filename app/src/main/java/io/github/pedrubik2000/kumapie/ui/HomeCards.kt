@@ -52,9 +52,9 @@ internal fun Poster(image: String, title: String, line: String, progress: Float?
                 percent?.let { DifficultyTag(it, Modifier.align(Alignment.TopStart).padding(6.dp)) }
             }
         }
-        Text(title, color = Colors.text, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label), maxLines = 2, overflow = TextOverflow.Ellipsis,
+        Text(title, color = Colors.text, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label), maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 16.dp))
-        Text(line, color = Colors.dim, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(line, color = Colors.dim, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (progress != null) ProgressBar(progress, Modifier.fillMaxWidth().padding(top = 4.dp))
     }
 }

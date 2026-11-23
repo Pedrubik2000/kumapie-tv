@@ -166,4 +166,4 @@ internal fun DifficultyLine(d: io.github.pedrubik2000.kumapie.lang.TitleDifficul
         append(tr("Difficulty") + " ")
         withStyle(SpanStyle(color = bandColour(d.percent), fontWeight = FontWeight.Bold)) { append("${d.percent}%") }
         append(" · " + d.label)
-    }, color = WHITE_DIM, fontSize = 16.sp)
+    }, color = WHITE_DIM, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -33,19 +33,16 @@ class HomeLogicTest {
         assertNull(rowNav(names.take(1), 0))
     }
 
-    @Test fun theBandColoursFollowTheScaleOfTheUserscript() {
-        assertEquals(DifficultyColours.blue, bandColour(0))
-        assertEquals(DifficultyColours.blue, bandColour(39))
-        assertEquals(DifficultyColours.green, bandColour(40))
-        assertEquals(DifficultyColours.green, bandColour(59))
-        assertEquals(DifficultyColours.lime, bandColour(60))
-        assertEquals(DifficultyColours.lime, bandColour(74))
-        assertEquals(DifficultyColours.orange, bandColour(75))
-        assertEquals(DifficultyColours.orange, bandColour(84))
-        assertEquals(DifficultyColours.red, bandColour(85))
-        assertEquals(DifficultyColours.red, bandColour(94))
-        assertEquals(DifficultyColours.purple, bandColour(95))
-        assertEquals(DifficultyColours.purple, bandColour(100))
+    @Test fun theColourFollowsJitensLabelNotThePercentageBands() {
+        fun colour(raw: Double) = difficultyColour(io.github.pedrubik2000.kumapie.lang.TitleDifficulty(raw, 1, null, null))
+        assertEquals(DifficultyColours.blue, colour(0.5))
+        assertEquals(DifficultyColours.green, colour(1.5))
+        assertEquals(DifficultyColours.lime, colour(2.95))
+        assertEquals(DifficultyColours.orange, colour(3.05))
+        assertEquals(DifficultyColours.red, colour(4.5))
+        assertEquals(DifficultyColours.purple, colour(4.97))
+        assertEquals(59, io.github.pedrubik2000.kumapie.lang.TitleDifficulty(2.95, 1, null, null).percent)
+        assertEquals(61, io.github.pedrubik2000.kumapie.lang.TitleDifficulty(3.05, 1, null, null).percent)
     }
 
     @Test fun theStatsLineSaysEveryFigureWithItsLabel() {

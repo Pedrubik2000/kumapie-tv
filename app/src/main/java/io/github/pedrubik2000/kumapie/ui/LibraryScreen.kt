@@ -106,7 +106,7 @@ private fun LibraryBody(all: List<Mine>, kept: Set<String>?, keptFailed: Boolean
                 focus, entry, nav, { sort }) { m, card ->
                 val d = display?.list ?: current
                 val progress = m.episodes?.takeIf { it > 0 && m.progress > 0 && d != LibraryList.COMPLETED }?.let { m.progress.toFloat() / it }
-                Poster(m.cover, m.shown(), if (m.progress > 0) m.progressLine() else "", progress, card, percent = levels?.of(m.kitsuId)?.percent, width = 83.dp) {
+                Poster(m.cover, m.shown(), if (m.progress > 0) m.progressLine() else "", progress, card, level = levels?.of(m.kitsuId), width = 83.dp) {
                     LibraryMemory.open(m.anilistId, settings.anilist)
                     onOpen(m.found())
                 }

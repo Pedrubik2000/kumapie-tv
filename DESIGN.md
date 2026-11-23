@@ -152,7 +152,7 @@ A dark, desaturated violet field with one warm brown accent and a small, strictl
 ### Named Rules
 **The One Brown Rule.** Bear brown means "act here / you are here / how far along": play, progress, the current selection, focus. Nothing decorative is brown, and secondary actions (the tablet rail's "+") stay surface-coloured so play is the first brown on screen.
 
-**The Colour Means Something Rule.** Where words are shown (subtitles, word lists, cards, the i+N level badges), green, yellow, red and blue mean word state and level and nothing else; orange only marks counts and "today" in stats and help. Outside words, colour is free to carry other meaning: a title's difficulty badge has its own six-band scale (blue, green, lime, orange, red, purple, easiest to hardest), and that scale is used for nothing but difficulty. Colour is still never decoration or chrome.
+**The Colour Means Something Rule.** Where words are shown (subtitles, word lists, cards, the i+N level badges), green, yellow, red and blue mean word state and level and nothing else; orange only marks counts and "today" in stats and help. Outside words, colour is free to carry other meaning: a title's difficulty badge has its own six-colour scale (blue, green, lime, orange, red, purple, easiest to hardest) that follows Jiten's label (Beginner, Easy, Average, Hard, Expert, Insane), never the percentage: 61% that says Hard is orange. The scale is used for nothing but difficulty. Colour is still never decoration or chrome.
 
 ## Typography
 

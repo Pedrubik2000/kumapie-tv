@@ -111,14 +111,16 @@ fun HeroTarget.title(): String = when (this) {
     is FoundTarget -> found.shownName
 }
 
-fun bandColour(percent: Int): Color = when {
-    percent < 40 -> DifficultyColours.blue
-    percent < 60 -> DifficultyColours.green
-    percent < 75 -> DifficultyColours.lime
-    percent < 85 -> DifficultyColours.orange
-    percent < 95 -> DifficultyColours.red
+fun bandColour(band: Int): Color = when (band) {
+    0 -> DifficultyColours.blue
+    1 -> DifficultyColours.green
+    2 -> DifficultyColours.lime
+    3 -> DifficultyColours.orange
+    4 -> DifficultyColours.red
     else -> DifficultyColours.purple
 }
+
+fun difficultyColour(d: io.github.pedrubik2000.kumapie.lang.TitleDifficulty): Color = bandColour(d.band)
 
 fun HeroTarget.fallback(): String = when (this) {
     is ResumeTarget -> episode.thumb.ifEmpty { show.poster }

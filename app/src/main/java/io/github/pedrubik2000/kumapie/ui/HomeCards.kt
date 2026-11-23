@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import io.github.pedrubik2000.kumapie.lang.TitleDifficulty
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.resumeLine
@@ -44,12 +45,12 @@ internal fun Shelf(title: String, inset: Dp = 16.dp, content: LazyListScope.() -
 }
 
 @Composable
-internal fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, percent: Int? = null, width: Dp = 110.dp, onClick: () -> Unit) {
+internal fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, level: TitleDifficulty? = null, width: Dp = 110.dp, onClick: () -> Unit) {
     Column(Modifier.width(width)) {
         Card(onClick = onClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), colors = arcadeCardColors(), modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
             Box(Modifier.fillMaxSize()) {
                 Cover(image, title.replace('.', ' ').replace('_', ' '), Modifier.fillMaxSize(), fontSize = 13.sp, description = title)
-                percent?.let { DifficultyTag(it, Modifier.align(Alignment.TopStart).padding(6.dp)) }
+                level?.let { DifficultyTag(it, Modifier.align(Alignment.TopStart).padding(6.dp)) }
             }
         }
         Text(title, color = Colors.text, style = MaterialTheme.typography.bodyMedium.merge(Arcade.label), maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -60,9 +61,9 @@ internal fun Poster(image: String, title: String, line: String, progress: Float?
 }
 
 @Composable
-internal fun DifficultyTag(percent: Int, modifier: Modifier) =
-    Text("$percent%", color = Color.White, fontSize = 14.sp, style = Arcade.label,
-        modifier = modifier.background(bandColour(percent), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+internal fun DifficultyTag(level: TitleDifficulty, modifier: Modifier) =
+    Text("${level.percent}%", color = Color.White, fontSize = 14.sp, style = Arcade.label,
+        modifier = modifier.background(difficultyColour(level), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
 
 private val CARD_FADE = Brush.verticalGradient(0.5f to Color.Transparent, 1f to Arcade.background.copy(alpha = 0.85f))
 

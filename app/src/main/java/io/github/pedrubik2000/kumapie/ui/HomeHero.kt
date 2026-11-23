@@ -164,6 +164,6 @@ private fun Chip(text: String, current: Boolean) {
 internal fun DifficultyLine(d: io.github.pedrubik2000.kumapie.lang.TitleDifficulty) =
     Text(buildAnnotatedString {
         append(tr("Difficulty") + " ")
-        withStyle(SpanStyle(color = bandColour(d.percent), fontWeight = FontWeight.Bold)) { append("${d.percent}%") }
+        withStyle(SpanStyle(color = difficultyColour(d), fontWeight = FontWeight.Bold)) { append("${d.percent}%") }
         append(" · " + d.label)
     }, color = WHITE_DIM, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

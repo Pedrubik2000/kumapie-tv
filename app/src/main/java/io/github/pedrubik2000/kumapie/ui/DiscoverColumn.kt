@@ -52,7 +52,7 @@ internal fun ColumnScope.NextPicks(next: List<Mine>, levels: Levels?, sides: Mod
                 Cover(m.cover, "", Modifier.width(32.dp).height(48.dp).clip(RoundedCornerShape(6.dp)), showTitle = false, description = null)
                 Column(Modifier.padding(start = 10.dp)) {
                     Text(m.shown(), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    levels?.of(m.kitsuId)?.let { DifficultyTag(it.percent, Modifier) }
+                    levels?.of(m.kitsuId)?.let { DifficultyTag(it, Modifier) }
                 }
             }
         }

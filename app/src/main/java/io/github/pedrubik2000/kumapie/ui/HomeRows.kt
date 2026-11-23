@@ -147,7 +147,7 @@ private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: I
             itemsIndexed(mines, key = { _, m -> m.anilistId }) { i, m ->
                 val progress = m.episodes?.takeIf { watching && it > 0 }?.let { m.progress.toFloat() / it }
                 Poster(m.cover, m.shown(), if (watching) m.progressLine() else "", progress, c.card(row, i) { ListTarget(m) },
-                    percent = c.levels?.of(m.kitsuId)?.percent) { c.onDiscovered(m.found()) }
+                    level = c.levels?.of(m.kitsuId)) { c.onDiscovered(m.found()) }
             }
         }
     } }

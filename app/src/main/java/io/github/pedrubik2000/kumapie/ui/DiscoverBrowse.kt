@@ -80,7 +80,7 @@ private fun BrowseBody(env: DiscoverEnv, state: BrowseState, display: BrowseShow
     if (items.isNotEmpty() && error == null) CoverGrid(items, { it.id }, grid,
         Modifier.focusRequester(nav.grid).onBackKey { backFromGrid(state, env.entry) }.onFocusChanged { inGrid(it.hasFocus) }.focusRestorer(nav.enter),
         focus, env.entry, nav, { MissingKeyLine.up(nav.grid) }) { f, card ->
-        Poster(f.poster, f.shownName, f.year, null, card, percent = kitsuOf(f)?.let { env.levels?.of(it) }?.percent, width = 83.dp) {
+        Poster(f.poster, f.shownName, f.year, null, card, level = kitsuOf(f)?.let { env.levels?.of(it) }, width = 83.dp) {
             env.open(f, f.id)
         }
     }

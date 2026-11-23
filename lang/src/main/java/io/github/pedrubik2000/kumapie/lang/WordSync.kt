@@ -6,7 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object WordSync {
-    class Elsewhere(val state: String, val device: String)
+    class Elsewhere(val state: String, val device: String, val shared: Boolean = false)
 
     @Volatile var words: Map<String, Map<String, Elsewhere>> = emptyMap()
         set(v) { field = v; loaded = true }
@@ -53,7 +53,7 @@ object WordSync {
         val where = HashMap<String, String>()
         val forms = HashMap<String, MutableSet<String>>()
         for (d in carded.keys()) if (d != device) carded.getJSONObject(d).let { o ->
-            o.optJSONArray("keys")?.let { a -> for (i in 0 until a.length()) a.getString(i).takeIf { it !in here }?.let { where.putIfAbsent(it, d) } }
+            o.optJSONArray("keys")?.let { a -> for (i in 0 until a.length()) where.putIfAbsent(a.getString(i), d) }
             o.optJSONObject("forms")?.let { f -> for (k in f.keys()) f.getJSONArray(k).let { a -> forms.getOrPut(k) { HashSet() } += List(a.length()) { a.getString(it).lowercase() } } }
         }
         val rows = events.objects().filter { it.getString("key") in where }
@@ -63,18 +63,19 @@ object WordSync {
             val lang = key.substringBefore('|')
             val f = fsrs(lang)
             val r = rows[key]?.let { Srs.replay(it.sortedBy { p -> p.first }, f) }
-            val e = Elsewhere(Srs.state(r?.let { it.lastReview + f.interval(it.state.stability) * Srs.DAY }, now), d)
+            val shared = key in here
+            val e = Elsewhere(Srs.state(r?.let { it.lastReview + f.interval(it.state.stability) * Srs.DAY }, now), d, shared)
             val form = key.substringAfter('|').lowercase()
-            val m = out.getOrPut(lang) { HashMap() }
-            for (w in setOf(form, form.substringBefore('\t')) + forms[key].orEmpty())
-                m.merge(w, e) { a, b -> if (max(a.state, b.state) == a.state) a else b }
+            val main = setOf(form, form.substringBefore('\t'))
+            for (w in if (shared) forms[key].orEmpty() - main else main + forms[key].orEmpty())
+                out.getOrPut(lang) { HashMap() }.merge(w, e) { a, b -> if (max(a.state, b.state) == a.state && !(a.shared && a.state == b.state)) a else b }
         }
         return out
     }
 
     fun refusal(lang: String, key: String?): String? {
         val form = key?.substringAfter('|')?.lowercase() ?: return null
-        val e = words[lang]?.get(form) ?: return null
+        val e = words[lang]?.get(form)?.takeIf { !it.shared } ?: return null
         if (insist) return null
         return synchronized(warned) { if (warned.add("$lang|$form")) tr("Already a card on %s. Mine it again to make one here too.", e.device) else null }
     }

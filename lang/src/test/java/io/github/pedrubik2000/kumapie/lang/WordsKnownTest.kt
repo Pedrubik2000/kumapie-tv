@@ -5,6 +5,7 @@ import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -101,6 +102,24 @@ class WordsKnownTest {
         sync(cc, tab)
         assertEquals(listOf("わな", "罠"), cc.known())
         assertEquals("the Chromecast's tapped form, white as there", cc.known(), tab.known())
+    }
+
+    /**
+     * Core plan 16f, the real 12 (tablet 17,435, Chromecast 17,423): the same card 罠[わな] on both devices, each with its own
+     * tapped form. Each device threw away the other's extra form because the key is carded here, so each counted only its own.
+     */
+    @Test fun aFormTheOtherDeviceHoldsForASharedCardCountsHereToo() {
+        val cc = Device(DeviceFileTest.Dev("Chromecast-aaa", JSONObject().put("Chromecast-aaa", files.part(0.0)), emptyMap(), emptyList(), mutableMapOf(),
+            JSONArray().put(rated(3, "罠[わな]"))), listOf("罠[わな]"), mapOf("罠[わな]" to "罠を"))
+        val tab = Device(DeviceFileTest.Dev("SM-T970-bbb", JSONObject().put("SM-T970-bbb", files.part(0.0)), emptyMap(), emptyList(), mutableMapOf(),
+            JSONArray()), listOf("罠[わな]"), mapOf("罠[わな]" to "罠が"))
+        sync(cc, tab)
+        sync(cc, tab)
+        assertTrue("罠が" in cc.known())
+        assertTrue("罠を" in tab.known())
+        assertEquals(cc.known(), tab.known())
+        assertNull("no Already a card for the shared card's forms", WordSync.refusal("ja", key("罠[わな]")))
+        assertNull(WordSync.refusal("ja", "ja|罠を"))
     }
 
     /** The two-emulator sync proof (core plan 16e): the TV rates its card of フランメ, the tablet marks 魂, they sync; the tablet makes its own card of フランメ after "Already a card on <TV>", they sync again. */

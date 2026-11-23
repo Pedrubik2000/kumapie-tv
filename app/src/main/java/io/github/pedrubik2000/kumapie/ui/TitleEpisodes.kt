@@ -74,8 +74,8 @@ internal fun EpisodeRow(page: TitlePage, blur: Boolean, focus: TitleFocus, onPla
             Heading(tr("Episodes"))
             Text(factLine(eps.size.takeIf { it > 0 }?.toString(), if (blur) tr("No spoilers on") else null), color = Colors.dim, fontSize = 14.sp)
         }
-        LazyRow(state = rememberLazyListState(at), modifier = Modifier.focusRequester(focus.row).focusRestorer(focus.episodes), horizontalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(start = RAIL, end = 32.dp, top = 10.dp, bottom = 8.dp)) {
+        LazyRow(state = rememberLazyListState(at), modifier = Modifier.padding(start = RAIL - 8.dp).focusRequester(focus.row).focusRestorer(focus.episodes), horizontalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(start = 8.dp, end = 32.dp, top = 10.dp, bottom = 8.dp)) {
             if (eps.isEmpty()) item {
                 EpisodeTile(title.background.ifEmpty { title.poster }, tr("Watch"), factLine(tr("Watch"), title.year.ifEmpty { null }, length),
                     TileLook(false, null, false, false), focusEpisode(focus, true), null) { onPlay(null) }

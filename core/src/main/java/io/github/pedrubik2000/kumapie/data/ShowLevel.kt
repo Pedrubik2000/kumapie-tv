@@ -50,7 +50,10 @@ data class Watching(val id: String, val watched: Boolean, val resume: Double?, v
 
 fun <T> nextUp(eps: List<T>, going: String?, w: (T) -> Watching): T? {
     val all = eps.map { it to w(it) }
-    return (all.firstOrNull { it.second.id == going }
+    val at = all.indexOfFirst { it.second.id == going }
+    val here = all.getOrNull(at)?.takeIf { !it.second.watched }
+    val after = if (at >= 0 && here == null) all.drop(at + 1).firstOrNull { !it.second.watched } else null
+    return (here ?: after
         ?: all.filter { !it.second.watched && partway(it.second.resume, it.second.duration) }.maxByOrNull { it.second.resumedAt }
         ?: all.firstOrNull { (_, e) -> !finished(e.watched, e.resume, e.duration) })?.first ?: eps.firstOrNull()
 }

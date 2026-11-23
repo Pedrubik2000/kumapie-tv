@@ -47,4 +47,17 @@ class NextUpTest {
         assertEquals(null, lib(emptyList()))
         assertEquals(null, disc(emptyList()))
     }
+
+    @Test fun aWatchedResumePlaceMovesToTheFirstUnwatchedAfterIt() {
+        assertEquals("k:8", disc(json("k:5" to false, "k:6" to true, "k:7" to true, "k:8" to false, "k:9" to false), going = "k:7"))
+        assertEquals("e8", lib(listOf(ep("e6", watched = true), ep("e7", watched = true), ep("e8")), going = "e7"))
+    }
+
+    @Test fun aWatchedResumePlaceWithNothingAfterIt() {
+        assertEquals("k:1", disc(json("k:1" to false, "k:2" to true), going = "k:2"))
+    }
+
+    @Test fun everythingWatchedGivesTheFirstEpisode() {
+        assertEquals("k:1", disc(json("k:1" to true, "k:2" to true, "k:3" to true), going = "k:3"))
+    }
 }

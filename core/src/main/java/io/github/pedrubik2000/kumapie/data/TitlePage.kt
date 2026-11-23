@@ -22,7 +22,7 @@ class TitlePage(
     val resuming = d.goingNow()?.firstOrNull { it.first.id == title.id }?.second
     private val going = resuming?.id
 
-    val shown get() = meta?.let(d::found) ?: title
+    val shown get() = meta?.let(d::found)?.let { f -> if (f.nameJa.isEmpty()) f.copy(nameJa = title.nameJa) else f } ?: title
     val episodes get() = meta?.optJSONArray("episodes")?.objects().orEmpty()
     val next get() = nextUp(episodes, going)
 

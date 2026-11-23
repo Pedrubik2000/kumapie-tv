@@ -168,7 +168,7 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
 @Composable
 private fun TitleInfo(page: TitlePage, mine: Mine?, levels: Levels?, kitsu: String?, finished: Boolean, side: Boolean, toCard: Boolean,
                       focus: TitleFocus, onPlay: (JSONObject?) -> Unit) {
-    val t = page.shown
+    val t = page.shown.let { if (it.nameJa.isEmpty() && mine != null && mine.native.isNotEmpty()) it.copy(nameJa = mine.native) else it }
     val next = page.next
     val scope = rememberCoroutineScope()
     LaunchedEffect(levels, kitsu) { if (kitsu != null) withContext(Dispatchers.Default) { levels?.ask(listOf(kitsu), true) } }
@@ -209,7 +209,7 @@ private fun TitleSide(api: Discovery, page: TitlePage, focus: TitleFocus, modifi
     val pick = page.picking
     Box(modifier.focusProperties {
         onExit = { if (requestedFocusDirection == FocusDirection.Left && page.meta != null) { cancelFocusChange(); focus.main.requestFocus() } }
-    }.focusGroup()) {
+    }.focusGroup().arcadePanel().padding(16.dp)) {
         when {
             page.error != null -> ErrorBox(page.error.orEmpty(), onRetry = { scope.launch { page.retry() } }, onSettings = null, server = api is Api)
             page.meta == null -> Text(tr("Loading…"), color = Colors.dim)

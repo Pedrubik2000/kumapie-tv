@@ -48,7 +48,7 @@ internal class Live {
     val focusIn = mutableStateOf(false)
     val touched = mutableStateOf(false)
 
-    fun track(modifier: Modifier): Modifier = modifier.onFocusChanged { focusIn.value = it.hasFocus }.onPreviewKeyEvent { touched.value = true; false }
+    fun track(modifier: Modifier): Modifier = modifier.railGate().onFocusChanged { focusIn.value = it.hasFocus }.onPreviewKeyEvent { touched.value = true; false }
 }
 
 @Composable

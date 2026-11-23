@@ -309,6 +309,13 @@ class TvLibraryFocusTest {
         assertTrue(hasText("Log in with AniList to see your lists here"))
     }
 
+    @Test fun leftFromTheLoginButtonLandsOnTheLibraryItemOfTheRail() {
+        open()
+        waitFocus { it == "Log in" }
+        press(LEFT)
+        waitFocus { it == "Library" }
+    }
+
     @Test fun anEmptyListSaysSoAndFiltersThatHideEverythingSayThat() {
         logIn()
         open()

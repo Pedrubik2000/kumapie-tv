@@ -4,12 +4,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -24,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -69,7 +66,7 @@ fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
     LoadPicks(api, hold.pick, start == null)
     open?.let { f ->
         return Box(Modifier.onBackKey(start == null) { open = null }) {
-            TitleScreen(api, f, { DiscoverRail(api, nav, RailAt.DISCOVER) }, jiten, sync, onSettings)
+            TitleScreen(api, f, { DiscoverRail(api, nav, null) }, jiten, sync, onSettings)
         }
     }
     DiscoverBody(api, settings, jiten, nav, lists, ranked, kept?.ids.orEmpty(), hold) { open = it }
@@ -159,11 +156,10 @@ internal fun AskTitles(levels: Levels?, first: String?, ids: List<String>) {
 }
 
 @Composable
-internal fun BoxScope.DiscoverRail(api: Discovery, nav: RailNav, at: RailAt, focus: MutableMap<String, FocusRequester> = remember { mutableMapOf() },
+internal fun BoxScope.DiscoverRail(api: Discovery, nav: RailNav, at: RailAt?, focus: MutableMap<String, FocusRequester> = remember { mutableMapOf() },
     toRows: FocusRequester? = null) {
+    RailBackdrop()
     Image(painterResource(R.drawable.bear), "kumapie", Modifier.padding(start = 20.dp, top = 20.dp).size(64.dp))
-    Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).background(Brush.horizontalGradient(
-        0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
     MainRail(api, "ja", at, nav, focus, toRows)
 }
 

@@ -253,6 +253,12 @@ class TvHomeFocusTest {
         assertEquals(RESUME, focused())
     }
 
+    @Test fun leftFromTheContentLandsOnTheHomeItemOfTheRail() {
+        openHome()
+        press(Key.DirectionLeft.keyCode)
+        assertEquals("Home", focused())
+    }
+
     @Test fun backFromStatsFocusesItsRoundButton() {
         openHome()
         rule.onNodeWithContentDescription("Stats").requestFocus()

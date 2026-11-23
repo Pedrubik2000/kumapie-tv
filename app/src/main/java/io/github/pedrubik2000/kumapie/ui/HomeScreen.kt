@@ -9,12 +9,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -25,6 +23,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -33,7 +32,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -59,6 +57,7 @@ import io.github.pedrubik2000.kumapie.data.libraryRows
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.JitenQueue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 suspend fun FocusRequester.focusSoon() {
@@ -93,16 +92,15 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
     val rail = RailNav({}, onLibrary, onDiscover, { lang?.let(onReview) }, onStats, onSettings)
     val profileItem = RailItem(Icons.Default.Person, who, back = false, onClick = onProfiles).takeIf { api is Api }
     val settle = remember(data) { { data?.resume?.let { focus.target = it }; Unit } }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().railGate()) {
         when {
             error != null -> Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error, onRetry = { attempt++ }, onSettings = onSettings) }
             shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
             lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
             data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover)
         }
+        RailBackdrop()
         HomeHeader(totals, langs, lang) { next -> picked = next; settings.prefs.edit().putString("home_lang_$profile", next).apply() }
-        Box(Modifier.padding(top = 90.dp).fillMaxHeight().width(RAIL).fadeTop(0.1f).background(Brush.horizontalGradient(
-            0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
         MainRail(api, lang, RailAt.HOME, rail, railFocus, first.takeIf { data != null }, profileItem, settle)
         HomeHintBar(focus)
     }
@@ -142,6 +140,8 @@ private fun BoxScope.HomeHintBar(focus: HomeFocus) = HintBar(top = rowsTop(focus
 
 @Composable
 internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequester>, toRows: FocusRequester?, modifier: Modifier, onFocused: () -> Unit = {}) {
+    val current = items.firstOrNull { it.selected }?.label
+    val scope = rememberCoroutineScope()
     Column(modifier.padding(start = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         items.forEach { item -> androidx.compose.runtime.key(item.label) {
             var focused by remember { mutableStateOf(false) }
@@ -151,13 +151,20 @@ internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequeste
                         modifier = Modifier.size(56.dp).focusRequester(focus.getOrPut(item.label) { FocusRequester() })
                             .onFocusChanged {
                                 focused = it.isFocused
-                                if (it.isFocused) onFocused()
+                                if (it.isFocused) {
+                                    onFocused()
+                                    if (RailGate.left && current != null && item.label != current) {
+                                        RailGate.left = false
+                                        scope.launch { focus[current]?.focusSoon() }
+                                    }
+                                }
                             }.focusProperties { toRows?.let { right = it } },
                         colors = androidx.tv.material3.IconButtonDefaults.colors(
-                            containerColor = Colors.background.copy(alpha = 0.55f), contentColor = Color.White,
+                            containerColor = Colors.background.copy(alpha = 0.55f), contentColor = if (item.selected) Arcade.accent else Color.White,
                             focusedContainerColor = Color.White, focusedContentColor = Color.Black),
                         border = androidx.tv.material3.IconButtonDefaults.border(border = androidx.tv.material3.Border(
-                            androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))))) {
+                            if (item.selected) androidx.compose.foundation.BorderStroke(2.dp, Arcade.accent)
+                            else androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))))) {
                         androidx.tv.material3.Icon(item.icon, item.label, Modifier.size(26.dp))
                     }
                     if (item.badge > 0) Text(if (item.badge > 99) "99+" else "${item.badge}", color = Color.White, fontSize = 11.sp,

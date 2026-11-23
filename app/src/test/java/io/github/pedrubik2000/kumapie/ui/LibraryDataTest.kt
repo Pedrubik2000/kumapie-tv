@@ -74,6 +74,9 @@ class LibraryDataTest {
         assertEquals("Planning · 1 of 3 shown", libraryLine(LibraryList.PLANNING, f, view(LibraryList.PLANNING, f)))
         val g = LibraryFilters(limit = 1)
         assertEquals("Watching · 0 of 2 shown · 1 not rated yet", libraryLine(LibraryList.WATCHING, g, view(LibraryList.WATCHING, g)))
+        assertEquals("Completed · 1 title", libraryLine(LibraryList.COMPLETED, LibraryFilters(), view(LibraryList.COMPLETED)))
+        val h = LibraryFilters(onHome = true)
+        assertEquals("Planning · Couldn't read Home", libraryLine(LibraryList.PLANNING, h, view(LibraryList.PLANNING, h), homeFailed = true))
     }
 
     @Test fun theLimitStepsNameJitensSixLabels() {

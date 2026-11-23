@@ -47,6 +47,13 @@ class JitenStore(private val file: File, private val clock: () -> Long = System:
         save()
     }
 
+    @Synchronized
+    fun linkAll(ids: Map<String, Int>) {
+        var changed = false
+        ids.forEach { (k, v) -> if ((anilist[k] ?: 0) <= 0 && v > 0) { anilist[k] = v; changed = true } }
+        if (changed) save()
+    }
+
     private fun save() {
         val t = JSONObject()
         entries.forEach { (k, e) ->

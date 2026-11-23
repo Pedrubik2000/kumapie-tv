@@ -153,4 +153,22 @@ class JitenQueueTest {
         assertNotNull(q.levelOf("kitsu:1"))
         assertEquals(listOf("kitsu:1"), resolved)
     }
+
+    @Test fun idsKnownFromTheListAreNotResolvedAgain() {
+        val q = queue(Canned(::jitenOk))
+        q.know(mapOf("kitsu:1" to 154587))
+        q.ask(listOf("kitsu:1"))
+        drain(q)
+        assertEquals(emptyList<String>(), resolved)
+        assertEquals(2.68, q.cached("kitsu:1")!!.raw, 0.0)
+    }
+
+    @Test fun droppingAnOwnerRemovesOnlyItsLowPriorityAsksNobodyElseWants() {
+        val q = queue(Canned(::jitenOk))
+        q.ask(listOf("kitsu:1", "kitsu:2"), false, "library")
+        q.ask(listOf("kitsu:2", "kitsu:3"), false)
+        q.drop("library")
+        drain(q)
+        assertEquals(listOf("kitsu:2", "kitsu:3"), resolved)
+    }
 }

@@ -6,6 +6,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.lang.JitenQueue
 import io.github.pedrubik2000.kumapie.lang.TitleDifficulty
 import kotlinx.coroutines.Dispatchers
@@ -18,7 +19,16 @@ class Levels(private val queue: JitenQueue, private val results: State<Map<Strin
 
     val loaded: Int get() = results.value.size
 
-    fun ask(ids: List<String>, priority: Boolean) = queue.ask(ids, priority)
+    fun ask(ids: List<String>, priority: Boolean, owner: Any? = null) = queue.ask(ids, priority, owner)
+
+    fun drop(owner: Any) = queue.drop(owner)
+
+    fun know(all: List<Mine>) = queue.know(all.associate { it.kitsuId to it.anilistId })
+
+    fun snapshot(ids: List<String>): Map<String, TitleDifficulty> {
+        val got = results.value
+        return ids.mapNotNull { k -> (got[k] ?: queue.cached(k))?.let { k to it } }.toMap()
+    }
 }
 
 @Composable
@@ -26,6 +36,12 @@ internal fun rememberLevels(queue: JitenQueue?): Levels? {
     queue ?: return null
     val results = queue.results.collectAsStateWithLifecycle()
     return remember(queue, results) { Levels(queue, results) }
+}
+
+@Composable
+internal fun KnowIds(levels: Levels?, all: List<Mine>) {
+    levels ?: return
+    LaunchedEffect(levels, all) { withContext(Dispatchers.Default) { levels.know(all) } }
 }
 
 @Composable

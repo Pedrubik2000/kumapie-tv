@@ -37,13 +37,16 @@ enum class LibrarySort {
 
 data class LibraryFilters(val inProgress: Boolean = false, val onHome: Boolean = false, val limit: Int = 0, val sort: LibrarySort = LibrarySort.MINE) {
     val active: Boolean get() = inProgress || onHome || limit > 0
+    val needsLevels: Boolean get() = sort == LibrarySort.EASIEST || limit > 0
 }
 
 class LibraryView(val items: List<Mine>, val total: Int, val unrated: Int)
 
 internal object LibraryMemory {
     var list: LibraryList? = null
-    var opened: String? = null
+    var opened: Int? = null
+    var account: String = ""
+    var at: Long = 0
 }
 
 internal var Settings.library: LibraryFilters
@@ -70,9 +73,13 @@ private fun sorted(items: List<Mine>, sort: LibrarySort, level: (String) -> Titl
     LibrarySort.TITLE -> items.sortedBy { it.shown().lowercase() }
 }
 
-fun libraryLine(list: LibraryList, f: LibraryFilters, v: LibraryView): String {
-    val head = if (f.active) tr("%1\$s · %2\$d of %3\$d shown", list.label(), v.items.size, v.total)
-    else tr("%1\$s · %2\$d titles", list.label(), v.total)
+fun libraryLine(list: LibraryList, f: LibraryFilters, v: LibraryView, homeFailed: Boolean = false): String {
+    if (f.onHome && homeFailed) return tr("%s · Couldn't read Home", list.label())
+    val head = when {
+        f.active -> tr("%1\$s · %2\$d of %3\$d shown", list.label(), v.items.size, v.total)
+        v.total == 1 -> tr("%s · 1 title", list.label())
+        else -> tr("%1\$s · %2\$d titles", list.label(), v.total)
+    }
     return if (v.unrated > 0) head + " · " + tr("%d not rated yet", v.unrated) else head
 }
 

@@ -82,6 +82,7 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
     }
     val ctx = remember(d, levels) { RowCtx(d, focus, api, levels, first, below, toTop, { i -> scope.launch { runCatching { list.animateScrollToItem(i) } }; Unit }, onShow, onPlay, onDiscovered, onLogin) }
     LaunchedEffect(d.resume) { if (focus.target == null || focus.target is ResumeTarget) focus.target = d.resume }
+    KnowIds(levels, d.all)
     AskLevels(levels, d.askRows, focus)
     Box(Modifier.fillMaxSize()) {
         HomeHero(focus, d.warm, api, levels, first, below, onPlay, onShow)
@@ -143,7 +144,7 @@ private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: I
     WithTvScroll { Column {
         RowHead(label, rowNav(c.d.names, row))
         LazyRow(state = remember(mines) { LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = ROW_PADDING) {
-            itemsIndexed(mines, key = { _, m -> m.kitsuId }) { i, m ->
+            itemsIndexed(mines, key = { _, m -> m.anilistId }) { i, m ->
                 val progress = m.episodes?.takeIf { watching && it > 0 }?.let { m.progress.toFloat() / it }
                 Poster(m.cover, m.shown(), if (watching) m.progressLine() else "", progress, c.card(row, i) { ListTarget(m) },
                     percent = c.levels?.of(m.kitsuId)?.percent) { c.onDiscovered(m.found()) }

@@ -25,12 +25,12 @@ internal val HERO_BOTTOM = 212.dp
 
 @Stable
 internal class LibFocus {
-    var id by mutableStateOf<String?>(null)
+    var id by mutableStateOf<Int?>(null)
 }
 
 @Composable
 internal fun LibraryHero(items: List<Mine>, focus: LibFocus, api: Discovery, levels: Levels?) {
-    val m = items.firstOrNull { it.kitsuId == focus.id } ?: items.firstOrNull()
+    val m = items.firstOrNull { it.anilistId == focus.id } ?: items.firstOrNull()
     val target = remember(m) { m?.let(::ListTarget) }
     Box(Modifier.fillMaxWidth().height(300.dp)) {
         HeroBackdrop(heroPicture(target, api), { FADE_SHORT }, Modifier.matchParentSize())

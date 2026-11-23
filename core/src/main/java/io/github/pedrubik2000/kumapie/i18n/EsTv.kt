@@ -318,6 +318,8 @@ internal val esTv: Map<String, String> = mapOf(
     "My order" to "Mi orden",
     "%1\$s · %2\$d of %3\$d shown" to "%1\$s · %2\$d de %3\$d mostradas",
     "%1\$s · %2\$d titles" to "%1\$s · %2\$d títulos",
+    "%s · 1 title" to "%s · 1 título",
+    "%s · Couldn't read Home" to "%s · No se pudo leer Inicio",
     "%d not rated yet" to "%d sin valorar aún",
     "Nothing in this list yet" to "Todavía no hay nada en esta lista",
     "Nothing here with these filters" to "Nada aquí con estos filtros",

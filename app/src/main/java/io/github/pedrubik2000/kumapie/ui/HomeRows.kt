@@ -127,9 +127,9 @@ private fun LazyListScope.homeRows(c: RowCtx) {
 }
 
 @Composable
-private fun RowHead(label: String, nav: RowNav?, focus: HomeFocus) {
+private fun RowHead(label: String, nav: RowNav?, focus: HomeFocus, first: Boolean) {
     val pillLine = with(LocalDensity.current) { (rowsTop(focus.tall) + HINT_ROOM).toPx() }
-    var inBand by remember { mutableStateOf(true) }
+    var inBand by remember { mutableStateOf(first) }
     val railNamed by remember { derivedStateOf { Hints.shown?.isRail == true } }
     val reserve = if ((rememberHintRoom() > 0.dp || railNamed) && inBand) HINT_PILL_WIDTH else 0.dp
     Row(Modifier.onGloballyPositioned { (it.positionInRoot().y < pillLine).let { b -> if (b != inBand) inBand = b } }.padding(start = RAIL, top = 8.dp, end = reserve),
@@ -148,7 +148,7 @@ private fun RowHead(label: String, nav: RowNav?, focus: HomeFocus) {
 private fun LazyListScope.goingRow(c: RowCtx, nav: RowNav?) = item(key = "going") {
     val going = c.d.going
     WithTvScroll { Column {
-        RowHead(tr("Continue watching"), nav, c.focus)
+        RowHead(tr("Continue watching"), nav, c.focus, true)
         LazyRow(state = remember(going) { LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = ROW_PADDING) {
             itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
                 val target = { ContinueTarget(s, e, i, going.size, c.d.byKitsu[s.kitsuId()]) }
@@ -160,7 +160,7 @@ private fun LazyListScope.goingRow(c: RowCtx, nav: RowNav?) = item(key = "going"
 
 private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: Int, mines: List<io.github.pedrubik2000.kumapie.data.Mine>, watching: Boolean) = item(key = key) {
     WithTvScroll { Column {
-        RowHead(label, rowNav(c.d.names, row), c.focus)
+        RowHead(label, rowNav(c.d.names, row), c.focus, row == 0)
         LazyRow(state = remember(mines) { LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = ROW_PADDING) {
             itemsIndexed(mines, key = { _, m -> m.anilistId }) { i, m ->
                 val progress = m.episodes?.takeIf { watching && it > 0 }?.let { m.progress.toFloat() / it }

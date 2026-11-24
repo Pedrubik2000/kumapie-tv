@@ -62,18 +62,17 @@ fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
     }
     val frozen = hold.inContent || open != null || hold.restoring
     val ranked = rememberFrozen(rememberRanked(lists), frozen)
-    val kept = rememberFrozen(hold.pick.loaded, frozen)
-    LoadPicks(api, hold.pick, start == null)
+    LoadPicks(hold.pick)
     open?.let { f ->
         return Box(Modifier.onBackKey(start == null) { open = null }) {
             TitleScreen(api, f, { DiscoverRail(api, titleNav, null) }, jiten, sync, onSettings)
         }
     }
-    DiscoverBody(api, settings, jiten, nav, lists, ranked, kept?.ids.orEmpty(), hold) { open = it }
+    DiscoverBody(api, settings, jiten, nav, lists, ranked, hold) { open = it }
 }
 
 @Composable
-private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?, edges: RailNav, lists: List<Mine>?, ranked: Ranked?, kept: Set<String>,
+private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?, edges: RailNav, lists: List<Mine>?, ranked: Ranked?,
                          hold: DiscoverHold, onOpen: (Found) -> Unit) {
     val loggedIn = settings.anilistToken.isNotEmpty()
     val entry = remember { FocusRequester() }
@@ -86,7 +85,7 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
     val mode = hold.mode
     val pick = hold.pick
     val browse = hold.browse
-    val field = remember(ranked, pick.hidden, kept) { ranked?.let { candidates(it.list, pick.hidden, kept) } }
+    val field = remember(ranked, pick.hidden) { ranked?.let { candidates(it.list, pick.hidden) } }
     val picks = remember(field, pick.chosen, pick.ready) { if (field == null || !pick.ready) null else pickFrom(field, pick.chosen) }
     DisposableEffect(Unit) { onDispose { hold.inContent = false } }
     DisposableEffect(entry) {

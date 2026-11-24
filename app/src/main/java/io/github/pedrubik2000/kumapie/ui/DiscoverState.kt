@@ -19,7 +19,6 @@ import kotlinx.coroutines.delay
 
 internal const val NEXT_PICKS = 4
 internal const val DUEL_SIZE = 8
-private const val SAVED_WAIT_MS = 2_000L
 private const val RESTORE_LIMIT_MS = 2_000L
 
 @Stable
@@ -32,7 +31,6 @@ internal class Ranked(val list: List<Mine>, val items: List<BestForYou.Item>)
 
 internal class Picks(val current: Mine?, val next: List<Mine>)
 
-internal class Kept(val ids: Set<String>)
 
 internal const val UNDO_MS = 6_000L
 
@@ -44,7 +42,6 @@ internal fun <T> Result<T>.rethrowCancel(): Result<T> = onFailure { if (it is Ca
 internal class PickState(private val store: PickStore, val clock: () -> Long = System::currentTimeMillis) {
     var hidden by mutableStateOf(store.hidden())
     var chosen by mutableStateOf<Int?>(null)
-    var loaded by mutableStateOf(Kept(emptySet()))
     var ready by mutableStateOf(false)
     var duel: Knockout? = null
     var undo by mutableStateOf<Undo?>(null)
@@ -158,16 +155,8 @@ internal class DiscoverEnv(val api: Discovery, val settings: Settings, val level
 }
 
 @Composable
-internal fun LoadPicks(api: Discovery, pick: PickState, active: Boolean) {
-    LaunchedEffect(Unit) {
-        if (!active) return@LaunchedEffect
-        runCatching { api.saved().map { it.id }.toSet() }.rethrowCancel().onSuccess { pick.loaded = Kept(it) }
-        pick.ready = true
-    }
-    LaunchedEffect(Unit) {
-        delay(SAVED_WAIT_MS)
-        pick.ready = true
-    }
+internal fun LoadPicks(pick: PickState) {
+    LaunchedEffect(Unit) { pick.ready = true }
 }
 
 @Composable

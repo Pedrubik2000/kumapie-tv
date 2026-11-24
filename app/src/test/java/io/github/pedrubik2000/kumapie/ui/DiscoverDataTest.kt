@@ -115,10 +115,10 @@ class KnockoutTest {
 class CandidatesTest {
     private val ranked = listOf(mine(1), mine(2), mine(3), mine(4))
 
-    @Test fun skippedNotForMeAndOnHomeAreAllLeftOutKeepingTheOrder() {
-        assertEquals(listOf(4), candidates(ranked, setOf(1, 3), setOf("kitsu:k2")).map { it.anilistId })
-        assertEquals(listOf(1, 2, 3, 4), candidates(ranked, emptySet(), emptySet()).map { it.anilistId })
-        assertEquals(listOf(1, 3), candidates(ranked, setOf(2), setOf("kitsu:k4")).map { it.anilistId })
+    @Test fun skippedAndNotForMeAreLeftOutKeepingTheOrder() {
+        assertEquals(listOf(2, 4), candidates(ranked, setOf(1, 3)).map { it.anilistId })
+        assertEquals(listOf(1, 2, 3, 4), candidates(ranked, emptySet()).map { it.anilistId })
+        assertEquals(listOf(1, 3, 4), candidates(ranked, setOf(2)).map { it.anilistId })
     }
 }
 

@@ -32,12 +32,14 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -165,18 +167,18 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
     }
     val cardOn = kitsu != null && !side
     var added by remember(title.id) { mutableStateOf(false) }
-    val canAdd = kitsu != null && ani.phase == AniPhase.READY && ani.data?.status == null && !added
+    val canAdd = kitsu != null && page.meta != null && ani.phase == AniPhase.READY && ani.data?.status == null && !added
     var touched by remember { mutableStateOf(false) }
     LaunchedEffect(page.meta != null, side) { if (!side) focus.main.focusSoon() }
     LaunchedEffect(side, ani.phase) {
         if (!side && !touched && ani.phase == AniPhase.READY && finished && ani.data?.status != null && edits.scoreOn && ani.data.score <= 0.0) focus.score.focusSoon()
     }
     val play: (JSONObject?) -> Unit = { e -> page.play(e)?.let { context.startActivity(StreamActivity.intent(context, it)) } }
-    Box(Modifier.fillMaxSize().onPreviewKeyEvent { touched = true; if (it.type == KeyEventType.KeyDown && it.key != androidx.compose.ui.input.key.Key.DirectionCenter) focus.retried = false; false }.onBackKey(page.picking != null) { page.closeFiles() }) {
+    Box(Modifier.fillMaxSize().recoverFocus(canAdd, focus.main).onPreviewKeyEvent { touched = true; if (it.type == KeyEventType.KeyDown && it.key != androidx.compose.ui.input.key.Key.DirectionCenter) focus.retried = false; false }.onBackKey(page.picking != null) { page.closeFiles() }) {
         TitleBackdrop(api, title)
         Row(Modifier.fillMaxSize().padding(start = RAIL, top = 40.dp, end = 32.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
             TitleInfo(page, ani.mine, rememberLevels(rememberQueue(jiten)), kitsu, finished, side, cardOn && (ani.phase == AniPhase.READY || ani.phase == AniPhase.FAILED), focus, play, canAdd) {
-                writer.added(title.id); added = true; ani.retry(); scope.launch { focus.main.focusSoon() }
+                writer.added(title.id); added = true; ani.retry()
             }
             if (side) TitleSide(api, page, focus, onSettings, Modifier.weight(1f))
         }
@@ -272,4 +274,18 @@ private fun Line(i: Int, text: String, line: String, onClick: () -> Unit) {
         }
     }
     if (i == 0) LaunchedEffect(Unit) { first.focusSoon() }
+}
+
+@Composable
+private fun Modifier.recoverFocus(adding: Boolean, main: FocusRequester): Modifier {
+    var inside by remember { mutableStateOf(false) }
+    var had by remember { mutableStateOf(false) }
+    LaunchedEffect(adding) {
+        if (!adding && had) {
+            repeat(2) { withFrameNanos { } }
+            if (!inside) main.focusSoon()
+        }
+        had = adding
+    }
+    return onFocusChanged { inside = it.hasFocus }
 }

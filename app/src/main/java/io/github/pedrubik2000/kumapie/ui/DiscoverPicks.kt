@@ -54,8 +54,8 @@ internal class PickStore(private val prefs: SharedPreferences, private val clock
     }
 }
 
-internal fun candidates(ranked: List<Mine>, hidden: Set<Int>, onHome: Set<String>): List<Mine> =
-    ranked.filter { it.anilistId !in hidden && "kitsu:${it.kitsuId}" !in onHome }
+internal fun candidates(ranked: List<Mine>, hidden: Set<Int>): List<Mine> =
+    ranked.filter { it.anilistId !in hidden }
 
 internal fun scaleTo10(format: String): Double? = when (format) {
     "POINT_100" -> 0.1

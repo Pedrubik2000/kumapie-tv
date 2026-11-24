@@ -56,7 +56,6 @@ class TvDiscoverFocusTest {
     private var boards = 0
     private var searches = 0
     private var searchDelay = 0L
-    private var savedDelay = 0L
     private var onHomeList = emptyList<Found>()
     private var fresh: ((List<Mine>) -> Unit)? = null
 
@@ -76,7 +75,7 @@ class TvDiscoverFocusTest {
         }
         override suspend fun discoverMeta(type: String, id: String) = JSONObject()
         override suspend fun discoverStreams(type: String, id: String) = JSONArray()
-        override suspend fun saved(): List<Found> { kotlinx.coroutines.delay(savedDelay); return onHomeList }
+        override suspend fun saved(): List<Found> = onHomeList
         override suspend fun save(title: Found, on: Boolean): List<Found> { saves += title; return emptyList() }
         override suspend fun seen(id: String, on: Boolean) = Unit
     }
@@ -551,23 +550,20 @@ class TvDiscoverFocusTest {
         assertTrue(hasText("TV · 12 episodes · 2023 · Adventure · AniList 85"))
     }
 
-    @Test fun picksWaitAtMostTwoSecondsForTheTitlesOnHomeAndALateAnswerIsAppliedAfterHeLeavesTheContent() {
+    @Test fun aTitleThatWasPinnedToHomeBeforeStillCountsForPick() {
         logIn()
-        savedDelay = 10_000
         onHomeList = listOf(title(3, "Dandadan"))
-        open()
-        rule.mainClock.autoAdvance = false
-        Thread.sleep(500)
-        rule.mainClock.advanceTimeBy(1_500)
-        assertTrue(hasText("Loading…") && !hasText("Dandadan"))
-        rule.mainClock.advanceTimeBy(700)
-        assertTrue(hasText("Dandadan"))
-        press(RIGHT)
-        rule.mainClock.advanceTimeBy(10_000)
-        assertTrue(hasText("Dandadan"))
-        rule.mainClock.autoAdvance = true
-        press(LEFT)
-        rule.waitUntil(5_000) { !hasText("Dandadan") && hasText("Kaiju") }
+        openPick()
+        rule.waitUntil(5_000) { hasText("Dandadan") }
+    }
+
+    @Test fun watchOnThePickOpensItsPageAndBackFocusesWatchAgain() {
+        openPick()
+        press(RIGHT, OK)
+        rule.waitUntil(5_000) { !hasText("✕ Not for me") }
+        press(Key.Back.keyCode)
+        waitFocus { it == "▶ Watch" }
+        assertTrue(hasText("✕ Not for me"))
     }
 
 

@@ -283,6 +283,21 @@ class TvTitleFocusTest {
         waitFocus { it?.startsWith("▶") == true }
     }
 
+    @Test fun whenTheReReadFailsWhileAddHasTheFocusItGoesToPlay() {
+        logIn()
+        val fake = FakeAniList({ entry(null) })
+        open(listOf(true, false, false), fake)
+        waitFocus { it?.startsWith("▶") == true }
+        rule.waitUntil(5_000) { hasText("+ AniList") }
+        press(Key.DirectionRight)
+        assertEquals("+ AniList", focused())
+        fake.entry = { throw IOException("down") }
+        rule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        rule.waitUntil(5_000) { hasText("Couldn't read your AniList list") }
+        waitFocus { it?.startsWith("▶") == true }
+    }
+
     @Test fun aTitleAlreadyOnAniListHasNoAddButton() {
         logIn()
         open(listOf(true, false, false), FakeAniList({ entry("CURRENT", 1) }))

@@ -144,7 +144,7 @@ private fun ResumeText(t: ResumeTarget, first: FocusRequester, below: FocusReque
     val e = t.episode
     Column(Modifier.padding(start = RAIL, top = 72.dp, end = 24.dp).width(600.dp)) {
         Eyebrow(t.eyebrow())
-        Text(t.title(), color = Color.White, fontSize = 52.sp, lineHeight = 58.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        FitTitle(t.title(), 52, 1)
         Text(factLine(e.title, resumeLine(e), episodesText(t.mine?.episodes ?: t.show.episodes.size)), color = WHITE_DIM, fontSize = 18.sp,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         if (e.duration > 0) ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(380.dp).padding(top = 12.dp))
@@ -156,10 +156,10 @@ private fun ResumeText(t: ResumeTarget, first: FocusRequester, below: FocusReque
 }
 
 @Composable
-private fun InfoText(t: HeroTarget, facts: String, chips: List<String>, levels: Levels?) {
+internal fun InfoText(t: HeroTarget, facts: String, chips: List<String>, levels: Levels?) {
     Column(Modifier.padding(start = RAIL, top = 56.dp, end = 24.dp).width(900.dp)) {
         Eyebrow(t.eyebrow())
-        Text(t.title(), color = Color.White, fontSize = 44.sp, lineHeight = 50.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        FitTitle(t.title(), 44, 1)
         Text(facts, color = WHITE_DIM, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (t is ContinueTarget) episodeStrip(t.episode.number, leftText(t.episode), t.mine?.episodes ?: t.show.episodes.size.takeIf { it > 1 })

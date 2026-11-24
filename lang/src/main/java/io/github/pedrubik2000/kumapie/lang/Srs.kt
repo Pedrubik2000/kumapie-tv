@@ -201,7 +201,9 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
     suspend fun sync(post: suspend (JSONObject) -> JSONObject): Int = withContext(Dispatchers.IO) {
         val out = db.rawQuery("SELECT kind, id FROM outbox", null).use { c -> buildList { while (c.moveToNext()) add(c.getString(0) to c.getLong(1)) } }
         val body = JSONObject().put("since", meta("sync_seq")?.toLong() ?: 0L)
-        for (t in SYNCED) body.put(t, JSONArray(out.filter { it.first == t }.mapNotNull { row(t, it.second) }))
+        val sent = HashMap<Long, Long>()
+        for (t in SYNCED) body.put(t, JSONArray(out.filter { it.first == t }.mapNotNull { row(t, it.second) }
+            .onEach { if (t == "cards") sent[it.getLong("id")] = it.getLong("modified") }))
         val got = post(body)
         // The PC's store was made again (a new kuma3 import, before the switch): start over from it.
         val imported = got.optJSONObject("meta")?.optString("imported_from")?.takeIf { it.isNotEmpty() }
@@ -222,23 +224,11 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         db.beginTransaction()
         try {
             got.optJSONObject("meta")?.let { m -> m.keys().forEach { k -> db.insertWithOnConflict("meta", null, values(JSONObject().put("key", k).put("value", m.getString(k))), SQLiteDatabase.CONFLICT_REPLACE) } }
-            for (o in got.optJSONArray("cards").objects()) {
-                val v = values(o)
-                val old = db.rawQuery("SELECT modified FROM cards WHERE id = ?", arrayOf("${o.getLong("id")}")).use { if (it.moveToFirst()) it.getLong(0) else null }
-                when {
-                    old == null -> db.insertOrThrow("cards", null, v)
-                    o.getLong("modified") > old -> db.update("cards", v, "id = ?", arrayOf("${o.getLong("id")}"))
-                    else -> continue
-                }
-                n++
+            n = merge(got, false, rated)
+            for ((kind, id) in out) {
+                if (kind == "cards" && id in sent) db.delete("outbox", "kind = 'cards' AND id = ? AND (SELECT modified FROM cards WHERE id = ?) = ?", arrayOf("$id", "$id", "${sent[id]}"))
+                else db.delete("outbox", "kind = ? AND id = ?", arrayOf(kind, "$id"))
             }
-            for (t in listOf("revlog", "exposures")) for (o in got.optJSONArray(t).objects()) {
-                if (db.insertWithOnConflict(t, null, values(o), SQLiteDatabase.CONFLICT_IGNORE) != -1L) {
-                    n++
-                    if (t == "revlog") rated += o.getLong("card")
-                }
-            }
-            for ((kind, id) in out) db.delete("outbox", "kind = ? AND id = ?", arrayOf(kind, "$id"))
             db.insertWithOnConflict("meta", null, values(JSONObject().put("key", "sync_seq").put("value", "${got.getLong("seq")}")), SQLiteDatabase.CONFLICT_REPLACE)
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
@@ -248,6 +238,10 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
             db.insertWithOnConflict("meta", null, values(JSONObject().put("key", "replayed_params").put("value", meta("params"))), SQLiteDatabase.CONFLICT_REPLACE)
         } else if (rated.isNotEmpty()) replayAll(rated)
         n
+    }
+
+    internal fun queue(kind: String, id: Long) {
+        db.insertWithOnConflict("outbox", null, ContentValues().apply { put("kind", kind); put("id", id) }, SQLiteDatabase.CONFLICT_IGNORE)
     }
 
     /** A row this device made: stored, and queued for the PC. */
@@ -261,7 +255,7 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
     }
 
     /** One row as the PC takes it (cards without the FSRS cache columns: every device replays its own). */
-    private fun row(table: String, id: Long): JSONObject? = db.rawQuery("SELECT * FROM $table WHERE id = ?", arrayOf("$id")).use { c ->
+    internal fun row(table: String, id: Long): JSONObject? = db.rawQuery("SELECT * FROM $table WHERE id = ?", arrayOf("$id")).use { c ->
         if (!c.moveToFirst()) return null
         json(c).apply { if (table == "cards") CACHE.forEach(::remove) }
     }
@@ -270,7 +264,7 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         for (t in listOf("meta", "cards", "revlog", "exposures")) put(t, JSONArray(db.rawQuery("SELECT * FROM $t", null).use { c -> buildList { while (c.moveToNext()) add(json(c)) } }))
     }
 
-    private fun json(c: Cursor) = JSONObject().apply {
+    internal fun json(c: Cursor) = JSONObject().apply {
         for (i in 0 until c.columnCount) put(c.getColumnName(i), when (c.getType(i)) {
             Cursor.FIELD_TYPE_NULL -> JSONObject.NULL
             Cursor.FIELD_TYPE_INTEGER -> c.getLong(i)
@@ -279,7 +273,7 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         })
     }
 
-    private fun values(o: JSONObject) = ContentValues().apply {
+    internal fun values(o: JSONObject) = ContentValues().apply {
         for (k in o.keys()) when (val v = o.get(k)) {
             JSONObject.NULL -> putNull(k)
             is Int -> put(k, v.toLong())
@@ -289,8 +283,6 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
             else -> put(k, v.toString())
         }
     }
-
-    private fun JSONArray?.objects(): List<JSONObject> = if (this == null) emptyList() else List(length()) { getJSONObject(it) }
 
     private fun history(cardId: Long) = db.rawQuery("SELECT time, rating FROM revlog WHERE card = ? ORDER BY time, id", arrayOf("$cardId"))
         .use { c -> buildList { while (c.moveToNext()) add(c.getLong(0) to c.getInt(1)) } }

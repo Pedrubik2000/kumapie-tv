@@ -13,6 +13,7 @@ import io.github.pedrubik2000.kumapie.lang.CardIndex
 import io.github.pedrubik2000.kumapie.lang.Japanese
 import io.github.pedrubik2000.kumapie.lang.KnownWords
 import io.github.pedrubik2000.kumapie.lang.YomitanDictionaries
+import io.github.pedrubik2000.kumapie.lang.exchange
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -130,7 +131,8 @@ class WordColours : ContentProvider() {
      * extras `word` + `reading` name a Japanese word (its card key). Methods: "split" (+ `text`) splits a chapter ahead
      * for [query]; "state" -> `state` (d/k/b/n/u, absent without kuma3) + `marked` (marked known);
      * "mark" (+ `known`) marks the word known or unmarks it -> `marked`; "rate" (+ `ease` 1..4, `ms`) -> `notes`, `cards`, `undo` (empty: kuma3 took none); "undo" (+ the
-     * rate's answer) -> `undone`; "reload" (after the caller mined a card) re-reads the Mined deck. Callers need
+     * rate's answer) -> `undone`; "reload" (after the caller mined a card) re-reads the Mined deck; "srs" (+ `json`)
+     * trades card rows with the caller's own copy of kumapie's Japanese store -> `json` ([srs]). Callers need
      * READ_WORDS, and kuma3's own permission to rate or undo (only apps you let into kuma3 change its cards).
      */
     override fun call(method: String, arg: String?, extras: android.os.Bundle?): android.os.Bundle {
@@ -152,6 +154,7 @@ class WordColours : ContentProvider() {
             return android.os.Bundle().apply { putString("json", json) }
         }
         if (method == "mine" || method == "update") return mine(ctx, method, extras)
+        if (method == "srs") return srs(ctx, extras)
         val known = japanese.known
         val out = android.os.Bundle()
         runBlocking {
@@ -197,6 +200,23 @@ class WordColours : ContentProvider() {
     /** [text]'s first word as [query] splits it (its dictionary form), or null. */
     private fun pageWord(text: String): String? =
         if (text.isEmpty() || !japanese.model.isReady) null else words(text).firstOrNull()?.base
+
+    private fun srs(ctx: android.content.Context, extras: android.os.Bundle?): android.os.Bundle {
+        val out = android.os.Bundle()
+        val lang = io.github.pedrubik2000.kumapie.data.Lang.JAPANESE
+        val own = io.github.pedrubik2000.kumapie.lang.Cards.get(ctx).srs
+        val srs = own.store(lang)?.takeIf { own.active(lang) } ?: return out
+        val known = japanese.known
+        val body = runCatching { org.json.JSONObject(extras?.getString("json") ?: "{}") }.getOrElse { org.json.JSONObject() }
+        val answer = runCatching { srs.exchange(body) }
+        if (listOf("cards", "revlog", "exposures").any { (body.optJSONArray(it)?.length() ?: 0) > 0 }) runCatching {
+            runBlocking { known.reloadCards() }
+            own.syncSoon(lang)
+        }.onFailure { android.util.Log.w("kumapie", "srs after rows: $it") }
+        val json = answer.getOrElse { return out.apply { putString("json", org.json.JSONObject().put("error", it.message?.take(120) ?: it.javaClass.simpleName).toString()) } }
+        android.util.Log.i("kumapie", "srs from $callingPackage: ${json.getInt("in")} rows in, ${json.getJSONArray("cards").length()} cards and ${json.getJSONArray("revlog").length()} reviews out")
+        return out.apply { putString("json", json.toString()) }
+    }
 
     /**
      * Cards Hoshi and chimahon mine (kumapie_plan.md "own Anki", step 5): extras `deck` (the deck they were set to),

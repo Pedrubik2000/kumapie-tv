@@ -18,11 +18,24 @@ fun planningOrder(all: List<Mine>): List<Mine> {
     return BestForYou.planning(bestItems(all)).mapNotNull { byId[it] }
 }
 
+fun streamsThatExist(streams: List<Pair<Show, Episode>>, all: List<Mine>, metaIds: Map<String, Set<String>>): List<Pair<Show, Episode>> {
+    val byKitsu = all.associateBy { it.kitsuId }
+    return streams.filter { (s, e) ->
+        val n = e.number
+        if (e.resume != null || n == null) return@filter true
+        metaIds[s.id]?.let { e.id in it } ?: s.kitsuId()?.let { byKitsu[it] }?.episodes?.takeIf { it > 0 }?.let { n <= it } ?: true
+    }
+}
+
 @Stable
 class HomeData(
     val going: List<Pair<Show, Episode>>, val all: List<Mine>, val loggedIn: Boolean,
-    val library: List<Pair<String, List<Show>>>,
+    val library: List<Pair<String, List<Show>>>, private val metaIds: Map<String, Set<String>> = emptyMap(),
 ) {
+    fun mineFor(s: Show, e: Episode): Mine? = byKitsu[s.kitsuId()]?.let { m ->
+        if ((e.number ?: 0) > (m.episodes ?: Int.MAX_VALUE)) m.copy(episodes = metaIds[s.id]?.size) else m
+    }
+
     val byKitsu: Map<String, Mine> = all.associateBy { it.kitsuId }
     val watching: List<Mine> = if (loggedIn) all.filter { it.watching } else emptyList()
     val planning: List<Mine> = if (loggedIn) planningOrder(all) else emptyList()
@@ -31,7 +44,7 @@ class HomeData(
         tr("Watching on AniList").takeIf { watching.isNotEmpty() },
         tr("Planning on AniList").takeIf { planning.isNotEmpty() },
     )
-    val resume: ResumeTarget? = going.firstOrNull()?.let { (s, e) -> ResumeTarget(s, e, byKitsu[s.kitsuId()]) }
+    val resume: ResumeTarget? = going.firstOrNull()?.let { (s, e) -> ResumeTarget(s, e, mineFor(s, e)) }
 
     val askRows: List<List<String>> = listOf(
         going.mapNotNull { it.first.kitsuId() }.takeIf { going.isNotEmpty() },

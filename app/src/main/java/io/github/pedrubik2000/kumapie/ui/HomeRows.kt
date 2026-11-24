@@ -154,7 +154,7 @@ private fun LazyListScope.goingRow(c: RowCtx, nav: RowNav?) = item(key = "going"
         RowHead(tr("Continue watching"), nav, c.focus, true)
         LazyRow(state = remember(going) { LazyListState() }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = ROW_PADDING) {
             itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
-                val target = { ContinueTarget(s, e, i, going.size, c.d.byKitsu[s.kitsuId()]) }
+                val target = { ContinueTarget(s, e, i, going.size, c.d.mineFor(s, e)) }
                 ResumeCard(s, e, c.card(0, i, target), width = 220.dp, picture = titlePicture(s, e, c.api)) { c.onPlay(s, e) }
             }
         }

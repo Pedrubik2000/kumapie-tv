@@ -53,6 +53,7 @@ import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.LangTotal
 import io.github.pedrubik2000.kumapie.data.Mine
+import io.github.pedrubik2000.kumapie.data.SavedMeta
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.TitleLevels
@@ -232,10 +233,16 @@ private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> Li
         value = withContext(Dispatchers.IO) { AniListLists.cached(settings.prefs, user) }
         runCatching { lists(settings) }.getOrNull()?.let { value = it }
     }
+    val context = LocalContext.current
+    val metaIds by produceState(emptyMap<String, Set<String>>(), streams) {
+        value = withContext(Dispatchers.IO) {
+            streams.orEmpty().mapNotNull { (s, _) -> SavedMeta.get(context, s.id)?.optJSONArray("episodes")?.let { a -> s.id to (0 until a.length()).map { a.getJSONObject(it).optString("id") }.toSet() } }.toMap()
+        }
+    }
     if (shows == null || streams == null || lang == null) return null
-    return remember(shows, streams, lang, all, loggedIn) {
+    return remember(shows, streams, lang, all, loggedIn, metaIds) {
         val mine = shows.filter { it.lang == lang }
-        HomeData(continueRow(mine, streams), all, loggedIn, libraryRows(mine).map { (l, list) -> tr(l) to list })
+        HomeData(continueRow(mine, streamsThatExist(streams, all, metaIds)), all, loggedIn, libraryRows(mine).map { (l, list) -> tr(l) to list }, metaIds)
     }
 }
 

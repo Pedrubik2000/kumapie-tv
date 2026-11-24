@@ -140,7 +140,7 @@ internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequeste
     Column(modifier.padding(start = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         items.forEach { item -> androidx.compose.runtime.key(item.label) {
             Box {
-                androidx.tv.material3.IconButton(onClick = { if (item.back && !item.selected) railLast = item.label; item.onClick() },
+                androidx.tv.material3.IconButton(onClick = { railLast = item.label.takeIf { item.back && !item.selected }; item.onClick() },
                     modifier = Modifier.size(56.dp).focusRequester(focus.getOrPut(item.label) { FocusRequester() })
                         .hint(if (item.selected) HintKind.RAIL_HERE else HintKind.RAIL, item.label)
                         .onFocusChanged {

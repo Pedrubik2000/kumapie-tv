@@ -128,12 +128,13 @@ private fun PickChip(name: String, count: Int, picks: ChipPicks, onClick: () -> 
     val on = name in picks.include
     val off = name in picks.exclude
     val tint = if (on) INCLUDE_GREEN else if (off) EXCLUDE_RED else Colors.text
-    androidx.tv.material3.Button(onClick = onClick, modifier = modifier.hint(HintKind.CHOOSE), scale = ButtonDefaults.scale(focusedScale = 1f),
+    var focused by remember { mutableStateOf(false) }
+    androidx.tv.material3.Button(onClick = onClick, modifier = modifier.hint(HintKind.CHOOSE).onFocusChanged { focused = it.isFocused }, scale = ButtonDefaults.scale(focusedScale = 1f),
         colors = ButtonDefaults.colors(containerColor = tint.copy(alpha = if (on || off) 0.14f else 0f), contentColor = tint,
             focusedContainerColor = Color.White, focusedContentColor = Color.Black),
         shape = ButtonDefaults.shape(CircleShape), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
         border = ButtonDefaults.border(border = Border(BorderStroke(1.dp, if (on || off) tint else Arcade.line)), focusedBorder = Border.None)) {
         Text((if (on) "✓ " else if (off) "✕ " else "") + name, textDecoration = if (off) TextDecoration.LineThrough else null)
-        if (count >= 0) Text("  $count", color = tint.copy(alpha = 0.6f))
+        if (count >= 0) Text("  $count", color = (if (focused) Color.Black else tint).copy(alpha = 0.6f))
     }
 }

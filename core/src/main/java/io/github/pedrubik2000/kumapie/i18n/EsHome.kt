@@ -132,7 +132,6 @@ internal val esHome: Map<String, String> = mapOf(
     "Saved to AniList" to "Guardado en AniList",
     "Will send when online" to "Se enviará cuando haya conexión",
     "Find something to watch" to "Buscar algo para ver",
-    "Nothing found. Change the search or the FILTERS on the left." to "No se encontró nada. Cambia la búsqueda o los FILTROS a la izquierda.",
     "Addons in Settings" to "Addons en Ajustes",
     "Add or fix an addon in Settings, then try again." to "Agrega o arregla un addon en Ajustes y vuelve a intentarlo.",
     "This or that" to "Esta o aquella",

@@ -10,6 +10,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasImeAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.isFocused
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -20,6 +21,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
+import io.github.pedrubik2000.kumapie.data.AniListBrowse
 import io.github.pedrubik2000.kumapie.data.AniListLists
 import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Found
@@ -53,9 +55,6 @@ class TvDiscoverFocusTest {
     private var home = 0
     private var lineOpened = 0
     private var settingsCalls = 0
-    private var boards = 0
-    private var searches = 0
-    private var searchDelay = 0L
     private var onHomeList = emptyList<Found>()
     private var fresh: ((List<Mine>) -> Unit)? = null
 
@@ -63,16 +62,25 @@ class TvDiscoverFocusTest {
         LibraryMemory.forget()
     }
 
+    private val fetched = ArrayList<Pair<AniListBrowse.Query, Int>>()
+    private var browseError: String? = null
+    private var browseNext = false
+
+    private fun result(id: Int, name: String) = Mine(id, "$id", name, name, "/c/$id.jpg", "", "TV", 12, "", 0, 0.0, 80, listOf("Adventure"), 2023, listOf("Detective"))
+
+    private val catalog = listOf(result(11, "Alpha"), result(12, "Beta"), result(13, "Delta"), result(14, "Echo"))
+
+    private var browse: suspend (AniListBrowse.Query, Int) -> AniListBrowse.Page = { q, p ->
+        fetched += q to p
+        browseError?.let { error(it) }
+        if (p == 1) AniListBrowse.Page(catalog, 312, browseNext) else AniListBrowse.Page(listOf(result(15, "Zeta")), 312, false)
+    }
+
     private fun title(id: Int, name: String) = Found("kitsu:$id", "series", name, "/p/$id.jpg", "2024")
 
     private val discovery = object : Discovery {
-        override suspend fun board(): List<Pair<String, List<Found>>> { boards++; return listOf("Popular" to listOf(title(11, "Alpha"), title(12, "Beta")), "New" to listOf(title(13, "Delta"), title(14, "Echo"))) }
-        override suspend fun discover(q: String): List<Found> {
-            searches++
-            kotlinx.coroutines.delay(searchDelay)
-            if (q == "boom") error("search failed")
-            return listOf(title(15, "Zeta"), title(16, "Eta"))
-        }
+        override suspend fun board() = emptyList<Pair<String, List<Found>>>()
+        override suspend fun discover(q: String) = emptyList<Found>()
         override suspend fun discoverMeta(type: String, id: String) = JSONObject()
         override suspend fun discoverStreams(type: String, id: String) = JSONArray()
         override suspend fun saved(): List<Found> = onHomeList
@@ -113,7 +121,7 @@ class TvDiscoverFocusTest {
         val jiten = queue()
         rule.setContent {
             androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.onBackKey { home++ }) {
-                if (showing) DiscoverScreen(discoverApi, settings, start = start, onSettings = { settingsCalls++ }, jiten = jiten, read = { prefs, user, _, _, f -> fresh = f; AniListLists.cached(prefs, user) })
+                if (showing) DiscoverScreen(discoverApi, settings, start = start, onSettings = { settingsCalls++ }, jiten = jiten, browse = { q, p -> browse(q, p) }, read = { prefs, user, _, _, f -> fresh = f; AniListLists.cached(prefs, user) })
             }
         }
     }
@@ -193,13 +201,6 @@ class TvDiscoverFocusTest {
         assertTrue(hasText("Kaiju"))
     }
 
-    @Test fun opensOnBrowseWhenLoggedOutAndShowsTheCatalogsAsOneGrid() {
-        open()
-        waitFocus { it?.startsWith("Browse") == true }
-        rule.waitUntil(5_000) { hasCard("Alpha") }
-        assertTrue(hasCard("Echo"))
-        assertTrue(hasText("4 titles"))
-    }
 
     @Test fun loggedOutPickAndThisOrThatAskToLogInAndTheButtonIsReachable() {
         open()
@@ -374,48 +375,8 @@ class TvDiscoverFocusTest {
         rule.waitUntil(5_000) { hasText("Not enough titles on your Planning list to choose between. Add more on AniList, or open Browse.") }
     }
 
-    @Test fun browseCatalogRowStepsAndTheGridChangesThenRightEntersAndLeftReturns() {
-        open()
-        waitFocus { it?.startsWith("Browse") == true }
-        rule.waitUntil(5_000) { hasCard("Alpha") }
-        press(DOWN)
-        assertTrue(focused()?.startsWith("Catalog") == true)
-        press(RIGHT)
-        rule.waitUntil(5_000) { !hasCard("Delta") && hasCard("Beta") }
-        assertTrue(hasText("2 titles"))
-        press(UP, RIGHT)
-        assertEquals("Alpha", focused())
-        press(RIGHT)
-        assertEquals("Beta", focused())
-        press(LEFT, LEFT)
-        assertTrue(focused()?.startsWith("Browse") == true)
-        press(RIGHT)
-        assertEquals("Alpha", focused())
-    }
 
-    @Test fun backFromTheGridGoesToTheColumnAndBackAgainLeaves() {
-        open()
-        waitFocus { it?.startsWith("Browse") == true }
-        rule.waitUntil(5_000) { hasCard("Alpha") }
-        press(RIGHT, Key.Back.keyCode)
-        assertTrue(focused()?.startsWith("Browse") == true)
-        assertEquals(0, home)
-        press(Key.Back.keyCode)
-        assertEquals(1, home)
-    }
 
-    @Test fun okOnACoverOpensTheTitlePageAndBackRestoresTheCover() {
-        open()
-        waitFocus { it?.startsWith("Browse") == true }
-        rule.waitUntil(5_000) { hasCard("Echo") }
-        press(RIGHT, RIGHT, RIGHT, RIGHT)
-        assertEquals("Echo", focused())
-        press(OK)
-        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
-        press(Key.Back.keyCode)
-        rule.waitUntil(5_000) { focused() == "Echo" }
-        assertEquals(0, home)
-    }
 
     private fun search(q: String) {
         rule.onNode(hasImeAction(androidx.compose.ui.text.input.ImeAction.Done)).requestFocus()
@@ -424,49 +385,131 @@ class TvDiscoverFocusTest {
         rule.onNode(hasSetTextAction()).performImeAction()
     }
 
-    @Test fun aSearchReplacesTheGridAndBackClearsItStayingInDiscover() {
+
+
+
+    private fun openBrowse() {
         open()
         waitFocus { it?.startsWith("Browse") == true }
         rule.waitUntil(5_000) { hasCard("Alpha") }
-        search("zeta")
-        rule.waitUntil(5_000) { hasCard("Zeta") && !hasCard("Alpha") }
+    }
+
+    private fun lastQuery() = fetched.last().first
+
+    @Test fun opensOnBrowseWhenLoggedOutAndShowsAniListResultsAsOneGridWithTheirTotal() {
+        openBrowse()
+        assertTrue(hasCard("Echo"))
+        assertTrue(hasText("312 on AniList"))
+        assertEquals(listOf("POPULARITY_DESC"), lastQuery().sort)
+        assertEquals(1, fetched.size)
+    }
+
+    @Test fun theSortRowStepsAndTheGridIsAskedAgainOnceAfterTheDebounce() {
+        openBrowse()
+        rule.onNodeWithText("Sort").requestFocus()
+        press(RIGHT, RIGHT)
+        assertTrue(hasText("‹  AniList score  ›"))
+        rule.waitUntil(5_000) { fetched.size == 2 }
+        assertEquals(listOf("SCORE_DESC"), lastQuery().sort)
+        assertTrue(hasText("312 on AniList"))
+    }
+
+    @Test fun myListIsOnlyThereWhenLoggedIn() {
+        openBrowse()
+        assertTrue(!hasText("My list"))
+    }
+
+    @Test fun okOnGenresOpensThePickerAndAnIncludedChipIsAskedForThenBackFocusesTheRow() {
+        openBrowse()
+        rule.onNodeWithText("Genres").requestFocus()
+        press(OK)
+        rule.waitUntil(5_000) { hasText("Filter anime") }
+        rule.waitUntil(5_000) { focused() != null }
+        assertEquals("Action", focused())
+        press(OK)
+        rule.waitUntil(5_000) { fetched.size == 2 }
+        assertEquals(setOf("Action"), lastQuery().genreIn)
         press(Key.Back.keyCode)
-        rule.waitUntil(5_000) { hasCard("Alpha") && !hasCard("Zeta") }
+        waitFocus { it?.startsWith("Genres") == true }
+        assertTrue(hasText("1 ✓  ›"))
         assertEquals(0, home)
     }
 
-    @Test fun backFromASearchedTitleGoesBackToTheResults() {
+    @Test fun aFailedAskShowsTheErrorAndTryAgainLoadsIt() {
+        browseError = "AniList: too many requests"
         open()
-        waitFocus { it?.startsWith("Browse") == true }
+        rule.waitUntil(5_000) { hasText("AniList: too many requests") }
+        waitFocus { it == "Try again" }
+        browseError = null
+        press(OK)
         rule.waitUntil(5_000) { hasCard("Alpha") }
-        search("zeta")
-        rule.waitUntil(5_000) { hasCard("Zeta") }
-        rule.onNode(androidx.compose.ui.test.hasContentDescription("Zeta")).requestFocus()
+    }
+
+    @Test fun anEmptyAnswerSaysWhichFiltersToLoosen() {
+        browse = { q, _ -> fetched += q to 1; AniListBrowse.Page(emptyList(), 0, false) }
+        openBrowse2()
+        rule.onNodeWithText("Format").requestFocus()
         press(RIGHT)
-        assertEquals("Eta", focused())
+        rule.waitUntil(5_000) { hasText("Nothing found. Loosen: Format.") }
+    }
+
+    private fun openBrowse2() {
+        open()
+        rule.waitUntil(5_000) { hasText("Nothing found on AniList.") }
+    }
+
+    @Test fun morePagesLoadAndAppendWhenTheGridIsShort() {
+        browseNext = true
+        open()
+        rule.waitUntil(5_000) { hasCard("Zeta") }
+        assertEquals(listOf(1, 2), fetched.map { it.second })
+        assertTrue(hasCard("Alpha"))
+    }
+
+    @Test fun backFromTheGridGoesToTheColumnAndBackAgainLeaves() {
+        openBrowse()
+        press(RIGHT, Key.Back.keyCode)
+        assertTrue(focused()?.startsWith("Browse") == true)
+        assertEquals(0, home)
+        press(Key.Back.keyCode)
+        assertEquals(1, home)
+    }
+
+    @Test fun okOnACoverOpensTheTitlePageAndBackRestoresTheCoverWithoutAskingAgain() {
+        openBrowse()
+        press(RIGHT, RIGHT, RIGHT, RIGHT)
+        assertEquals("Echo", focused())
         press(OK)
         rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
         press(Key.Back.keyCode)
-        rule.waitUntil(5_000) { focused() == "Eta" }
-        assertTrue(hasText("zeta"))
+        rule.waitUntil(5_000) { focused() == "Echo" }
+        assertEquals(1, fetched.size)
+    }
+
+    @Test fun aSearchGoesToAniListAndBackClearsItStayingInDiscover() {
+        openBrowse()
+        search("zeta")
+        rule.waitUntil(5_000) { fetched.any { it.first.search == "zeta" } }
+        assertEquals(listOf("SEARCH_MATCH", "POPULARITY_DESC"), fetched.last { it.first.search == "zeta" }.first.sort)
+        press(Key.Back.keyCode)
+        rule.waitUntil(5_000) { fetched.last().first.search.isEmpty() && fetched.size >= 3 }
         assertEquals(0, home)
     }
 
-    @Test fun myListNotOnItHidesTitlesOnHisLists() {
-        logIn(planning)
-        val board = object : Discovery by discovery {
-            override suspend fun board() = listOf("Popular" to listOf(title(3, "Alpha"), title(20, "Beta")))
-        }
-        open(board)
+    @Test fun myListNotOnItAsksAniListAndOnlyPlanningAsksForThoseIds() {
+        logIn()
+        open()
         waitFocus { it?.startsWith("Pick for me") == true }
         rows(DOWN, 2)
         press(OK)
         rule.waitUntil(5_000) { hasCard("Alpha") }
-        press(DOWN, DOWN, DOWN)
-        assertTrue(focused()?.startsWith("My list") == true)
+        rule.onNodeWithText("My list").requestFocus()
         press(RIGHT)
-        rule.waitUntil(5_000) { !hasCard("Alpha") && hasCard("Beta") }
-        assertTrue(hasText("1 of 2 shown"))
+        rule.waitUntil(5_000) { fetched.size >= 2 }
+        assertEquals(false, lastQuery().onList)
+        press(RIGHT)
+        rule.waitUntil(5_000) { fetched.size >= 3 }
+        assertTrue(lastQuery().idIn.orEmpty().containsAll(listOf(3, 4, 5)))
     }
 
     @Test fun aTitleNoAddonKnowsOffersTryAgainAndAddonsInSettings() {
@@ -489,43 +532,8 @@ class TvDiscoverFocusTest {
         rule.waitUntil(2_000) { focused()?.startsWith("Episode 2") == true }
     }
 
-    @Test fun theBoardIsAskedOnceAcrossATitlePageAndBack() {
-        open()
-        waitFocus { it?.startsWith("Browse") == true }
-        rule.waitUntil(5_000) { hasCard("Alpha") }
-        press(RIGHT, OK)
-        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
-        press(Key.Back.keyCode)
-        rule.waitUntil(5_000) { focused() == "Alpha" }
-        assertEquals(1, boards)
-    }
 
-    @Test fun aSlowSearchIsNotRunAgainOnReturn() {
-        searchDelay = 1_500
-        open()
-        waitFocus { it?.startsWith("Browse") == true }
-        rule.waitUntil(5_000) { hasCard("Alpha") }
-        search("zeta")
-        rule.waitUntil(5_000) { hasCard("Zeta") }
-        rule.onNode(androidx.compose.ui.test.hasContentDescription("Zeta")).requestFocus()
-        press(OK)
-        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
-        press(Key.Back.keyCode)
-        rule.waitUntil(5_000) { focused() == "Zeta" }
-        assertEquals(1, searches)
-        assertEquals(1, boards)
-    }
 
-    @Test fun aFailedSearchLeavesNoErrorOnceItIsClearedAndTheBoardIsNotAskedAgain() {
-        open()
-        waitFocus { it?.startsWith("Browse") == true }
-        rule.waitUntil(5_000) { hasCard("Alpha") }
-        search("boom")
-        rule.waitUntil(5_000) { hasText("search failed") }
-        press(Key.Back.keyCode)
-        rule.waitUntil(5_000) { hasCard("Alpha") && !hasText("search failed") }
-        assertEquals(1, boards)
-    }
 
     @Test fun theWinnerOpenedAndBackIsStillTheWinnerWithWatchFocused() {
         playToTheWinner()
@@ -578,19 +586,6 @@ class TvDiscoverFocusTest {
         assertTrue(!hasText("Zed"))
     }
 
-    @Test fun searchingAgainWhileTheFirstSearchLoadsLeavesNoCancelledError() {
-        searchDelay = 1_500
-        open()
-        waitFocus { it?.startsWith("Browse") == true }
-        rule.waitUntil(5_000) { hasCard("Alpha") }
-        search("zeta")
-        rule.onNode(hasImeAction(androidx.compose.ui.text.input.ImeAction.Done)).requestFocus()
-        press(OK)
-        rule.onNode(hasSetTextAction()).performTextReplacement("eta")
-        rule.onNode(hasSetTextAction()).performImeAction()
-        rule.waitUntil(5_000) { hasCard("Zeta") }
-        assertTrue(!hasText("Try again"))
-    }
 
     @Test fun downFromTheLineWhenItsReturnTargetIsGoneStillLeavesTheLine() {
         logIn()
@@ -640,7 +635,7 @@ class TvDiscoverFocusTest {
         val jiten = queue()
         rule.setContent {
             androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.onBackKey { home++ }) {
-                DiscoverScreen(discovery, Settings(RuntimeEnvironment.getApplication()), jiten = jiten, read = { prefs, user, _, _, f -> fresh = f; AniListLists.cached(prefs, user) })
+                DiscoverScreen(discovery, Settings(RuntimeEnvironment.getApplication()), jiten = jiten, browse = { q, p -> browse(q, p) }, read = { prefs, user, _, _, f -> fresh = f; AniListLists.cached(prefs, user) })
                 RdMissingLine(Settings(RuntimeEnvironment.getApplication()).apply { rdToken = ""; addons = emptyList() }) { lineOpened++ }
             }
         }

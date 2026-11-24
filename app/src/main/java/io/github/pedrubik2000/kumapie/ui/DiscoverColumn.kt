@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,13 +60,17 @@ internal fun ColumnScope.NextPicks(next: List<Mine>, levels: Levels?, sides: Mod
 
 @Composable
 internal fun ColumnScope.BrowseFilterRows(state: BrowseState, loggedIn: Boolean, sides: Modifier) {
-    val catalogs = listOf("") + state.rows.orEmpty().map { it.first }
     val f = state.filters
+    TvTextField(state.text, { state.text = it }, onDone = { state.pick(f.copy(query = state.text.trim())) },
+        sides.onFocusChanged { if (!it.isFocused && state.text.trim() != f.query) state.pick(f.copy(query = state.text.trim())) }, placeholder = tr("Search all anime"))
     Section(tr("Filters").uppercase())
-    StepRow(tr("Catalog"), f.catalog.ifEmpty { tr("All") }, sides,
-        { by -> state.pick(f.copy(catalog = catalogs[Math.floorMod(catalogs.indexOf(f.catalog) + by, catalogs.size)], query = "")) }, {}, flat = true)
-    TvTextField(state.text, { state.text = it }, onDone = { state.pick(f.copy(query = state.text.trim())) }, sides, placeholder = tr("Search"))
-    if (loggedIn) StepRow(tr("My list"), if (f.notOnList) tr("Not on it") else tr("Any"), sides, { state.pick(f.copy(notOnList = !f.notOnList)) }, {}, flat = true)
-    Section(tr("Difficulty").uppercase())
-    StepRow(tr("Up to"), limitLabel(f.limit), sides, { by -> state.pick(f.copy(limit = (f.limit + by).coerceIn(0, LIMIT_MAX))) }, {}, flat = true)
+    StepRow(tr("Sort"), f.sort.label(), sides, { by -> state.pick(f.copy(sort = f.sort.step(by))) }, {}, flat = true)
+    StepRow(tr("Genres"), picksLabel(f.genres), sides.focusRequester(state.links.genres), {}, {}, flat = true, onOpen = { state.links.open(PickerKind.GENRES) })
+    StepRow(tr("Tags"), picksLabel(f.tags), sides.focusRequester(state.links.tags), {}, {}, flat = true, onOpen = { state.links.open(PickerKind.TAGS) })
+    StepRow(tr("Format"), f.format.label(), sides, { by -> state.pick(f.copy(format = f.format.step(by))) }, {}, flat = true)
+    StepRow(tr("Year"), f.year.label(), sides, { by -> state.pick(f.copy(year = f.year.step(by))) }, {}, flat = true)
+    StepRow(tr("Airing"), f.airing.label(), sides, { by -> state.pick(f.copy(airing = f.airing.step(by))) }, {}, flat = true)
+    StepRow(tr("Episodes"), f.episodes.label(), sides, { by -> state.pick(f.copy(episodes = f.episodes.step(by))) }, {}, flat = true)
+    if (loggedIn) StepRow(tr("My list"), f.mine.label(), sides, { by -> state.pick(f.copy(mine = f.mine.step(by, true))) }, {}, flat = true)
+    StepRow(tr("Difficulty"), limitLabel(f.limit), sides, { by -> state.pick(f.copy(limit = (f.limit + by).coerceIn(0, LIMIT_MAX))) }, {}, flat = true)
 }

@@ -8,7 +8,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
-import io.github.pedrubik2000.kumapie.data.Addons
+import io.github.pedrubik2000.kumapie.data.AniListBrowse
 import io.github.pedrubik2000.kumapie.data.BestForYou
 import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Found
@@ -83,17 +83,28 @@ internal class PickState(private val store: PickStore, val clock: () -> Long = S
 
 }
 
+internal typealias BrowseFetch = suspend (AniListBrowse.Query, Int) -> AniListBrowse.Page
+
+private const val BROWSE_DEBOUNCE_MS = 400L
+
 @Stable
 internal class BrowseState(initial: BrowseFilters, private val settings: Settings) {
     var filters by mutableStateOf(initial)
     var text by mutableStateOf(initial.query)
-    var rows by mutableStateOf<List<Pair<String, List<Found>>>?>(null)
-    var results by mutableStateOf<List<Found>?>(null)
+    var items by mutableStateOf<List<Mine>>(emptyList())
+    var total by mutableIntStateOf(0)
+    var loaded by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
-    var searchError by mutableStateOf<String?>(null)
     var attempt by mutableIntStateOf(0)
-    var fresh = false
-    var resultsFor = ""
+    var moreTick by mutableIntStateOf(0)
+    var picker by mutableStateOf<PickerKind?>(null)
+    var last: PickerKind? = null
+    val links = PickerLinks(FocusRequester(), FocusRequester()) { k -> picker = k; last = k }
+    var hasNext = false
+    private var busy = false
+    private var page = 1
+    private var fetchedFor: Any? = null
+    private var query = AniListBrowse.Query()
 
     fun pick(f: BrowseFilters) {
         if (f.query.isEmpty() && filters.query.isNotEmpty()) text = ""
@@ -102,9 +113,47 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
     }
 
     fun retry() {
-        fresh = false
-        resultsFor = ""
+        fetchedFor = null
         attempt++
+    }
+
+    fun requestMore() {
+        if (hasNext && !busy && loaded) moreTick++
+    }
+
+    suspend fun first(key: Any, q: AniListBrowse.Query, fetch: BrowseFetch) {
+        if (fetchedFor == key) return
+        if (loaded) delay(BROWSE_DEBOUNCE_MS)
+        error = null
+        busy = true
+        loaded = false
+        try {
+            val p = fetch(q, 1)
+            items = p.items; total = p.total; hasNext = p.hasNext; page = 1; query = q; fetchedFor = key; loaded = true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            error = e.message ?: e.toString()
+        } finally {
+            busy = false
+        }
+    }
+
+    suspend fun more(fetch: BrowseFetch) {
+        if (!hasNext || busy) return
+        busy = true
+        try {
+            val p = fetch(query, page + 1)
+            val have = items.map { it.anilistId }.toSet()
+            items = items + p.items.filter { it.anilistId !in have }; hasNext = p.hasNext; page++
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            hasNext = false
+            error = e.message ?: e.toString()
+        } finally {
+            busy = false
+        }
     }
 }
 
@@ -160,23 +209,14 @@ internal fun LoadPicks(pick: PickState) {
 }
 
 @Composable
-internal fun LoadBrowse(api: Discovery, state: BrowseState, active: Boolean) {
-    LaunchedEffect(active, state.attempt) {
-        if (!active || state.fresh) return@LaunchedEffect
-        state.error = null
-        if (state.rows == null) state.rows = (api as? Addons)?.lastBoard()
-        runCatching { api.board() }.rethrowCancel().onSuccess { state.rows = it; state.fresh = true }.onFailure { if (state.rows == null) state.error = it.message ?: it.toString() }
+internal fun LoadBrowse(state: BrowseState, fetch: BrowseFetch, planning: List<Int>?, active: Boolean) {
+    val key = state.filters.copy(limit = 0) to planning?.size.takeIf { state.filters.needsPlanning }
+    LaunchedEffect(active, key, state.attempt) {
+        if (!active || (state.filters.needsPlanning && planning == null)) return@LaunchedEffect
+        state.first(key, state.filters.toQuery(planning.orEmpty()), fetch)
     }
-    val query = state.filters.query
-    LaunchedEffect(active, query, state.attempt) {
-        state.searchError = null
-        if (query.isEmpty()) {
-            state.results = null
-            state.resultsFor = ""
-            return@LaunchedEffect
-        }
-        if (!active || (state.resultsFor == query && state.results != null)) return@LaunchedEffect
-        state.results = null
-        runCatching { api.discover(query) }.rethrowCancel().onSuccess { state.results = it; state.resultsFor = query }.onFailure { state.searchError = it.message ?: it.toString() }
+    LaunchedEffect(state.moreTick) { if (state.moreTick > 0 && active) state.more(fetch) }
+    LaunchedEffect(state.picker == null) {
+        state.last?.takeIf { state.picker == null }?.let { (if (it == PickerKind.GENRES) state.links.genres else state.links.tags).focusSoon(); state.last = null }
     }
 }

@@ -38,7 +38,7 @@ internal enum class PickerKind { GENRES, TAGS }
 
 internal class PickerLinks(val genres: FocusRequester, val tags: FocusRequester, val open: (PickerKind) -> Unit)
 
-private fun picksLabel(p: ChipPicks): String = if (!p.any) tr("Any") else listOfNotNull(
+internal fun picksLabel(p: ChipPicks): String = if (!p.any) tr("Any") else listOfNotNull(
     p.include.size.takeIf { it > 0 }?.let { "$it ✓" }, p.exclude.size.takeIf { it > 0 }?.let { "$it ✕" }).joinToString(" ")
 
 @Composable

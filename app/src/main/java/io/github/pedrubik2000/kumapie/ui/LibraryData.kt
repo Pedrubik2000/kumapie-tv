@@ -37,7 +37,7 @@ enum class LibrarySort {
     }
 }
 
-enum class FormatBand(private val formats: Set<String>) {
+enum class FormatBand(val formats: Set<String>) {
     ANY(emptySet()), TV(setOf("TV")), MOVIE(setOf("MOVIE")), OVA_ONA(setOf("OVA", "ONA", "SPECIAL")), SHORT(setOf("TV_SHORT"));
 
     fun step(by: Int): FormatBand = entries[Math.floorMod(ordinal + by, entries.size)]
@@ -53,7 +53,7 @@ enum class FormatBand(private val formats: Set<String>) {
     }
 }
 
-enum class EpisodeBand(private val range: IntRange) {
+enum class EpisodeBand(val range: IntRange) {
     ANY(0..0), ONE(1..1), TWO_TO_13(2..13), FOURTEEN_TO_26(14..26), MORE(27..Int.MAX_VALUE);
 
     fun step(by: Int): EpisodeBand = entries[Math.floorMod(ordinal + by, entries.size)]
@@ -69,7 +69,7 @@ enum class EpisodeBand(private val range: IntRange) {
     }
 }
 
-enum class YearBand(private val range: IntRange) {
+enum class YearBand(val range: IntRange) {
     ANY(0..0), NEW(2020..9999), TEENS(2010..2019), NOUGHTS(2000..2009), OLD(1..1999);
 
     fun step(by: Int): YearBand = entries[Math.floorMod(ordinal + by, entries.size)]
@@ -85,7 +85,7 @@ enum class YearBand(private val range: IntRange) {
     }
 }
 
-enum class AiringBand(private val status: String) {
+enum class AiringBand(val status: String) {
     ANY(""), FINISHED("FINISHED"), AIRING("RELEASING"), NOT_YET("NOT_YET_RELEASED");
 
     fun step(by: Int): AiringBand = entries[Math.floorMod(ordinal + by, entries.size)]
@@ -183,8 +183,8 @@ private fun sorted(items: List<Mine>, sort: LibrarySort, level: (String) -> Titl
     LibrarySort.YEAR -> items.sortedWith(compareBy<Mine>({ it.year == 0 }, { -it.year }))
 }
 
-class LibraryLine(val head: String, val include: String, val exclude: String) {
-    override fun toString(): String = listOf(head, include, exclude).filter { it.isNotEmpty() }.joinToString(" · ")
+class LibraryLine(val head: String, val include: String, val exclude: String, val tail: String = "") {
+    override fun toString(): String = listOf(head, include, exclude, tail).filter { it.isNotEmpty() }.joinToString(" · ")
 }
 
 fun libraryLine(list: LibraryList, f: LibraryFilters, v: LibraryView): LibraryLine {

@@ -23,6 +23,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import io.github.pedrubik2000.kumapie.data.AniList
+import io.github.pedrubik2000.kumapie.data.AniListBrowse
 import io.github.pedrubik2000.kumapie.data.AniListSync
 import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Found
@@ -129,7 +130,7 @@ class TvTitleFocusTest {
         rule.setContent {
             val screen = stack.last()
             StackEntry(screen) {
-                if (screen is Screen.Discover) DiscoverScreen(discovery(listOf(true)), Settings(app), start = screen.open, jiten = queue,
+                if (screen is Screen.Discover) DiscoverScreen(discovery(listOf(true)), Settings(app), start = screen.open, jiten = queue, browse = { _, _ -> AniListBrowse.Page(emptyList(), 0, false) },
                     onDiscover = { stack.goTop(Screen.Discover()) })
                 else Text("home screen")
             }
@@ -138,7 +139,7 @@ class TvTitleFocusTest {
         rule.onNodeWithContentDescription("Discover").requestFocus()
         rule.waitForIdle()
         press(Key.DirectionCenter)
-        rule.waitUntil(5_000) { hasText("Catalog") }
+        rule.waitUntil(5_000) { hasText("Search all anime") }
         assertEquals(2, stack.size)
         rule.runOnIdle { stack.removeAt(stack.lastIndex) }
         rule.waitUntil(5_000) { hasText("home screen") }

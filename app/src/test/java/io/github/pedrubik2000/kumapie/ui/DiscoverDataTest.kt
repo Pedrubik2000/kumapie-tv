@@ -1,7 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
 import io.github.pedrubik2000.kumapie.data.BestForYou.Why
-import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.lang.TitleDifficulty
 import org.junit.Assert.assertFalse
@@ -123,61 +122,58 @@ class CandidatesTest {
 }
 
 class BrowseViewTest {
-    private fun found(id: String) = Found(id, "series", id, "", "2024")
+    private val levels = mapOf("k1" to 0.5, "k2" to 4.5).mapValues { TitleDifficulty(it.value, 1, null, null) }
+    private val results = listOf(mine(1), mine(2), mine(3))
 
-    private val rows = listOf("Popular" to listOf(found("kitsu:1"), found("kitsu:2"), found("kitsu:3")), "New" to listOf(found("kitsu:3"), found("tt9")))
-    private val levels = mapOf("1" to 0.5, "2" to 4.5).mapValues { TitleDifficulty(it.value, 1, null, null) }
-    private fun ids(v: BrowseView) = v.items.map { it.id }
-    private fun view(f: BrowseFilters, onList: Set<String> = emptySet(), results: List<Found> = emptyList()) = browseView(rows, results, f, onList) { levels[it] }
-
-    @Test fun allIsEveryCatalogWithoutRepeats() {
-        assertEquals(listOf("kitsu:1", "kitsu:2", "kitsu:3", "tt9"), ids(view(BrowseFilters())))
-        assertEquals(listOf("kitsu:3", "tt9"), ids(view(BrowseFilters(catalog = "New"))))
-        assertEquals(emptyList<String>(), ids(view(BrowseFilters(catalog = "Gone"))))
+    @Test fun withoutALimitEverythingShowsAndNothingIsCountedUnrated() {
+        val v = browseView(results, BrowseFilters()) { levels[it] }
+        assertEquals(listOf(1, 2, 3), v.items.map { it.anilistId })
+        assertEquals(0, v.unrated)
     }
 
-    @Test fun aSearchReplacesTheCatalogs() {
-        assertEquals(listOf("kitsu:7"), ids(view(BrowseFilters(catalog = "New", query = "z"), results = listOf(found("kitsu:7"), found("kitsu:7")))))
+    @Test fun aLimitHidesTheRatedTitlesAboveItAndKeepsTheUnratedOnes() {
+        val v = browseView(results, BrowseFilters(limit = 2)) { levels[it] }
+        assertEquals(listOf(1, 3), v.items.map { it.anilistId })
+        assertEquals(1, v.unrated)
     }
 
-    @Test fun notOnMyListHidesWhatHisListsHold() {
-        val v = view(BrowseFilters(notOnList = true), setOf("2", "3"))
-        assertEquals(listOf("kitsu:1", "tt9"), ids(v))
-        assertEquals(4, v.total)
+    @Test fun theQueryCarriesOnlyWhatIsSetAndSearchMatchComesFirstWhenSearching() {
+        val q = BrowseFilters(query = " psycho ", sort = BrowseSort.SCORE, genres = ChipPicks(setOf("Mystery"), setOf("Ecchi")), tags = ChipPicks(exclude = setOf("Gore")),
+            format = FormatBand.OVA_ONA, airing = AiringBand.FINISHED, mine = BrowseMine.NOT_ON).toQuery(emptyList())
+        assertEquals("psycho", q.search)
+        assertEquals(listOf("SEARCH_MATCH", "SCORE_DESC"), q.sort)
+        assertEquals(setOf("Mystery"), q.genreIn)
+        assertEquals(setOf("Ecchi"), q.genreNot)
+        assertEquals(setOf("Gore"), q.tagNot)
+        assertEquals(setOf("OVA", "ONA", "SPECIAL"), q.formats)
+        assertEquals("FINISHED", q.status)
+        assertEquals(false, q.onList)
+        assertEquals(listOf("POPULARITY_DESC"), BrowseFilters().toQuery(emptyList()).sort)
     }
 
-    @Test fun aLimitKeepsRatedTitlesAtOrBelowItAndCountsTheUnrated() {
-        val v = view(BrowseFilters(limit = 2))
-        assertEquals(listOf("kitsu:1"), ids(v))
-        assertEquals(2, v.unrated)
-        assertEquals(listOf("kitsu:1", "kitsu:2"), ids(view(BrowseFilters(limit = 5))))
-        assertEquals(0, view(BrowseFilters()).unrated)
+    @Test fun episodeAndYearBandsBecomeExclusiveBounds() {
+        fun q(f: BrowseFilters) = f.toQuery(emptyList())
+        assertEquals(0 to 2, q(BrowseFilters(episodes = EpisodeBand.ONE)).let { it.episodesGreater to it.episodesLesser })
+        assertEquals(1 to 14, q(BrowseFilters(episodes = EpisodeBand.TWO_TO_13)).let { it.episodesGreater to it.episodesLesser })
+        assertEquals(26 to null, q(BrowseFilters(episodes = EpisodeBand.MORE)).let { it.episodesGreater to it.episodesLesser })
+        assertEquals(20191231 to null, q(BrowseFilters(year = YearBand.NEW)).let { it.startGreater to it.startLesser })
+        assertEquals(20091231 to 20200101, q(BrowseFilters(year = YearBand.TEENS)).let { it.startGreater to it.startLesser })
+        assertEquals(null to 20000101, q(BrowseFilters(year = YearBand.OLD)).let { it.startGreater to it.startLesser })
+        assertEquals(null, q(BrowseFilters()).idIn)
     }
 
-    @Test fun theLimitAndMyListWorkTogether() {
-        val v = view(BrowseFilters(limit = 5, notOnList = true), setOf("1"))
-        assertEquals(listOf("kitsu:2"), ids(v))
-        assertEquals(2, v.unrated)
+    @Test fun onlyPlanningAsksForThoseIds() {
+        assertEquals(listOf(3, 5), BrowseFilters(mine = BrowseMine.PLANNING).toQuery(listOf(3, 5)).idIn)
     }
 
-    @Test fun withoutALimitNothingIsAskedBeyondTheVisibleCovers() {
-        assertEquals(emptyList<String>(), browseAskIds(rows, emptyList(), BrowseFilters()) { false })
+    @Test fun theLineNamesTheTotalThePicksAndTheOtherFilters() {
+        val f = BrowseFilters(genres = ChipPicks(setOf("Supernatural", "Mystery"), setOf("Ecchi")), format = FormatBand.TV, mine = BrowseMine.NOT_ON, limit = 4)
+        assertEquals("312 on AniList · Mystery, Supernatural · no Ecchi · TV · not on my list · up to Hard", browseLine(f, 312, BrowseView(emptyList(), 0)).toString())
+        assertEquals("5 on AniList", browseLine(BrowseFilters(), 5, BrowseView(emptyList(), 0)).toString())
     }
 
-    @Test fun withALimitTheUnratedOfTheScopeAreAskedInOrderAndAllIsCappedAtSixty() {
-        val big = listOf("Big" to (1..100).map { found("kitsu:$it") })
-        val rated = setOf("2")
-        assertEquals((1..62).map { "$it" }.filter { it != "2" }.take(60), browseAskIds(big, emptyList(), BrowseFilters(limit = 3)) { it in rated })
-        assertEquals(99, browseAskIds(big, emptyList(), BrowseFilters(limit = 3, catalog = "Big")) { it in rated }.size)
-        assertEquals(listOf("3"), browseAskIds(rows, emptyList(), BrowseFilters(limit = 3, catalog = "New")) { false })
-        assertEquals(emptyList<String>(), browseAskIds(rows, emptyList(), BrowseFilters(limit = 3, catalog = "New")) { true })
-        assertEquals(listOf("7"), browseAskIds(rows, listOf(found("kitsu:7"), found("tt1")), BrowseFilters(limit = 3, query = "z")) { false })
-    }
-
-    @Test fun theLineSaysHowManyAreShownAndHowManyAreUnrated() {
-        assertEquals("4 titles", browseLine(BrowseFilters(), view(BrowseFilters())))
-        val f = BrowseFilters(limit = 2)
-        assertEquals("1 of 4 shown · 2 not rated yet", browseLine(f, view(f)))
+    @Test fun theActiveFiltersAreNamedForAnEmptyResult() {
+        assertEquals(listOf("Genres", "Year"), browseActive(BrowseFilters(genres = ChipPicks(setOf("X")), year = YearBand.NEW)))
     }
 }
 

@@ -42,13 +42,14 @@ internal fun styled(line: LibraryLine, plain: Color): AnnotatedString = buildAnn
     withStyle(SpanStyle(color = plain)) { append(line.head) }
     if (line.include.isNotEmpty()) { withStyle(SpanStyle(color = plain)) { append(" · ") }; withStyle(SpanStyle(color = INCLUDE_GREEN)) { append(line.include) } }
     if (line.exclude.isNotEmpty()) { withStyle(SpanStyle(color = plain)) { append(" · ") }; withStyle(SpanStyle(color = EXCLUDE_RED)) { append(line.exclude) } }
+    if (line.tail.isNotEmpty()) withStyle(SpanStyle(color = plain)) { append(" · " + line.tail) }
 }
 
-private fun picksOf(f: LibraryFilters, kind: PickerKind): ChipPicks = if (kind == PickerKind.GENRES) f.genres else f.tags
+internal fun picksOf(f: LibraryFilters, kind: PickerKind): ChipPicks = if (kind == PickerKind.GENRES) f.genres else f.tags
 
 private fun withPicks(f: LibraryFilters, kind: PickerKind, p: ChipPicks): LibraryFilters = if (kind == PickerKind.GENRES) f.copy(genres = p) else f.copy(tags = p)
 
-private fun names(inList: List<Mine>, kind: PickerKind, picks: ChipPicks): List<Pair<String, Int>> {
+internal fun names(inList: List<Mine>, kind: PickerKind, picks: ChipPicks): List<Pair<String, Int>> {
     val counts = inList.flatMap { if (kind == PickerKind.GENRES) it.genres else it.tags }.groupingBy { it }.eachCount()
     val base = if (kind == PickerKind.GENRES) counts.toList().sortedBy { it.first }
         else counts.toList().sortedWith(compareBy({ -it.second }, { it.first })).take(TAGS_SHOWN)
@@ -56,16 +57,23 @@ private fun names(inList: List<Mine>, kind: PickerKind, picks: ChipPicks): List<
     return base + missing
 }
 
+internal class PickerSource(val title: String, val caption: (PickerKind) -> String, val chips: (PickerKind) -> List<Pair<String, Int>>,
+                            val picks: (PickerKind) -> ChipPicks, val onPicks: (PickerKind, ChipPicks) -> Unit)
+
+internal fun librarySource(list: LibraryList, inList: List<Mine>, filters: LibraryFilters, onFilters: (LibraryFilters) -> Unit) = PickerSource(
+    tr("Filter %s", list.label()),
+    { k -> (if (k == PickerKind.GENRES) tr("Genres") else tr("Tags")).uppercase() + " · " + tr("counts from your %1\$d %2\$s titles", inList.size, list.label()) },
+    { k -> names(inList, k, picksOf(filters, k)) }, { k -> picksOf(filters, k) }, { k, p -> onFilters(withPicks(filters, k, p)) })
+
 @Composable
-internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, list: LibraryList, inList: List<Mine>, filters: LibraryFilters, line: LibraryLine?,
-                           shown: Int, onFilters: (LibraryFilters) -> Unit, onClose: () -> Unit) {
-    val picks = picksOf(filters, kind)
-    val chips = remember(inList, kind, picks) { names(inList, kind, picks) }
+internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, source: PickerSource, line: LibraryLine?, shown: Int, onClose: () -> Unit) {
+    val picks = source.picks(kind)
+    val chips = source.chips(kind)
     val first = remember(kind) { FocusRequester() }
     LaunchedEffect(kind) { first.focusSoon() }
     Column(PICKER_PANEL.onBackKey { onClose() }.arcadePanel().padding(24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Title(tr("Filter %s", list.label()), fontSize = 30.sp)
+            Title(source.title, fontSize = 30.sp)
             PickerKind.entries.forEach { k ->
                 FlatButton({ onKind(k) }, Modifier.hint(HintKind.CHOOSE), selected = k == kind) {
                     Text(if (k == PickerKind.GENRES) tr("Genres") else tr("Tags"))
@@ -73,16 +81,16 @@ internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, list:
             }
             Text(tr("OK on a chip: off → ✓ include → ✕ exclude"), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.weight(1f))
         }
-        Section((if (kind == PickerKind.GENRES) tr("Genres") else tr("Tags")).uppercase() + " · " + tr("counts from your %1\$d %2\$s titles", inList.size, list.label()))
+        Section(source.caption(kind))
         FlowRow(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             chips.forEachIndexed { i, (name, count) ->
-                PickChip(name, count, picks, { onFilters(withPicks(filters, kind, picks.cycle(name))) }, if (i == 0) Modifier.focusRequester(first) else Modifier)
+                PickChip(name, count, picks, { source.onPicks(kind, picks.cycle(name)) }, if (i == 0) Modifier.focusRequester(first) else Modifier)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (line == null) AnnotatedString("") else styled(line, Colors.text), fontSize = 16.sp, modifier = Modifier.weight(1f))
-            Button(onClick = { onFilters(withPicks(filters, kind, ChipPicks())) }, modifier = Modifier.hint(HintKind.CHOOSE)) { Text(tr("Clear")) }
+            Button(onClick = { source.onPicks(kind, ChipPicks()) }, modifier = Modifier.hint(HintKind.CHOOSE)) { Text(tr("Clear")) }
             Button(onClick = onClose, modifier = Modifier.hint(HintKind.CHOOSE)) { Text(tr("Show %d titles", shown)) }
         }
     }
@@ -99,6 +107,6 @@ private fun PickChip(name: String, count: Int, picks: ChipPicks, onClick: () -> 
         shape = ButtonDefaults.shape(CircleShape), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
         border = ButtonDefaults.border(border = Border(BorderStroke(1.dp, if (on || off) tint else Arcade.line)), focusedBorder = Border.None)) {
         Text((if (on) "✓ " else if (off) "✕ " else "") + name, textDecoration = if (off) TextDecoration.LineThrough else null)
-        Text("  $count", color = tint.copy(alpha = 0.6f))
+        if (count >= 0) Text("  $count", color = tint.copy(alpha = 0.6f))
     }
 }

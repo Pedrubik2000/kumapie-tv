@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import io.github.pedrubik2000.kumapie.R
+import io.github.pedrubik2000.kumapie.data.AniListBrowse
 import io.github.pedrubik2000.kumapie.data.AniListLists
 import io.github.pedrubik2000.kumapie.data.AniListSync
 import io.github.pedrubik2000.kumapie.data.Discovery
@@ -45,7 +46,7 @@ import kotlinx.coroutines.withContext
 fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
                    onHome: () -> Unit = {}, onReview: () -> Unit = {}, onSettings: () -> Unit = {}, onLibrary: () -> Unit = {},
                    onStats: () -> Unit = {}, jiten: JitenQueue? = null, sync: AniListSync? = null, read: LibraryRead = AniListLists::cacheFirst,
-                   onDiscover: () -> Unit = {}) {
+                   onDiscover: () -> Unit = {}, browse: (suspend (AniListBrowse.Query, Int) -> AniListBrowse.Page)? = null) {
     var open by remember { mutableStateOf(start) }
     val nav = RailNav(onHome, onLibrary, {}, onReview, onStats, onSettings)
     val titleNav = RailNav(onHome, onLibrary, if (start == null) ({ open = null }) else onDiscover, onReview, onStats, onSettings)
@@ -68,12 +69,13 @@ fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
             TitleScreen(api, f, { DiscoverRail(api, titleNav, null) }, jiten, sync, onSettings)
         }
     }
-    DiscoverBody(api, settings, jiten, nav, lists, ranked, hold) { open = it }
+    val fetch: BrowseFetch = browse ?: { q, p -> AniListBrowse.page(q, p, settings.anilistToken, settings.prefs) }
+    DiscoverBody(api, settings, jiten, nav, lists, ranked, hold, fetch) { open = it }
 }
 
 @Composable
 private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?, edges: RailNav, lists: List<Mine>?, ranked: Ranked?,
-                         hold: DiscoverHold, onOpen: (Found) -> Unit) {
+                         hold: DiscoverHold, fetch: BrowseFetch, onOpen: (Found) -> Unit) {
     val loggedIn = settings.anilistToken.isNotEmpty()
     val entry = remember { FocusRequester() }
     val rail = remember { mutableMapOf<String, FocusRequester>() }
@@ -93,18 +95,20 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
         onDispose { if (MissingKeyLine.home === entry) MissingKeyLine.home = null }
     }
     LaunchedEffect(live.touched.value) { if (live.touched.value) hold.dropRestore() }
-    LoadBrowse(api, browse, mode == DiscoverMode.BROWSE)
+    LoadBrowse(browse, fetch, remember(lists) { lists?.filter { it.status == "PLANNING" }?.map { it.anilistId } }, mode == DiscoverMode.BROWSE)
     LaunchedEffect(Unit) { if (!returning) entry.focusSoon() }
     LaunchedEffect(Unit) { hold.giveUpRestoring() }
     EntryWhenIdle(mode, mode == DiscoverMode.BROWSE || hold.restoring, live, entry)
     val env = DiscoverEnv(api, settings, levels, link, entry, edges.onSettings, hold, onOpen)
     val clearSearch = mode == DiscoverMode.BROWSE && browse.filters.query.isNotEmpty()
     Box(live.track(Modifier.fillMaxSize()).onBackKey(clearSearch) { runCatching { entry.requestFocus() }; browse.pick(browse.filters.copy(query = "")) }) {
+        val picking = browse.picker.takeIf { mode == DiscoverMode.BROWSE }
+        if (picking != null) BrowsePicker(browse, picking) else {
         Box(Modifier.fillMaxSize().onFocusChanged { hold.inContent = it.hasFocus }) {
             when (mode) {
                 DiscoverMode.PICK -> PickContent(env, picks, ranked, pick)
                 DiscoverMode.DUEL -> DuelContent(env, field.takeIf { pick.ready }, ranked, pick)
-                DiscoverMode.BROWSE -> BrowseContent(env, browse, lists, live)
+                DiscoverMode.BROWSE -> BrowseContent(env, browse, live)
             }
         }
         DiscoverColumn(mode, entry, link, { rail[tr("Discover")] ?: FocusRequester.Default }, { hold.pick.modeChanged(hold.mode, it); hold.mode = it }, Modifier.padding(start = RAIL, top = 28.dp)) { sides ->
@@ -113,6 +117,7 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
                 DiscoverMode.BROWSE -> BrowseFilterRows(browse, loggedIn, sides)
                 DiscoverMode.DUEL -> Unit
             }
+        }
         }
         DiscoverRail(api, edges, RailAt.DISCOVER, rail, entry)
         HintBar()

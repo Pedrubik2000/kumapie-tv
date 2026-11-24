@@ -202,7 +202,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     /** This language's word cards by form and kuma3's queue today: [EpisodeDetail] words' [io.github.pedrubik2000.kumapie.data.Word.card]. */
     val cardIndex = CardIndex(language.lang.code)
-    @Volatile private var dueAt = 0L
+    @Volatile var dueAt = 0L
+        private set
 
     /** The word cards again without parsing (a card was just mined here); kuma3's queue as it was (a new card isn't due). */
     suspend fun reloadCards() = withContext(Dispatchers.IO) {
@@ -246,6 +247,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      */
     suspend fun readCards(): Boolean = withContext(Dispatchers.IO) {
         srs.sync(lang) // kumapie's own cards: the other devices' ratings (false, and kuma3 below, for the parents)
+        if (settings.plainWords) return@withContext false
         val pkg = ankiApp()?.takeIf { hasPermission(it) } ?: return@withContext false
         val notes = whileAnkiStarts { anki.notes(pkg, search) }
         val cards = anki.cards(pkg, search)
@@ -316,6 +318,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     /** kuma3's queue again (opening an episode), at most once a minute: every episode of a list opens at once. */
     suspend fun refreshDue(force: Boolean = false) = withContext(Dispatchers.IO) {
+        if (!force && settings.plainWords) return@withContext
         val pkg = pkgNow() ?: return@withContext
         if (!force && System.currentTimeMillis() - dueAt < 60_000) return@withContext
         dueAt = System.currentTimeMillis()
@@ -468,10 +471,11 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         runCatching { markedFile.writeText(words.sorted().joinToString("\n")) }
     }
 
-    /** Reads Anki again and works out every word's facts (parsing only new or changed fields). */
-    suspend fun refresh(): Result<Snapshot> = lock.withLock {
+    /** Reads Anki again and works out every word's facts (parsing only new or changed fields). Fails while [Settings.plainWords] unless [force] (a button the person pressed). */
+    suspend fun refresh(force: Boolean = false): Result<Snapshot> = lock.withLock {
         withContext(Dispatchers.IO) {
             runCatching {
+                check(force || !settings.plainWords) { "word colours are off" }
                 srs.sync(lang)
                 val pkg = ankiApp() ?: error(tr("No AnkiDroid found on this device."))
                 if (!hasPermission(pkg)) error(tr("kumapie may not read Anki yet: allow it in Settings."))

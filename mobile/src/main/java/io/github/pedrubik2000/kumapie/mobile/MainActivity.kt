@@ -20,6 +20,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.mobile.ui.GlassMenu
 import io.github.pedrubik2000.kumapie.mobile.ui.MoreSheet
 import io.github.pedrubik2000.kumapie.mobile.ui.destinations
+import io.github.pedrubik2000.kumapie.mobile.ui.refreshWordColours
 import io.github.pedrubik2000.kumapie.mobile.ui.wide
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -199,9 +200,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
         // Only once reading Anki was allowed here (Settings > Allow reading Anki, done after kuma3 is set up): reading
         // wakes AnkiDroid, and an AnkiDroid that was never opened then sets itself up with a new empty collection in
         // /sdcard/AnkiDroid. Before the first read every word is red ([KnownWords.apply]); kumapie_plan.md item 7.
-        library.languages.all.map { it.known }.filter { k ->
-            k.modelReady && (k.ready || k.ankiApp()?.let(k::hasPermission) == true)
-        }.forEach { it.refresh() }
+        library.refreshWordColours()
         library.syncProgress() // positions, scenes, time and marks from the other devices (through Anki)
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }

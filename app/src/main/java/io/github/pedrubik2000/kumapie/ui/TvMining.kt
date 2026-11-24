@@ -209,6 +209,10 @@ suspend fun paintCards(context: Context, settings: Settings, ctl: SceneControlle
 suspend fun openCards(context: Context, settings: Settings, ctl: SceneController) {
     if (ctl.episode.srs) return
     val language = TvMining.languages(context, settings).of(ctl.lang)
+    if (settings.plainWords) {
+        runCatching { language.known.readCards() }
+        return
+    }
     TvMining.reading = true
     try {
         val t0 = System.currentTimeMillis()

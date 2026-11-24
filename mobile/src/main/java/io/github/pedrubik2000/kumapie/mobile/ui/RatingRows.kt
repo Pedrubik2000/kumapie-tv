@@ -11,6 +11,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -119,3 +120,15 @@ fun RatingRows(known: KnownWords, flow: io.github.pedrubik2000.kumapie.lang.Rate
 
 /** Every word of the player's episode coloured by the index again (cheap: a few hundred words; shared with the TV). */
 fun repaintWords(ctl: io.github.pedrubik2000.kumapie.player.SceneController, known: KnownWords) = known.repaint(ctl, pcColours = false)
+
+@Composable
+fun ColoursBackOn(library: io.github.pedrubik2000.kumapie.mobile.offline.Library, ctl: io.github.pedrubik2000.kumapie.player.SceneController) {
+    var seen by remember { mutableStateOf(ctl.plainWords) }
+    LaunchedEffect(ctl.plainWords) {
+        if (seen && !ctl.plainWords) {
+            library.refreshWordColours()
+            repaintWords(ctl, library.languages.of(ctl.lang).known)
+        }
+        seen = ctl.plainWords
+    }
+}

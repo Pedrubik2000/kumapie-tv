@@ -27,6 +27,8 @@ import kotlinx.coroutines.runBlocking
  * `…/faces` (same argument, then optionally the book's title): one row per character's name with a picture in a
  * character dictionary (only that book's characters when titled): start, length, name; the picture itself is the file
  * `content://<app id>.words/face?name=<name>[&work=<title>]` (user, 2026-11-12; title 2026-11-13).
+ * `…/settings` (no argument): one row, column `plain_words` = 1 when the person turned word colours off (Settings.plainWords),
+ * else 0; while it is 1, `…/colours` answers no rows (`…/faces` still answers: names and pictures aren't colours).
  */
 class WordColours : ContentProvider() {
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -35,10 +37,12 @@ class WordColours : ContentProvider() {
         Japanese(ctx, Settings(ctx), YomitanDictionaries.get(ctx), background).also { ja ->
             // Card states (green, blue) come from kuma3: read once here, then kept fresh by [fresh].
             // ponytail: second KnownWords next to the app's own; one shared instance if they ever disagree.
+            if (!Settings(ctx).plainWords) wordListRead = true
             background.launch { ja.known.refresh() }
         }
     }
     @Volatile private var cardsAt = System.currentTimeMillis()
+    @Volatile private var wordListRead = false
 
     /**
      * What the app changed since: its marked and imported words (files), and the Mined deck's cards at most once a
@@ -54,11 +58,20 @@ class WordColours : ContentProvider() {
     override fun onCreate() = true
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor {
+        if (uri.lastPathSegment == "settings") {
+            val plain = if (Settings(context!!).plainWords) 1 else 0
+            return MatrixCursor(arrayOf("plain_words")).apply { addRow(arrayOf<Any>(plain)) }
+        }
         val out = MatrixCursor(arrayOf("start", "length", "state"))
         val text = args?.firstOrNull() ?: return out
         if (uri.lastPathSegment == "faces") return faces(text, args.getOrNull(1))
         if (uri.lastPathSegment != "colours" || !japanese.model.isReady) return out
+        if (Settings(context!!).plainWords) return out
         val known = japanese.known
+        if (!known.ready && !wordListRead) {
+            wordListRead = true
+            background.launch { known.refresh() }
+        }
         fresh(known)
         background.launch { known.refreshDue() }
         for (t in words(text)) {
@@ -155,7 +168,7 @@ class WordColours : ContentProvider() {
         val known = japanese.known
         val out = android.os.Bundle()
         runBlocking {
-            if (known.lastReading == null) known.refresh()
+            if (known.lastReading == null && !Settings(ctx).plainWords) known.refresh()
             if (method == "state") fresh(known)
             if (method == "mark") known.reloadLists() // the app's marks since, so this one doesn't drop them
             if (method == "rate" || method == "undo") {

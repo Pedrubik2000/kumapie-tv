@@ -97,6 +97,8 @@ internal val esSettings: Map<String, String> = mapOf(
 
     // Word colours
     "Word colours from Anki" to "Colores de palabras desde Anki",
+    "Word colours" to "Colores de palabras",
+    "Word colours (off: plain subtitles, lookup still works)" to "Colores de palabras (apagado: subtítulos sin color, la consulta sigue)",
     "%1\$s: ready (%2\$s)." to "%1\$s: listo (%2\$s).",
     "German model" to "Modelo de alemán",
     "English model" to "Modelo de inglés",

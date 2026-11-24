@@ -192,6 +192,11 @@ private fun TvPreferences(settings: Settings, buttons: FocusRequester, onButtons
     Button(onClick = { blur = !blur; settings.blurUnwatched = blur }) {
         Text(tr("Blur episodes I haven't watched: %s", if (blur) tr("on") else tr("off")))
     }
+    Heading(tr("Word colours"), Modifier.padding(top = 24.dp))
+    var plain by remember { mutableStateOf(settings.plainWords) }
+    Button(onClick = { plain = !plain; settings.plainWords = plain }) {
+        Text(tr("Word colours: %s", if (plain) tr("off (lookup only)") else tr("on")))
+    }
     Heading(tr("Japanese subtitles"), Modifier.padding(top = 24.dp))
     var font by remember { mutableStateOf(settings.japaneseFont) }
     Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {

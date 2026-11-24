@@ -117,7 +117,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("play_through_known", false)
         set(value) = prefs.edit().putBoolean("play_through_known", value).apply()
 
-    /** Lookup only: every word in the lines and definitions is plain white (no red, green or blue); words can still be picked. */
+    /**
+     * The app-wide word colours switch (Settings "Word colours", the players' toggles, the `.words` provider's `settings` row):
+     * true = every word in the lines and definitions is plain white (no red, green or blue; words can still be picked) and
+     * the work that only serves colours (reading Anki's cards) is skipped.
+     */
     var plainWords: Boolean
         get() = prefs.getBoolean("plain_words", false)
         set(value) = prefs.edit().putBoolean("plain_words", value).apply()

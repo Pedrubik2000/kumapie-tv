@@ -128,7 +128,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
     // move cuts the line's audio from the same stream, and cutting while it played broke Dandadan 9 on the Chromecast
     // (ERROR_CODE_PARSING_CONTAINER_MALFORMED two seconds after the sixth cut, 2026-11-19).
     // The saved colours at once; then kuma3 syncs (it is never opened on the TV) and its cards are read again.
-    LaunchedEffect(Unit) { openCards(context, settings, ctl) }
+    LaunchedEffect(ctl.plainWords) { openCards(context, settings, ctl) }
     val picker = remember { WordPicker(ctl, api, scope) }
     var options by remember { mutableStateOf(false) }
     var anchor by remember { mutableStateOf<Rect?>(null) } // the selected word, in screen coordinates

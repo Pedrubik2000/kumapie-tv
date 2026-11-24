@@ -52,7 +52,7 @@ class Improve(private val library: Library, lang: String) {
 
     /** Every word card of the language's Mined deck, as read from kuma3 now. */
     private suspend fun all(): List<Struggling> {
-        known.refresh().getOrThrow()
+        known.refresh(force = true).getOrThrow()
         val r = known.lastReading ?: error(tr("Anki wasn't read."))
         val cards = r.cards.groupBy { it.noteId }
         return r.notes.mapNotNull { n ->

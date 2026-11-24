@@ -36,10 +36,14 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.update.Updater
 import kotlinx.coroutines.launch
 
+internal object SettingsFocus { var returning = false }
+
 @Composable
 fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
                    onButtons: () -> Unit = {}) {
     val focus = remember { FocusRequester() }
+    val buttons = remember { FocusRequester() }
+    val back = remember { SettingsFocus.returning.also { SettingsFocus.returning = false } }
     val scroll = rememberScrollState()
     Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Title(if (firstRun) tr("Welcome to kumapie") else tr("Settings"), fontSize = 32.sp)
@@ -48,7 +52,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         if (!firstRun) CheckSetup(settings)
         if (!firstRun && settings.server.isEmpty()) AloneSources(settings)
         if (!firstRun) {
-            TvPreferences(settings, onButtons)
+            TvPreferences(settings, buttons) { SettingsFocus.returning = true; onButtons() }
             TvNotForMe(settings)
             TvDictionaries(settings)
             TvExport()
@@ -56,7 +60,10 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
             TvAbout(settings, onUpdate)
         }
     }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() }; kotlinx.coroutines.delay(100); scroll.scrollTo(0) }
+    LaunchedEffect(Unit) {
+        if (back) runCatching { buttons.requestFocus() }
+        else { runCatching { focus.requestFocus() }; kotlinx.coroutines.delay(100); scroll.scrollTo(0) }
+    }
 }
 
 @Composable
@@ -159,11 +166,11 @@ private fun AloneSources(settings: Settings) {
 }
 
 @Composable
-private fun TvPreferences(settings: Settings, onButtons: () -> Unit) {
+private fun TvPreferences(settings: Settings, buttons: FocusRequester, onButtons: () -> Unit) {
     Heading(tr("Buttons and help"), Modifier.padding(top = 24.dp))
     var showHelp by remember { mutableStateOf(settings.showHelp) }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Button(onClick = onButtons) { Text(tr("Change buttons")) }
+        Button(onClick = onButtons, modifier = Modifier.focusRequester(buttons)) { Text(tr("Change buttons")) }
         Button(onClick = { showHelp = !showHelp; settings.showHelp = showHelp }) {
             Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")))
         }

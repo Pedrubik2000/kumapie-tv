@@ -71,7 +71,7 @@ internal class RowCtx(
     fun card(row: Int, index: Int, target: () -> HeroTarget?): Modifier {
         var m: Modifier = Modifier.onFocusChanged { if (it.isFocused) { target()?.let { t -> focus.target = t }; focus.row = row; scrollTo(row) } }
         if (index == 0 && row == 0) m = m.focusRequester(if (d.going.isEmpty()) first else below)
-        if (index == 0) m = m.then(focus.start(row))
+        if (index == 0) m = m.then(focus.start(d.names.getOrNull(row) ?: row))
         if (row == 0 && d.going.isNotEmpty()) m = m.onPreviewKeyEvent { e ->
             (e.type == KeyEventType.KeyDown && e.key == Key.DirectionUp).also { if (it) toTop() }
         }
@@ -196,7 +196,7 @@ private fun LazyListScope.libraryRows(c: RowCtx) {
                     val start = c.d.names.isEmpty() && c.d.loggedIn && r == 0 && i == 0
                     Poster(s.poster, shortTitle(s.shown), levelLine(s), null,
                         (if (start) Modifier.focusRequester(c.below) else Modifier).onFocusChanged { if (it.isFocused) { c.focus.row = row; c.scrollTo(at) } }
-                            .then(if (i == 0) c.focus.start(row) else Modifier)) { c.onShow(s) }
+                            .then(if (i == 0) c.focus.start(label) else Modifier)) { c.onShow(s) }
                 }
             } }
         }

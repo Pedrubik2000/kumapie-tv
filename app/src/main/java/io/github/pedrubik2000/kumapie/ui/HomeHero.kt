@@ -47,7 +47,9 @@ import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.resumeLine
 import io.github.pedrubik2000.kumapie.i18n.tr
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Stable
 class HomeFocus(first: HeroTarget?) {
@@ -55,19 +57,27 @@ class HomeFocus(first: HeroTarget?) {
     var row by mutableIntStateOf(0)
     val tall: Boolean get() = target.let { it == null || it is ResumeTarget }
     var back: FocusRequester? = null
-    private val starts = HashMap<Int, FocusRequester>()
+    private val starts = HashMap<Any, FocusRequester>()
 
-    fun start(row: Int): Modifier {
-        val r = starts.getOrPut(row) { FocusRequester() }
+    fun start(key: Any): Modifier {
+        val r = starts.getOrPut(key) { FocusRequester() }
         return Modifier.focusRequester(r).onFocusChanged { if (it.isFocused) back = r }
     }
 
     fun forget(): Modifier = Modifier.onFocusChanged { if (it.isFocused) back = null }
 
-    fun returnFromRail(): Boolean = back?.let { r -> r.requestFocus(FocusDirection.Enter).also { if (!it) back = null } } == true
+    fun returnFromRail(resume: HeroTarget?, first: FocusRequester, scope: CoroutineScope): Boolean {
+        val had = back != null
+        if (back?.requestFocus(FocusDirection.Enter) == true) return true
+        back = null
+        if (!had) return false
+        resume?.let { target = it }
+        scope.launch { first.focusSoon() }
+        return true
+    }
 }
 
-internal const val LOGIN_START = -1
+internal const val LOGIN_START = "login"
 
 private val HERO_HEIGHT = 390.dp
 private const val PICTURE_DEBOUNCE_MS = 250L

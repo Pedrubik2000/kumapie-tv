@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -96,11 +97,13 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
     val profileItem = RailItem(Icons.Default.Person, who, back = false, onClick = onProfiles).takeIf { api is Api }
     val settle = remember(data) { { if (focus.back == null) data?.resume?.let { focus.target = it }; Unit } }
     var contentFocused by remember { mutableStateOf(false) }
+    var railFocused by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     Box(Modifier.fillMaxSize().railGate().onPreviewKeyEvent { e ->
         if (e.type != KeyEventType.KeyDown) false
         else when (e.key) {
             Key.DirectionLeft -> { if (contentFocused && Hints.shown == HintKind.HERO) focus.back = null; false }
-            Key.DirectionRight -> !contentFocused && focus.returnFromRail()
+            Key.DirectionRight -> railFocused && focus.returnFromRail(data?.resume, first, scope)
             else -> false
         }
     }) {
@@ -114,7 +117,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
         }
         RailBackdrop()
         HomeHeader(totals, langs, lang) { next -> picked = next; settings.prefs.edit().putString("home_lang_$profile", next).apply() }
-        MainRail(api, lang, RailAt.HOME, rail, railFocus, first.takeIf { data != null }, profileItem, settle)
+        MainRail(api, lang, RailAt.HOME, rail, railFocus, first.takeIf { data != null }, profileItem, settle) { railFocused = it }
         HomeHintBar(focus)
     }
 }
@@ -153,9 +156,9 @@ private fun BoxScope.HomeHintBar(focus: HomeFocus) = HintBar(top = rowsTop(focus
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequester>, toRows: FocusRequester?, modifier: Modifier, onFocused: () -> Unit = {}) {
+internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequester>, toRows: FocusRequester?, modifier: Modifier, onFocused: () -> Unit = {}, onHasFocus: (Boolean) -> Unit = {}) {
     val current = items.firstOrNull { it.selected }?.label
-    Column(modifier.padding(start = 24.dp).focusProperties {
+    Column(modifier.onFocusChanged { onHasFocus(it.hasFocus) }.padding(start = 24.dp).focusProperties {
         enter = { if (it == FocusDirection.Up || it == FocusDirection.Down) FocusRequester.Cancel else FocusRequester.Default }
     }.focusGroup(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         items.forEach { item -> androidx.compose.runtime.key(item.label) {

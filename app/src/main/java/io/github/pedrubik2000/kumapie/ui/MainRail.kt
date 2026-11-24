@@ -51,7 +51,7 @@ private fun rememberDue(api: Discovery, lang: String?): Int? {
 
 @Composable
 internal fun BoxScope.MainRail(api: Discovery, lang: String?, at: RailAt?, nav: RailNav, focus: MutableMap<String, FocusRequester>, toRows: FocusRequester?,
-                               extra: RailItem? = null, onFocused: () -> Unit = {}) {
+                               extra: RailItem? = null, onFocused: () -> Unit = {}, onHasFocus: (Boolean) -> Unit = {}) {
     val due = rememberDue(api, lang)
     val back = at == RailAt.HOME
     fun item(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, here: RailAt?, go: () -> Unit, badge: Int = 0) =
@@ -64,7 +64,7 @@ internal fun BoxScope.MainRail(api: Discovery, lang: String?, at: RailAt?, nav: 
         item(Icons.Default.BarChart, tr("Stats"), null, nav.onStats),
         extra,
         item(Icons.Default.Settings, tr("Settings"), null, nav.onSettings),
-    ), focus, toRows, Modifier.align(Alignment.TopStart).padding(top = 100.dp), onFocused)
+    ), focus, toRows, Modifier.align(Alignment.TopStart).padding(top = 100.dp), onFocused, onHasFocus)
 }
 
 internal object RailGate {

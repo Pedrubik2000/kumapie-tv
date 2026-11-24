@@ -66,6 +66,7 @@ class TvHomeFocusTest {
     private var discoverCalls = 0
     private var home by mutableStateOf(true)
     private var screen by mutableStateOf("home")
+    private var tick by mutableStateOf(0)
 
     private fun openHome(queue: JitenQueue? = null) {
         rule.setContent {
@@ -209,18 +210,65 @@ class TvHomeFocusTest {
         assertEquals("Log in", focused())
         assertEquals(top, loginTop(), 0.5f)
         press(DOWN)
-        val poster = focused()
-        assert(poster != "Log in") { "$poster" }
-        press(Key.DirectionLeft.keyCode)
+        var first = focused()
+        assert(first != "Log in" && first !in RAIL_LABELS) { "$first" }
+        repeat(6) {
+            press(Key.DirectionLeft.keyCode)
+            val now = focused()
+            if (now in RAIL_LABELS) return@repeat
+            first = now
+        }
+        assert(focused() in RAIL_LABELS) { "${focused()}" }
         press(RIGHT)
-        assertEquals(poster, focused())
+        assertEquals(first, focused())
     }
 
-    @Test fun aRememberedRowThatIsGoneDoesNotTrapRightFromTheRail() {
-        val focus = HomeFocus(null)
-        focus.back = androidx.compose.ui.focus.FocusRequester()
-        assert(!focus.returnFromRail())
-        assertEquals(null, focus.back)
+    private fun openSwappableHome() {
+        rule.setContent {
+            val settings = Settings(LocalContext.current)
+            val t = tick
+            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro", onShow = {}, onPlay = { _, _ -> }, onSettings = {},
+                onStats = {}, onProfiles = {}, onLibrary = {}, onDiscover = {}, lists = { if (t < 0) emptyList() else null })
+        }
+        rule.waitUntil(5_000) { focused() == RESUME }
+    }
+
+    private fun swapTo(user: String, vararg mine: JSONObject) {
+        Settings(RuntimeEnvironment.getApplication()).prefs.edit().putString("anilist_user", user)
+            .putString(AniListLists.CACHE + "_" + user, JSONArray(mine.toList()).toString()).commit()
+        tick++
+    }
+
+    private fun hasCard(title: String) = rule.onAllNodesWithContentDescription(title).fetchSemanticsNodes().isNotEmpty()
+
+    @Test fun aRememberedRowThatDisappearsLeavesRightOnTheHeroButton() {
+        logIn(mine("1", "Frieren", "CURRENT", progress = 11, episodes = 28), mine("2", "Dandadan", "PLANNING", progress = 0, episodes = 12))
+        openSwappableHome()
+        waitForCard("Frieren")
+        press(DOWN, DOWN)
+        assertEquals("Frieren", focused())
+        press(Key.DirectionLeft.keyCode)
+        assert(focused() in RAIL_LABELS) { "${focused()}" }
+        swapTo("other", mine("2", "Dandadan", "PLANNING", progress = 0, episodes = 12))
+        rule.waitUntil(5_000) { !hasCard("Frieren") }
+        press(RIGHT)
+        rule.waitUntil(5_000) { focused() == RESUME }
+    }
+
+    @Test fun aRowAboveTheRememberedOneDisappearingStillReturnsToTheSameRow() {
+        logIn(mine("1", "Frieren", "CURRENT", progress = 11, episodes = 28), mine("2", "Dandadan", "PLANNING", progress = 0, episodes = 12),
+            mine("3", "Kaiju", "PLANNING", progress = 0, episodes = 12))
+        openSwappableHome()
+        waitForCard("Frieren")
+        press(DOWN, DOWN, DOWN)
+        val planned = focused()
+        assert(planned == "Dandadan" || planned == "Kaiju") { "$planned" }
+        press(Key.DirectionLeft.keyCode)
+        assert(focused() in RAIL_LABELS) { "${focused()}" }
+        swapTo("other", mine("2", "Dandadan", "PLANNING", progress = 0, episodes = 12), mine("3", "Kaiju", "PLANNING", progress = 0, episodes = 12))
+        rule.waitUntil(5_000) { !hasCard("Frieren") }
+        press(RIGHT)
+        assertEquals(planned, focused())
     }
 
     @Test fun leftFromTheSecondRowThenRightLandsOnThatRowsCard() {
@@ -334,6 +382,7 @@ class TvHomeFocusTest {
 
     private companion object {
         const val RESUME = "▶  Resume"
+        val RAIL_LABELS = setOf("Home", "Library", "Review", "Stats", "Pedro", "Settings")
         val DOWN = Key.DirectionDown.keyCode; val UP = Key.DirectionUp.keyCode; val RIGHT = Key.DirectionRight.keyCode
         val BACK = Key.Back.keyCode; val OK = Key.DirectionCenter.keyCode
 

@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.data
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -43,15 +44,19 @@ fun streamsThatExist(
 private const val LISTS_EVERY_MS = 10 * 60 * 1000L
 
 suspend fun goingThatExist(
-    discovery: Discovery, context: Context, prefs: android.content.SharedPreferences, user: String, token: String,
-    now: Long = System.currentTimeMillis(), publish: (List<Pair<Show, Episode>>) -> Unit,
+    discovery: Discovery, context: Context, settings: Settings, now: Long = System.currentTimeMillis(),
+    refresh: suspend (String) -> List<Mine> = { AniListLists.refresh(settings.prefs, settings.anilist, it) },
+    publish: (List<Pair<Show, Episode>>) -> Unit,
 ) {
+    val prefs = settings.prefs
+    val user = settings.anilist
     val going = runCatching { discovery.going() }.getOrDefault(emptyList())
     suspend fun filtered(lists: List<Mine>) = withContext(Dispatchers.IO) {
         streamsThatExist(going, lists, savedEpisodeIds(context, going), lastPlayedIds(prefs.all), savedEnded(context, going))
     }
     publish(filtered(if (user.isEmpty()) emptyList() else withContext(Dispatchers.IO) { AniListLists.cached(prefs, user) }))
     val key = "anilist_lists_at_$user"
-    if (user.isEmpty() || token.isEmpty() || now - prefs.getLong(key, 0L) < LISTS_EVERY_MS) return
-    runCatching { AniListLists.refresh(prefs, user, token) }.onSuccess { prefs.edit().putLong(key, now).apply(); publish(filtered(it)) }
+    if (user.isEmpty() || settings.anilistToken.isEmpty() || now - prefs.getLong(key, 0L) < LISTS_EVERY_MS) return
+    prefs.edit().putLong(key, now).apply()
+    try { settings.withAniList(refresh)?.let { publish(filtered(it)) } } catch (e: CancellationException) { throw e } catch (e: Exception) { return }
 }

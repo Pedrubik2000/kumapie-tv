@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import io.github.pedrubik2000.kumapie.data.AniList
 import io.github.pedrubik2000.kumapie.data.AniListLists
 import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Episode
@@ -83,7 +84,8 @@ class SavedEpisodesTest {
 
     @Test fun theCachedAniListCountDropsTheCardOnThePhone() = runBlocking {
         val app = RuntimeEnvironment.getApplication()
-        val prefs = Settings(app).prefs
+        val settings = Settings(app).also { it.anilist = "u" }
+        val prefs = settings.prefs
         val media = JSONObject().put("id", 5).put("format", "TV").put("episodes", 12).put("averageScore", 70)
             .put("title", JSONObject().put("romaji", "Dandadan").put("native", "ダンダダン")).put("startDate", JSONObject().put("year", 2024))
         val entry = JSONObject().put("status", "CURRENT").put("progress", 12).put("score", 0.0).put("media", media)
@@ -91,10 +93,29 @@ class SavedEpisodesTest {
             JSONObject().put("MediaListCollection", JSONObject().put("hasNextChunk", false).put("lists", JSONArray().put(JSONObject().put("entries", JSONArray().put(entry)))))
         }, kitsu = { _, _ -> mapOf(5 to "1") })
         val shown = mutableListOf<List<String>>()
-        goingThatExist(Going(listOf(card(13), card(12))), app, prefs, "u", "") { shown += it.map { c -> c.second.id } }
+        goingThatExist(Going(listOf(card(13), card(12))), app, settings) { shown += it.map { c -> c.second.id } }
         assertEquals(listOf(listOf("kitsu:1:12")), shown)
         shown.clear()
-        goingThatExist(Going(listOf(card(13))), app, prefs, "", "") { shown += it.map { c -> c.second.id } }
+        settings.anilist = ""
+        goingThatExist(Going(listOf(card(13))), app, settings) { shown += it.map { c -> c.second.id } }
         assertEquals(listOf(listOf("kitsu:1:13")), shown)
+    }
+
+    @Test fun aRejectedTokenLogsOutAndAFailureIsNotRetriedWithin10Minutes() = runBlocking {
+        val app = RuntimeEnvironment.getApplication()
+        val settings = Settings(app).also { it.anilist = "u"; it.anilistToken = "t" }
+        goingThatExist(Going(listOf(card(13))), app, settings, refresh = { throw AniList.LoggedOut() }) {}
+        assertEquals("", settings.anilistToken)
+        assertEquals(true, settings.anilistLoggedOut)
+
+        settings.anilistToken = "t"
+        var asked = 0
+        val fails: suspend (String) -> List<io.github.pedrubik2000.kumapie.data.Mine> = { asked++; error("offline") }
+        val at = System.currentTimeMillis() + 20 * 60 * 1000
+        goingThatExist(Going(listOf(card(13))), app, settings, at, fails) {}
+        goingThatExist(Going(listOf(card(13))), app, settings, at + 60_000, fails) {}
+        assertEquals(1, asked)
+        goingThatExist(Going(listOf(card(13))), app, settings, at + 11 * 60_000, fails) {}
+        assertEquals(2, asked)
     }
 }

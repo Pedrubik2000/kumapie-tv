@@ -244,7 +244,7 @@ fun HomeScreen(
     // The chosen language without shows (a parent's phone has only English; the default is German): the first that has some.
     val lang = if (shows == null || all.any { it.lang == homeLang }) homeLang else langs.firstOrNull()?.code ?: homeLang
     LaunchedEffect(lang) { if (lang != homeLang) onHomeLang(lang) }
-    val streams by androidx.compose.runtime.produceState(emptyList<Pair<Show, Episode>>(), lang) { if (lang == "ja") io.github.pedrubik2000.kumapie.data.goingThatExist(library.discovery, context, library.settings.prefs, library.settings.anilist, library.settings.anilistToken) { value = it } else value = emptyList() }
+    val streams by androidx.compose.runtime.produceState(emptyList<Pair<Show, Episode>>(), lang) { if (lang == "ja") io.github.pedrubik2000.kumapie.data.goingThatExist(library.discovery, context, library.settings) { value = it } else value = emptyList() }
 
     // Glass (tablet): the bear and the language pill sit on the top picture and scroll away with it.
     val top = @Composable {

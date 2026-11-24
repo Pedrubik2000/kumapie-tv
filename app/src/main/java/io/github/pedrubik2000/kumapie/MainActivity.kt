@@ -103,6 +103,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun App(settings: Settings) {
+    remember { io.github.pedrubik2000.kumapie.ui.SettingsFocus.returning = false }
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
     var standalone by remember { mutableStateOf(settings.standalone) }

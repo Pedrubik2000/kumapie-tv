@@ -122,5 +122,12 @@ class TvAniListTest {
         rule.waitUntil(5_000) { focused() == "Change buttons" }
     }
 
+    @Test fun aFreshAppForgetsAPendingReturnToChangeButtons() {
+        SettingsFocus.returning = true
+        rule.setContent { io.github.pedrubik2000.kumapie.App(Settings(LocalContext.current)) }
+        rule.waitForIdle()
+        assertEquals(false, SettingsFocus.returning)
+    }
+
     private fun ComposeContentTestRule.onAllNodesWithTextCount(t: String) = onAllNodes(androidx.compose.ui.test.hasText(t)).fetchSemanticsNodes().size
 }

@@ -171,7 +171,7 @@ fun libraryView(all: List<Mine>, list: LibraryList, f: LibraryFilters, level: (S
     val checked = inList.filter(f::matches)
     val limited = f.limit > 0
     val unrated = if (limited) checked.count { level(it.kitsuId) == null } else 0
-    val shown = if (limited) checked.filter { m -> level(m.kitsuId)?.let { it.band < f.limit } == true } else checked
+    val shown = if (limited) checked.filter { m -> level(m.kitsuId)?.let { it.band < f.limit } != false } else checked
     return LibraryView(sorted(shown, f.sort, level), inList.size, unrated)
 }
 

@@ -27,12 +27,12 @@ class LibraryDataTest {
     }
 
 
-    @Test fun aLimitKeepsRatedTitlesAtOrBelowItAndCountsTheUnrated() {
+    @Test fun aLimitKeepsRatedTitlesAtOrBelowItAndUnratedTitlesAndCountsTheUnrated() {
         val v = view(LibraryList.PLANNING, LibraryFilters(limit = 3))
         assertEquals(listOf(3, 5), ids(v))
         assertEquals(0, v.unrated)
         val none = view(LibraryList.WATCHING, LibraryFilters(limit = 1))
-        assertEquals(emptyList<Int>(), ids(none))
+        assertEquals(listOf(2), ids(none))
         assertEquals(1, none.unrated)
         assertEquals(listOf(3), ids(view(LibraryList.PLANNING, LibraryFilters(limit = 1))))
         assertEquals(listOf(3, 5, 4), ids(view(LibraryList.PLANNING, LibraryFilters(limit = 5, sort = LibrarySort.EASIEST))))
@@ -69,7 +69,7 @@ class LibraryDataTest {
         val f = LibraryFilters(inProgress = true)
         assertEquals("Planning · 1 of 3 shown", libraryLine(LibraryList.PLANNING, f, view(LibraryList.PLANNING, f)).toString())
         val g = LibraryFilters(limit = 1)
-        assertEquals("Watching · 0 of 2 shown · 1 not rated yet", libraryLine(LibraryList.WATCHING, g, view(LibraryList.WATCHING, g)).toString())
+        assertEquals("Watching · 1 of 2 shown · 1 not rated yet", libraryLine(LibraryList.WATCHING, g, view(LibraryList.WATCHING, g)).toString())
         assertEquals("Completed · 1 title", libraryLine(LibraryList.COMPLETED, LibraryFilters(), view(LibraryList.COMPLETED)).toString())
     }
 

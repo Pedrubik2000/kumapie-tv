@@ -330,12 +330,14 @@ class TvLibraryFocusTest {
         assertTrue(hasText("‹  Any  ›"))
         press(RIGHT)
         assertTrue(hasText("‹  Beginner  ›"))
-        rule.waitUntil(5_000) { hasText("Watching · 0 of 2 shown · 1 not rated yet") }
+        rule.waitUntil(5_000) { hasText("Watching · 1 of 2 shown · 1 not rated yet") }
+        assertTrue(!hasCard("Frieren"))
+        assertTrue(hasCard("Bocchi"))
         press(RIGHT, RIGHT)
         assertTrue(hasText("‹  Average  ›"))
-        rule.waitUntil(5_000) { hasText("Watching · 1 of 2 shown · 1 not rated yet") }
+        rule.waitUntil(5_000) { hasText("Watching · 2 of 2 shown · 1 not rated yet") }
         assertTrue(hasCard("Frieren"))
-        assertTrue(!hasCard("Bocchi"))
+        assertTrue(hasCard("Bocchi"))
         press(LEFT)
         assertTrue(hasText("‹  Easy  ›"))
         assertTrue(focused()?.startsWith("Difficulty") == true)

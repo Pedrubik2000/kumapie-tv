@@ -26,12 +26,13 @@ class TitlePageTest {
         var metaFails = false
         var going: List<Pair<Show, Episode>>? = null
         var twoSeasons = false
+        var specials = false
         override fun goingNow() = going
         override suspend fun board() = emptyList<Pair<String, List<Found>>>()
         override suspend fun discover(q: String) = emptyList<Found>()
         override suspend fun discoverMeta(type: String, id: String): JSONObject {
             if (metaFails) error("offline")
-            return JSONObject().put("id", id).put("name", "Sousou no Frieren").put("episodes", JSONArray((1..3).map { it to 0 }.plus(if (twoSeasons) (1..3).map { it to 10 } else emptyList()).map { (n, off) ->
+            return JSONObject().put("id", id).put("name", "Sousou no Frieren").put("episodes", JSONArray((1..3).map { it to 0 }.plus(if (twoSeasons) (1..3).map { it to 10 } else emptyList()).plus(if (specials) listOf(0 to 21, 0 to 22) else emptyList()).map { (n, off) ->
                 val eid = "$id:${n + off}"
                 JSONObject().put("id", eid).put("number", n).put("watched", eid in watched).put("ready", eid == ready)
             }))
@@ -62,6 +63,11 @@ class TitlePageTest {
         val d = Fake().apply { watched.clear(); going = listOf(Show(frieren.id, "Frieren", "stream", "", listOf(e), "ja") to e) }
         val p = page(d).apply { load(); aniProgress = 2 }
         assertEquals("kitsu:46474:1", p.next?.getString("id"))
+    }
+
+    @Test fun numberlessSpecialsDoNotTurnOffAniListNextUp() = runBlocking {
+        val p = page(Fake().apply { watched.clear(); specials = true }).apply { load(); aniProgress = 2 }
+        assertEquals("kitsu:46474:3", p.next?.getString("id"))
     }
 
     @Test fun repeatedEpisodeNumbersFallBackToTheOldNextUp() = runBlocking {

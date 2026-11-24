@@ -231,14 +231,12 @@ private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> Li
     val noLists = !loggedIn || user.isEmpty()
     val all by produceState<List<Mine>?>(if (noLists) emptyList() else null, user, loggedIn) {
         if (noLists) { value = emptyList(); return@produceState }
-        value = null
         value = withContext(Dispatchers.IO) { AniListLists.cached(settings.prefs, user) }
         runCatching { lists(settings) }.getOrNull()?.let { value = it }
     }
     val context = LocalContext.current
     val facts by produceState(streams?.takeIf { it.isEmpty() }?.let { StreamFacts(it, emptyMap(), emptyMap()) }, streams) {
         val shown = streams ?: return@produceState
-        value = null
         value = withContext(Dispatchers.IO) {
             StreamFacts(shown, shown.mapNotNull { (s, _) ->
                 SavedMeta.get(context, s.id)?.optJSONArray("episodes")
@@ -247,7 +245,7 @@ private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> Li
         }
     }
     val everyone = all
-    val known = facts?.takeIf { it.of === streams }
+    val known = facts?.takeIf { it.of === streams } ?: facts
     if (shows == null || streams == null || lang == null || everyone == null || known == null) return null
     return remember(shows, streams, lang, everyone, loggedIn, known) {
         val mine = shows.filter { it.lang == lang }

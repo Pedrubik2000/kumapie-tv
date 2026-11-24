@@ -15,7 +15,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -23,6 +28,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -76,8 +82,19 @@ internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, sourc
     val chips = source.chips(kind)
     val first = remember(kind) { FocusRequester() }
     val clear = remember { FocusRequester() }
+    val tail = remember(chips.size) { FocusRequester() }
+    var inside by remember { mutableStateOf(false) }
+    var seen by remember { mutableIntStateOf(chips.size) }
+    LaunchedEffect(chips.size) {
+        if (chips.size < seen) {
+            repeat(2) { withFrameNanos { } }
+            if (!inside) (if (chips.isEmpty()) clear else tail).focusSoon()
+        }
+        seen = chips.size
+    }
     LaunchedEffect(kind, chips.isEmpty()) { (if (chips.isEmpty()) clear else first).focusSoon() }
-    Column(PICKER_PANEL.onBackKey { onClose() }.focusProperties { exit = { if (it == FocusDirection.Left) FocusRequester.Cancel else FocusRequester.Default } }.focusGroup()
+    Column(PICKER_PANEL.onBackKey { onClose() }.focusProperties { exit = { if (it == FocusDirection.Left) FocusRequester.Cancel else FocusRequester.Default } }
+        .onFocusChanged { inside = it.hasFocus }.focusGroup()
         .arcadePanel().padding(24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Title(source.title, fontSize = 30.sp)
@@ -93,7 +110,8 @@ internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, sourc
         FlowRow(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             chips.forEachIndexed { i, (name, count) ->
-                PickChip(name, count, picks, { source.onPicks(kind, picks.cycle(name)) }, if (i == 0) Modifier.focusRequester(first) else Modifier)
+                PickChip(name, count, picks, { source.onPicks(kind, picks.cycle(name)) },
+                    (if (i == 0) Modifier.focusRequester(first) else Modifier).then(if (i == chips.lastIndex) Modifier.focusRequester(tail) else Modifier))
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -50,7 +51,8 @@ internal fun <T : Any> rememberFrozen(built: T?, frozen: Boolean): T? {
 
 @Composable
 internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState, modifier: Modifier, focus: LibFocus, entry: FocusRequester,
-                           nav: GridNav, above: () -> FocusRequester, cell: @Composable (T, Modifier) -> Unit) {
+                           nav: GridNav, above: () -> FocusRequester, footer: (@Composable () -> Unit)? = null, below: FocusRequester = FocusRequester.Cancel,
+                           cell: @Composable (T, Modifier) -> Unit) {
     val density = LocalDensity.current
     var bottom by remember { mutableStateOf(24.dp) }
     LaunchedEffect(state, items) {
@@ -73,11 +75,14 @@ internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState,
                 .focusProperties {
                     if (i % COLUMNS == 0) left = entry
                     if (i < COLUMNS) up = above()
-                    if (i >= items.lastIndex / COLUMNS * COLUMNS) down = FocusRequester.Cancel
+                    if (i >= items.lastIndex / COLUMNS * COLUMNS) down = below
                     if (i % COLUMNS == COLUMNS - 1 || i == items.lastIndex) right = FocusRequester.Cancel
                 }
                 .then(if (nav.target?.let { id(m) == it } ?: first) Modifier.focusRequester(nav.enter) else Modifier)
             cell(m, card)
+        }
+        if (footer != null) item(span = { GridItemSpan(maxLineSpan) }) {
+            footer()
         }
     }
 }

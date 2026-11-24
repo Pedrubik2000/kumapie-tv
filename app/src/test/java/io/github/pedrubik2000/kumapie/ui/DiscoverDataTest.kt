@@ -157,8 +157,8 @@ class BrowseViewTest {
         assertEquals(1 to 14, q(BrowseFilters(episodes = EpisodeBand.TWO_TO_13)).let { it.episodesGreater to it.episodesLesser })
         assertEquals(26 to null, q(BrowseFilters(episodes = EpisodeBand.MORE)).let { it.episodesGreater to it.episodesLesser })
         assertEquals(20191231 to null, q(BrowseFilters(year = YearBand.NEW)).let { it.startGreater to it.startLesser })
-        assertEquals(20091231 to 20200101, q(BrowseFilters(year = YearBand.TEENS)).let { it.startGreater to it.startLesser })
-        assertEquals(null to 20000101, q(BrowseFilters(year = YearBand.OLD)).let { it.startGreater to it.startLesser })
+        assertEquals(20091231 to 20200000, q(BrowseFilters(year = YearBand.TEENS)).let { it.startGreater to it.startLesser })
+        assertEquals(null to 20000000, q(BrowseFilters(year = YearBand.OLD)).let { it.startGreater to it.startLesser })
         assertEquals(null, q(BrowseFilters()).idIn)
     }
 
@@ -170,6 +170,11 @@ class BrowseViewTest {
         val f = BrowseFilters(genres = ChipPicks(setOf("Supernatural", "Mystery"), setOf("Ecchi")), format = FormatBand.TV, mine = BrowseMine.NOT_ON, limit = 4)
         assertEquals("312 on AniList · Mystery, Supernatural · no Ecchi · TV · not on my list · up to Hard", browseLine(f, 312, BrowseView(emptyList(), 0)).toString())
         assertEquals("5 on AniList", browseLine(BrowseFilters(), 5, BrowseView(emptyList(), 0)).toString())
+    }
+
+    @Test fun anExpiredLoginDropsNotOnMyListAndSaysSo() {
+        val f = BrowseFilters(mine = BrowseMine.NOT_ON)
+        assertEquals("1 on AniList · AniList login expired: log in again in Settings", browseLine(f, 1, BrowseView(emptyList(), 0), expired = true).toString())
     }
 
     @Test fun theActiveFiltersAreNamedForAnEmptyResult() {

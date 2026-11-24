@@ -17,7 +17,7 @@ object AniListBrowse {
         val onList: Boolean? = null, val idIn: List<Int>? = null,
     )
 
-    class Page(val items: List<Mine>, val total: Int, val hasNext: Boolean)
+    class Page(val items: List<Mine>, val total: Int, val hasNext: Boolean, val expired: Boolean = false)
 
     private const val QUERY = "query(\$p:Int,\$search:String,\$sort:[MediaSort],\$gi:[String],\$gn:[String],\$ti:[String],\$tn:[String],\$f:[MediaFormat]," +
         "\$st:MediaStatus,\$eg:Int,\$el:Int,\$sg:FuzzyDateInt,\$sl:FuzzyDateInt,\$ol:Boolean,\$ids:[Int]){Page(page:\$p,perPage:$PER_PAGE){pageInfo{total hasNextPage} " +
@@ -45,14 +45,16 @@ object AniListBrowse {
         ask: (String, JSONObject) -> JSONObject = { t, v -> AniList.gql(t, QUERY, v) },
         kitsu: (List<Int>, SharedPreferences) -> Map<Int, String> = AniList::kitsuIds,
     ): Page = withContext(Dispatchers.IO) {
+        var expired = false
         val data = try {
             ask(token, variables(q, page, token.isNotEmpty()))
         } catch (e: AniList.LoggedOut) {
+            expired = true
             ask("", variables(q, page, false))
         }.getJSONObject("Page")
         val media = data.getJSONArray("media").objects()
         val info = data.optJSONObject("pageInfo")
         val items = AniListLists.parse(media.map { JSONObject().put("media", it) }, kitsu(media.map { it.getInt("id") }, prefs))
-        Page(items, info?.optInt("total") ?: items.size, info?.optBoolean("hasNextPage") ?: false)
+        Page(items, info?.optInt("total") ?: items.size, info?.optBoolean("hasNextPage") ?: false, expired)
     }
 }

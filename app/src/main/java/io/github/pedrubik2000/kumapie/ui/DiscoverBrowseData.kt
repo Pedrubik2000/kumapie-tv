@@ -58,7 +58,7 @@ internal fun kitsuOf(f: Found): String? = f.id.takeIf { it.startsWith("kitsu:") 
 internal fun BrowseFilters.toQuery(planning: List<Int>): AniListBrowse.Query {
     val search = query.trim()
     val from = year.range.first.takeIf { year != YearBand.ANY && it > 1 }?.let { (it - 1) * 10_000 + 1231 }
-    val to = year.range.last.takeIf { year != YearBand.ANY && it < 9999 }?.let { (it + 1) * 10_000 + 101 }
+    val to = year.range.last.takeIf { year != YearBand.ANY && it < 9999 }?.let { (it + 1) * 10_000 }
     return AniListBrowse.Query(
         search = search, sort = (if (search.isEmpty()) emptyList() else listOf("SEARCH_MATCH")) + sort.anilist,
         genreIn = genres.include, genreNot = genres.exclude, tagIn = tags.include, tagNot = tags.exclude, formats = format.formats, status = airing.status,
@@ -77,12 +77,12 @@ internal fun browseView(results: List<Mine>, f: BrowseFilters, level: (String) -
     return BrowseView(results.filter { m -> level(m.kitsuId)?.let { it.band < f.limit } != false }, unrated)
 }
 
-internal fun browseLine(f: BrowseFilters, total: Int, v: BrowseView): LibraryLine {
+internal fun browseLine(f: BrowseFilters, total: Int, v: BrowseView, expired: Boolean = false): LibraryLine {
     val tail = listOfNotNull(
         f.query.trim().takeIf { it.isNotEmpty() }?.let { "“$it”" }, f.format.takeIf { it != FormatBand.ANY }?.label(),
         f.episodes.takeIf { it != EpisodeBand.ANY }?.let { tr("%s episodes", it.label()) }, f.year.takeIf { it != YearBand.ANY }?.label(),
         f.airing.takeIf { it != AiringBand.ANY }?.label()?.lowercase(),
-        when (f.mine) { BrowseMine.ANY -> null; BrowseMine.NOT_ON -> tr("not on my list"); BrowseMine.PLANNING -> tr("only my Planning") },
+        when (f.mine) { BrowseMine.ANY -> null; BrowseMine.NOT_ON -> if (expired) tr("AniList login expired: log in again in Settings") else tr("not on my list"); BrowseMine.PLANNING -> tr("only my Planning") },
         f.limit.takeIf { it > 0 }?.let { tr("up to %s", limitLabel(it)) },
         v.unrated.takeIf { it > 0 }?.let { tr("%d not rated yet", it) },
     ).joinToString(" · ")

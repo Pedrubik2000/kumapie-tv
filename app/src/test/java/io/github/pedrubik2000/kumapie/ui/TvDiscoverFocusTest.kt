@@ -65,6 +65,7 @@ class TvDiscoverFocusTest {
     private val fetched = ArrayList<Pair<AniListBrowse.Query, Int>>()
     private var browseError: String? = null
     private var browseNext = false
+    private var browseMoreError: String? = null
 
     private fun result(id: Int, name: String) = Mine(id, "$id", name, name, "/c/$id.jpg", "", "TV", 12, "", 0, 0.0, 80, listOf("Adventure"), 2023, listOf("Detective"))
 
@@ -73,6 +74,7 @@ class TvDiscoverFocusTest {
     private var browse: suspend (AniListBrowse.Query, Int) -> AniListBrowse.Page = { q, p ->
         fetched += q to p
         browseError?.let { error(it) }
+        if (p > 1) browseMoreError?.let { error(it) }
         if (p == 1) AniListBrowse.Page(catalog, 312, browseNext) else AniListBrowse.Page(listOf(result(15, "Zeta")), 312, false)
     }
 
@@ -510,6 +512,27 @@ class TvDiscoverFocusTest {
         press(RIGHT)
         rule.waitUntil(5_000) { fetched.size >= 3 }
         assertTrue(lastQuery().idIn.orEmpty().containsAll(listOf(3, 4, 5)))
+    }
+
+    @Test fun aFailedMorePageKeepsTheGridAndShowsTheFooterError() {
+        browseNext = true
+        browseMoreError = "page two failed"
+        open()
+        rule.waitUntil(5_000) { hasText("Couldn't load more: page two failed") }
+        assertTrue(hasCard("Alpha"))
+    }
+
+    @Test fun onlyPlanningWithAnEmptyPlanningListAsksNothingAndSaysSo() {
+        logIn(listOf(mine(1, "Frieren", "CURRENT", 95)))
+        open()
+        waitFocus { it?.startsWith("Pick for me") == true }
+        rows(DOWN, 2)
+        press(OK)
+        rule.waitUntil(5_000) { hasCard("Alpha") }
+        rule.onNodeWithText("My list").requestFocus()
+        press(RIGHT, RIGHT)
+        rule.waitUntil(5_000) { hasText("Your Planning list is empty") }
+        assertTrue(fetched.none { it.first.idIn != null })
     }
 
     @Test fun aTitleNoAddonKnowsOffersTryAgainAndAddonsInSettings() {

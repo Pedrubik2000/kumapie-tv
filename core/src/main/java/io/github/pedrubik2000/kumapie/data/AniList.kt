@@ -49,20 +49,31 @@ object AniList {
     }
 
     /** AniList ids -> Kitsu ids, 20 per request, kept in [store] (a mapping doesn't change). */
+    private const val CHUNK_PAUSE_MS = 250L
+    private const val RETRY_PAUSE_MS = 800L
+
     internal fun kitsuIds(ids: List<Int>, store: SharedPreferences): Map<Int, String> {
         val cache = JSONObject(store.getString(CACHE, "{}") ?: "{}")
-        for (chunk in ids.filter { !cache.has(it.toString()) }.distinct().chunked(20)) runCatching {
-            val url = "https://kitsu.io/api/edge/mappings?filter[externalSite]=anilist/anime&filter[externalId]=${chunk.joinToString(",")}" +
-                "&page[limit]=20&include=item&fields[anime]=id" // without include, relationships.item has no id
-            val data = JSONObject(get(url)).getJSONArray("data")
-            for (i in 0 until data.length()) data.getJSONObject(i).let { m ->
-                val k = m.getJSONObject("relationships").getJSONObject("item").optJSONObject("data")?.optString("id") ?: return@let
-                cache.put(m.getJSONObject("attributes").getString("externalId"), k)
+        for ((n, chunk) in ids.filter { !cache.has(it.toString()) }.distinct().chunked(20).withIndex()) {
+            if (n > 0) Thread.sleep(CHUNK_PAUSE_MS)
+            if (runCatching { mapChunk(chunk, cache) }.isFailure) {
+                Thread.sleep(RETRY_PAUSE_MS)
+                runCatching { mapChunk(chunk, cache) }
             }
-            chunk.forEach { if (!cache.has(it.toString())) cache.put(it.toString(), "") } // none on Kitsu: not asked again
         }
         store.edit().putString(CACHE, cache.toString()).apply()
         return ids.associateWith { cache.optString(it.toString()) }.filterValues { it.isNotEmpty() }
+    }
+
+    private fun mapChunk(chunk: List<Int>, cache: JSONObject) {
+        val url = "https://kitsu.io/api/edge/mappings?filter[externalSite]=anilist/anime&filter[externalId]=${chunk.joinToString(",")}" +
+            "&page[limit]=20&include=item&fields[anime]=id"
+        val data = JSONObject(get(url)).getJSONArray("data")
+        for (i in 0 until data.length()) data.getJSONObject(i).let { m ->
+            val k = m.getJSONObject("relationships").getJSONObject("item").optJSONObject("data")?.optString("id") ?: return@let
+            cache.put(m.getJSONObject("attributes").getString("externalId"), k)
+        }
+        chunk.forEach { if (!cache.has(it.toString())) cache.put(it.toString(), "") }
     }
 
 

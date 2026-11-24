@@ -14,6 +14,7 @@ import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.data.Settings
+import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
@@ -86,6 +87,7 @@ internal class PickState(private val store: PickStore, val clock: () -> Long = S
 internal typealias BrowseFetch = suspend (AniListBrowse.Query, Int) -> AniListBrowse.Page
 
 private const val BROWSE_DEBOUNCE_MS = 400L
+private const val EMPTY_PAGES = 3
 
 @Stable
 internal class BrowseState(initial: BrowseFilters, private val settings: Settings) {
@@ -95,14 +97,21 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
     var total by mutableIntStateOf(0)
     var loaded by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
+    var moreError by mutableStateOf<String?>(null)
+    var expired by mutableStateOf(false)
+    var emptyNote by mutableStateOf<String?>(null)
     var attempt by mutableIntStateOf(0)
     var moreTick by mutableIntStateOf(0)
     var picker by mutableStateOf<PickerKind?>(null)
     var last: PickerKind? = null
     val links = PickerLinks(FocusRequester(), FocusRequester()) { k -> picker = k; last = k }
     var hasNext = false
-    private var busy = false
-    private var page = 1
+    var page = 1
+        private set
+    private var moreBusy = false
+    private var generation = 0
+    private var begun = false
+    private var seenAttempt = 0
     private var fetchedFor: Any? = null
     private var query = AniListBrowse.Query()
 
@@ -118,41 +127,66 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
     }
 
     fun requestMore() {
-        if (hasNext && !busy && loaded) moreTick++
+        if (hasNext && !moreBusy && loaded && moreError == null) moreTick++
     }
 
-    suspend fun first(key: Any, q: AniListBrowse.Query, fetch: BrowseFetch) {
+    fun retryMore() {
+        moreError = null
+        requestMore()
+    }
+
+    suspend fun first(key: Any, q: AniListBrowse.Query?, fetch: BrowseFetch) {
         if (fetchedFor == key) return
-        if (loaded) delay(BROWSE_DEBOUNCE_MS)
+        val g = ++generation
+        val immediate = !begun || attempt != seenAttempt
+        begun = true
+        seenAttempt = attempt
+        moreBusy = false
+        moreError = null
+        if (!immediate) delay(BROWSE_DEBOUNCE_MS)
         error = null
-        busy = true
+        emptyNote = null
         loaded = false
         try {
-            val p = fetch(q, 1)
-            items = p.items; total = p.total; hasNext = p.hasNext; page = 1; query = q; fetchedFor = key; loaded = true
+            if (q == null) return finish(g, key, AniListBrowse.Page(emptyList(), 0, false), 1, query, tr("Your Planning list is empty"))
+            var pages = 1
+            var p = fetch(q, 1)
+            var all = p.items
+            while (all.isEmpty() && p.hasNext && pages < EMPTY_PAGES) {
+                pages++
+                p = fetch(q, pages)
+                all = all + p.items
+            }
+            finish(g, key, AniListBrowse.Page(all, p.total, p.hasNext, p.expired), pages, q, null)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: e.toString()
-        } finally {
-            busy = false
+            if (g == generation) error = e.message ?: e.toString()
         }
     }
 
+    private fun finish(g: Int, key: Any, p: AniListBrowse.Page, pages: Int, q: AniListBrowse.Query, note: String?) {
+        if (g != generation) return
+        items = p.items; total = p.total; hasNext = p.hasNext; expired = p.expired; page = pages; query = q; emptyNote = note; fetchedFor = key; loaded = true
+    }
+
     suspend fun more(fetch: BrowseFetch) {
-        if (!hasNext || busy) return
-        busy = true
+        if (!hasNext || moreBusy || !loaded) return
+        moreBusy = true
+        val g = generation
+        val next = page + 1
+        moreError = null
         try {
-            val p = fetch(query, page + 1)
+            val p = fetch(query, next)
+            if (g != generation) return
             val have = items.map { it.anilistId }.toSet()
-            items = items + p.items.filter { it.anilistId !in have }; hasNext = p.hasNext; page++
+            items = items + p.items.filter { it.anilistId !in have }; hasNext = p.hasNext; page = next
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            hasNext = false
-            error = e.message ?: e.toString()
+            if (g == generation) moreError = e.message ?: e.toString()
         } finally {
-            busy = false
+            if (g == generation) moreBusy = false
         }
     }
 }
@@ -210,10 +244,12 @@ internal fun LoadPicks(pick: PickState) {
 
 @Composable
 internal fun LoadBrowse(state: BrowseState, fetch: BrowseFetch, planning: List<Int>?, active: Boolean) {
-    val key = state.filters.copy(limit = 0) to planning?.size.takeIf { state.filters.needsPlanning }
+    val needs = state.filters.needsPlanning
+    val key = state.filters.copy(limit = 0) to planning.takeIf { needs }
     LaunchedEffect(active, key, state.attempt) {
-        if (!active || (state.filters.needsPlanning && planning == null)) return@LaunchedEffect
-        state.first(key, state.filters.toQuery(planning.orEmpty()), fetch)
+        if (!active || (needs && planning == null)) return@LaunchedEffect
+        val q = if (needs && planning.orEmpty().isEmpty()) null else state.filters.toQuery(planning.orEmpty())
+        state.first(key, q, fetch)
     }
     LaunchedEffect(state.moreTick) { if (state.moreTick > 0 && active) state.more(fetch) }
     LaunchedEffect(state.picker == null) {

@@ -61,6 +61,7 @@ class AniListBrowseTest {
             if (t.isNotEmpty()) throw AniList.LoggedOut() else answer(1, false, 7)
         }, { ids, _ -> ids.associateWith { "k$it" } })
         assertEquals(listOf("old:true", ":false"), seen)
+        assertTrue(page.expired)
         assertEquals(1, page.items.size)
         assertFalse(page.hasNext)
     }

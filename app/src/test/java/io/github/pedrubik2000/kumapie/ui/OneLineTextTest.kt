@@ -32,4 +32,10 @@ class OneLineTextTest {
         val h = rule.onNodeWithText("PSYCHO-PASS サイコパス").fetchSemanticsNode().boundsInRoot.height
         assertTrue("two lines at most: $h", h <= rule.density.run { 62.dp.toPx() })
     }
+
+    @Test fun onlyLatinLettersCountAsASplitWord() {
+        assertTrue(splitsAWord("PSYCHO-PASS サイコパス", listOf(10)))
+        assertTrue(!splitsAWord("PSYCHO-PASS サイコパス", listOf(12)))
+        assertTrue(!splitsAWord("葬送のフリーレン 第2期", listOf(4)))
+    }
 }

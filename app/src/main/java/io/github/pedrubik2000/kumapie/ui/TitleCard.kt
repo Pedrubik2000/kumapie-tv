@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -34,6 +35,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -153,8 +155,8 @@ private fun RowFace(label: String, value: String, focused: Boolean, flat: Boolea
         .background(if (focused) Color.White else if (flat) Color.Transparent else Arcade.slab, CircleShape)
         .border(1.dp, if (focused) Color.White else if (flat) Color.Transparent else Arcade.line, CircleShape)
         .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = if (focused) Color.Black else WHITE_DIM, fontSize = 15.sp, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
-        Text(if (open) "$value  ›" else "‹  $value  ›", color = if (focused) Color.Black else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = if (focused) Color.Black else WHITE_DIM, fontSize = 15.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(if (open) "$value  ›" else "‹  $value  ›", color = if (focused) Color.Black else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 136.dp))
     }
 }
 

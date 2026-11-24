@@ -47,6 +47,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         override fun put(key: String, value: Long) = settings.prefs.edit().putLong(key, value).apply()
     }, lang.code)
     private val lock = Mutex()
+    private val ankiKnown = AnkiKnown(dir, settings, language, anki) { if (!lock.isLocked) _status.value = describe() }
+    val ankiState get() = ankiKnown.state
 
     /** What one inflection's cards say. */
     data class Facts(val best: Double?, val reviewed: Boolean, val manual: Boolean)
@@ -74,6 +76,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      * WordColours: a word marked known or a Jiten import there).
      */
     fun reloadLists() {
+        ankiKnown.reload()
         val now = markedFile.lastModified() to importedSources.stamp()
         if (now == listsRead) return
         listsRead = now
@@ -129,7 +132,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     }
 
     /** Known without a card of its own: imported, or [Language.autoKnown]. */
-    private fun extraKnown(word: String) = word in imported || language.autoKnown(word)
+    private fun extraKnown(word: String) = word in imported || word in ankiKnown.words || language.autoKnown(word)
 
     private val _status = MutableStateFlow(describe())
     /** One line for Settings: what the colours come from now, or what went wrong. */
@@ -179,7 +182,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         if (settings.server.isEmpty()) WordSync.ensure { DeviceFiles(context, listOf(language)).elsewhere() }
         if (cardIndex.due == null) kotlinx.coroutines.runBlocking { loadCards() }
         if (pkgNow() == SrsCards.PKG) runCatching { cardIndex.update(anki.cards(SrsCards.PKG, search), anki.due(SrsCards.PKG)) }
-        return cardIndex.known(snapshot?.words?.keys.orEmpty() + imported, marked, { it in imported }, ::status)
+        return cardIndex.known(snapshot?.words?.keys.orEmpty() + imported + ankiKnown.words, marked, { it in imported }, ::status)
     }
 
     /** This language's word cards by form and kuma3's queue today: [EpisodeDetail] words' [io.github.pedrubik2000.kumapie.data.Word.card]. */
@@ -230,6 +233,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     suspend fun readCards(): Boolean = withContext(Dispatchers.IO) {
         srs.sync(lang) // kumapie's own cards: the other devices' ratings (false, and kuma3 below, for the parents)
         if (settings.plainWords) return@withContext false
+        srs.background.launch { ankiKnown.read() }
         val pkg = ankiApp()?.takeIf { hasPermission(it) } ?: return@withContext false
         val notes = whileAnkiStarts { anki.notes(pkg, search) }
         val cards = anki.cards(pkg, search)
@@ -455,12 +459,16 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         runCatching { markedFile.writeText(words.sorted().joinToString("\n")) }
     }
 
+    /** The chosen Anki app's reviewed notes as known words ([AnkiKnown.read]); reads only, fails soft, says why in [ankiState]. */
+    suspend fun readAnkiSource(force: Boolean = false) = ankiKnown.read(force)
+
     /** Reads Anki again and works out every word's facts (parsing only new or changed fields). Fails while [Settings.plainWords] unless [force] (a button the person pressed). */
     suspend fun refresh(force: Boolean = false): Result<Snapshot> = lock.withLock {
         withContext(Dispatchers.IO) {
             runCatching {
                 check(force || !settings.plainWords) { "word colours are off" }
                 srs.sync(lang)
+                srs.background.launch { ankiKnown.read(force) }
                 val pkg = ankiApp() ?: error(tr("No AnkiDroid found on this device."))
                 if (!hasPermission(pkg)) error(tr("kumapie may not read Anki yet: allow it in Settings."))
                 if (!modelReady) error(if (lang == Lang.JAPANESE) tr("The %s dictionary isn't downloaded yet.", lang.displayName)
@@ -530,45 +538,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         o.keys().asSequence().associate { id -> id.toLong() to o.getJSONObject(id).getJSONArray("k").let { a -> List(a.length()) { a.getString(it) } } }
     }.orEmpty()
 
-    /**
-     * [Language.cardKeys] of each note, from the cache when its Word, Reading, Sentence and the parser are the same as last
-     * time: Japanese keys load Jiten's lexicon (~3 s of CPU and ~95 MB on a Pixel 8a), now only for new or edited notes.
-     */
-    @Synchronized
-    private fun cardKeys(notes: List<AnkiCards.Note>): (AnkiCards.Note) -> List<String> {
-        val cache = runCatching { JSONObject(keysCache.readText()) }.getOrDefault(JSONObject())
-        val out = HashMap<Long, List<String>>()
-        for (n in notes) {
-            val hash = "${language.parserId}:k3:${(n.fields["Word"] + "\u0001" + n.fields["Reading"] + "\u0001" + n.fields["Sentence"]).hashCode()}"
-            val hit = cache.optJSONObject("${n.id}")
-            out[n.id] = if (hit != null && hit.optString("h") == hash) hit.getJSONArray("k").let { a -> List(a.length()) { a.getString(it) } }
-                else language.cardKeys(n).also { cache.put("${n.id}", JSONObject().put("h", hash).put("k", JSONArray(it))) }
-        }
-        cache.keys().asSequence().toList().filter { it.toLong() !in out }.forEach { cache.remove(it) }
-        keysCache.writeText(cache.toString())
-        return { out[it.id].orEmpty() }
-    }
-
-    /**
-     * Runs a read, again while the AnkiDroid it woke is still starting: its provider answers before the app has
-     * finished starting ("Collection accessed before AnkiDroidApp was initialized"). "Storage is not configured"
-     * is not retried: that AnkiDroid was never set up, and opening it again would give it an empty collection.
-     */
-    private suspend fun <T> whileAnkiStarts(read: () -> T): T {
-        repeat(5) {
-            try {
-                return read()
-            } catch (e: IllegalStateException) {
-                if (e.message?.contains("storage is not configured", true) == true) {
-                    error(tr("That Anki isn't set up yet: open it once, then read Anki again."))
-                }
-                if (e.message?.contains("before AnkiDroidApp was initialized") != true) throw e
-                Log.i("kumapie", "known words: Anki is still starting, trying again")
-                kotlinx.coroutines.delay(1_500)
-            }
-        }
-        return read()
-    }
+    private fun cardKeys(notes: List<AnkiCards.Note>) = cachedCardKeys(language, keysCache, notes)
 
     private fun save(snap: Snapshot) {
         val words = JSONObject()
@@ -591,8 +561,10 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         Snapshot(words, o.getLong("time"), o.getString("app"), o.getInt("notes"), o.getInt("cards"))
     }.getOrNull()
 
+    private fun fromAnki() = if (ankiKnown.words.isEmpty()) "" else " " + tr("%d known from Anki.", ankiKnown.words.size)
+
     private fun describe(): String {
-        val snap = snapshot ?: return if (lang == Lang.GERMAN) tr("Colours come from the PC until Anki is read here.") else tr("Anki not read yet.")
+        val snap = snapshot ?: return (if (lang == Lang.GERMAN) tr("Colours come from the PC until Anki is read here.") else tr("Anki not read yet.")) + fromAnki()
         var known = 0
         for (w in snap.words.keys) if (status(w) == "k") known++
         val ago = (System.currentTimeMillis() - snap.time) / 60_000
@@ -603,7 +575,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         }
         return tr("%1\$d known, %2\$d new (%3\$d notes, read %4\$s).", known,
             snap.words.size - known, snap.notes, whenText) +
-            if (imported.isEmpty()) "" else " " + tr("%d imported as known.", imported.size)
+            (if (imported.isEmpty()) "" else " " + tr("%d imported as known.", imported.size)) + fromAnki()
     }
 
     companion object {

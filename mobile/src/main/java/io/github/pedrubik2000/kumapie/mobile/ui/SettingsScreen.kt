@@ -333,6 +333,7 @@ private fun KnownWordsSection(library: Library, learning: Set<String>) {
         }), fontSize = 14.sp, color = Colors.dim)
     }
 
+    AnkiSourcePicker(library, learning)
     library.languages.all.filter { it.lang.code in learning }.forEach { LanguageWordsSection(it, allowed, app, library::syncKnownLists) }
 }
 

@@ -162,6 +162,22 @@ class Settings(context: Context) {
         get() = prefs.getString("ja_font", "") ?: ""
         set(value) = prefs.edit().putString("ja_font", value).apply()
 
+    var ankiSource: String
+        get() = prefs.getString("anki_source", AnkiSource.NONE)?.takeIf { it in AnkiSource.CHOICES } ?: AnkiSource.NONE
+        set(value) = prefs.edit().putString("anki_source", value).apply()
+
+    fun ankiDecks(lang: Lang): List<String> = AnkiSource.decks(prefs.getString("anki_decks_${lang.code}", null), lang)
+
+    fun setAnkiDecks(lang: Lang, decks: List<String>) = prefs.edit().putString("anki_decks_${lang.code}", AnkiSource.encode(decks)).apply()
+
+    fun ankiWordField(lang: Lang): String = prefs.getString("anki_word_${lang.code}", null)?.takeIf { it.isNotBlank() } ?: AnkiSource.DEFAULT_WORD
+
+    fun setAnkiWordField(lang: Lang, field: String) = prefs.edit().putString("anki_word_${lang.code}", field).apply()
+
+    fun ankiReadingField(lang: Lang): String = prefs.getString("anki_reading_${lang.code}", null)?.takeIf { it.isNotBlank() } ?: AnkiSource.DEFAULT_READING
+
+    fun setAnkiReadingField(lang: Lang, field: String) = prefs.edit().putString("anki_reading_${lang.code}", field).apply()
+
     companion object {
         fun normalizeServer(value: String): String {
             val v = value.trim().trimEnd('/')

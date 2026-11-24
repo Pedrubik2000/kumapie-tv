@@ -2,6 +2,7 @@ package io.github.pedrubik2000.kumapie.ui
 
 import androidx.lifecycle.Lifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -14,6 +15,10 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.requestFocus
+import androidx.tv.material3.Text
+import io.github.pedrubik2000.kumapie.Screen
+import io.github.pedrubik2000.kumapie.StackEntry
+import io.github.pedrubik2000.kumapie.goTop
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -64,7 +69,6 @@ class TvTitleFocusTest {
 
     private val title = Found("kitsu:5", "series", "Alpha", "/p/alpha.jpg", "2020")
     private var shown by mutableStateOf(true)
-    private var discovers = 0
 
     private fun discovery(watched: List<Boolean>) = object : Discovery {
         override suspend fun board() = emptyList<Pair<String, List<Found>>>()
@@ -94,7 +98,7 @@ class TvTitleFocusTest {
         val app = RuntimeEnvironment.getApplication()
         app.getSharedPreferences("backdrops_kitsu", 0).edit().putString("kitsu:5", "/b/5.jpg").commit()
         val queue = JitenQueue(JitenStore(File(app.cacheDir, "jiten-title-${System.nanoTime()}.json")), JitenApi(JitenHttp), resolve = { null }, idle = { false })
-        rule.setContent { if (shown) DiscoverScreen(discovery(watched), Settings(RuntimeEnvironment.getApplication()), start = title, jiten = queue, sync = sync, onDiscover = { discovers++ }) }
+        rule.setContent { if (shown) DiscoverScreen(discovery(watched), Settings(RuntimeEnvironment.getApplication()), start = title, jiten = queue, sync = sync) }
     }
 
     private fun focused(): String? = rule.onAllNodes(isFocused()).fetchSemanticsNodes().firstOrNull()?.config?.let { c ->
@@ -118,13 +122,27 @@ class TvTitleFocusTest {
 
     private fun hasText(t: String) = rule.onAllNodesWithText(t).fetchSemanticsNodes().isNotEmpty()
 
-    @Test fun theDiscoverItemOfTheRailOnATitleOpenedFromOutsideRunsTheDiscoverAction() {
-        open(listOf(true, false, false))
+    @Test fun theRailsDiscoverOnATitleFromHomeShowsTheBoardAndBackGoesHome() {
+        val app = RuntimeEnvironment.getApplication()
+        app.getSharedPreferences("backdrops_kitsu", 0).edit().putString("kitsu:5", "/b/5.jpg").commit()
+        val queue = JitenQueue(JitenStore(File(app.cacheDir, "jiten-title-${System.nanoTime()}.json")), JitenApi(JitenHttp), resolve = { null }, idle = { false })
+        val stack = mutableStateListOf<Screen>(Screen.Home, Screen.Discover(title))
+        rule.setContent {
+            val screen = stack.last()
+            StackEntry(screen) {
+                if (screen is Screen.Discover) DiscoverScreen(discovery(listOf(true)), Settings(app), start = screen.open, jiten = queue,
+                    onDiscover = { stack.goTop(Screen.Discover()) })
+                else Text("home screen")
+            }
+        }
         waitFocus { it?.startsWith("▶") == true }
         rule.onNodeWithContentDescription("Discover").requestFocus()
         rule.waitForIdle()
         press(Key.DirectionCenter)
-        assertEquals(1, discovers)
+        rule.waitUntil(5_000) { hasText("Catalog") }
+        assertEquals(2, stack.size)
+        rule.runOnIdle { stack.removeAt(stack.lastIndex) }
+        rule.waitUntil(5_000) { hasText("home screen") }
     }
 
     @Test fun theHintLineFollowsTheFocusFromAValueRowToAnEpisode() {

@@ -134,7 +134,7 @@ fun App(settings: Settings) {
 private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) { io.github.pedrubik2000.kumapie.ui.moveAloneLang(settings); Tr.use(settings.menuLanguage) }
-    when (stack.last()) {
+    StackEntry(stack.last()) { when (stack.last()) {
         Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
             onSaved = onSaved, onUpdate = onUpdate)
         Screen.Buttons -> ButtonsScreen(settings)
@@ -153,7 +153,7 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
             onPlay = { s, e -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e))) },
             onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) }, onProfiles = {}, onReview = { stack.add(Screen.Review(it)) },
             onDiscover = { stack.goTop(Screen.Discover()) }, onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.goTop(Screen.Library) })
-    }
+    } }
     if (stack.last().let { it == Screen.Home || it is Screen.Discover }) io.github.pedrubik2000.kumapie.ui.RdMissingLine(settings) { stack.add(Screen.Settings) }
 }
 
@@ -171,7 +171,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
             settings.speaks = if (it.menu == "es") "es" else "en"
             profile = it
         }, onSettings = { stack.add(Screen.Settings) })
-    } else when (screen) {
+    } else StackEntry(screen) { when (screen) {
         Screen.Home -> HomeScreen(api, settings, profile?.id.orEmpty(), profile?.name.orEmpty(),
             onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e ->
                 when (val r = io.github.pedrubik2000.kumapie.data.route(s, e, hasPc = true)) {
@@ -196,5 +196,5 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
         Screen.Buttons -> ButtonsScreen(settings)
         Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
             onSaved = onSaved, onUpdate = onUpdate)
-    }
+    } }
 }

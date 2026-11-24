@@ -47,9 +47,7 @@ import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.resumeLine
 import io.github.pedrubik2000.kumapie.i18n.tr
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Stable
 class HomeFocus(first: HeroTarget?) {
@@ -66,13 +64,14 @@ class HomeFocus(first: HeroTarget?) {
 
     fun forget(): Modifier = Modifier.onFocusChanged { if (it.isFocused) back = null }
 
-    fun returnFromRail(resume: HeroTarget?, first: FocusRequester, scope: CoroutineScope): Boolean {
+    var toTop: (() -> Unit)? = null
+
+    fun returnFromRail(): Boolean {
         val had = back != null
         if (back?.requestFocus(FocusDirection.Enter) == true) return true
         back = null
         if (!had) return false
-        resume?.let { target = it }
-        scope.launch { first.focusSoon() }
+        toTop?.invoke()
         return true
     }
 }

@@ -223,14 +223,14 @@ class TvHomeFocusTest {
         assertEquals(first, focused())
     }
 
-    private fun openSwappableHome() {
+    private fun openSwappableHome(until: String = RESUME) {
         rule.setContent {
             val settings = Settings(LocalContext.current)
             val t = tick
             HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro", onShow = {}, onPlay = { _, _ -> }, onSettings = {},
                 onStats = {}, onProfiles = {}, onLibrary = {}, onDiscover = {}, lists = { if (t < 0) emptyList() else null })
         }
-        rule.waitUntil(5_000) { focused() == RESUME }
+        rule.waitUntil(5_000) { focused() == until }
     }
 
     private fun swapTo(user: String, vararg mine: JSONObject) {
@@ -253,6 +253,36 @@ class TvHomeFocusTest {
         rule.waitUntil(5_000) { !hasCard("Frieren") }
         press(RIGHT)
         rule.waitUntil(5_000) { focused() == RESUME }
+        rule.waitUntil(5_000) { hasCard("Alpha") }
+        assert(rule.onNodeWithText("Continue watching").fetchSemanticsNode().boundsInRoot.top >= 500f)
+    }
+
+    @Test fun withNoContinueRowAnEmptiedHomeLeavesRightOnFindSomethingToWatch() {
+        showsBody = """{"shows":[${show("c", "Gamma", "shows", episode("c1", null, 0))}]}"""
+        logIn(mine("1", "Frieren", "CURRENT", progress = 11, episodes = 28))
+        openSwappableHome("Frieren")
+        press(Key.DirectionLeft.keyCode)
+        assert(focused() in RAIL_LABELS) { "${focused()}" }
+        swapTo("other")
+        rule.waitUntil(5_000) { !hasCard("Frieren") }
+        press(RIGHT)
+        rule.waitUntil(5_000) { focused() == "Find something to watch" }
+    }
+
+    @Test fun rightOnTheHeaderLanguageButtonDoesNotJumpToTheRememberedRow() {
+        showsBody = """{"shows":[${listOf(
+            show("a", "Alpha", "anime", episode("a1", 300.0, 200)),
+            show("e", "Epsilon", "shows", episode("e1", null, 0)).replace("\"lang\":\"ja\"", "\"lang\":\"en\""),
+        ).joinToString(",")}]}"""
+        openHome()
+        press(DOWN)
+        assertEquals("Alpha", focused())
+        rule.onNode(androidx.compose.ui.test.hasText("▾", substring = true)).requestFocus()
+        rule.waitForIdle()
+        val at = focused()
+        assert(at != null && at.contains("▾")) { "$at" }
+        press(RIGHT)
+        assertEquals(at, focused())
     }
 
     @Test fun aRowAboveTheRememberedOneDisappearingStillReturnsToTheSameRow() {

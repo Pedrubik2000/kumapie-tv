@@ -22,7 +22,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -95,15 +94,14 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
     val first = remember { FocusRequester() }
     val rail = RailNav({}, onLibrary, onDiscover, { lang?.let(onReview) }, onStats, onSettings)
     val profileItem = RailItem(Icons.Default.Person, who, back = false, onClick = onProfiles).takeIf { api is Api }
-    val settle = remember(data) { { if (focus.back == null) data?.resume?.let { focus.target = it }; Unit } }
+    val settle = remember(data) { { if (focus.back == null) focus.target = data?.resume; Unit } }
     var contentFocused by remember { mutableStateOf(false) }
     var railFocused by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
     Box(Modifier.fillMaxSize().railGate().onPreviewKeyEvent { e ->
         if (e.type != KeyEventType.KeyDown) false
         else when (e.key) {
             Key.DirectionLeft -> { if (contentFocused && Hints.shown == HintKind.HERO) focus.back = null; false }
-            Key.DirectionRight -> railFocused && focus.returnFromRail(data?.resume, first, scope)
+            Key.DirectionRight -> railFocused && focus.returnFromRail()
             else -> false
         }
     }) {

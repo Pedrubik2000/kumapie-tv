@@ -25,12 +25,12 @@ internal fun TvAniList(settings: Settings, focus: FocusRequester) {
     var changed by remember { mutableIntStateOf(0) }
     var phone by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
-    var waiting by remember { mutableStateOf<Int?>(null) }
+    var last by remember { mutableStateOf<AniListAccount.Last?>(null) }
     val sync = remember { AniListSync(settings.prefs) }
     val loggedIn = remember(changed) { settings.anilistToken.isNotEmpty() }
     val state = remember(changed) { AniListAccount.summary(settings) }
     LaunchedEffect(loggedIn) { phone = false; confirm = false }
-    LaunchedEffect(confirm) { waiting = null; if (confirm) waiting = AniListAccount.sendLast(sync) }
+    LaunchedEffect(confirm) { last = null; if (confirm) last = AniListAccount.sendLast(sync) }
     Heading(tr("AniList"), Modifier.padding(top = 8.dp))
     Text(AniListAccount.why(), color = Colors.dim)
     Text(state, color = if (!loggedIn && settings.anilistLoggedOut) Colors.accent else Colors.text)
@@ -39,7 +39,7 @@ internal fun TvAniList(settings: Settings, focus: FocusRequester) {
             when {
                 !loggedIn -> phone = !phone
                 !confirm -> confirm = true
-                waiting != null -> { settings.logOutAniList(); confirm = false; changed++ }
+                last != null -> { if (last?.expired != true) settings.logOutAniList(); confirm = false; changed++ }
             }
         }, modifier = Modifier.focusRequester(focus)) {
             Text(when {
@@ -50,6 +50,6 @@ internal fun TvAniList(settings: Settings, focus: FocusRequester) {
         }
         if (loggedIn && confirm) Button(onClick = { confirm = false }) { Text(tr("Keep me logged in")) }
     }
-    if (loggedIn && confirm) Text(tr("Log out of AniList?") + " " + AniListAccount.confirmText(waiting), color = if ((waiting ?: 0) > 0) Colors.accent else Colors.dim)
+    if (loggedIn && confirm) Text(tr("Log out of AniList?") + " " + AniListAccount.confirmText(last), color = if (last?.expired == true || (last?.waiting ?: 0) > 0) Colors.accent else Colors.dim)
     if (phone && !loggedIn) PhonePage(settings, SetupPart.ANILIST, onSaved = { changed++ })
 }

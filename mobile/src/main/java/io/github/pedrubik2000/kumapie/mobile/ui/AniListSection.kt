@@ -28,9 +28,9 @@ fun AniListSection(settings: Settings) {
     val context = LocalContext.current
     val changed by aniListLogins
     var confirm by remember { mutableStateOf(false) }
-    var waiting by remember { mutableStateOf<Int?>(null) }
+    var last by remember { mutableStateOf<AniListAccount.Last?>(null) }
     val sync = remember { AniListSync(settings.prefs) }
-    LaunchedEffect(confirm) { waiting = null; if (confirm) waiting = AniListAccount.sendLast(sync) }
+    LaunchedEffect(confirm) { last = null; if (confirm) last = AniListAccount.sendLast(sync) }
     val loggedIn = changed >= 0 && settings.anilistToken.isNotEmpty()
     Text(AniListAccount.why(), color = Colors.dim, fontSize = 14.sp)
     Text(AniListAccount.summary(settings), fontSize = 17.sp,
@@ -43,7 +43,7 @@ fun AniListSection(settings: Settings) {
     }
     if (confirm) AlertDialog(onDismissRequest = { confirm = false },
         title = { Text(tr("Log out of AniList?")) },
-        text = { Text(AniListAccount.confirmText(waiting)) },
-        confirmButton = { TextButton(enabled = waiting != null, onClick = { settings.logOutAniList(); aniListLogins.intValue++; confirm = false }) { Text(tr("Yes, log out")) } },
+        text = { Text(AniListAccount.confirmText(last)) },
+        confirmButton = { TextButton(enabled = last != null, onClick = { if (last?.expired != true) settings.logOutAniList(); aniListLogins.intValue++; confirm = false }) { Text(tr("Yes, log out")) } },
         dismissButton = { TextButton(onClick = { confirm = false }) { Text(tr("Keep me logged in")) } })
 }

@@ -146,7 +146,7 @@ object AniList {
         val n = kitsu.removePrefix("kitsu:").substringBefore(':').takeIf { it.isNotEmpty() && it.all(Char::isDigit) } ?: return@withContext null
         val key = "anilist_of_kitsu_$n"
         store.getString(key, null)?.let { return@withContext it.toIntOrNull() }
-        val data = JSONObject(get("https://kitsu.io/api/edge/anime/$n/mappings?filter[externalSite]=anilist/anime")).getJSONArray("data")
+        val data = JSONObject(cancellable { open -> get("https://kitsu.io/api/edge/anime/$n/mappings?filter[externalSite]=anilist/anime", open) }).getJSONArray("data")
         val id = (0 until data.length()).map { data.getJSONObject(it).getJSONObject("attributes") }
             .firstOrNull { it.optString("externalSite") == "anilist/anime" }?.optString("externalId")?.toIntOrNull()
         store.edit().putString(key, id?.toString().orEmpty()).apply()
@@ -156,7 +156,7 @@ object AniList {
     private const val FIELDS = "status score progress repeat updatedAt startedAt{year month day} completedAt{year month day}"
 
     suspend fun entry(token: String, media: Int): Entry = withContext(Dispatchers.IO) {
-        val m = gql(token, "query(\$id:Int){Media(id:\$id){episodes mediaListEntry{$FIELDS}}}", JSONObject().put("id", media)).getJSONObject("Media")
+        val m = gqlCancellable(token, "query(\$id:Int){Media(id:\$id){episodes mediaListEntry{$FIELDS}}}", JSONObject().put("id", media)).getJSONObject("Media")
         val episodes = m.optInt("episodes").takeIf { it > 0 }
         m.optJSONObject("mediaListEntry")?.let { entryOf(it).copy(episodes = episodes) } ?: Entry(episodes = episodes)
     }
@@ -164,7 +164,7 @@ object AniList {
     suspend fun save(token: String, media: Int, e: Entry, before: Entry? = null): Entry = withContext(Dispatchers.IO) {
         val q = "mutation(\$id:Int,\$s:MediaListStatus,\$sc:Float,\$p:Int,\$r:Int,\$a:FuzzyDateInput,\$c:FuzzyDateInput)" +
             "{SaveMediaListEntry(mediaId:\$id,status:\$s,score:\$sc,progress:\$p,repeat:\$r,startedAt:\$a,completedAt:\$c){$FIELDS}}"
-        entryOf(gql(token, q, saveVars(media, e, before)).getJSONObject("SaveMediaListEntry")).copy(episodes = e.episodes)
+        entryOf(gqlCancellable(token, q, saveVars(media, e, before)).getJSONObject("SaveMediaListEntry")).copy(episodes = e.episodes)
     }
 
     fun saveVars(media: Int, e: Entry, before: Entry? = null): JSONObject {

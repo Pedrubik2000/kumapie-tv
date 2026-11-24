@@ -16,13 +16,22 @@ object AniListAccount {
 
     fun why(): String = tr("Home, Library and Discover come from your AniList lists, and what you watch goes back to it.")
 
-    suspend fun sendLast(sync: AniListSync, timeoutMs: Long = 5000): Int =
-        withContext(Dispatchers.IO) { withTimeoutOrNull(timeoutMs) { sync.flushNow() } ?: sync.waiting() }
+    class Last(val waiting: Int, val expired: Boolean)
 
-    fun confirmText(waiting: Int?): String = when {
-        waiting == null -> tr("Sending your last changes to AniList…")
-        waiting == 0 -> tr("This only signs kumapie out. Your AniList stays as it is.")
-        waiting == 1 -> tr("1 change hasn't reached AniList yet: it will be lost")
-        else -> tr("%d changes haven't reached AniList yet: they'll be lost", waiting)
+    suspend fun sendLast(sync: AniListSync, timeoutMs: Long = 5000): Last = withContext(Dispatchers.IO) {
+        val before = sync.waiting()
+        val left = withTimeoutOrNull(timeoutMs) { sync.flushNow() } ?: sync.waiting()
+        val expired = sync.expired()
+        Last(if (expired) before else left, expired)
+    }
+
+    fun confirmText(last: Last?): String = when {
+        last == null -> tr("Sending your last changes to AniList…")
+        last.expired && last.waiting == 0 -> tr("Your AniList login had expired.")
+        last.expired && last.waiting == 1 -> tr("Your AniList login had expired: 1 change couldn't be sent")
+        last.expired -> tr("Your AniList login had expired: %d changes couldn't be sent", last.waiting)
+        last.waiting == 0 -> tr("This only signs kumapie out. Your AniList stays as it is.")
+        last.waiting == 1 -> tr("1 change hasn't reached AniList yet: it will be lost")
+        else -> tr("%d changes haven't reached AniList yet: they'll be lost", last.waiting)
     }
 }

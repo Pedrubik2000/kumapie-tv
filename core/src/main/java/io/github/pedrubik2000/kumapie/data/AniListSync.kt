@@ -98,6 +98,8 @@ class AniListSync(
         return waiting()
     }
 
+    fun expired(): Boolean = token().isEmpty() && prefs.getBoolean("anilist_logged_out", false)
+
     fun waiting(): Int = synchronized(store) { pending().length() }
 
     fun retry() { if (token().isNotEmpty()) scope.launch { lock.withLock { flush() } } }

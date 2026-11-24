@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasImeAction
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -59,6 +60,7 @@ class TvDiscoverFocusTest {
     private var fresh: ((List<Mine>) -> Unit)? = null
 
     @Before fun forget() {
+        browseGapMs = 0
         LibraryMemory.forget()
     }
 
@@ -414,6 +416,15 @@ class TvDiscoverFocusTest {
         rule.waitUntil(5_000) { fetched.size == 2 }
         assertEquals(listOf("SCORE_DESC"), lastQuery().sort)
         assertTrue(hasText("312 on AniList"))
+    }
+
+    @Test fun theBrowseColumnScrollsWithFocusToItsLastRowAndLeftFromTheGridLandsOnABrowseRow() {
+        openBrowse()
+        press(RIGHT, LEFT)
+        assertTrue(focused()?.startsWith("Browse") == true)
+        repeat(20) { if (focused()?.startsWith("Difficulty") != true) press(DOWN) }
+        assertTrue(focused()?.startsWith("Difficulty") == true)
+        rule.onNodeWithText("Difficulty").assertIsDisplayed()
     }
 
     @Test fun myListIsOnlyThereWhenLoggedIn() {

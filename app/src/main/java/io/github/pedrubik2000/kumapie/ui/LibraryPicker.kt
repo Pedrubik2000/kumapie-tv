@@ -46,7 +46,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 internal val INCLUDE_GREEN = Color(0xFF4ADE80)
 internal val EXCLUDE_RED = Color(0xFFF87171)
 private const val TAGS_SHOWN = 40
-private val PICKER_PANEL = Modifier.fillMaxSize().padding(start = RAIL, top = 28.dp, end = 28.dp, bottom = 28.dp)
+
 
 internal fun styled(line: LibraryLine, plain: Color): AnnotatedString = buildAnnotatedString {
     withStyle(SpanStyle(color = plain)) { append(line.head) }
@@ -77,7 +77,7 @@ internal fun librarySource(list: LibraryList, inList: List<Mine>, filters: Libra
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, source: PickerSource, line: LibraryLine?, shown: Int, onClose: () -> Unit) {
+internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, source: PickerSource, line: LibraryLine?, shown: String, onClose: () -> Unit) {
     val picks = source.picks(kind)
     val chips = source.chips(kind)
     val first = remember(kind) { FocusRequester() }
@@ -93,7 +93,8 @@ internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, sourc
         seen = chips.size
     }
     LaunchedEffect(kind, chips.isEmpty()) { (if (chips.isEmpty()) clear else first).focusSoon() }
-    Column(PICKER_PANEL.onBackKey { onClose() }.focusProperties { exit = { if (it == FocusDirection.Left) FocusRequester.Cancel else FocusRequester.Default } }
+    val panel = Modifier.fillMaxSize().padding(start = RAIL, top = 28.dp, end = 28.dp, bottom = maxOf(28.dp, rememberHintRoom()))
+    Column(panel.onBackKey { onClose() }.focusProperties { exit = { if (it == FocusDirection.Left) FocusRequester.Cancel else FocusRequester.Default } }
         .onFocusChanged { inside = it.hasFocus }.focusGroup()
         .arcadePanel().padding(24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -117,7 +118,7 @@ internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, sourc
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (line == null) AnnotatedString("") else styled(line, Colors.text), fontSize = 16.sp, modifier = Modifier.weight(1f))
             Button(onClick = { source.onPicks(kind, ChipPicks()) }, modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(clear)) { Text(tr("Clear")) }
-            Button(onClick = onClose, modifier = Modifier.hint(HintKind.CHOOSE)) { Text(tr("Show %d titles", shown)) }
+            Button(onClick = onClose, modifier = Modifier.hint(HintKind.CHOOSE)) { Text(tr("Show %s titles", shown)) }
         }
     }
 }

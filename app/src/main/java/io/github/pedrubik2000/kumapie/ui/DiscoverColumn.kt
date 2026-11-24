@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
@@ -30,7 +32,7 @@ internal fun DiscoverColumn(mode: DiscoverMode, entry: FocusRequester, link: Lin
                             modifier: Modifier, extras: @Composable ColumnScope.(Modifier) -> Unit) {
     val firstRow = remember { FocusRequester() }
     val sides = Modifier.fillMaxWidth().focusProperties { if (link.ready) right = link.to; left = toRail() }
-    Column(modifier.width(PANEL_WIDTH).arcadePanel().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier.width(PANEL_WIDTH).arcadePanel().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Title(tr("Discover"), fontSize = 26.sp)
         DiscoverMode.entries.forEachIndexed { i, m ->
             val place = if (m == mode) Modifier.focusRequester(entry) else if (i == 0) Modifier.focusRequester(firstRow) else Modifier

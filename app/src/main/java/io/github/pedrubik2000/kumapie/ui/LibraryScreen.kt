@@ -96,7 +96,7 @@ private fun LibraryBody(all: List<Mine>, settings: Settings, entry: FocusRequest
         LibraryHero(items, focus, api, levels)
         val open = picker
         if (open != null) {
-            LibraryPicker(open, { picker = it; last = it }, librarySource(current, current.of(all), filters, apply), display?.let { libraryLine(it.list, it.filters, it.view) }, items.size) { picker = null }
+            LibraryPicker(open, { picker = it; last = it }, librarySource(current, current.of(all), filters, apply), display?.let { libraryLine(it.list, it.filters, it.view) }, items.size.toString()) { picker = null }
         } else {
             LibraryColumn(all, current, filters, entry, nav.grid.takeIf { items.isNotEmpty() }, { rail[tr("Library")] ?: FocusRequester.Default },
                 { l -> if (list != null || l != LibraryList.WATCHING) { list = l; LibraryMemory.list = l } }, apply, links, Modifier.padding(start = RAIL, top = 28.dp, bottom = 16.dp))

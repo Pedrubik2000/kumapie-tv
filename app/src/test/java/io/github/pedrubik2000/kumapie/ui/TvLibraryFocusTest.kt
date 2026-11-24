@@ -7,6 +7,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -251,6 +252,15 @@ class TvLibraryFocusTest {
         assertTrue(hasText("‹  Easiest first  ›"))
         press(LEFT, LEFT)
         assertTrue(hasText("‹  Year  ›"))
+    }
+
+    @Test fun theLibraryColumnScrollsWithFocusToItsLastRow() {
+        logIn()
+        open()
+        waitFocus { it?.startsWith("Watching") == true }
+        repeat(25) { if (focused()?.startsWith("Show only") != true) press(DOWN) }
+        assertTrue(focused()?.startsWith("Show only") == true)
+        rule.onNodeWithText("Show only").assertIsDisplayed()
     }
 
     @Test fun anEmptyTagsPickerSaysSoKeepsTheFocusInsideAndBackClosesItToTheRow() {

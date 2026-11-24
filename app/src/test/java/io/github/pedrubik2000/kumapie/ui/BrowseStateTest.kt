@@ -18,6 +18,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class BrowseStateTest {
+    @org.junit.Before fun noGap() { browseGapMs = 0 }
+
     private fun state() = BrowseState(BrowseFilters(), Settings(RuntimeEnvironment.getApplication()))
 
     private fun m(id: Int) = Mine(id, "k$id", "n$id", "n$id", "", "", "TV", 12, "", 0, 0.0, 80, emptyList(), 2020)
@@ -31,8 +33,9 @@ class BrowseStateTest {
         s.first("a", q, { _, _ -> page(1) })
         val late = CompletableDeferred<AniListBrowse.Page>()
         val more = async(start = CoroutineStart.UNDISPATCHED) { s.more { _, _ -> late.await() } }
+        val release = async { kotlinx.coroutines.delay(100); late.complete(page(3)) }
         s.first("b", q, { _, _ -> page(2) })
-        late.complete(page(3))
+        release.await()
         more.await()
         assertEquals(listOf(2), s.items.map { it.anilistId })
         assertEquals(1, s.page)
@@ -138,5 +141,48 @@ class BrowseStateTest {
         assertTrue(!s.expired)
         s.more { _, _ -> AniListBrowse.Page(listOf(m(2)), 5, false, expired = true) }
         assertTrue(s.expired)
+    }
+
+    @Test fun aTooManyRequestsAnswerWaitsThenAsksAgainAtMostTwiceShowingWaiting() = runBlocking {
+        val s = state()
+        var asks = 0
+        var sawWaiting = false
+        val job = async(start = CoroutineStart.UNDISPATCHED) {
+            s.first("a", q, { _, _ -> asks++; if (asks <= 2) throw io.github.pedrubik2000.kumapie.data.AniList.Failed(429, "AniList: too many requests", 1) else page(1) })
+        }
+        kotlinx.coroutines.delay(300)
+        sawWaiting = s.waiting
+        job.await()
+        assertTrue(sawWaiting)
+        assertEquals(3, asks)
+        assertTrue(!s.waiting && s.loaded && s.error == null)
+    }
+
+    @Test fun aThirdTooManyRequestsAnswerIsAnError() = runBlocking {
+        val s = state()
+        var asks = 0
+        s.first("a", q, { _, _ -> asks++; throw io.github.pedrubik2000.kumapie.data.AniList.Failed(429, "AniList: too many requests", 1) })
+        assertEquals(3, asks)
+        assertEquals("AniList: too many requests", s.error)
+    }
+
+    @Test fun requestsAreSpacedByTheGapAndNeverOverlap() = runBlocking {
+        browseGapMs = 300
+        val s = state()
+        val starts = ArrayList<Long>()
+        var running = 0
+        var most = 0
+        val fetch: BrowseFetch = { _, _ ->
+            starts += System.nanoTime() / 1_000_000
+            running++; most = maxOf(most, running)
+            kotlinx.coroutines.delay(50)
+            running--
+            page(1)
+        }
+        s.first("a", q, fetch)
+        val more = async { s.more(fetch) }
+        more.await()
+        assertEquals(1, most)
+        assertTrue(starts[1] - starts[0] >= 280)
     }
 }

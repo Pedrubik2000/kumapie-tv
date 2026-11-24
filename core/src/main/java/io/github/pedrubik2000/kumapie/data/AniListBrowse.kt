@@ -8,6 +8,7 @@ import org.json.JSONObject
 
 object AniListBrowse {
     const val PER_PAGE = 50
+    const val TOTAL_CAP = 5000
     private const val TAG_RANK = 60
 
     class Query(

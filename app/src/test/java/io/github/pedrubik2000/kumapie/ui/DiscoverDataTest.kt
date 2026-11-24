@@ -177,6 +177,12 @@ class BrowseViewTest {
         assertEquals("1 on AniList · AniList login expired: log in again in Settings", browseLine(f, 1, BrowseView(emptyList(), 0), expired = true).toString())
     }
 
+    @Test fun aTotalAtAniListsCapReadsAsFiveThousandPlus() {
+        assertEquals("5000+ on AniList", browseLine(BrowseFilters(), 5000, BrowseView(emptyList(), 0)).toString())
+        assertEquals("4999 on AniList", browseLine(BrowseFilters(), 4999, BrowseView(emptyList(), 0)).toString())
+        assertEquals("5000+", totalText(12000))
+    }
+
     @Test fun theActiveFiltersAreNamedForAnEmptyResult() {
         assertEquals(listOf("Genres", "Year"), browseActive(BrowseFilters(genres = ChipPicks(setOf("X")), year = YearBand.NEW)))
     }

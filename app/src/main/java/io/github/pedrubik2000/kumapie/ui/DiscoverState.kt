@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
+import io.github.pedrubik2000.kumapie.data.AniList
 import io.github.pedrubik2000.kumapie.data.AniListBrowse
 import io.github.pedrubik2000.kumapie.data.BestForYou
 import io.github.pedrubik2000.kumapie.data.Discovery
@@ -17,6 +18,7 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
 
 internal const val NEXT_PICKS = 4
 internal const val DUEL_SIZE = 8
@@ -88,6 +90,10 @@ internal typealias BrowseFetch = suspend (AniListBrowse.Query, Int) -> AniListBr
 
 private const val BROWSE_DEBOUNCE_MS = 400L
 private const val EMPTY_PAGES = 3
+private const val WAIT_TRIES = 2
+private const val WAIT_MAX_S = 65L
+
+internal var browseGapMs = 1000L
 
 @Stable
 internal class BrowseState(initial: BrowseFilters, private val settings: Settings) {
@@ -100,6 +106,7 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
     var moreError by mutableStateOf<String?>(null)
     var expired by mutableStateOf(false)
     var emptyNote by mutableStateOf<String?>(null)
+    var waiting by mutableStateOf(false)
     var attempt by mutableIntStateOf(0)
     var moreTick by mutableIntStateOf(0)
     var picker by mutableStateOf<PickerKind?>(null)
@@ -110,6 +117,8 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
         private set
     private var moreBusy = false
     private var firstPending = false
+    private val net = Mutex()
+    private var lastAsk = 0L
     private var generation = 0
     private var begun = false
     private var seenAttempt = 0
@@ -136,6 +145,28 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
         requestMore()
     }
 
+    private suspend fun ask(fetch: BrowseFetch, q: AniListBrowse.Query, p: Int): AniListBrowse.Page {
+        net.lock()
+        try {
+            var tries = 0
+            while (true) {
+                val gap = browseGapMs - (System.currentTimeMillis() - lastAsk)
+                if (gap > 0) delay(gap)
+                try {
+                    return fetch(q, p).also { lastAsk = System.currentTimeMillis() }
+                } catch (e: AniList.Failed) {
+                    lastAsk = System.currentTimeMillis()
+                    if (e.code != 429 || tries >= WAIT_TRIES) throw e
+                    tries++
+                    waiting = true
+                    try { delay(e.retryAfter.coerceIn(1, WAIT_MAX_S) * 1000) } finally { waiting = false }
+                }
+            }
+        } finally {
+            net.unlock()
+        }
+    }
+
     suspend fun first(key: Any, q: AniListBrowse.Query?, fetch: BrowseFetch) {
         if (fetchedFor == key) {
             firstPending = false
@@ -156,11 +187,11 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
             fetchedFor = null
             if (q == null) return finish(g, key, AniListBrowse.Page(emptyList(), 0, false), 1, query, tr("Your Planning list is empty"))
             var pages = 1
-            var p = fetch(q, 1)
+            var p = ask(fetch, q, 1)
             var all = p.items
             while (all.isEmpty() && p.hasNext && pages < EMPTY_PAGES) {
                 pages++
-                p = fetch(q, pages)
+                p = ask(fetch, q, pages)
                 all = all + p.items
             }
             finish(g, key, AniListBrowse.Page(all, p.total, p.hasNext, p.expired), pages, q, null)
@@ -185,7 +216,7 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
         val next = page + 1
         moreError = null
         try {
-            val p = fetch(query, next)
+            val p = ask(fetch, query, next)
             if (g != generation) return
             val have = items.map { it.anilistId }.toSet()
             items = items + p.items.filter { it.anilistId !in have }; hasNext = p.hasNext; page = next; expired = p.expired

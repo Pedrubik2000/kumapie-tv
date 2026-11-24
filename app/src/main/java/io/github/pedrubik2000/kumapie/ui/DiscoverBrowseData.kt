@@ -87,7 +87,7 @@ internal fun browseLine(f: BrowseFilters, total: Int, v: BrowseView, expired: Bo
         v.unrated.takeIf { it > 0 }?.let { tr("%d not rated yet", it) },
     ).joinToString(" · ")
     val out = (f.genres.exclude.sorted() + f.tags.exclude.sorted()).joinToString(", ")
-    return LibraryLine(tr("%d on AniList", total), (f.genres.include.sorted() + f.tags.include.sorted()).joinToString(", "), if (out.isEmpty()) "" else tr("no %s", out), tail)
+    return LibraryLine(tr("%s on AniList", totalText(total)), (f.genres.include.sorted() + f.tags.include.sorted()).joinToString(", "), if (out.isEmpty()) "" else tr("no %s", out), tail)
 }
 
 internal fun BrowseFilters.eyebrow(): String =
@@ -102,3 +102,5 @@ internal fun browseActive(f: BrowseFilters): List<String> = listOfNotNull(
     tr("Year").takeIf { f.year != YearBand.ANY }, tr("Airing").takeIf { f.airing != AiringBand.ANY }, tr("Episodes").takeIf { f.episodes != EpisodeBand.ANY },
     tr("My list").takeIf { f.mine != BrowseMine.ANY }, tr("Difficulty").takeIf { f.limit > 0 },
 )
+
+internal fun totalText(total: Int): String = if (total >= AniListBrowse.TOTAL_CAP) "${AniListBrowse.TOTAL_CAP}+" else "$total"

@@ -18,12 +18,21 @@ fun planningOrder(all: List<Mine>): List<Mine> {
     return BestForYou.planning(bestItems(all)).mapNotNull { byId[it] }
 }
 
-fun streamsThatExist(streams: List<Pair<Show, Episode>>, all: List<Mine>, metaIds: Map<String, Set<String>>): List<Pair<Show, Episode>> {
+fun lastPlayedIds(prefs: Map<String, *>): Map<String, String> = prefs.mapNotNull { (k, v) ->
+    if (!k.startsWith("alone_last_") || v !is String) null
+    else runCatching { k.removePrefix("alone_last_") to org.json.JSONObject(v).getString("id") }.getOrNull()
+}.toMap()
+
+fun streamsThatExist(
+    streams: List<Pair<Show, Episode>>, all: List<Mine>, metaIds: Map<String, Set<String>>, lastPlayed: Map<String, String>,
+): List<Pair<Show, Episode>> {
     val byKitsu = all.associateBy { it.kitsuId }
     return streams.filter { (s, e) ->
         val n = e.number
-        if (e.resume != null || n == null) return@filter true
-        metaIds[s.id]?.let { e.id in it } ?: s.kitsuId()?.let { byKitsu[it] }?.episodes?.takeIf { it > 0 }?.let { n <= it } ?: true
+        if (e.resume != null || n == null || lastPlayed[s.id] == e.id) return@filter true
+        val count = s.kitsuId()?.let { byKitsu[it] }?.episodes?.takeIf { it > 0 }
+        val meta = metaIds[s.id]
+        if (meta == null) count == null || n <= count else e.id in meta || (count != null && n <= count)
     }
 }
 
@@ -33,7 +42,7 @@ class HomeData(
     val library: List<Pair<String, List<Show>>>, private val metaIds: Map<String, Set<String>> = emptyMap(),
 ) {
     fun mineFor(s: Show, e: Episode): Mine? = byKitsu[s.kitsuId()]?.let { m ->
-        if ((e.number ?: 0) > (m.episodes ?: Int.MAX_VALUE)) m.copy(episodes = metaIds[s.id]?.size) else m
+        if ((e.number ?: 0) > (m.episodes ?: Int.MAX_VALUE)) m.copy(episodes = metaIds[s.id]?.size?.takeIf { it >= (e.number ?: 0) }) else m
     }
 
     val byKitsu: Map<String, Mine> = all.associateBy { it.kitsuId }

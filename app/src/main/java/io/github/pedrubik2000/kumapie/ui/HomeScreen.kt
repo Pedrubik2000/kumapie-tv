@@ -228,21 +228,28 @@ private fun loadStreams(api: Discovery, lang: String?, shows: List<Show>?): List
 private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> List<Mine>?, shows: List<Show>?, lang: String?, streams: List<Pair<Show, Episode>>?): HomeData? {
     val user = settings.anilist
     val loggedIn = settings.anilistToken.isNotEmpty()
-    val all by produceState(emptyList<Mine>(), user, loggedIn) {
-        if (!loggedIn || user.isEmpty()) return@produceState
+    val all by produceState<List<Mine>?>(null, user, loggedIn) {
+        if (!loggedIn || user.isEmpty()) { value = emptyList(); return@produceState }
         value = withContext(Dispatchers.IO) { AniListLists.cached(settings.prefs, user) }
         runCatching { lists(settings) }.getOrNull()?.let { value = it }
     }
     val context = LocalContext.current
-    val metaIds by produceState(emptyMap<String, Set<String>>(), streams) {
+    val metaIds by produceState<Map<String, Set<String>>?>(null, streams) {
+        val shown = streams ?: return@produceState
         value = withContext(Dispatchers.IO) {
-            streams.orEmpty().mapNotNull { (s, _) -> SavedMeta.get(context, s.id)?.optJSONArray("episodes")?.let { a -> s.id to (0 until a.length()).map { a.getJSONObject(it).optString("id") }.toSet() } }.toMap()
+            shown.mapNotNull { (s, _) ->
+                SavedMeta.get(context, s.id)?.optJSONArray("episodes")
+                    ?.let { a -> (0 until a.length()).map { a.getJSONObject(it).optString("id") }.toSet() }?.takeIf { it.isNotEmpty() }?.let { s.id to it }
+            }.toMap()
         }
     }
-    if (shows == null || streams == null || lang == null) return null
-    return remember(shows, streams, lang, all, loggedIn, metaIds) {
+    val everyone = all
+    val metas = metaIds
+    if (shows == null || streams == null || lang == null || everyone == null || metas == null) return null
+    return remember(shows, streams, lang, everyone, loggedIn, metas) {
         val mine = shows.filter { it.lang == lang }
-        HomeData(continueRow(mine, streamsThatExist(streams, all, metaIds)), all, loggedIn, libraryRows(mine).map { (l, list) -> tr(l) to list }, metaIds)
+        HomeData(continueRow(mine, streamsThatExist(streams, everyone, metas, lastPlayedIds(settings.prefs.all))), everyone, loggedIn,
+            libraryRows(mine).map { (l, list) -> tr(l) to list }, metas)
     }
 }
 

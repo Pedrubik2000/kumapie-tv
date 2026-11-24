@@ -402,4 +402,12 @@ class TvTitleFocusTest {
         press(Key.DirectionDown)
         waitFocus { it?.startsWith("Episode") == true }
     }
+
+    @Test fun downReachesAFarNextUpEpisodeThatArrivedAfterTheRow() {
+        logIn()
+        open(List(24) { false }, FakeAniList({ AniList.Entry("CURRENT", 0.0, 12, 0, "", "", 24) }))
+        waitFocus { it == "▶ Episode 13" }
+        press(Key.DirectionDown)
+        waitFocus { it == "Episode 13" }
+    }
 }

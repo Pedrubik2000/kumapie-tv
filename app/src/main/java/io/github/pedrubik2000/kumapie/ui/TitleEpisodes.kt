@@ -16,11 +16,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,12 +71,15 @@ internal fun EpisodeRow(page: TitlePage, blur: Boolean, focus: TitleFocus, onPla
     val title = page.shown
     val length = lengthText(title.runtime)
     val resuming = page.resuming?.takeIf { partway(it.resume, it.duration) }
+    val list = rememberLazyListState(at)
+    var rowFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(at) { if (!rowFocused) list.scrollToItem(at) }
     Column(modifier) {
         Row(Modifier.padding(start = RAIL), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Heading(tr("Episodes"))
             Text(factLine(eps.size.takeIf { it > 0 }?.toString(), if (blur) tr("No spoilers on") else null), color = Colors.dim, fontSize = 14.sp)
         }
-        LazyRow(state = rememberLazyListState(at), modifier = Modifier.padding(start = RAIL - 8.dp).focusRequester(focus.row).focusRestorer(focus.episodes), horizontalArrangement = Arrangement.spacedBy(14.dp),
+        LazyRow(state = list, modifier = Modifier.padding(start = RAIL - 8.dp).onFocusChanged { rowFocused = it.hasFocus }.focusRequester(focus.row).focusRestorer(focus.episodes), horizontalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(start = 8.dp, end = 32.dp, top = 10.dp, bottom = 8.dp)) {
             if (eps.isEmpty()) item {
                 EpisodeTile(title.background.ifEmpty { title.poster }, tr("Watch"), factLine(tr("Watch"), title.year.ifEmpty { null }, length),

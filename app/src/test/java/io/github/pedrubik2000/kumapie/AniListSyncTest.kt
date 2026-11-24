@@ -468,4 +468,25 @@ class AniListSyncTest {
         assertTrue(mine.watching)
         assertTrue(AniListLists.parse(listOf(e), emptyMap()).isEmpty())
     }
+
+    @Test fun listsKeepTheAiringStatusSeasonAndTagsOfRankSixtyUpThatAreNotSpoilers() {
+        val e = JSONObject("{\"status\":\"PLANNING\",\"progress\":0,\"score\":0,\"media\":{\"id\":5,\"format\":\"TV\",\"episodes\":12,\"averageScore\":79,\"genres\":[]," +
+            "\"tags\":[{\"name\":\"Time Skip\",\"rank\":80,\"isMediaSpoiler\":false},{\"name\":\"Gore\",\"rank\":59,\"isMediaSpoiler\":false},{\"name\":\"Twist\",\"rank\":90,\"isMediaSpoiler\":true}]," +
+            "\"status\":\"RELEASING\",\"season\":\"FALL\",\"title\":{\"romaji\":\"r\",\"native\":\"n\"},\"coverImage\":{\"extraLarge\":\"c\"},\"startDate\":{\"year\":2024}}}")
+        val mine = AniListLists.parse(listOf(e), mapOf(5 to "48")).single()
+        assertEquals(listOf("Time Skip"), mine.tags)
+        assertEquals("RELEASING", mine.airing)
+        assertEquals("FALL", mine.season)
+    }
+
+    @Test fun aListCachedByAnOlderVersionStillLoadsWithoutTagsAiringOrSeason() {
+        val prefs = org.robolectric.RuntimeEnvironment.getApplication().getSharedPreferences("old_cache", 0)
+        prefs.edit().putString(AniListLists.CACHE + "_pedro", "[{\"id\":5,\"kitsu\":\"48\",\"native\":\"n\",\"romaji\":\"r\",\"cover\":\"c\",\"banner\":\"\",\"format\":\"TV\"," +
+            "\"episodes\":12,\"status\":\"CURRENT\",\"progress\":1,\"score\":0,\"average\":70,\"genres\":[\"Action\"],\"year\":2024}]").commit()
+        val mine = AniListLists.cached(prefs, "pedro").single()
+        assertEquals(emptyList<String>(), mine.tags)
+        assertEquals("", mine.airing)
+        assertEquals("", mine.season)
+        assertEquals(listOf("Action"), mine.genres)
+    }
 }

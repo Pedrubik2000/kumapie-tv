@@ -2,10 +2,38 @@
 
 Learn Japanese from the anime you watch. kumapie streams an episode with its Japanese lines on screen, every word
 coloured by what you know. Pick a word to see its meaning, keep it as a card, and review your cards while you watch.
-For Android phones and tablets, and Android TV.
+For Android TV / Google TV, and Android phones and tablets.
 
-> Status: public test, Japanese only. The apps also have a second mode for the author's family, with a small server
-> on a PC (German and English too); see [With a PC server](#with-a-pc-server) below. The UI is in English or Spanish.
+kumapie is built around **Japanese** and **your [AniList](https://anilist.co) account**: your AniList lists are
+what it shows, and what you watch goes back to AniList. Without an AniList login Home, the Library and Discover's
+picks stay empty.
+
+> Status: public test. Japanese only. The UI is in English or Spanish.
+
+| | |
+|---|---|
+| ![Home: Continue watching](docs/screenshots/home.jpg) | ![Home: your AniList rows](docs/screenshots/home-anilist.jpg) |
+| **Home**: Continue watching, then your Watching and Planning lists from AniList. | Each title with its Japanese difficulty. |
+| ![Title page](docs/screenshots/title.jpg) | ![Player with Japanese subtitles](docs/screenshots/player.jpg) |
+| **Title page**: episodes, next up, and your AniList status and score. | **Player**: Japanese lines, every word coloured by what you know (the video itself can't be captured). |
+| ![Library](docs/screenshots/library.jpg) | ![Library filters](docs/screenshots/library-filters.jpg) |
+| **Library**: all your AniList lists, sorted by difficulty, score, title or year. | **Filters** like AniList's: genres, tags, format, episodes, year, airing, difficulty. |
+| ![Discover: Pick for me](docs/screenshots/discover-pick.jpg) | ![Discover: This or that](docs/screenshots/discover-duel.jpg) |
+| **Pick for me**: the next show from your Planning list, and why. | **This or that**: pick between two until one is left. |
+| ![Discover: Browse](docs/screenshots/discover-browse.jpg) | ![A word's meaning in the player](docs/screenshots/player-word.jpg) |
+| **Browse** all of AniList's anime with the same filters. | **Pick a word**: its reading and meaning from your dictionaries; hold ↑ to add it to your reviews. |
+
+## What it does
+
+- **Your AniList, kept in step** (after you log in): starting a show moves it to Watching, finishing an episode
+  updates your progress, the last one marks it Completed. Your score is set on the title page. "+ AniList" adds a
+  title to Planning. kumapie never removes a title from your lists.
+- **Difficulty** for every title, from [Jiten](https://jiten.moe) (Beginner to Insane), so you can pick shows at
+  your level. Titles Jiten has not rated yet still show.
+- **Watching**: Japanese subtitles (the file's own or [Jimaku](https://jimaku.cc)'s), fitted to the video. Hold OK
+  on a line to pick a word: its meaning, its reading, and **Mine** keeps it as a card. Due cards are rated right
+  there, and in Review.
+- **Discover**: Pick for me, This or that, and Browse, all from AniList.
 
 ## Get it
 
@@ -21,22 +49,25 @@ Both apps look for a newer release when they start and offer to update.
 
 - A **[Real-Debrid](https://real-debrid.com)** account (paid). Videos are streamed through it, found by Torrentio.
 - A free **[Jimaku](https://jimaku.cc)** account. Japanese subtitles come from it when a file has none of its own.
-- Optional: an **[AniList](https://anilist.co)** account with a public profile, for your lists in Discover.
+- An **[AniList](https://anilist.co)** account (free), with your anime on its lists. kumapie reads your lists from
+  it and writes your progress back.
 - About 110 MB for two downloads on the first run: the Japanese dictionaries (27 MB) and the word splitter (80 MB).
 
 ## First steps
 
 1. Open kumapie and choose **Use without a server**.
-2. The setup asks for your languages, your Jimaku key, your Real-Debrid token and your AniList username, and starts
-   the downloads. kumapie builds your own Torrentio link from your token and adds Kitsu for anime titles. **On a TV**,
-   scan the QR code with your phone and fill in the page it opens (same Wi-Fi), so nothing is typed with the remote.
-3. **Discover**: your AniList lists, then Kitsu's rows and search. Pick a show, an episode, then a file. Files your
-   device probably can't play (HEVC 10-bit, AV1, 4K, by their names) are at the bottom of the list.
-4. It plays with Japanese lines, the file's own or Jimaku's. If the lines are early or late: the ±0.5 s buttons on
+2. The setup asks for your Jimaku key, your Real-Debrid token and your AniList username, and starts the downloads.
+   kumapie builds your own Torrentio link from your token and adds Kitsu for anime titles. **On a TV**, scan the QR
+   code with your phone and fill in the page it opens (same Wi-Fi), so nothing is typed with the remote.
+3. **Log in with AniList** (Settings, or the "Log in" button on Home): log in on AniList's page, copy the token it
+   shows and paste it in. From then on your lists fill Home and the Library, and your progress goes back to AniList.
+4. Pick a show on Home, in the Library or in Discover, then an episode. Files your device probably can't play (HEVC
+   10-bit, AV1, 4K, by their names) are at the bottom of the list.
+5. It plays with Japanese lines, the file's own or Jimaku's. If the lines are early or late: the ±0.5 s buttons on
    the phone, ↑ / ↓ on the TV (kumapie also tries to fit them by itself). Once the lines are in, the episode becomes
    kumapie's word player: tap a word on the phone, hold OK on the TV. **Mine** keeps it as a card; due cards are
    rated right there.
-5. At the end of an episode the next one starts, from the same release when there is one.
+6. At the end of an episode the next one starts, from the same release when there is one.
 
 Settings has all of this later (addons, keys), plus **Report a bug or share an idea**.
 
@@ -53,15 +84,16 @@ Settings has all of this later (addons, keys), plus **Report a bug or share an i
 - Word splitter: [Sudachi](https://github.com/WorksApplications/Sudachi) and SudachiDict (Apache-2.0), with a port of
   [Jiten](https://github.com/Sirush/Jiten)'s parser (Apache-2.0); dictionary lookups through
   [hoshidicts](https://github.com/bee-san/hoshidicts) (GPL-3.0).
-- Subtitles from [Jimaku](https://jimaku.cc); titles from [Kitsu](https://kitsu.app) and [AniList](https://anilist.co).
+- Subtitles from [Jimaku](https://jimaku.cc); titles and lists from [AniList](https://anilist.co) and
+  [Kitsu](https://kitsu.app); title difficulty from [Jiten](https://jiten.moe) (CC BY-SA 4.0).
 - Videos come from your own Real-Debrid account through [Torrentio](https://torrentio.strem.fun). kumapie hosts no
   video and is not affiliated with any of these services.
 
 ## With a PC server
 
 The apps were first built for one family, with an optional server on a PC (`kumapie-server`, not needed above): it
-syncs episodes and progress between devices, makes episodes from your own files (German and English too), and feeds
-the TV app. kumapie is part of **kuma3**, a personal language-learning setup (see
+syncs episodes and progress between devices, makes episodes from your own files, and feeds the TV app. Its German
+and English support is on its way out: kumapie is Japanese only from here on. kumapie is part of **kuma3**, a personal language-learning setup (see
 [kuma3-anki](https://github.com/Pedrubik2000/kuma3-anki-app), the AnkiDroid build it can read cards from). The
 sections below describe the apps with all of that.
 
@@ -100,8 +132,9 @@ sections below describe the apps with all of that.
 ### TV (`:app`)
 
 The same scenes and colours on Android TV, driven by the remote or a Bluetooth gamepad (on its own, as in First steps, or with the PC server).
-You pick a profile, a language and an episode; a help screen lists the buttons (Settings > Change buttons remaps
-them).
+Home, the Library, Discover and the title pages are built for the remote: a rail on the left (Left opens it), and a
+hint line that says what the buttons do. In the player, a help screen lists the buttons (Settings > Change buttons
+remaps them).
 
 | | remote | gamepad |
 |---|---|---|

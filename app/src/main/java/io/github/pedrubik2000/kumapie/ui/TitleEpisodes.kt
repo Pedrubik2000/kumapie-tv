@@ -65,7 +65,7 @@ private fun lengthText(runtime: String): String? = LENGTH.find(runtime)?.groupVa
 internal fun EpisodeRow(page: TitlePage, blur: Boolean, focus: TitleFocus, onPlay: (JSONObject?) -> Unit, onMark: (JSONObject) -> Unit, modifier: Modifier) {
     val eps = page.episodes
     val next = page.next
-    val at = remember(eps) { eps.indexOf(next).coerceAtLeast(0) }
+    val at = remember(eps, next?.optString("id")) { eps.indexOf(next).coerceAtLeast(0) }
     val title = page.shown
     val length = lengthText(title.runtime)
     val resuming = page.resuming?.takeIf { partway(it.resume, it.duration) }

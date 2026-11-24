@@ -15,8 +15,16 @@ fun savedEpisodeIds(context: Context, streams: List<Pair<Show, Episode>>): Map<S
         ?.let { a -> (0 until a.length()).map { a.getJSONObject(it).optString("id") }.toSet() }?.takeIf { it.isNotEmpty() }?.let { s.id to it }
 }.toMap()
 
+private val CLOSED_RANGE = Regex("""(\d{4})\s*[-–—]\s*(\d{4})""")
+
+fun metaEnded(meta: JSONObject): Boolean =
+    meta.optString("status").lowercase() in setOf("ended", "finished", "completed") || CLOSED_RANGE.containsMatchIn(meta.optString("year"))
+
+fun savedEnded(context: Context, streams: List<Pair<Show, Episode>>): Set<String> =
+    streams.map { it.first.id }.distinct().filter { id -> SavedMeta.get(context, id)?.let(::metaEnded) == true }.toSet()
+
 fun streamsThatExist(
-    streams: List<Pair<Show, Episode>>, all: List<Mine>, metaIds: Map<String, Set<String>>, lastPlayed: Map<String, String>,
+    streams: List<Pair<Show, Episode>>, all: List<Mine>, metaIds: Map<String, Set<String>>, lastPlayed: Map<String, String>, ended: Set<String> = emptySet(),
 ): List<Pair<Show, Episode>> {
     val byKitsu = all.associateBy { it.kitsuId }
     return streams.filter { (s, e) ->
@@ -24,14 +32,26 @@ fun streamsThatExist(
         if (e.resume != null || n == null || lastPlayed[s.id] == e.id) return@filter true
         val count = s.id.takeIf { it.startsWith("kitsu:") }?.removePrefix("kitsu:")?.let { byKitsu[it] }?.episodes?.takeIf { it > 0 }
         val meta = metaIds[s.id]
-        (meta != null && e.id in meta) || count == null || n <= count
+        when {
+            meta != null && e.id in meta -> true
+            count != null -> n <= count
+            else -> !(meta != null && s.id in ended)
+        }
     }
 }
 
-suspend fun goingThatExist(discovery: Discovery, context: Context, prefs: android.content.SharedPreferences, anilist: String): List<Pair<Show, Episode>> {
+private const val LISTS_EVERY_MS = 10 * 60 * 1000L
+
+suspend fun goingThatExist(
+    discovery: Discovery, context: Context, prefs: android.content.SharedPreferences, user: String, token: String,
+    now: Long = System.currentTimeMillis(), publish: (List<Pair<Show, Episode>>) -> Unit,
+) {
     val going = runCatching { discovery.going() }.getOrDefault(emptyList())
-    return withContext(Dispatchers.IO) {
-        val lists = anilist.takeIf { it.isNotEmpty() }?.let { AniListLists.cached(prefs, it) }.orEmpty()
-        streamsThatExist(going, lists, savedEpisodeIds(context, going), lastPlayedIds(prefs.all))
+    suspend fun filtered(lists: List<Mine>) = withContext(Dispatchers.IO) {
+        streamsThatExist(going, lists, savedEpisodeIds(context, going), lastPlayedIds(prefs.all), savedEnded(context, going))
     }
+    publish(filtered(if (user.isEmpty()) emptyList() else withContext(Dispatchers.IO) { AniListLists.cached(prefs, user) }))
+    val key = "anilist_lists_at_$user"
+    if (user.isEmpty() || token.isEmpty() || now - prefs.getLong(key, 0L) < LISTS_EVERY_MS) return
+    runCatching { AniListLists.refresh(prefs, user, token) }.onSuccess { prefs.edit().putLong(key, now).apply(); publish(filtered(it)) }
 }

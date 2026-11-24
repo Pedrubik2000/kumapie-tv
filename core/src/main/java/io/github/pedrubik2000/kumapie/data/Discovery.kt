@@ -307,7 +307,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences, val sync:
             return JSONObject().put("id", meta.optString("id")).put("type", meta.optString("type", "series")).put("name", meta.optString("name"))
                 .put("poster", meta.optString("poster")).put("background", meta.optString("background")).put("logo", meta.optString("logo"))
                 .put("description", meta.optString("description")).put("year", meta.optString("releaseInfo", meta.optString("year")))
-                .put("genres", genres).put("rating", meta.optString("imdbRating")).put("runtime", meta.optString("runtime"))
+                .put("genres", genres).put("rating", meta.optString("imdbRating")).put("runtime", meta.optString("runtime")).put("status", meta.optString("status"))
                 .put("episodes", JSONArray().also { a ->
                     videos.forEach { v ->
                         val name = v.optString("title", v.optString("name"))

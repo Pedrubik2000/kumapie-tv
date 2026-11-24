@@ -32,7 +32,7 @@ fun streamsThatExist(
         if (e.resume != null || n == null || lastPlayed[s.id] == e.id) return@filter true
         val count = s.kitsuId()?.let { byKitsu[it] }?.episodes?.takeIf { it > 0 }
         val meta = metaIds[s.id]
-        if (meta == null) count == null || n <= count else e.id in meta || (count != null && n <= count)
+        (meta != null && e.id in meta) || count == null || n <= count
     }
 }
 

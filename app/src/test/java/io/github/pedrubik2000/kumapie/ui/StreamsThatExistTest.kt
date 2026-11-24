@@ -44,6 +44,8 @@ class StreamsThatExistTest {
 
     @Test fun aStaleMetaDoesNotDropANewlyAiredEpisode() = assertEquals(listOf("kitsu:1:13"), shown(13, 24, mapOf("kitsu:1" to ids(12))))
 
+    @Test fun aStaleMetaKeepsANewEpisodeWhenAniListHasNoCount() = assertEquals(listOf("kitsu:1:13"), shown(13, null, mapOf("kitsu:1" to ids(12))))
+
     @Test fun theEpisodeHeIsOnIsNeverDropped() {
         assertEquals(listOf("kitsu:1:13"), shown(13, 12, mapOf("kitsu:1" to ids(12)), mapOf("kitsu:1" to "kitsu:1:13")))
         assertEquals(listOf("kitsu:1:13"), shown(13, 12, emptyMap(), mapOf("kitsu:1" to "kitsu:1:13")))

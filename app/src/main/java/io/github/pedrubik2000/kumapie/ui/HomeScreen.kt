@@ -228,28 +228,31 @@ private fun loadStreams(api: Discovery, lang: String?, shows: List<Show>?): List
 private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> List<Mine>?, shows: List<Show>?, lang: String?, streams: List<Pair<Show, Episode>>?): HomeData? {
     val user = settings.anilist
     val loggedIn = settings.anilistToken.isNotEmpty()
-    val all by produceState<List<Mine>?>(null, user, loggedIn) {
-        if (!loggedIn || user.isEmpty()) { value = emptyList(); return@produceState }
+    val noLists = !loggedIn || user.isEmpty()
+    val all by produceState<List<Mine>?>(if (noLists) emptyList() else null, user, loggedIn) {
+        if (noLists) { value = emptyList(); return@produceState }
+        value = null
         value = withContext(Dispatchers.IO) { AniListLists.cached(settings.prefs, user) }
         runCatching { lists(settings) }.getOrNull()?.let { value = it }
     }
     val context = LocalContext.current
-    val metaIds by produceState<Map<String, Set<String>>?>(null, streams) {
+    val facts by produceState(streams?.takeIf { it.isEmpty() }?.let { StreamFacts(it, emptyMap(), emptyMap()) }, streams) {
         val shown = streams ?: return@produceState
+        value = null
         value = withContext(Dispatchers.IO) {
-            shown.mapNotNull { (s, _) ->
+            StreamFacts(shown, shown.mapNotNull { (s, _) ->
                 SavedMeta.get(context, s.id)?.optJSONArray("episodes")
                     ?.let { a -> (0 until a.length()).map { a.getJSONObject(it).optString("id") }.toSet() }?.takeIf { it.isNotEmpty() }?.let { s.id to it }
-            }.toMap()
+            }.toMap(), lastPlayedIds(settings.prefs.all))
         }
     }
     val everyone = all
-    val metas = metaIds
-    if (shows == null || streams == null || lang == null || everyone == null || metas == null) return null
-    return remember(shows, streams, lang, everyone, loggedIn, metas) {
+    val known = facts?.takeIf { it.of === streams }
+    if (shows == null || streams == null || lang == null || everyone == null || known == null) return null
+    return remember(shows, streams, lang, everyone, loggedIn, known) {
         val mine = shows.filter { it.lang == lang }
-        HomeData(continueRow(mine, streamsThatExist(streams, everyone, metas, lastPlayedIds(settings.prefs.all))), everyone, loggedIn,
-            libraryRows(mine).map { (l, list) -> tr(l) to list }, metas)
+        HomeData(continueRow(mine, streamsThatExist(streams, everyone, known.metaIds, known.lastPlayed)), everyone, loggedIn,
+            libraryRows(mine).map { (l, list) -> tr(l) to list }, known.metaIds)
     }
 }
 
@@ -280,3 +283,5 @@ internal fun plainError(m: String): String = m.lowercase().let {
         else -> m
     }
 }
+
+private class StreamFacts(val of: List<Pair<Show, Episode>>, val metaIds: Map<String, Set<String>>, val lastPlayed: Map<String, String>)

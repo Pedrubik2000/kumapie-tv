@@ -75,13 +75,13 @@ object AniList {
         val cancelled = java.util.concurrent.atomic.AtomicBoolean(false)
         cont.invokeOnCancellation {
             cancelled.set(true)
-            conn.get()?.disconnect()
+            conn.get()?.let { c -> thread { runCatching { c.disconnect() } } }
         }
         thread {
             try {
                 cont.resume(call { c ->
                     conn.set(c)
-                    if (cancelled.get()) c.disconnect()
+                    if (cancelled.get()) runCatching { c.disconnect() }
                 })
             } catch (e: Throwable) {
                 cont.resumeWithException(e)

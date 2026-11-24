@@ -164,6 +164,7 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
                 val gap = browseGapMs - (System.currentTimeMillis() - BrowseNet.lastAsk)
                 if (gap > 0) delay(gap)
                 if (g != generation) throw CancellationException("stale")
+                BrowseNet.lastAsk = System.currentTimeMillis()
                 try {
                     return fetch(q, p).also { BrowseNet.lastAsk = System.currentTimeMillis() }
                 } catch (e: AniList.Failed) {

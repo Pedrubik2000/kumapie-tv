@@ -3,6 +3,7 @@ package io.github.pedrubik2000.kumapie.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,9 +26,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -88,12 +95,22 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
     val rail = RailNav({}, onLibrary, onDiscover, { lang?.let(onReview) }, onStats, onSettings)
     val profileItem = RailItem(Icons.Default.Person, who, back = false, onClick = onProfiles).takeIf { api is Api }
     val settle = remember(data) { { data?.resume?.let { focus.target = it }; Unit } }
-    Box(Modifier.fillMaxSize().railGate()) {
-        when {
-            error != null -> Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error, onRetry = { attempt++ }, onSettings = onSettings) }
-            shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
-            lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
-            data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover)
+    var contentFocused by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize().railGate().onPreviewKeyEvent { e ->
+        if (e.type != KeyEventType.KeyDown) false
+        else when (e.key) {
+            Key.DirectionLeft -> { if (contentFocused && Hints.shown == HintKind.HERO) focus.back = null; false }
+            Key.DirectionRight -> !contentFocused && focus.back?.let { r -> runCatching { r.requestFocus() }.isSuccess } == true
+            else -> false
+        }
+    }) {
+        Box(Modifier.fillMaxSize().onFocusChanged { contentFocused = it.hasFocus }.focusGroup()) {
+            when {
+                error != null -> Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error, onRetry = { attempt++ }, onSettings = onSettings) }
+                shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
+                lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
+                data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover)
+            }
         }
         RailBackdrop()
         HomeHeader(totals, langs, lang) { next -> picked = next; settings.prefs.edit().putString("home_lang_$profile", next).apply() }
@@ -134,10 +151,13 @@ internal fun takeRailLast(): String? = railLast.also { railLast = null }
 @Composable
 private fun BoxScope.HomeHintBar(focus: HomeFocus) = HintBar(top = rowsTop(focus.tall) + 4.dp)
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun Rail(items: List<RailItem>, focus: MutableMap<String, FocusRequester>, toRows: FocusRequester?, modifier: Modifier, onFocused: () -> Unit = {}) {
     val current = items.firstOrNull { it.selected }?.label
-    Column(modifier.padding(start = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    Column(modifier.padding(start = 24.dp).focusProperties {
+        enter = { if (it == FocusDirection.Up || it == FocusDirection.Down) FocusRequester.Cancel else FocusRequester.Default }
+    }.focusGroup(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         items.forEach { item -> androidx.compose.runtime.key(item.label) {
             Box {
                 androidx.tv.material3.IconButton(onClick = { railLast = item.label.takeIf { item.back && !item.selected }; item.onClick() },

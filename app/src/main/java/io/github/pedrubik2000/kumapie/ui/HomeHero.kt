@@ -53,6 +53,13 @@ class HomeFocus(first: HeroTarget?) {
     var target by mutableStateOf(first)
     var row by mutableIntStateOf(0)
     val tall: Boolean get() = target.let { it == null || it is ResumeTarget }
+    var back: FocusRequester? = null
+    private val starts = HashMap<Int, FocusRequester>()
+
+    fun start(row: Int): Modifier {
+        val r = starts.getOrPut(row) { FocusRequester() }
+        return Modifier.focusRequester(r).onFocusChanged { if (it.isFocused) back = r }
+    }
 }
 
 private val HERO_HEIGHT = 390.dp

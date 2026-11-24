@@ -309,6 +309,15 @@ class TvLibraryFocusTest {
         assertTrue(hasText("Log in with AniList to see your lists here"))
     }
 
+    @Test fun downAndUpFromTheLoginButtonKeepTheFocusOutOfTheRail() {
+        open()
+        waitFocus { it == "Log in" }
+        press(DOWN)
+        assertEquals("Log in", focused())
+        press(UP)
+        assertEquals("Log in", focused())
+    }
+
     @Test fun leftFromTheLoginButtonLandsOnTheLibraryItemOfTheRail() {
         open()
         waitFocus { it == "Log in" }

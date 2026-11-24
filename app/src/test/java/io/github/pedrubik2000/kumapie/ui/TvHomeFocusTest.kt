@@ -182,6 +182,31 @@ class TvHomeFocusTest {
         assertEquals(1, discoverCalls)
     }
 
+    @Test fun downOnTheLastContentRowKeepsTheFocusWhereItIsAndNeverEntersTheRail() {
+        openHome()
+        repeat(8) { press(Key.DirectionDown.keyCode) }
+        val at = focused()
+        press(Key.DirectionDown.keyCode)
+        assertEquals(at, focused())
+        assert(at !in setOf("Home", "Library", "Review", "Stats", "Pedro", "Settings")) { "$at" }
+    }
+
+    @Test fun upOnTheHeroKeepsTheFocusOutOfTheRail() {
+        openHome()
+        press(Key.DirectionUp.keyCode)
+        assertEquals(RESUME, focused())
+    }
+
+    @Test fun leftFromTheSecondRowThenRightLandsOnThatRowsCard() {
+        openHome()
+        press(DOWN)
+        assertEquals("Alpha", focused())
+        press(Key.DirectionLeft.keyCode)
+        assertEquals("Home", focused())
+        press(RIGHT)
+        assertEquals("Alpha", focused())
+    }
+
     @Test fun aFocusedRailItemPutsItsNameInTheHintLineAndTheContentGivesItsHintBack() {
         openHome()
         rule.onNodeWithContentDescription("Stats").requestFocus()

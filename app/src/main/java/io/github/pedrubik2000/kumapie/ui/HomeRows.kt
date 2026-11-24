@@ -71,6 +71,7 @@ internal class RowCtx(
     fun card(row: Int, index: Int, target: () -> HeroTarget?): Modifier {
         var m: Modifier = Modifier.onFocusChanged { if (it.isFocused) { target()?.let { t -> focus.target = t }; focus.row = row; scrollTo(row) } }
         if (index == 0 && row == 0) m = m.focusRequester(if (d.going.isEmpty()) first else below)
+        if (index == 0) m = m.then(focus.start(row))
         if (row == 0 && d.going.isNotEmpty()) m = m.onPreviewKeyEvent { e ->
             (e.type == KeyEventType.KeyDown && e.key == Key.DirectionUp).also { if (it) toTop() }
         }
@@ -173,7 +174,8 @@ private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: I
 
 private fun LazyListScope.loginRow(c: RowCtx) = item(key = "login") {
     LoginLine(Modifier.padding(start = RAIL, top = 16.dp, bottom = 16.dp),
-        (if (c.d.names.isEmpty()) Modifier.focusRequester(c.below) else Modifier).onFocusChanged { if (it.isFocused) { c.focus.row = c.d.names.size; c.scrollTo(c.d.names.size) } }, c.onLogin)
+        (if (c.d.names.isEmpty()) Modifier.focusRequester(c.below) else Modifier).onFocusChanged { if (it.isFocused) { c.focus.row = c.d.names.size; c.scrollTo(c.d.names.size) } }
+            .then(c.focus.start(c.d.names.size)), c.onLogin)
 }
 
 @Composable
@@ -193,7 +195,8 @@ private fun LazyListScope.libraryRows(c: RowCtx) {
                 itemsIndexed(list, key = { _, s -> s.id }) { i, s ->
                     val start = c.d.names.isEmpty() && c.d.loggedIn && r == 0 && i == 0
                     Poster(s.poster, shortTitle(s.shown), levelLine(s), null,
-                        (if (start) Modifier.focusRequester(c.below) else Modifier).onFocusChanged { if (it.isFocused) { c.focus.row = row; c.scrollTo(at) } }) { c.onShow(s) }
+                        (if (start) Modifier.focusRequester(c.below) else Modifier).onFocusChanged { if (it.isFocused) { c.focus.row = row; c.scrollTo(at) } }
+                            .then(if (i == 0) c.focus.start(row) else Modifier)) { c.onShow(s) }
                 }
             } }
         }

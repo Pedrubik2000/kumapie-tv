@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -16,8 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
@@ -66,12 +70,15 @@ internal fun librarySource(list: LibraryList, inList: List<Mine>, filters: Libra
     { k -> names(inList, k, picksOf(filters, k)) }, { k -> picksOf(filters, k) }, { k, p -> onFilters(withPicks(filters, k, p)) })
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, source: PickerSource, line: LibraryLine?, shown: Int, onClose: () -> Unit) {
     val picks = source.picks(kind)
     val chips = source.chips(kind)
     val first = remember(kind) { FocusRequester() }
-    LaunchedEffect(kind) { first.focusSoon() }
-    Column(PICKER_PANEL.onBackKey { onClose() }.arcadePanel().padding(24.dp)) {
+    val clear = remember { FocusRequester() }
+    LaunchedEffect(kind, chips.isEmpty()) { (if (chips.isEmpty()) clear else first).focusSoon() }
+    Column(PICKER_PANEL.onBackKey { onClose() }.focusProperties { exit = { if (it == FocusDirection.Left) FocusRequester.Cancel else FocusRequester.Default } }.focusGroup()
+        .arcadePanel().padding(24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Title(source.title, fontSize = 30.sp)
             PickerKind.entries.forEach { k ->
@@ -82,6 +89,7 @@ internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, sourc
             Text(tr("OK on a chip: off → ✓ include → ✕ exclude"), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.weight(1f))
         }
         Section(source.caption(kind))
+        if (chips.isEmpty()) Text(if (kind == PickerKind.TAGS) tr("No tags yet: they arrive with the next AniList refresh") else tr("Nothing to pick yet"), color = Colors.dim, modifier = Modifier.padding(top = 8.dp))
         FlowRow(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             chips.forEachIndexed { i, (name, count) ->
@@ -90,7 +98,7 @@ internal fun LibraryPicker(kind: PickerKind, onKind: (PickerKind) -> Unit, sourc
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (line == null) AnnotatedString("") else styled(line, Colors.text), fontSize = 16.sp, modifier = Modifier.weight(1f))
-            Button(onClick = { source.onPicks(kind, ChipPicks()) }, modifier = Modifier.hint(HintKind.CHOOSE)) { Text(tr("Clear")) }
+            Button(onClick = { source.onPicks(kind, ChipPicks()) }, modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(clear)) { Text(tr("Clear")) }
             Button(onClick = onClose, modifier = Modifier.hint(HintKind.CHOOSE)) { Text(tr("Show %d titles", shown)) }
         }
     }

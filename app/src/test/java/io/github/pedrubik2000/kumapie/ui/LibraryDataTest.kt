@@ -103,21 +103,21 @@ class LibraryDataTest {
         assertEquals(ChipPicks(), b.cycle("X"))
     }
 
-    @Test fun formatEpisodesYearAndAiringBandsFilter() {
+    @Test fun formatEpisodesYearAndAiringBandsFilterAndWhatIsUnknownMatchesEveryBand() {
         assertEquals(listOf(1, 5), rich(LibraryFilters(format = FormatBand.TV)))
         assertEquals(listOf(2), rich(LibraryFilters(format = FormatBand.MOVIE)))
         assertEquals(listOf(4), rich(LibraryFilters(format = FormatBand.OVA_ONA)))
         assertEquals(listOf(3), rich(LibraryFilters(format = FormatBand.SHORT)))
-        assertEquals(listOf(2), rich(LibraryFilters(episodes = EpisodeBand.ONE)))
-        assertEquals(listOf(3, 4), rich(LibraryFilters(episodes = EpisodeBand.TWO_TO_13)))
-        assertEquals(listOf(1), rich(LibraryFilters(episodes = EpisodeBand.FOURTEEN_TO_26)))
-        assertEquals(listOf(3), rich(LibraryFilters(year = YearBand.NEW)))
-        assertEquals(listOf(1), rich(LibraryFilters(year = YearBand.TEENS)))
-        assertEquals(listOf(2), rich(LibraryFilters(year = YearBand.NOUGHTS)))
-        assertEquals(listOf(4), rich(LibraryFilters(year = YearBand.OLD)))
-        assertEquals(listOf(1, 2), rich(LibraryFilters(airing = AiringBand.FINISHED)))
-        assertEquals(listOf(3), rich(LibraryFilters(airing = AiringBand.AIRING)))
-        assertEquals(listOf(4), rich(LibraryFilters(airing = AiringBand.NOT_YET)))
+        assertEquals(listOf(2, 5), rich(LibraryFilters(episodes = EpisodeBand.ONE)))
+        assertEquals(listOf(3, 4, 5), rich(LibraryFilters(episodes = EpisodeBand.TWO_TO_13)))
+        assertEquals(listOf(1, 5), rich(LibraryFilters(episodes = EpisodeBand.FOURTEEN_TO_26)))
+        assertEquals(listOf(3, 5), rich(LibraryFilters(year = YearBand.NEW)))
+        assertEquals(listOf(1, 5), rich(LibraryFilters(year = YearBand.TEENS)))
+        assertEquals(listOf(2, 5), rich(LibraryFilters(year = YearBand.NOUGHTS)))
+        assertEquals(listOf(4, 5), rich(LibraryFilters(year = YearBand.OLD)))
+        assertEquals(listOf(1, 2, 5), rich(LibraryFilters(airing = AiringBand.FINISHED)))
+        assertEquals(listOf(3, 5), rich(LibraryFilters(airing = AiringBand.AIRING)))
+        assertEquals(listOf(4, 5), rich(LibraryFilters(airing = AiringBand.NOT_YET)))
     }
 
     @Test fun theSearchMatchesTheNativeOrRomajiNameIgnoringCase() {

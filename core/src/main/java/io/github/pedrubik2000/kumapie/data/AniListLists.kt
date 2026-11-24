@@ -20,7 +20,7 @@ object AniListLists {
     const val CACHE = "anilist_mine"
     private const val QUERY = "query(\$u:String,\$c:Int){MediaListCollection(userName:\$u,type:ANIME,chunk:\$c,perChunk:500," +
         "status_in:[CURRENT,PLANNING,COMPLETED,PAUSED,DROPPED,REPEATING]){hasNextChunk lists{entries{status progress score media{id format episodes " +
-        "averageScore genres tags{name rank isMediaSpoiler} status season title{romaji native} coverImage{extraLarge} bannerImage startDate{year}}}}}}"
+        "averageScore genres tags{name rank isMediaSpoiler isGeneralSpoiler} status season title{romaji native} coverImage{extraLarge} bannerImage startDate{year}}}}}}"
 
     private fun key(user: String) = CACHE + "_" + user.trim().lowercase()
 
@@ -54,7 +54,7 @@ object AniListLists {
     private const val TAG_MIN_RANK = 60
 
     private fun tags(a: JSONArray?): List<String> =
-        a?.objects().orEmpty().filter { it.optInt("rank") >= TAG_MIN_RANK && !it.optBoolean("isMediaSpoiler") }.map { it.getString("name") }
+        a?.objects().orEmpty().filter { it.optInt("rank") >= TAG_MIN_RANK && !it.optBoolean("isMediaSpoiler") && !it.optBoolean("isGeneralSpoiler") }.map { it.getString("name") }
 
     fun parse(entries: List<JSONObject>, kitsu: Map<Int, String>): List<Mine> = entries.mapNotNull { e ->
         val m = e.getJSONObject("media")

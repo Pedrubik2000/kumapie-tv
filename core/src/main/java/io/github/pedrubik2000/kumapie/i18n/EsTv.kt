@@ -335,6 +335,8 @@ internal val esTv: Map<String, String> = mapOf(
     "counts from your %1\$d %2\$s titles" to "cuentas de tus %1\$d títulos (%2\$s)",
     "Show %d titles" to "Ver %d títulos",
     "no %s" to "sin %s",
+    "No tags yet: they arrive with the next AniList refresh" to "Aún no hay etiquetas: llegan con la próxima actualización de AniList",
+    "Nothing to pick yet" to "Nada que elegir todavía",
     "Search all anime" to "Buscar en todo el anime",
     "Most popular" to "Más populares",
     "Trending" to "En tendencia",

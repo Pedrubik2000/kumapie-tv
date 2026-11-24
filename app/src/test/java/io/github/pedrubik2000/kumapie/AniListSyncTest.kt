@@ -471,7 +471,7 @@ class AniListSyncTest {
 
     @Test fun listsKeepTheAiringStatusSeasonAndTagsOfRankSixtyUpThatAreNotSpoilers() {
         val e = JSONObject("{\"status\":\"PLANNING\",\"progress\":0,\"score\":0,\"media\":{\"id\":5,\"format\":\"TV\",\"episodes\":12,\"averageScore\":79,\"genres\":[]," +
-            "\"tags\":[{\"name\":\"Time Skip\",\"rank\":80,\"isMediaSpoiler\":false},{\"name\":\"Gore\",\"rank\":59,\"isMediaSpoiler\":false},{\"name\":\"Twist\",\"rank\":90,\"isMediaSpoiler\":true}]," +
+            "\"tags\":[{\"name\":\"Time Skip\",\"rank\":80,\"isMediaSpoiler\":false},{\"name\":\"Gore\",\"rank\":59,\"isMediaSpoiler\":false},{\"name\":\"Twist\",\"rank\":90,\"isMediaSpoiler\":true},{\"name\":\"Culprit\",\"rank\":90,\"isMediaSpoiler\":false,\"isGeneralSpoiler\":true}]," +
             "\"status\":\"RELEASING\",\"season\":\"FALL\",\"title\":{\"romaji\":\"r\",\"native\":\"n\"},\"coverImage\":{\"extraLarge\":\"c\"},\"startDate\":{\"year\":2024}}}")
         val mine = AniListLists.parse(listOf(e), mapOf(5 to "48")).single()
         assertEquals(listOf("Time Skip"), mine.tags)

@@ -58,7 +58,7 @@ enum class EpisodeBand(val range: IntRange) {
 
     fun step(by: Int): EpisodeBand = entries[Math.floorMod(ordinal + by, entries.size)]
 
-    fun matches(m: Mine): Boolean = this == ANY || (m.episodes ?: 0) in range
+    fun matches(m: Mine): Boolean = this == ANY || m.episodes == null || m.episodes in range
 
     fun label(): String = when (this) {
         ANY -> tr("Any")
@@ -74,7 +74,7 @@ enum class YearBand(val range: IntRange) {
 
     fun step(by: Int): YearBand = entries[Math.floorMod(ordinal + by, entries.size)]
 
-    fun matches(m: Mine): Boolean = this == ANY || m.year in range
+    fun matches(m: Mine): Boolean = this == ANY || m.year == 0 || m.year in range
 
     fun label(): String = when (this) {
         ANY -> tr("Any")
@@ -90,7 +90,7 @@ enum class AiringBand(val status: String) {
 
     fun step(by: Int): AiringBand = entries[Math.floorMod(ordinal + by, entries.size)]
 
-    fun matches(m: Mine): Boolean = this == ANY || m.airing == status
+    fun matches(m: Mine): Boolean = this == ANY || m.airing.isEmpty() || m.airing == status
 
     fun label(): String = when (this) {
         ANY -> tr("Any")

@@ -253,6 +253,19 @@ class TvLibraryFocusTest {
         assertTrue(hasText("‹  Year  ›"))
     }
 
+    @Test fun anEmptyTagsPickerSaysSoKeepsTheFocusInsideAndBackClosesItToTheRow() {
+        logIn()
+        open()
+        selectPlanning()
+        rule.onNodeWithText("Tags").requestFocus()
+        press(OK)
+        rule.waitUntil(5_000) { hasText("No tags yet: they arrive with the next AniList refresh") }
+        waitFocus { it == "Clear" }
+        press(BACK)
+        waitFocus { it?.startsWith("Tags") == true }
+        assertTrue(hasCard("Dandadan"))
+    }
+
     @Test fun okOnGenresOpensThePickerAndOkCyclesAChipIncludeThenExcludeThenOffAndBackClosesIt() {
         logIn()
         open()
@@ -261,6 +274,8 @@ class TvLibraryFocusTest {
         press(OK)
         rule.waitUntil(5_000) { hasText("Filter Planning") }
         waitFocus { it?.startsWith("Adventure") == true }
+        press(LEFT)
+        assertTrue(focused()?.startsWith("Adventure") == true)
         press(OK)
         rule.waitUntil(5_000) { hasText("Planning · 3 of 3 shown · Adventure") }
         press(OK)
@@ -348,8 +363,8 @@ class TvLibraryFocusTest {
         rule.waitUntil(5_000) { hasText("Nothing in this list yet. Pick another list on the left.") }
         press(UP, OK)
         rule.waitUntil(5_000) { hasCard("Dandadan") }
-        rule.onNodeWithText("Airing").requestFocus()
-        press(RIGHT)
+        rule.onNodeWithText("Format").requestFocus()
+        press(RIGHT, RIGHT)
         rule.waitUntil(5_000) { hasText("Nothing here with these filters. Change the filters on the left.") }
     }
 

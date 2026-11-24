@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,7 +50,8 @@ internal fun LibraryColumn(all: List<Mine>, list: LibraryList, filters: LibraryF
     var text by remember { mutableStateOf(filters.query) }
     Column(modifier.width(PANEL_WIDTH).arcadePanel().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Title(tr("Library"), fontSize = 26.sp)
-        TvTextField(text, { text = it }, onDone = { onFilters(filters.copy(query = text.trim())) }, sides, placeholder = tr("Search my %d titles", all.size))
+        TvTextField(text, { text = it }, onDone = { onFilters(filters.copy(query = text.trim())) },
+            sides.onFocusChanged { if (!it.isFocused && text.trim() != filters.query) onFilters(filters.copy(query = text.trim())) }, placeholder = tr("Search my %d titles", all.size))
         Section("ANILIST")
         LibraryList.entries.forEach { l ->
             ListRow(l.label(), counts.getValue(l), l == list, { onList(l) }, sides.then(if (l == list) Modifier.focusRequester(entry) else Modifier), toGrid != null)

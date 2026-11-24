@@ -514,12 +514,23 @@ class TvDiscoverFocusTest {
         assertTrue(lastQuery().idIn.orEmpty().containsAll(listOf(3, 4, 5)))
     }
 
-    @Test fun aFailedMorePageKeepsTheGridAndShowsTheFooterError() {
+    @Test fun aFailedMorePageKeepsTheGridAndTheFooterRetriesOnlyThatPage() {
         browseNext = true
         browseMoreError = "page two failed"
         open()
         rule.waitUntil(5_000) { hasText("Couldn't load more: page two failed") }
         assertTrue(hasCard("Alpha"))
+        assertEquals(listOf(1, 2), fetched.map { it.second })
+        browseMoreError = null
+        waitFocus { it?.startsWith("Browse") == true }
+        press(RIGHT, DOWN)
+        assertEquals("Try again", focused())
+        press(OK)
+        rule.waitUntil(5_000) { fetched.size > 2 }
+        assertEquals(listOf(1, 2, 2), fetched.map { it.second })
+        rule.waitUntil(5_000) { hasCard("Zeta") && !hasText("Couldn't load more: page two failed") }
+        assertTrue(hasCard("Alpha"))
+        assertTrue(focused() in listOf("Alpha", "Beta", "Delta", "Echo", "Zeta"))
     }
 
     @Test fun onlyPlanningWithAnEmptyPlanningListAsksNothingAndSaysSo() {

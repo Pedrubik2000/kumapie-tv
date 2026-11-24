@@ -113,12 +113,12 @@ private fun Duel(env: DiscoverEnv, game: Knockout, pair: Pair<Int, Int>, byId: M
 
 @Composable
 private fun DuelCard(m: Mine, level: TitleDifficulty?, reason: String?, modifier: Modifier, onClick: () -> Unit) {
-    Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.DUEL).height(360.dp).semantics { contentDescription = m.shown() }) {
+    Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.DUEL).height(336.dp).semantics { contentDescription = m.shown() }) {
         Column(Modifier.fillMaxSize().background(Arcade.slab)) {
             Cover(m.banner.ifEmpty { m.cover }, "", Modifier.fillMaxWidth().height(110.dp), showTitle = false, alignment = Alignment.TopCenter, description = null)
             Row(Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Cover(m.cover, "", Modifier.width(60.dp).height(90.dp).clip(PosterSlab), showTitle = false, description = null)
-                Text(m.shown(), color = Color.White, fontSize = 24.sp, lineHeight = 28.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                FitTitle(m.shown(), 24, 2, Modifier.weight(1f))
             }
             Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp)) {
                 Text(duelFacts(m), color = WHITE_DIM, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

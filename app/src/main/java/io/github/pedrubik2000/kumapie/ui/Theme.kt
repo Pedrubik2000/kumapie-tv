@@ -111,7 +111,7 @@ fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Un
             .padding(horizontal = 16.dp, vertical = 12.dp),
         decorationBox = { inner ->
             androidx.compose.foundation.layout.Box {
-                if (value.isEmpty()) androidx.tv.material3.Text(placeholder, color = Colors.dim, fontSize = 20.sp)
+                if (value.isEmpty()) androidx.tv.material3.Text(placeholder, color = Colors.dim, fontSize = 20.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 inner()
             }
         },

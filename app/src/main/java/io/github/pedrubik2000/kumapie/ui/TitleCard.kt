@@ -152,8 +152,8 @@ private fun RowFace(label: String, value: String, focused: Boolean, flat: Boolea
     Row(modifier.fillMaxWidth().height(40.dp)
         .background(if (focused) Color.White else if (flat) Color.Transparent else Arcade.slab, CircleShape)
         .border(1.dp, if (focused) Color.White else if (flat) Color.Transparent else Arcade.line, CircleShape)
-        .padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = if (focused) Color.Black else WHITE_DIM, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = if (focused) Color.Black else WHITE_DIM, fontSize = 15.sp, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
         Text(if (open) "$value  ›" else "‹  $value  ›", color = if (focused) Color.Black else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }

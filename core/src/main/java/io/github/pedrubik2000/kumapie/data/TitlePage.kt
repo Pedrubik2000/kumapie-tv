@@ -29,6 +29,9 @@ class TitlePage(
 
     private fun aniNext(): JSONObject? {
         val p = aniProgress?.takeIf { it > 0 } ?: return null
+        if (resuming?.resume != null) return null
+        val numbers = episodes.map { it.optInt("number") }
+        if (numbers.distinct().size != numbers.size) return null
         val local = maxOf(resuming?.number ?: 0, episodes.filter { it.optBoolean("watched") }.maxOfOrNull { it.optInt("number") } ?: 0)
         return if (p > local) episodes.firstOrNull { it.optInt("number") == p + 1 && !it.optBoolean("watched") } else null
     }

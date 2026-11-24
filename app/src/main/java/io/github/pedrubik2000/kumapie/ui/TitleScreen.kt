@@ -151,7 +151,7 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
     val ani = rememberAniState(settings, writer, title, kitsu, edits)
     val tick by writer.changes.collectAsState()
     val syncState = remember(tick) { writer.stateOf(title.id) }
-    LaunchedEffect(ani.data?.progress) { page.aniProgress = ani.data?.progress }
+    LaunchedEffect(page, ani.data?.progress) { page.aniProgress = ani.data?.progress }
     CommitOnExit(edits, ani.phase == AniPhase.READY)
     val side = page.error != null || page.meta == null || page.picking != null
     val finished = titleFinished(ani.data, page.episodes)

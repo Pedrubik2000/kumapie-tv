@@ -1,7 +1,9 @@
 package io.github.pedrubik2000.kumapie.lang
 
 import io.github.pedrubik2000.kumapie.data.Discovery
+import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Found
+import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.StreamStart
 import io.github.pedrubik2000.kumapie.data.TitlePage
 import kotlinx.coroutines.runBlocking
@@ -22,12 +24,15 @@ class TitlePageTest {
         val watched = mutableSetOf("kitsu:46474:1")
         var ready = ""
         var metaFails = false
+        var going: List<Pair<Show, Episode>>? = null
+        var twoSeasons = false
+        override fun goingNow() = going
         override suspend fun board() = emptyList<Pair<String, List<Found>>>()
         override suspend fun discover(q: String) = emptyList<Found>()
         override suspend fun discoverMeta(type: String, id: String): JSONObject {
             if (metaFails) error("offline")
-            return JSONObject().put("id", id).put("name", "Sousou no Frieren").put("episodes", JSONArray((1..3).map { n ->
-                val eid = "$id:$n"
+            return JSONObject().put("id", id).put("name", "Sousou no Frieren").put("episodes", JSONArray((1..3).map { it to 0 }.plus(if (twoSeasons) (1..3).map { it to 10 } else emptyList()).map { (n, off) ->
+                val eid = "$id:${n + off}"
                 JSONObject().put("id", eid).put("number", n).put("watched", eid in watched).put("ready", eid == ready)
             }))
         }
@@ -50,6 +55,18 @@ class TitlePageTest {
         assertEquals("kitsu:46474:3", p.next?.getString("id"))
         p.aniProgress = 3
         assertEquals("kitsu:46474:1", p.next?.getString("id")) // no episode 4 in the meta: as before
+    }
+
+    @Test fun aHalfWatchedLocalEpisodeWinsOverAniList() = runBlocking {
+        val e = Episode("kitsu:46474:1", "Episode 1", 1, 1, 1400.0, "", 0, 0, 0, 300.0)
+        val d = Fake().apply { watched.clear(); going = listOf(Show(frieren.id, "Frieren", "stream", "", listOf(e), "ja") to e) }
+        val p = page(d).apply { load(); aniProgress = 2 }
+        assertEquals("kitsu:46474:1", p.next?.getString("id"))
+    }
+
+    @Test fun repeatedEpisodeNumbersFallBackToTheOldNextUp() = runBlocking {
+        val p = page(Fake().apply { watched.clear(); twoSeasons = true }).apply { load(); aniProgress = 2 }
+        assertEquals("kitsu:46474:1", p.next?.getString("id"))
     }
 
     @Test fun localHistoryAheadOfAniListWins() = runBlocking {

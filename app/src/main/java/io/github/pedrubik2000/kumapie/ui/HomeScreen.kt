@@ -66,7 +66,7 @@ import kotlinx.coroutines.withContext
 suspend fun FocusRequester.focusSoon() {
     repeat(10) {
         withFrameNanos { }
-        if (runCatching { requestFocus() }.isSuccess) return
+        if (runCatching { requestFocus(FocusDirection.Enter) }.getOrDefault(false)) return
     }
 }
 
@@ -94,13 +94,13 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
     val first = remember { FocusRequester() }
     val rail = RailNav({}, onLibrary, onDiscover, { lang?.let(onReview) }, onStats, onSettings)
     val profileItem = RailItem(Icons.Default.Person, who, back = false, onClick = onProfiles).takeIf { api is Api }
-    val settle = remember(data) { { data?.resume?.let { focus.target = it }; Unit } }
+    val settle = remember(data) { { if (focus.back == null) data?.resume?.let { focus.target = it }; Unit } }
     var contentFocused by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().railGate().onPreviewKeyEvent { e ->
         if (e.type != KeyEventType.KeyDown) false
         else when (e.key) {
             Key.DirectionLeft -> { if (contentFocused && Hints.shown == HintKind.HERO) focus.back = null; false }
-            Key.DirectionRight -> !contentFocused && focus.back?.let { r -> runCatching { r.requestFocus() }.isSuccess } == true
+            Key.DirectionRight -> !contentFocused && focus.returnFromRail()
             else -> false
         }
     }) {

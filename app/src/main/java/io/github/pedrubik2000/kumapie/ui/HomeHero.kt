@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -60,7 +61,13 @@ class HomeFocus(first: HeroTarget?) {
         val r = starts.getOrPut(row) { FocusRequester() }
         return Modifier.focusRequester(r).onFocusChanged { if (it.isFocused) back = r }
     }
+
+    fun forget(): Modifier = Modifier.onFocusChanged { if (it.isFocused) back = null }
+
+    fun returnFromRail(): Boolean = back?.let { r -> r.requestFocus(FocusDirection.Enter).also { if (!it) back = null } } == true
 }
+
+internal const val LOGIN_START = -1
 
 private val HERO_HEIGHT = 390.dp
 private const val PICTURE_DEBOUNCE_MS = 250L
@@ -86,7 +93,7 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
             is FoundTarget -> Unit
             null -> Row(Modifier.padding(start = RAIL, top = 96.dp, end = 32.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim, modifier = Modifier.weight(1f, fill = false))
-                Button(onClick = onDiscover, modifier = (if (emptyHome) Modifier.focusRequester(first) else Modifier)
+                Button(onClick = onDiscover, modifier = (if (emptyHome) Modifier.focusRequester(first) else Modifier).then(focus.forget())
                     .focusProperties { if (emptyHome) down = if (hasBelow) below else FocusRequester.Cancel }) { Text(tr("Find something to watch")) }
             }
         }

@@ -197,6 +197,32 @@ class TvHomeFocusTest {
         assertEquals(RESUME, focused())
     }
 
+    private fun loginTop() = rule.onNodeWithText("Log in with AniList to see your lists here").fetchSemanticsNode().boundsInRoot.top
+
+    @Test fun theLoginRowAndTheFirstLibraryPosterEachComeBackFromTheRailAndTheLayoutStays() {
+        openHome()
+        press(DOWN, DOWN)
+        assertEquals("Log in", focused())
+        val top = loginTop()
+        press(Key.DirectionLeft.keyCode)
+        press(RIGHT)
+        assertEquals("Log in", focused())
+        assertEquals(top, loginTop(), 0.5f)
+        press(DOWN)
+        val poster = focused()
+        assert(poster != "Log in") { "$poster" }
+        press(Key.DirectionLeft.keyCode)
+        press(RIGHT)
+        assertEquals(poster, focused())
+    }
+
+    @Test fun aRememberedRowThatIsGoneDoesNotTrapRightFromTheRail() {
+        val focus = HomeFocus(null)
+        focus.back = androidx.compose.ui.focus.FocusRequester()
+        assert(!focus.returnFromRail())
+        assertEquals(null, focus.back)
+    }
+
     @Test fun leftFromTheSecondRowThenRightLandsOnThatRowsCard() {
         openHome()
         press(DOWN)

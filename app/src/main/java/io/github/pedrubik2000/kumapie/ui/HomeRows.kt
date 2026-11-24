@@ -175,7 +175,7 @@ private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: I
 private fun LazyListScope.loginRow(c: RowCtx) = item(key = "login") {
     LoginLine(Modifier.padding(start = RAIL, top = 16.dp, bottom = 16.dp),
         (if (c.d.names.isEmpty()) Modifier.focusRequester(c.below) else Modifier).onFocusChanged { if (it.isFocused) { c.focus.row = c.d.names.size; c.scrollTo(c.d.names.size) } }
-            .then(c.focus.start(c.d.names.size)), c.onLogin)
+            .then(c.focus.start(LOGIN_START)), c.onLogin)
 }
 
 @Composable

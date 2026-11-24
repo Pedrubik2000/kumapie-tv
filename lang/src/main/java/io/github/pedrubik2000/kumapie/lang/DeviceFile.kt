@@ -241,7 +241,7 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
             .filter { it.exists() }.forEach { it.copyRecursively(File(copy, it.name), overwrite = true) }
         copy?.parentFile?.listFiles()?.sortedByDescending { it.name }?.drop(BACKUPS)?.forEach { it.deleteRecursively() }
         progress.useOthers(plan.others)
-        languages.forEach { l -> plan.known[l.lang.code]?.let { (time, words) -> l.known.setImported(words, time) } }
+        languages.forEach { l -> plan.known[l.lang.code]?.let { (time, words) -> l.known.setImported(ImportedSources.PEERS, words, time) } }
         languages.forEach { l -> l.known.useMarked(progress.merged.marked.mapNotNull(l::wordOfMark).toSet()) }
         personal.take(plan.personal)
         settings.prefs.edit().apply {

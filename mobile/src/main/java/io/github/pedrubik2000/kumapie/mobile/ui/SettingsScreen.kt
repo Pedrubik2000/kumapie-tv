@@ -310,7 +310,7 @@ private fun StorageSection(library: Library, onUpdate: (Updater.Release) -> Unit
 const val ISSUES = "https://github.com/Pedrubik2000/kumapie-tv/issues"
 
 /**
- * Word colours from the device's own Anki: permission to read AnkiDroid and the stability that makes a word known
+ * Word colours from the device's own Anki: permission to read AnkiDroid (a card reviewed once makes a word known)
  * (shared by every language), then each language this device learns ([LanguageWordsSection]).
  */
 @Composable

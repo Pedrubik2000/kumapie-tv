@@ -13,8 +13,8 @@ object Colors {
     var pickedSoft = false
     val text = Color(0xFFF2F0F7)
     val dim = Color(0xFFA9A4B8)
-    // Words in subtitles are only white, red, green or blue (no orange, user): white = known (FSRS stability >= 7
-    // days, the server's rule), red = never studied or still learning ("u" and "l", see Subtitles.colored).
+    // Words in subtitles are only white, red, green or blue (no orange, user): white = known (a card reviewed once),
+    // red = never studied or still learning ("u" and "l", see Subtitles.colored).
     // Orange is not a word colour: it marks counts and "today" in stats and help.
     val learning = Color(0xFFFFAA4D)
     val unknown = Color(0xFFFF6B6B)

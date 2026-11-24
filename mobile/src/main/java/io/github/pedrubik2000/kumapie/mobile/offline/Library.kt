@@ -123,7 +123,7 @@ class Library(context: Context, val settings: Settings) {
     }
 
     /**
-     * Each language's imported known words and the known threshold to the PC, and what another device changed
+     * Each language's imported known words to the PC, and what another device changed
      * later: the Jiten import done on one device colours the others too. Offline: the local lists, sent next sync.
      */
     private suspend fun sendKnownLists() {
@@ -132,7 +132,7 @@ class Library(context: Context, val settings: Settings) {
             .onFailure { android.util.Log.w("kumapie", "known lists: ${l.lang.code} not synced: $it") }
     }
 
-    /** After an import or a threshold change: in the background. */
+    /** After an import: in the background. */
     fun syncKnownLists() { background.launch { sendKnownLists() } }
 
     /** After an entry changed: in the background (offline, it goes with the next sync). */

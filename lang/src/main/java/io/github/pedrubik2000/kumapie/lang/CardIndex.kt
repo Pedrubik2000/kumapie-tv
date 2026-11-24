@@ -6,6 +6,8 @@ package io.github.pedrubik2000.kumapie.lang
  */
 class CardIndex(private val lang: String = "") {
     @Volatile private var byForm: Map<String, List<AnkiCards.Card>> = emptyMap()
+    @Volatile private var manualForms: Set<String> = emptySet()
+    @Volatile private var manualNotes: Set<Long> = emptySet()
     /** Card id -> "new" | "learn" | "review": kuma3's queue today; null = not known (an Anki without `kuma3/due`). */
     @Volatile var due: Map<Long, String>? = null
         private set
@@ -16,8 +18,13 @@ class CardIndex(private val lang: String = "") {
         val keysOf = notes.associate { it.id to keys(it) }.filterValues { it.isNotEmpty() }
         byForm = cards.filter { it.noteId in keysOf }.flatMap { c -> keysOf[c.noteId]!!.map { it to c } }
             .groupBy({ it.first }, { it.second })
+        val manual = notes.filter { it.id in keysOf && it.hasTag(KnownWords.KNOWN_MANUALLY) }
+        manualNotes = manual.map { it.id }.toSet()
+        manualForms = manual.flatMap { keysOf.getValue(it.id) }.toSet()
         this.due = due ?: this.due
     }
+
+    fun manualNotes(): Set<Long> = manualNotes
 
     /** A note just mined joins the index (not due: a new card isn't), without the whole read [build] needs. */
     fun add(notes: List<AnkiCards.Note>, cards: List<AnkiCards.Card>, keys: (AnkiCards.Note) -> List<String> = ::spacedKeys) {
@@ -47,7 +54,7 @@ class CardIndex(private val lang: String = "") {
         return WordSync.max(there, when {
             // A learning step later today (due in epoch seconds, not a day number) isn't green yet: Again kept it green (user, 2026-11-08).
             own.any { due[it.id] == "review" || due[it.id] == "learn" && (it.due < 1_000_000_000 || it.due <= nowSecs) } -> "d"
-            own.all { it.type == 0 } -> "b"
+            own.all { it.type == 0 } -> if (form.lowercase() in manualForms) "k" else "b"
             else -> "k"
         })
     }

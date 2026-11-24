@@ -22,8 +22,8 @@ import java.io.File
  * the PC, so the subtitles' colours no longer need the PC:
  * - German notes' fields are parsed by spaCy (same model as the PC) into morphs, keyed by inflection; Japanese
  *   notes' by Sudachi ([JapaneseModel]), keyed by dictionary form;
- * - a word is **known** (white) when one of its reviewed cards has FSRS stability >= the threshold (Settings,
- *   7 days by default), its note is tagged known-manually, or it was marked known in the app;
+ * - a word is **known** (white) when one of its cards was reviewed at least once (the same for every card source),
+ *   its note is tagged known-manually, or it was marked known in the app;
  *   else **unknown** (red; no orange "learning", user 2026-10-11).
  * The result is saved, so the app colours words offline and at once on start; [refresh] reads Anki again.
  */
@@ -40,8 +40,12 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** What [readCards] read last, for [loadCards]. */
     private val cardsFile = File(dir, "cards.json")
     private val markedFile = File(dir, "marked.txt")
-    /** Words imported as known (Jiten's lists for Japanese): known while the word has no card of its own. */
-    private val importedFile = File(dir, "imported.txt")
+    /** Words imported as known per source ([ImportedSources], [ImportedLists]): known while the word has no card of its own. */
+    private val importedSources = ImportedSources(dir, File(dir, "imported.txt"))
+    private val lists = ImportedLists(importedSources, object : ImportedLists.Stamps {
+        override fun get(key: String, default: Long) = settings.prefs.getLong(key, default)
+        override fun put(key: String, value: Long) = settings.prefs.edit().putLong(key, value).apply()
+    }, lang.code)
     private val lock = Mutex()
 
     /** What one inflection's cards say. */
@@ -61,32 +65,36 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         private set
     @Volatile private var marked: Set<String> = runCatching { markedFile.readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet() }
         .getOrDefault(emptySet())
-    @Volatile private var imported: Set<String> = runCatching { importedFile.readLines().filter { it.isNotEmpty() }.toSet() }
-        .getOrDefault(emptySet())
+    private val imported: Set<String> get() = lists.words
 
-    private var listsRead = markedFile.lastModified() to importedFile.lastModified()
+    private var listsRead = markedFile.lastModified() to importedSources.stamp()
 
     /**
-     * marked.txt and imported.txt again when another KnownWords wrote them since (the app's, for the one in
+     * marked.txt and imported/ again when another KnownWords wrote them since (the app's, for the one in
      * WordColours: a word marked known or a Jiten import there).
      */
     fun reloadLists() {
-        val now = markedFile.lastModified() to importedFile.lastModified()
+        val now = markedFile.lastModified() to importedSources.stamp()
         if (now == listsRead) return
         listsRead = now
         marked = runCatching { markedFile.readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet() }.getOrDefault(emptySet())
-        imported = runCatching { importedFile.readLines().filter { it.isNotEmpty() }.toSet() }.getOrDefault(emptySet())
+        lists.reload()
     }
 
     val importedWords: Set<String> get() = imported
 
-    /** Replaces the imported known words (empty: none); [time] = when (the PC's, when they came from another device). */
-    fun setImported(words: Set<String>, time: Long = System.currentTimeMillis()) {
-        imported = words
-        runCatching { importedFile.writeText(words.sorted().joinToString("\n")) }
-        settings.prefs.edit().putLong("imported_time_${lang.code}", time).putLong("imported_sent_${lang.code}", -1).apply()
+    /** The words another device sent as of [time], or this device's own import: see [ImportedLists.set]. */
+    fun setImported(source: String, words: Set<String>, time: Long = System.currentTimeMillis()) {
+        if (!lists.set(source, words, time)) return
+        if (source == ImportedSources.PEERS) jitenChoice = null
+        afterLists()
+    }
+
+    private fun afterLists() {
+        listsRead = listsRead.first to importedSources.stamp()
         _status.value = describe()
     }
+
 
     /** The Jiten import's last choice on this device (top words, list slugs), so Settings can change it; null: none. */
     var jitenChoice: Pair<Int, Set<String>>?
@@ -99,41 +107,25 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      */
     suspend fun importJiten(top: Int, sets: Set<String>): Int {
         val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Jiten.words(top, sets) }
-        setImported(words)
+        setImported(ImportedSources.JITEN, words)
         jitenChoice = top to sets
         return words.size
     }
 
     /** No imported words any more (the marked ones stay). */
     fun removeImported() {
-        setImported(emptySet())
+        setImported(ImportedSources.JITEN, emptySet())
         jitenChoice = null
     }
 
-    /**
-     * The imported words for POST /api/tv/known_lists, which keeps the newest import of all the person's devices:
-     * the words go only while the PC may not have them (marks sync through Anki, [useMarked]).
-     */
-    fun listsBody(): JSONObject {
-        val p = settings.prefs
-        val time = importedTime()
-        val imp = JSONObject().put("time", time)
-        if (p.getLong("imported_sent_${lang.code}", -1) != time) imp.put("words", org.json.JSONArray(imported.sorted()))
-        return JSONObject().put("imported", imp)
-    }
+    fun listsBody(): JSONObject = lists.body()
 
-    /** When the import was made: 1 for one from before times were kept (older than any other), 0 for none. */
-    internal fun importedTime() = settings.prefs.getLong("imported_time_${lang.code}", if (imported.isEmpty()) 0 else 1)
+    internal fun importedTime() = lists.time()
 
-    /** The PC's answer to [listsBody]: takes another device's import when it's newer. */
     fun useLists(o: JSONObject) {
-        val p = settings.prefs
-        val imp = o.optJSONObject("imported") ?: return
-        val time = imp.getLong("time")
-        val words = imp.optJSONArray("words")
-        if (words != null && time > importedTime())
-            setImported((0 until words.length()).map(words::getString).toSet(), time)
-        if (time == importedTime()) p.edit().putLong("imported_sent_${lang.code}", time).apply()
+        if (!lists.use(o)) return
+        jitenChoice = null
+        afterLists()
     }
 
     /** Known without a card of its own: imported, or [Language.autoKnown]. */
@@ -142,13 +134,6 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     private val _status = MutableStateFlow(describe())
     /** One line for Settings: what the colours come from now, or what went wrong. */
     val status: StateFlow<String> = _status
-
-    var threshold: Double
-        get() = settings.prefs.getFloat("known_stability", 7f).toDouble()
-        set(value) {
-            settings.prefs.edit().putFloat("known_stability", value.toFloat()).apply()
-            _status.value = describe()
-        }
 
     /** This language's own cards: its Mined deck only ("deck:Deutsch Mined", subdecks included). */
     private val search get() = "\"deck:${lang.deck}\""
@@ -171,15 +156,12 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     fun status(inflection: String): String? {
         if (inflection in marked) return "k"
         val f = snapshot?.words?.get(inflection) ?: return if (extraKnown(inflection)) "k" else null
-        return when {
-            f.manual || (f.best != null && f.best >= threshold) -> "k"
-            else -> null
-        }
+        return if (f.manual || f.reviewed) "k" else null
     }
 
     val ready: Boolean get() = snapshot != null
 
-    /** [status] by cards ([CardIndex.byCard]); without kuma3's queue, [status] (stability) as before. */
+    /** [status] by cards ([CardIndex.byCard]); without kuma3's queue, [status] (reviewed once) as before. */
     fun statusByCard(word: String): String? = cardIndex.byCard(word, marked, ::extraKnown, ::status)
 
     /** The colour to draw [word] in, as the player does ([io.github.pedrubik2000.kumapie.data.Word.shown]): "k" white, "d" green, "b" blue, "u" red. */
@@ -267,6 +249,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
                 .put(c.stability ?: JSONObject.NULL).put(c.due).put(c.reps).put(c.lapses).put(c.ord).put(c.type))
         })
         o.put("due", JSONObject().apply { cardIndex.due?.forEach { (id, q) -> put("$id", q) } })
+        o.put("manual", JSONArray(cardIndex.manualNotes().toList()))
         File(dir, "cards.json.tmp").apply { writeText(o.toString()) }.renameTo(cardsFile)
     }
 
@@ -291,7 +274,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
                 }
             }
             val d = o.getJSONObject("due")
-            val notes = keys.keys.map { AnkiCards.Note(it, emptyMap(), emptySet()) }
+            val manual = o.optJSONArray("manual")?.let { a -> (0 until a.length()).map(a::getLong).toSet() }.orEmpty()
+            val notes = keys.keys.map { AnkiCards.Note(it, emptyMap(), if (it in manual) setOf(KNOWN_MANUALLY) else emptySet()) }
             if (lastReading == null) lastReading = Reading(o.getString("pkg"), notes, cards, emptyMap())
             cardIndex.build(notes, cards, cardIndex.due ?: d.keys().asSequence().associate { it.toLong() to d.getString(it) }) { keys[it.id].orEmpty() }
             true
@@ -499,17 +483,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
                 val parsed = System.currentTimeMillis()
 
                 val manualNotes = notes.filter { it.hasTag(KNOWN_MANUALLY) }.map { it.id }.toSet()
-                val words = HashMap<String, Facts>()
-                for (nid in morphs.keys) for (w in morphs[nid]!!) words[w] = words[w] ?: Facts(null, false, false)
-                for (nid in manualNotes) morphs[nid]?.forEach { w -> words[w] = words[w]!!.copy(manual = true) }
-                for (card in cards) {
-                    if (!card.reviewed) continue
-                    morphs[card.noteId]?.forEach { w ->
-                        val f = words[w]!!
-                        val best = listOfNotNull(f.best, card.stability).maxOrNull()
-                        words[w] = f.copy(best = best, reviewed = true)
-                    }
-                }
+                val words = factsOf(morphs, manualNotes, cards)
                 lastReading = Reading(pkg, notes, cards, morphs.mapValues { it.value.toList() }, defMorphs.mapValues { it.value.toList() })
                 // Word cards by form, for the colours and ratings.
                 cardIndex.build(notes, cards, anki.due(pkg), cardKeys(notes)).also { dueAt = System.currentTimeMillis() }
@@ -596,7 +570,6 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         return read()
     }
 
-
     private fun save(snap: Snapshot) {
         val words = JSONObject()
         snap.words.forEach { (w, f) ->
@@ -634,6 +607,20 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     }
 
     companion object {
+        internal fun factsOf(morphs: Map<Long, Set<String>>, manualNotes: Set<Long>, cards: List<AnkiCards.Card>): Map<String, Facts> {
+            val words = HashMap<String, Facts>()
+            for (nid in morphs.keys) for (w in morphs[nid]!!) words[w] = words[w] ?: Facts(null, false, false)
+            for (nid in manualNotes) morphs[nid]?.forEach { w -> words[w] = words[w]!!.copy(manual = true) }
+            for (card in cards) {
+                if (!card.reviewed) continue
+                morphs[card.noteId]?.forEach { w ->
+                    val f = words[w]!!
+                    words[w] = f.copy(best = listOfNotNull(f.best, card.stability).maxOrNull(), reviewed = true)
+                }
+            }
+            return words
+        }
+
         /**
          * An episode before Anki was read here (kumapie_plan.md item 7): no word is known but the marked ones, not the
          * PC's colours (the PC sends someone else's words as all known).

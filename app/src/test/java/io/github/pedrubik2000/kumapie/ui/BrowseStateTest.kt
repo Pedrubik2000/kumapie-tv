@@ -36,7 +36,7 @@ class BrowseStateTest {
         val release = async { kotlinx.coroutines.delay(100); late.complete(page(3)) }
         s.first("b", q, { _, _ -> page(2) })
         release.await()
-        more.await()
+        more.join()
         assertEquals(listOf(2), s.items.map { it.anilistId })
         assertEquals(1, s.page)
     }
@@ -133,11 +133,13 @@ class BrowseStateTest {
         assertEquals(listOf(2), s.items.map { it.anilistId })
     }
 
-    @Test fun anExpiredLoginIsRememberedFromAnyPageAndClearsOnTheNextLoad() = runBlocking {
+    @Test fun anExpiredLoginIsRememberedFromAnyPageUntilANewLoginClearsIt() = runBlocking {
         val s = state()
         s.first("a", q, { _, _ -> AniListBrowse.Page(listOf(m(1)), 5, true, expired = true) })
         assertTrue(s.expired)
         s.first("b", q, { _, _ -> page(1) })
+        assertTrue(s.expired)
+        s.clearExpired()
         assertTrue(!s.expired)
         s.more { _, _ -> AniListBrowse.Page(listOf(m(2)), 5, false, expired = true) }
         assertTrue(s.expired)
@@ -183,6 +185,32 @@ class BrowseStateTest {
         val more = async { s.more(fetch) }
         more.await()
         assertEquals(1, most)
+        assertTrue(starts[1] - starts[0] >= 280)
+    }
+
+    @Test fun aFilterChangeCancelsAMoreThatIsWaitingOutATooManyRequestsAnswer() = runBlocking {
+        val s = state()
+        s.first("a", q, { _, _ -> page(1) })
+        val more = async(start = CoroutineStart.UNDISPATCHED) {
+            s.more { _, _ -> throw io.github.pedrubik2000.kumapie.data.AniList.Failed(429, "AniList: too many requests", 60) }
+        }
+        kotlinx.coroutines.delay(50)
+        assertTrue(s.waiting)
+        val t = System.nanoTime()
+        s.first("b", q, { _, _ -> page(2) })
+        assertTrue((System.nanoTime() - t) / 1_000_000 < 3_000)
+        more.join()
+        assertTrue(more.isCancelled)
+        assertEquals(listOf(2), s.items.map { it.anilistId })
+        assertTrue(!s.waiting)
+    }
+
+    @Test fun theSpacingAndTheLockAreSharedByEveryBrowseState() = runBlocking {
+        browseGapMs = 300
+        val starts = ArrayList<Long>()
+        val fetch: BrowseFetch = { _, _ -> starts += System.nanoTime() / 1_000_000; page(1) }
+        state().first("a", q, fetch)
+        state().first("a", q, fetch)
         assertTrue(starts[1] - starts[0] >= 280)
     }
 }

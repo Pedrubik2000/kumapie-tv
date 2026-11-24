@@ -3,6 +3,10 @@ package io.github.pedrubik2000.kumapie.data
 import android.content.SharedPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.concurrent.thread
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -66,10 +70,31 @@ object AniList {
         return ids.associateWith { cache.optString(it.toString()) }.filterValues { it.isNotEmpty() }
     }
 
-    private fun mapChunk(chunk: List<Int>, cache: JSONObject) {
+    suspend fun <T> cancellable(call: ((HttpURLConnection) -> Unit) -> T): T = suspendCancellableCoroutine { cont ->
+        val conn = java.util.concurrent.atomic.AtomicReference<HttpURLConnection?>(null)
+        val cancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+        cont.invokeOnCancellation {
+            cancelled.set(true)
+            conn.get()?.disconnect()
+        }
+        thread {
+            try {
+                cont.resume(call { c ->
+                    conn.set(c)
+                    if (cancelled.get()) c.disconnect()
+                })
+            } catch (e: Throwable) {
+                cont.resumeWithException(e)
+            }
+        }
+    }
+
+    internal suspend fun gqlCancellable(token: String, query: String, variables: JSONObject): JSONObject = cancellable { open -> gql(token, query, variables, open) }
+
+    private suspend fun mapChunk(chunk: List<Int>, cache: JSONObject) {
         val url = "https://kitsu.io/api/edge/mappings?filter[externalSite]=anilist/anime&filter[externalId]=${chunk.joinToString(",")}" +
             "&page[limit]=20&include=item&fields[anime]=id"
-        val data = JSONObject(get(url)).getJSONArray("data")
+        val data = JSONObject(cancellable { open -> get(url, open) }).getJSONArray("data")
         for (i in 0 until data.length()) data.getJSONObject(i).let { m ->
             val k = m.getJSONObject("relationships").getJSONObject("item").optJSONObject("data")?.optString("id") ?: return@let
             cache.put(m.getJSONObject("attributes").getString("externalId"), k)
@@ -185,8 +210,8 @@ object AniList {
         val permanent get() = code == 400 || code == 404 || code == 200
     }
 
-    internal fun gql(token: String, query: String, variables: JSONObject): JSONObject {
-        val (code, text, wait) = post("https://graphql.anilist.co", JSONObject().put("query", query).put("variables", variables).toString(), token)
+    internal fun gql(token: String, query: String, variables: JSONObject, onOpen: (HttpURLConnection) -> Unit = {}): JSONObject {
+        val (code, text, wait) = post("https://graphql.anilist.co", JSONObject().put("query", query).put("variables", variables).toString(), token, onOpen)
         val answer = runCatching { JSONObject(text) }.getOrNull()
         val error = answer?.optJSONArray("errors")?.optJSONObject(0)?.optString("message")
         if (code == 401 || error?.contains("token", ignoreCase = true) == true || error == "Unauthorized.") throw LoggedOut()
@@ -195,7 +220,8 @@ object AniList {
         return answer?.optJSONObject("data") ?: throw Failed(code, "AniList: HTTP $code")
     }
 
-    private fun get(url: String): String = (URL(url.replace("[", "%5B").replace("]", "%5D")).openConnection() as HttpURLConnection).run {
+    private fun get(url: String, onOpen: (HttpURLConnection) -> Unit = {}): String = (URL(url.replace("[", "%5B").replace("]", "%5D")).openConnection() as HttpURLConnection).run {
+        onOpen(this)
         connectTimeout = 15_000; readTimeout = 30_000
         setRequestProperty("Accept", "application/vnd.api+json")
         inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
@@ -203,7 +229,8 @@ object AniList {
 
     private fun post(url: String, body: String): String = post(url, body, null).second
 
-    private fun post(url: String, body: String, token: String?): Triple<Int, String, Long> = (URL(url).openConnection() as HttpURLConnection).run {
+    private fun post(url: String, body: String, token: String?, onOpen: (HttpURLConnection) -> Unit = {}): Triple<Int, String, Long> = (URL(url).openConnection() as HttpURLConnection).run {
+        onOpen(this)
         connectTimeout = 15_000; readTimeout = 30_000
         requestMethod = "POST"; doOutput = true
         setRequestProperty("Content-Type", "application/json"); setRequestProperty("Accept", "application/json")

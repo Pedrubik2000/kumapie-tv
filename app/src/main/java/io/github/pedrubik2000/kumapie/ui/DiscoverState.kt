@@ -17,6 +17,8 @@ import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 
@@ -95,6 +97,11 @@ private const val WAIT_MAX_S = 65L
 
 internal var browseGapMs = 1000L
 
+internal object BrowseNet {
+    val lock = Mutex()
+    var lastAsk = 0L
+}
+
 @Stable
 internal class BrowseState(initial: BrowseFilters, private val settings: Settings) {
     var filters by mutableStateOf(initial)
@@ -105,6 +112,7 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
     var error by mutableStateOf<String?>(null)
     var moreError by mutableStateOf<String?>(null)
     var expired by mutableStateOf(false)
+    var login by mutableStateOf(settings.anilistToken)
     var emptyNote by mutableStateOf<String?>(null)
     var waiting by mutableStateOf(false)
     var attempt by mutableIntStateOf(0)
@@ -117,8 +125,7 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
         private set
     private var moreBusy = false
     private var firstPending = false
-    private val net = Mutex()
-    private var lastAsk = 0L
+    private var moreJob: Job? = null
     private var generation = 0
     private var begun = false
     private var seenAttempt = 0
@@ -136,6 +143,10 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
         attempt++
     }
 
+    fun clearExpired() {
+        expired = false
+    }
+
     fun requestMore() {
         if (hasNext && !moreBusy && !firstPending && loaded && moreError == null) moreTick++
     }
@@ -145,25 +156,27 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
         requestMore()
     }
 
-    private suspend fun ask(fetch: BrowseFetch, q: AniListBrowse.Query, p: Int): AniListBrowse.Page {
-        net.lock()
+    private suspend fun ask(fetch: BrowseFetch, q: AniListBrowse.Query, p: Int, g: Int): AniListBrowse.Page {
+        BrowseNet.lock.lock()
         try {
             var tries = 0
             while (true) {
-                val gap = browseGapMs - (System.currentTimeMillis() - lastAsk)
+                val gap = browseGapMs - (System.currentTimeMillis() - BrowseNet.lastAsk)
                 if (gap > 0) delay(gap)
+                if (g != generation) throw CancellationException("stale")
                 try {
-                    return fetch(q, p).also { lastAsk = System.currentTimeMillis() }
+                    return fetch(q, p).also { BrowseNet.lastAsk = System.currentTimeMillis() }
                 } catch (e: AniList.Failed) {
-                    lastAsk = System.currentTimeMillis()
+                    BrowseNet.lastAsk = System.currentTimeMillis()
                     if (e.code != 429 || tries >= WAIT_TRIES) throw e
                     tries++
                     waiting = true
                     try { delay(e.retryAfter.coerceIn(1, WAIT_MAX_S) * 1000) } finally { waiting = false }
+                    if (g != generation) throw CancellationException("stale")
                 }
             }
         } finally {
-            net.unlock()
+            BrowseNet.lock.unlock()
         }
     }
 
@@ -173,6 +186,7 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
             return
         }
         val g = ++generation
+        moreJob?.cancel()
         val immediate = !begun || attempt != seenAttempt
         begun = true
         seenAttempt = attempt
@@ -187,11 +201,11 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
             fetchedFor = null
             if (q == null) return finish(g, key, AniListBrowse.Page(emptyList(), 0, false), 1, query, tr("Your Planning list is empty"))
             var pages = 1
-            var p = ask(fetch, q, 1)
+            var p = ask(fetch, q, 1, g)
             var all = p.items
             while (all.isEmpty() && p.hasNext && pages < EMPTY_PAGES) {
                 pages++
-                p = ask(fetch, q, pages)
+                p = ask(fetch, q, pages, g)
                 all = all + p.items
             }
             finish(g, key, AniListBrowse.Page(all, p.total, p.hasNext, p.expired), pages, q, null)
@@ -206,20 +220,21 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
 
     private fun finish(g: Int, key: Any, p: AniListBrowse.Page, pages: Int, q: AniListBrowse.Query, note: String?) {
         if (g != generation) return
-        items = p.items; total = p.total; hasNext = p.hasNext; expired = p.expired; page = pages; query = q; emptyNote = note; fetchedFor = key; loaded = true
+        items = p.items; total = p.total; hasNext = p.hasNext; expired = expired || p.expired; page = pages; query = q; emptyNote = note; fetchedFor = key; loaded = true
     }
 
     suspend fun more(fetch: BrowseFetch) {
         if (!hasNext || moreBusy || firstPending || !loaded) return
         moreBusy = true
+        moreJob = currentCoroutineContext()[Job]
         val g = generation
         val next = page + 1
         moreError = null
         try {
-            val p = ask(fetch, query, next)
+            val p = ask(fetch, query, next, g)
             if (g != generation) return
             val have = items.map { it.anilistId }.toSet()
-            items = items + p.items.filter { it.anilistId !in have }; hasNext = p.hasNext; page = next; expired = p.expired
+            items = items + p.items.filter { it.anilistId !in have }; hasNext = p.hasNext; page = next; expired = expired || p.expired
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -284,7 +299,13 @@ internal fun LoadPicks(pick: PickState) {
 @Composable
 internal fun LoadBrowse(state: BrowseState, fetch: BrowseFetch, planning: List<Int>?, token: String, active: Boolean) {
     val needs = state.filters.needsPlanning
-    val key = Triple(state.filters.copy(limit = 0), planning.takeIf { needs }, token)
+    LaunchedEffect(token) {
+        if (token.isNotEmpty() && token != state.login) {
+            state.login = token
+            state.clearExpired()
+        }
+    }
+    val key = Triple(state.filters.copy(limit = 0), planning.takeIf { needs }, state.login)
     LaunchedEffect(active, key, state.attempt) {
         if (!active || (needs && planning == null)) return@LaunchedEffect
         val q = if (needs && planning.orEmpty().isEmpty()) null else state.filters.toQuery(planning.orEmpty())

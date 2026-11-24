@@ -388,7 +388,7 @@ class TvTitleFocusTest {
         open(List(30) { false }, FakeAniList({ entry("CURRENT", 1) }))
         waitFocus { it?.startsWith("▶") == true }
         press(Key.DirectionDown)
-        waitFocus { it == "Episode 1" }
+        waitFocus { it == "Episode 2" }
         repeat(20) { press(Key.DirectionRight) }
         press(Key.DirectionUp)
         waitFocus { it?.startsWith("▶") == true }

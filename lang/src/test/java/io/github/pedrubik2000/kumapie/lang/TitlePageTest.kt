@@ -45,6 +45,18 @@ class TitlePageTest {
         assertEquals("kitsu:46474:2", p.next?.getString("id"))
     }
 
+    @Test fun nextUpFollowsAniListWhenLocalHistoryIsBehind() = runBlocking {
+        val p = page(Fake().apply { watched.clear() }).apply { load(); aniProgress = 2 }
+        assertEquals("kitsu:46474:3", p.next?.getString("id"))
+        p.aniProgress = 3
+        assertEquals("kitsu:46474:1", p.next?.getString("id")) // no episode 4 in the meta: as before
+    }
+
+    @Test fun localHistoryAheadOfAniListWins() = runBlocking {
+        val p = page(Fake().apply { watched += "kitsu:46474:2" }).apply { load(); aniProgress = 1 }
+        assertEquals("kitsu:46474:3", p.next?.getString("id"))
+    }
+
     @Test fun aReadyFileStartsAtOnce() = runBlocking {
         val p = page(Fake().apply { ready = "kitsu:46474:2" }).apply { load() }
         assertEquals(StreamStart.ready(frieren, "kitsu:46474:2", "Sousou no Frieren 2"), p.play(p.next))

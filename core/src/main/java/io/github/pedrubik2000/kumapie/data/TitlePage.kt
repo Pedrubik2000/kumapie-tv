@@ -24,7 +24,14 @@ class TitlePage(
 
     val shown get() = meta?.let(d::found)?.let { f -> if (f.nameJa.isEmpty()) f.copy(nameJa = title.nameJa) else f } ?: title
     val episodes get() = meta?.optJSONArray("episodes")?.objects().orEmpty()
-    val next get() = nextUp(episodes, going)
+    var aniProgress by mutableStateOf<Int?>(null)
+    val next get() = aniNext() ?: nextUp(episodes, going)
+
+    private fun aniNext(): JSONObject? {
+        val p = aniProgress?.takeIf { it > 0 } ?: return null
+        val local = maxOf(resuming?.number ?: 0, episodes.filter { it.optBoolean("watched") }.maxOfOrNull { it.optInt("number") } ?: 0)
+        return if (p > local) episodes.firstOrNull { it.optInt("number") == p + 1 && !it.optBoolean("watched") } else null
+    }
 
     suspend fun load(cached: JSONObject? = null) {
         if (meta == null && cached != null) meta = cached

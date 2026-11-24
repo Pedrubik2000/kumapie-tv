@@ -97,8 +97,8 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
         HeroBackdrop(picture, { if (focus.tall) FADE_TALL else FADE_SHORT }, Modifier.matchParentSize())
         when (val t = focus.target) {
             is ResumeTarget -> ResumeText(t, first, below, onPlay, onShow)
-            is ContinueTarget -> InfoText(t, t.facts(), emptyList(), null, levels)
-            is ListTarget -> InfoText(t, t.facts(), t.chips(), planningLine(t), levels)
+            is ContinueTarget -> InfoText(t, t.facts(), emptyList(), levels)
+            is ListTarget -> InfoText(t, t.facts(), t.chips(), levels)
             is FoundTarget -> Unit
             null -> Row(Modifier.padding(start = RAIL, top = 96.dp, end = 32.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim, modifier = Modifier.weight(1f, fill = false))
@@ -156,7 +156,7 @@ private fun ResumeText(t: ResumeTarget, first: FocusRequester, below: FocusReque
 }
 
 @Composable
-private fun InfoText(t: HeroTarget, facts: String, chips: List<String>, extra: String?, levels: Levels?) {
+private fun InfoText(t: HeroTarget, facts: String, chips: List<String>, levels: Levels?) {
     Column(Modifier.padding(start = RAIL, top = 56.dp, end = 24.dp).width(900.dp)) {
         Eyebrow(t.eyebrow())
         Text(t.title(), color = Color.White, fontSize = 44.sp, lineHeight = 50.sp, style = Arcade.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -166,7 +166,6 @@ private fun InfoText(t: HeroTarget, facts: String, chips: List<String>, extra: S
                 .forEach { Chip(it.text, it.current) }
             chips.forEach { Chip(it, false) }
         }
-        extra?.let { Text(it, color = WHITE_DIM, fontSize = 16.sp, modifier = Modifier.padding(top = 10.dp)) }
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
             levels?.of(t.kitsu())?.let { DifficultyLine(it) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -176,9 +175,6 @@ private fun InfoText(t: HeroTarget, facts: String, chips: List<String>, extra: S
         }
     }
 }
-
-private fun planningLine(t: ListTarget): String? =
-    if (t.mine.watching) null else tr("On AniList: Planning · moves to Watching when you start watching")
 
 @Composable
 private fun Chip(text: String, current: Boolean) {

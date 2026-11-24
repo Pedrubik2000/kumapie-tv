@@ -334,7 +334,6 @@ internal val esTv: Map<String, String> = mapOf(
     "AniList %d" to "AniList %d",
     "Japanese subtitles" to "Subtítulos en japonés",
     "Open the title page" to "Abrir la página del título",
-    "On AniList: Planning · moves to Watching when you start watching" to "En AniList: Planeado · pasa a Viendo cuando empiezas a verlo",
     "Log in with AniList to see your lists here" to "Inicia sesión con AniList para ver tus listas aquí",
     "Log in" to "Iniciar sesión",
     "Status" to "Estado",

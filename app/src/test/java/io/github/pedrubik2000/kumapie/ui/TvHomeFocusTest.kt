@@ -144,7 +144,6 @@ class TvHomeFocusTest {
         press(DOWN)
         assertEquals("Dandadan", focused())
         rule.onNodeWithText("PLANNING ON ANILIST · NOT STARTED").assertExists()
-        rule.onNodeWithText("On AniList: Planning · moves to Watching when you start watching").assertExists()
     }
 
     @Test fun aCardWithADifficultyShowsItsPercentAndOneWithoutShowsNone() {

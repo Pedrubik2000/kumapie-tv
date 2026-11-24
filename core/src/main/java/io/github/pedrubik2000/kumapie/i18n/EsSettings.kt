@@ -3,6 +3,9 @@ package io.github.pedrubik2000.kumapie.i18n
 internal val esSettings: Map<String, String> = mapOf(
     // Settings screen
     "AniList" to "AniList",
+    "Sending your last changes to AniList…" to "Enviando tus últimos cambios a AniList…",
+    "1 change hasn't reached AniList yet: it will be lost" to "1 cambio aún no llegó a AniList: se perderá",
+    "%d changes haven't reached AniList yet: they'll be lost" to "%d cambios aún no llegaron a AniList: se perderán",
     "Logged in" to "Sesión iniciada",
     "Logged in as %s" to "Sesión iniciada como %s",
     "Not logged in" to "Sin iniciar sesión",

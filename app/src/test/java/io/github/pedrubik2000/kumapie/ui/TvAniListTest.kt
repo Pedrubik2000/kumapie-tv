@@ -5,6 +5,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -30,6 +31,8 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], qualifiers = "w960dp-h540dp-television-xhdpi")
 class TvAniListTest {
     @get:Rule val rule = createComposeRule()
+    @org.junit.Before fun resetFocusMemory() { SettingsFocus.returning = false }
+
     private val settings get() = Settings(RuntimeEnvironment.getApplication())
 
     private fun focused(): String? = rule.onAllNodes(isFocused()).fetchSemanticsNodes().firstOrNull()?.config
@@ -83,6 +86,7 @@ class TvAniListTest {
         press(Key.DirectionCenter)
         rule.onNodeWithText("Yes, log out").assertExists()
         rule.onNodeWithText("Keep me logged in").assertExists()
+        rule.waitUntil(5_000) { rule.onAllNodes(hasText("Your AniList stays as it is.", substring = true)).fetchSemanticsNodes().isNotEmpty() }
         assertEquals("t", settings.anilistToken)
         press(Key.DirectionRight)
         assertEquals("Keep me logged in", focused())
@@ -92,12 +96,30 @@ class TvAniListTest {
         assertEquals("t", settings.anilistToken)
         rule.onNodeWithText("Log out").requestFocus()
         press(Key.DirectionCenter)
+        rule.waitUntil(5_000) { rule.onAllNodes(hasText("Your AniList stays as it is.", substring = true)).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("Yes, log out").requestFocus()
         press(Key.DirectionCenter)
         rule.onNodeWithText("Not logged in").assertExists()
         rule.onNodeWithText("Log in with AniList").assertExists()
+        assertEquals(0, rule.onAllNodes(hasText("Hide the QR code")).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodes(hasText("Log in to AniList from your phone")).fetchSemanticsNodes().size)
         assertEquals("", settings.anilistToken)
         assertEquals("pedro", settings.anilist)
+    }
+
+    @Test fun backFromChangeButtonsLandsOnChangeButtons() {
+        val inButtons = androidx.compose.runtime.mutableStateOf(false)
+        rule.setContent {
+            val context = LocalContext.current
+            if (inButtons.value) Button(onClick = { inButtons.value = false }) { androidx.tv.material3.Text("Back from buttons") }
+            else SettingsScreen(Settings(context), firstRun = false, onSaved = {}, onUpdate = {}, onButtons = { inButtons.value = true })
+        }
+        rule.waitUntil(5_000) { focused() == "Log in with AniList" }
+        rule.onNodeWithText("Change buttons").requestFocus()
+        press(Key.DirectionCenter)
+        rule.onNodeWithText("Back from buttons").assertExists()
+        rule.runOnUiThread { inButtons.value = false }
+        rule.waitUntil(5_000) { focused() == "Change buttons" }
     }
 
     private fun ComposeContentTestRule.onAllNodesWithTextCount(t: String) = onAllNodes(androidx.compose.ui.test.hasText(t)).fetchSemanticsNodes().size

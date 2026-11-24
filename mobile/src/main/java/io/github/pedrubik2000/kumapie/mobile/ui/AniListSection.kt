@@ -8,6 +8,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -17,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.AniList
 import io.github.pedrubik2000.kumapie.data.AniListAccount
+import io.github.pedrubik2000.kumapie.data.AniListSync
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.ui.Colors
@@ -26,6 +28,9 @@ fun AniListSection(settings: Settings) {
     val context = LocalContext.current
     val changed by aniListLogins
     var confirm by remember { mutableStateOf(false) }
+    var waiting by remember { mutableStateOf<Int?>(null) }
+    val sync = remember { AniListSync(settings.prefs) }
+    LaunchedEffect(confirm) { waiting = null; if (confirm) waiting = AniListAccount.sendLast(sync) }
     val loggedIn = changed >= 0 && settings.anilistToken.isNotEmpty()
     Text(AniListAccount.why(), color = Colors.dim, fontSize = 14.sp)
     Text(AniListAccount.summary(settings), fontSize = 17.sp,
@@ -38,7 +43,7 @@ fun AniListSection(settings: Settings) {
     }
     if (confirm) AlertDialog(onDismissRequest = { confirm = false },
         title = { Text(tr("Log out of AniList?")) },
-        text = { Text(tr("This only signs kumapie out. Your AniList stays as it is.")) },
-        confirmButton = { TextButton(onClick = { settings.logOutAniList(); aniListLogins.intValue++; confirm = false }) { Text(tr("Yes, log out")) } },
+        text = { Text(AniListAccount.confirmText(waiting)) },
+        confirmButton = { TextButton(enabled = waiting != null, onClick = { settings.logOutAniList(); aniListLogins.intValue++; confirm = false }) { Text(tr("Yes, log out")) } },
         dismissButton = { TextButton(onClick = { confirm = false }) { Text(tr("Keep me logged in")) } })
 }

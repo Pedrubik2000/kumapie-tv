@@ -93,6 +93,13 @@ class AniListSync(
         return Seen(entry, format)
     }
 
+    suspend fun flushNow(): Int {
+        lock.withLock { flush() }
+        return waiting()
+    }
+
+    fun waiting(): Int = synchronized(store) { pending().length() }
+
     fun retry() { if (token().isNotEmpty()) scope.launch { lock.withLock { flush() } } }
 
     private fun token() = prefs.getString("anilist_token", "").orEmpty()

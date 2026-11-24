@@ -53,7 +53,9 @@ import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.LangTotal
 import io.github.pedrubik2000.kumapie.data.Mine
-import io.github.pedrubik2000.kumapie.data.SavedMeta
+import io.github.pedrubik2000.kumapie.data.lastPlayedIds
+import io.github.pedrubik2000.kumapie.data.savedEpisodeIds
+import io.github.pedrubik2000.kumapie.data.streamsThatExist
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.TitleLevels
@@ -238,10 +240,7 @@ private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> Li
     val facts by produceState(streams?.takeIf { it.isEmpty() }?.let { StreamFacts(it, emptyMap(), emptyMap()) }, streams) {
         val shown = streams ?: return@produceState
         value = withContext(Dispatchers.IO) {
-            StreamFacts(shown, shown.mapNotNull { (s, _) ->
-                SavedMeta.get(context, s.id)?.optJSONArray("episodes")
-                    ?.let { a -> (0 until a.length()).map { a.getJSONObject(it).optString("id") }.toSet() }?.takeIf { it.isNotEmpty() }?.let { s.id to it }
-            }.toMap(), lastPlayedIds(settings.prefs.all))
+            StreamFacts(shown, savedEpisodeIds(context, shown), lastPlayedIds(settings.prefs.all))
         }
     }
     val everyone = all

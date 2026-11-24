@@ -4,6 +4,7 @@ import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.resumeLine
+import io.github.pedrubik2000.kumapie.data.streamsThatExist
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

@@ -18,24 +18,6 @@ fun planningOrder(all: List<Mine>): List<Mine> {
     return BestForYou.planning(bestItems(all)).mapNotNull { byId[it] }
 }
 
-fun lastPlayedIds(prefs: Map<String, *>): Map<String, String> = prefs.mapNotNull { (k, v) ->
-    if (!k.startsWith("alone_last_") || v !is String) null
-    else runCatching { k.removePrefix("alone_last_") to org.json.JSONObject(v).getString("id") }.getOrNull()
-}.toMap()
-
-fun streamsThatExist(
-    streams: List<Pair<Show, Episode>>, all: List<Mine>, metaIds: Map<String, Set<String>>, lastPlayed: Map<String, String>,
-): List<Pair<Show, Episode>> {
-    val byKitsu = all.associateBy { it.kitsuId }
-    return streams.filter { (s, e) ->
-        val n = e.number
-        if (e.resume != null || n == null || lastPlayed[s.id] == e.id) return@filter true
-        val count = s.kitsuId()?.let { byKitsu[it] }?.episodes?.takeIf { it > 0 }
-        val meta = metaIds[s.id]
-        (meta != null && e.id in meta) || count == null || n <= count
-    }
-}
-
 @Stable
 class HomeData(
     val going: List<Pair<Show, Episode>>, val all: List<Mine>, val loggedIn: Boolean,

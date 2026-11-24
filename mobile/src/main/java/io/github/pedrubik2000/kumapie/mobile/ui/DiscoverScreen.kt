@@ -185,7 +185,7 @@ private fun PosterCard(f: Found, modifier: Modifier, onClick: () -> Unit) = Colu
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, String>) -> Unit, onBack: () -> Unit) {
-    val page = remember(title.id) { io.github.pedrubik2000.kumapie.data.TitlePage(library.discovery, title) }
+    val context = LocalContext.current; val page = remember(title.id) { io.github.pedrubik2000.kumapie.data.TitlePage(library.discovery, title, fresh = io.github.pedrubik2000.kumapie.data.SavedMeta.saver(context, title.id)) }
     var more by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var menu by remember { mutableStateOf<String?>(null) } // the long-pressed episode's id

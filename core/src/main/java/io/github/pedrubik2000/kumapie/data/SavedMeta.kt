@@ -13,6 +13,8 @@ object SavedMeta {
 
     fun get(context: Context, id: String): JSONObject? = runCatching { JSONObject(file(context, id).readText()) }.getOrNull()
 
+    fun saver(context: Context, id: String): suspend (JSONObject) -> Unit = { meta -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { put(context, id, meta) } }
+
     fun put(context: Context, id: String, meta: JSONObject) {
         runCatching { file(context, id).apply { parentFile?.mkdirs() }.writeText(meta.toString()) }
     }

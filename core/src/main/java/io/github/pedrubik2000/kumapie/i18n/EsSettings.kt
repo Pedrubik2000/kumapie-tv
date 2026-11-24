@@ -2,6 +2,21 @@ package io.github.pedrubik2000.kumapie.i18n
 
 internal val esSettings: Map<String, String> = mapOf(
     // Settings screen
+    "AniList" to "AniList",
+    "Logged in" to "Sesión iniciada",
+    "Logged in as %s" to "Sesión iniciada como %s",
+    "Not logged in" to "Sin iniciar sesión",
+    "Login expired: log in again" to "La sesión caducó: vuelve a iniciarla",
+    "Home, Library and Discover come from your AniList lists, and what you watch goes back to it." to
+        "Inicio, Biblioteca y Descubrir salen de tus listas de AniList, y lo que ves vuelve a ellas.",
+    "Log out of AniList?" to "¿Cerrar la sesión de AniList?",
+    "Yes, log out" to "Sí, cerrar sesión",
+    "Keep me logged in" to "Seguir con la sesión",
+    "This only signs kumapie out. Your AniList stays as it is." to "Esto solo cierra la sesión en kumapie. Tu AniList no cambia.",
+    "Log in to AniList from your phone" to "Inicia sesión en AniList desde tu teléfono",
+    "There: the AniList login link and the token field." to "Allí: el enlace para iniciar sesión en AniList y el campo del token.",
+    "This TV isn't on a home network: connect it, then log in here." to "Esta tele no está en una red doméstica: conéctala y luego inicia sesión aquí.",
+    "There: your Jimaku key, your Real-Debrid token and Kitsu." to "Allí: tu clave de Jimaku, tu token de Real-Debrid y Kitsu.",
     "Welcome to kumapie" to "Bienvenido a kumapie",
     "Settings" to "Ajustes",
     "Making episodes" to "Crear episodios",

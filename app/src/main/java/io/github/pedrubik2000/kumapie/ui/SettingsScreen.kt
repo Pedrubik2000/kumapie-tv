@@ -42,11 +42,13 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
     val focus = remember { FocusRequester() }
     val scroll = rememberScrollState()
     Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Title(if (firstRun) tr("Welcome to kumapie") else tr("Settings"), fontSize = 32.sp)
+        if (!firstRun) TvAniList(settings, focus)
         ServerSettings(settings, firstRun, focus, onSaved)
         if (!firstRun) CheckSetup(settings)
         if (!firstRun && settings.server.isEmpty()) AloneSources(settings)
         if (!firstRun) {
-            TvPreferences(settings, focus, onButtons)
+            TvPreferences(settings, onButtons)
             TvNotForMe(settings)
             TvDictionaries(settings)
             TvExport()
@@ -77,7 +79,6 @@ private fun ServerSettings(settings: Settings, firstRun: Boolean, focus: FocusRe
                 .onFailure { status = tr("Can't reach %1\$s (%2\$s)", url, it.message) }
         }
     }
-    Title(if (firstRun) tr("Welcome to kumapie") else tr("Settings"), fontSize = 32.sp)
     if (firstRun) {
         Text(tr("Type the address of the dojo server on the PC (Tailscale), e.g. https://my-pc.tailnet.ts.net:8445"),
             color = Colors.dim)
@@ -86,7 +87,7 @@ private fun ServerSettings(settings: Settings, firstRun: Boolean, focus: FocusRe
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         TvTextField(server, { server = it }, onDone = ::save,
             modifier = Modifier.width(640.dp).let { if (firstRun) it.focusRequester(focus) else it })
-        Button(onClick = ::save, modifier = if (!firstRun && settings.server.isEmpty()) Modifier.focusRequester(focus) else Modifier) { Text(tr("Save")) }
+        Button(onClick = ::save) { Text(tr("Save")) }
     }
     if (status.isNotEmpty()) Text(status, color = Colors.dim)
     if (firstRun) {
@@ -126,7 +127,7 @@ private fun AloneSources(settings: Settings) {
     var phone by remember { mutableStateOf(false) }
     var fromPhone by remember { mutableIntStateOf(0) }
     Button(onClick = { phone = !phone }, modifier = Modifier.padding(top = 24.dp)) { Text(if (phone) tr("Hide the QR code") else tr("Set up from your phone (QR code)")) }
-    if (phone) PhonePage(settings, onSaved = { fromPhone++ })
+    if (phone) PhonePage(settings, SetupPart.KEYS, onSaved = { fromPhone++ })
     Heading(tr("Stremio addons"), Modifier.padding(top = 24.dp))
     var addons by remember(fromPhone) { mutableStateOf(settings.addons) }
     var names by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -158,11 +159,11 @@ private fun AloneSources(settings: Settings) {
 }
 
 @Composable
-private fun TvPreferences(settings: Settings, focus: FocusRequester, onButtons: () -> Unit) {
+private fun TvPreferences(settings: Settings, onButtons: () -> Unit) {
     Heading(tr("Buttons and help"), Modifier.padding(top = 24.dp))
     var showHelp by remember { mutableStateOf(settings.showHelp) }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Button(onClick = onButtons, modifier = if (settings.server.isEmpty()) Modifier else Modifier.focusRequester(focus)) { Text(tr("Change buttons")) }
+        Button(onClick = onButtons) { Text(tr("Change buttons")) }
         Button(onClick = { showHelp = !showHelp; settings.showHelp = showHelp }) {
             Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")))
         }

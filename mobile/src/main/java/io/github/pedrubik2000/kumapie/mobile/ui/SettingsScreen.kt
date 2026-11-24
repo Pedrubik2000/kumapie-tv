@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.pedrubik2000.kumapie.data.AniListAccount
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
@@ -60,13 +61,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Settings' sections, most visited first (kumapie_settings_ia.html, 2026-10-15): key and title. */
-private val SECTIONS = listOf(
-    "episodes" to "Making episodes", "words" to "Known words", "dicts" to "Dictionaries & word audio",
+internal val SECTIONS = listOf(
+    "anilist" to "AniList", "episodes" to "Making episodes", "words" to "Known words", "dicts" to "Dictionaries & word audio",
     "watching" to "Watching", "device" to "You & this device", "storage" to "Storage & updates",
 )
 
 /**
- * Settings: six sections, each row with a one-line summary; a phone opens one at a time, a wide screen shows the
+ * Settings: seven sections, each row with a one-line summary; a phone opens one at a time, a wide screen shows the
  * list and the open section side by side. [section] opens one directly (the Add sheet's "Open Settings").
  * The first run shows only the language, the PC's address and copying from another device.
  */
@@ -103,9 +104,9 @@ fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onU
         }) { padding ->
             if (wide) androidx.compose.foundation.layout.Row(Modifier.fillMaxSize().padding(padding)) {
                 Column(Modifier.width(380.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
-                    SectionList(library, open ?: "episodes") { open = it }
+                    SectionList(library, open ?: SECTIONS.first().first) { open = it }
                 }
-                Page(Modifier.weight(1f).widthIn(max = 760.dp)) { SectionContent(library, open ?: "episodes", onSaved, onUpdate) }
+                Page(Modifier.weight(1f).widthIn(max = 760.dp)) { SectionContent(library, open ?: SECTIONS.first().first, onSaved, onUpdate) }
             } else when (val k = open) {
                 null -> Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(12.dp)) {
                     SectionList(library, null) { open = it }
@@ -126,7 +127,7 @@ private fun Page(modifier: Modifier = Modifier, content: @Composable androidx.co
 private fun Version(modifier: Modifier = Modifier) =
     Text(tr("Version %s", BuildConfig.VERSION_NAME), color = Colors.dim, fontSize = 13.sp, modifier = modifier.padding(top = 12.dp))
 
-/** The six rows: title and what is set now, so a look is often enough. */
+/** The seven rows: title and what is set now, so a look is often enough. */
 @Composable
 private fun SectionList(library: Library, selected: String?, onOpen: (String) -> Unit) {
     val summaries = rememberSummaries(library)
@@ -164,7 +165,7 @@ private fun rememberSummaries(library: Library): Map<String, String> {
         "soniox" -> tr("Soniox translation"); "gemma" -> tr("Gemma translation"); "device" -> tr("Google translation"); else -> tr("no translation")
     }
     val learning = remember { settings.learning() }
-    return slow + mapOf(
+    return slow + mapOf("anilist" to aniListLogins.intValue.let { AniListAccount.summary(settings) },
         "episodes" to listOfNotNull(if (settings.transcriber == "parakeet") "Parakeet" else "Soniox", english,
             followed.takeIf { it > 0 }?.let { tr("%d followed", it) }).joinToString(" · "),
         "dicts" to io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { it.code in learning }
@@ -182,7 +183,7 @@ private fun SectionContent(library: Library, key: String, onSaved: () -> Unit, o
     val settings = library.settings
     val learning = remember { settings.learning() } // only the languages this device learns (a parent's phone: English)
     when (key) {
-        "episodes" -> NewEpisodesSection(library, learning)
+        "anilist" -> AniListSection(settings); "episodes" -> NewEpisodesSection(library, learning)
         "words" -> KnownWordsSection(library, learning)
         "dicts" -> {
             YomitanSection(library, learning)
@@ -585,7 +586,6 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
     KeyField(rd, { rd = it; library.settings.rdToken = it }, tr("Real-Debrid token (real-debrid.com/apitoken)"), KeyService.REAL_DEBRID)
     if ("ja" in learning) KeyField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles"), KeyService.JIMAKU)
     if (library.settings.server.isEmpty()) AddonsField(library.settings)
-    AniListLogin(library.settings)
     // Japanese YouTube without Japanese subtitles: transcribed on the device.
     if ("ja" in learning) when {
         parakeetJaReady -> Text(tr("Japanese YouTube: Parakeet ja ready (free, offline). About 1 character in 6 differs from people's subtitles."),

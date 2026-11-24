@@ -160,30 +160,37 @@ internal fun TvJitenImport(settings: Settings) {
 }
 
 @Composable
-internal fun PhonePage(settings: Settings, onSaved: () -> Unit = {}) {
+internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSaved: () -> Unit = {}) {
     var saved by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
-    val page = remember { SetupPage(settings, context.applicationContext) { saved++; onSaved() } }
+    val page = remember { SetupPage(settings, context.applicationContext, part) { saved++; onSaved() } }
     val url = remember { page.start() }
     DisposableEffect(Unit) { onDispose { page.stop() } }
-    Heading(tr("Set up kumapie from your phone"))
-    if (url == null) return Text(tr("This TV isn't on a home network: connect it, or add the keys in Settings later."), color = Colors.dim)
+    val aniList = part == SetupPart.ANILIST
+    Heading(if (aniList) tr("Log in to AniList from your phone") else tr("Set up kumapie from your phone"))
+    if (url == null) return Text(if (aniList) tr("This TV isn't on a home network: connect it, then log in here.") else tr("This TV isn't on a home network: connect it, or add the keys in Settings later."), color = Colors.dim)
     Row(horizontalArrangement = Arrangement.spacedBy(40.dp), verticalAlignment = Alignment.CenterVertically) {
         val qr = remember(url) { qr(url, 480) }
         Image(qr.asImageBitmap(), null, Modifier.size(260.dp).background(Color.White).padding(10.dp))
         Column(Modifier.width(620.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(tr("Scan this with your phone's camera (on the same Wi-Fi), or open:"), color = Colors.text, fontSize = 18.sp)
             Text(url, color = Colors.accent, fontSize = 18.sp)
-            Text(tr("There: your Jimaku key, your Real-Debrid token, Kitsu and your AniList username."), color = Colors.dim, fontSize = 16.sp)
+            Text(when (part) {
+                SetupPart.ANILIST -> tr("There: the AniList login link and the token field.")
+                SetupPart.KEYS -> tr("There: your Jimaku key, your Real-Debrid token and Kitsu.")
+                SetupPart.ALL -> tr("There: your Jimaku key, your Real-Debrid token, Kitsu and your AniList username.")
+            }, color = Colors.dim, fontSize = 16.sp)
             @Suppress("UNUSED_EXPRESSION") saved
             val p = settings.prefs
             @Composable fun row(ok: Boolean, what: String) = Text((if (ok) "✓ " else "· ") + what, color = if (ok) Colors.text else Colors.dim, fontSize = 18.sp)
-            row(settings.jimakuKey.isNotEmpty(), tr("Japanese subtitles (Jimaku)"))
-            row(settings.addons.any { "torrentio.strem.fun" in it } && io.github.pedrubik2000.kumapie.data.Startup.rdKey(settings.rdToken, settings.addons).isNotEmpty(), tr("Videos (Torrentio with Real-Debrid)"))
-            row(Addons.KITSU in settings.addons, "Kitsu")
-            row(Addons.OPENSUBTITLES in settings.addons, tr("English subtitles (OpenSubtitles)"))
-            row(settings.anilist.isNotEmpty(), "AniList" + settings.anilist.let { if (it.isEmpty()) "" else ": $it" })
-            row(settings.anilistToken.isNotEmpty(), tr("AniList login: your lists stay in step"))
+            if (!aniList) {
+                row(settings.jimakuKey.isNotEmpty(), tr("Japanese subtitles (Jimaku)"))
+                row(settings.addons.any { "torrentio.strem.fun" in it } && io.github.pedrubik2000.kumapie.data.Startup.rdKey(settings.rdToken, settings.addons).isNotEmpty(), tr("Videos (Torrentio with Real-Debrid)"))
+                row(Addons.KITSU in settings.addons, "Kitsu")
+                row(Addons.OPENSUBTITLES in settings.addons, tr("English subtitles (OpenSubtitles)"))
+            }
+            if (part == SetupPart.ALL) row(settings.anilist.isNotEmpty(), "AniList" + settings.anilist.let { if (it.isEmpty()) "" else ": $it" })
+            if (part != SetupPart.KEYS) row(settings.anilistToken.isNotEmpty(), tr("AniList login: your lists stay in step"))
         }
     }
 }
@@ -225,7 +232,7 @@ internal fun TvDictionaries(settings: Settings) {
     Text(tr("Free on this TV: %d MB", mb(free)), color = Colors.text, fontSize = 18.sp)
     Button(onClick = { phone = !phone }) { Text(if (phone) tr("Hide the QR code") else tr("Add a dictionary from your phone (QR code)")) }
     val shown = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
-    if (phone) Column(Modifier.bringIntoViewRequester(shown)) { PhonePage(settings) }
+    if (phone) Column(Modifier.bringIntoViewRequester(shown)) { PhonePage(settings, SetupPart.KEYS) }
     LaunchedEffect(phone) { if (phone) { kotlinx.coroutines.delay(100); shown.bringIntoView() } }
 }
 

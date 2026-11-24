@@ -27,7 +27,9 @@ import java.net.Socket
 import java.net.URLDecoder
 import kotlin.concurrent.thread
 
-class SetupPage(private val settings: Settings, private val context: Context, private val onSaved: () -> Unit) {
+enum class SetupPart { ALL, KEYS, ANILIST }
+
+class SetupPage(private val settings: Settings, private val context: Context, private val part: SetupPart = SetupPart.ALL, private val onSaved: () -> Unit) {
     private val code = (1..10).map { "abcdefghjkmnpqrstuvwxyz23456789".random() }.joinToString("")
     private var socket: ServerSocket? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -96,8 +98,10 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
     }
 
     private suspend fun save(f: Map<String, String>): Throwable? {
-        f["jimaku"]?.takeIf { it.isNotEmpty() }?.let { settings.jimakuKey = it }
-        settings.setSources(kitsu = f["kitsu"] == "on", english = f["english"] == "on", rd = f["rd"].orEmpty())
+        if (part != SetupPart.ANILIST) {
+            f["jimaku"]?.takeIf { it.isNotEmpty() }?.let { settings.jimakuKey = it }
+            settings.setSources(kitsu = f["kitsu"] == "on", english = f["english"] == "on", rd = f["rd"].orEmpty())
+        }
         f["anilist"]?.let { settings.anilist = it }
         if (f["anilist_logout"] == "1") settings.logOutAniList()
         return f["anilist_token"]?.takeIf { it.isNotEmpty() }?.let { t -> runCatching { settings.logInAniList(t) }.exceptionOrNull() }
@@ -107,9 +111,7 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
         val p = settings.prefs
         fun set(yes: Boolean) = if (yes) " <b>✓ ${tr("set")}</b>" else ""
         fun tick(addon: String) = if (settings.addons.isEmpty() || addon in settings.addons) " checked" else ""
-        return """
-            <h1>${tr("Set up kumapie")}</h1>
-            <form method="post">
+        val keys = if (part == SetupPart.ANILIST) "" else """
             <h2>${tr("Japanese subtitles")}${set(settings.jimakuKey.isNotEmpty())}</h2>
             <p>${tr("kumapie shows each line in Japanese while you watch. They come from Jimaku, a free site of anime subtitles: make an account there, then copy your API key from Account.")}
             <a href="https://jimaku.cc/login" target="_blank">jimaku.cc</a></p>
@@ -119,23 +121,29 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
             <a href="https://real-debrid.com/apitoken" target="_blank">real-debrid.com/apitoken</a></p>
             <input name="rd" placeholder="${tr("Real-Debrid token")}" autocomplete="off">
             <label><input type="checkbox" name="kitsu"${tick(Addons.KITSU)}> ${tr("Kitsu: anime titles, posters and episodes to pick from")}</label>
-            <label><input type="checkbox" name="english"${tick(Addons.OPENSUBTITLES)}> ${tr("English under the lines: OpenSubtitles (free, no account)")}</label>
+            <label><input type="checkbox" name="english"${tick(Addons.OPENSUBTITLES)}> ${tr("English under the lines: OpenSubtitles (free, no account)")}</label>"""
+        val username = if (part != SetupPart.ALL) "" else """
             <p>${tr("Your AniList lists (optional): what you're watching and plan to watch, at the top of Discover. Your profile must be public.")}</p>
-            <input name="anilist" placeholder="${tr("AniList username")}" value="${settings.anilist.replace("\"", "")}" autocomplete="off">
+            <input name="anilist" placeholder="${tr("AniList username")}" value="${settings.anilist.replace("\"", "")}" autocomplete="off">"""
+        val login = if (part == SetupPart.KEYS) "" else """
             <h2>AniList${set(settings.anilistToken.isNotEmpty())}</h2>
             <p>${tr("Log in so kumapie keeps your AniList in step: a title you add goes to Planning, one you start to Watching, one you finish to Completed. Log in there, then copy the token it shows and paste it here.")}
             <a href="${AniList.loginUrl(AniList.TV_CLIENT)}" target="_blank">${tr("Log in with AniList")}</a></p>
             <input name="anilist_token" placeholder="${tr("AniList token")}" autocomplete="off">
-            <label><input type="checkbox" name="anilist_logout" value="1"> ${tr("Log out of AniList")}</label>
-            <button>${tr("Save")}</button>
-            </form>
+            ${if (part == SetupPart.ALL) """<label><input type="checkbox" name="anilist_logout" value="1"> ${tr("Log out of AniList")}</label>""" else ""}"""
+        val dictionary = if (part == SetupPart.ANILIST) "" else """
             <h2>${tr("A Japanese dictionary")}</h2>
             <form method="post" enctype="multipart/form-data">
             <p>${tr("A Yomitan .zip from your phone, for example a frequency list (JPDB: each word's most common reading first).")}</p>
             <p>${tr("Free on the TV: %1\$d MB. A dictionary takes about %2\$d times its .zip once installed.", Recommended.mb(YomitanDictionaries.get(context).base.usableSpace), Recommended.UNPACKED)}</p>
             <input type="file" name="dict" accept=".zip">
             <button>${tr("Import")}</button>
-            </form>""".trimIndent()
+            </form>"""
+        return """
+            <h1>${tr("Set up kumapie")}</h1>
+            <form method="post">$keys$username$login
+            <button>${tr("Save")}</button>
+            </form>$dictionary""".trimIndent()
     }
 
     private fun answer(c: Socket, status: Int, body: String) {

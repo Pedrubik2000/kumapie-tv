@@ -514,6 +514,19 @@ class TvDiscoverFocusTest {
         assertTrue(lastQuery().idIn.orEmpty().containsAll(listOf(3, 4, 5)))
     }
 
+    @Test fun pagingKeepsGoingAfterAPageThatAddsNothingNewAndItsTitlesArrive() {
+        browse = { q, p ->
+            fetched += q to p
+            when (p) {
+                1, 2 -> AniListBrowse.Page(catalog, 312, true)
+                else -> AniListBrowse.Page(listOf(result(15, "Zeta")), 312, false)
+            }
+        }
+        open()
+        rule.waitUntil(5_000) { hasCard("Zeta") }
+        assertEquals(listOf(1, 2, 3), fetched.map { it.second })
+    }
+
     @Test fun aFailedMorePageKeepsTheGridAndTheFooterRetriesOnlyThatPage() {
         browseNext = true
         browseMoreError = "page two failed"

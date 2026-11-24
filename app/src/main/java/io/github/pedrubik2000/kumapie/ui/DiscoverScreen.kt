@@ -95,7 +95,7 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
         onDispose { if (MissingKeyLine.home === entry) MissingKeyLine.home = null }
     }
     LaunchedEffect(live.touched.value) { if (live.touched.value) hold.dropRestore() }
-    LoadBrowse(browse, fetch, remember(lists) { lists?.filter { it.status == "PLANNING" }?.map { it.anilistId } }, mode == DiscoverMode.BROWSE)
+    LoadBrowse(browse, fetch, remember(lists) { lists?.filter { it.status == "PLANNING" }?.map { it.anilistId } }, settings.anilistToken, mode == DiscoverMode.BROWSE)
     LaunchedEffect(Unit) { if (!returning) entry.focusSoon() }
     LaunchedEffect(Unit) { hold.giveUpRestoring() }
     EntryWhenIdle(mode, mode == DiscoverMode.BROWSE || hold.restoring, live, entry)

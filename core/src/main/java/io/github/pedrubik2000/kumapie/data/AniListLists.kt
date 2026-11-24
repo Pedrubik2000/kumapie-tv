@@ -31,7 +31,7 @@ object AniListLists {
     suspend fun refresh(
         prefs: SharedPreferences, user: String, token: String,
         ask: (JSONObject) -> JSONObject = { AniList.gql(token, QUERY, it) },
-        kitsu: (List<Int>, SharedPreferences) -> Map<Int, String> = AniList::kitsuIds,
+        kitsu: suspend (List<Int>, SharedPreferences) -> Map<Int, String> = AniList::kitsuIds,
     ): List<Mine> = withContext(Dispatchers.IO) {
         val entries = ArrayList<JSONObject>()
         var chunk = 1

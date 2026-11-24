@@ -93,4 +93,50 @@ class BrowseStateTest {
         assertEquals("Your Planning list is empty", s.emptyNote)
         assertTrue(s.loaded && s.items.isEmpty())
     }
+
+    @Test fun backToAnAnswerAlreadyShownAfterACancelledFilterLeavesItLoaded() = runBlocking {
+        val s = state()
+        s.first("a", q, { _, _ -> page(1) })
+        val b = async(start = CoroutineStart.UNDISPATCHED) { s.first("b", q, { _, _ -> page(2) }) }
+        b.cancel()
+        s.first("a", q, { _, _ -> error("must not ask again") })
+        assertTrue(s.loaded)
+        assertEquals(listOf(1), s.items.map { it.anilistId })
+    }
+
+    @Test fun backToAAfterBWasCancelledMidFetchLoadsAAgain() = runBlocking {
+        val s = state()
+        s.first("a", q, { _, _ -> page(1) })
+        val gate = CompletableDeferred<AniListBrowse.Page>()
+        val b = async(start = CoroutineStart.UNDISPATCHED) { s.first("b", q, { _, _ -> gate.await() }) }
+        kotlinx.coroutines.delay(700)
+        assertTrue(!s.loaded)
+        b.cancel()
+        s.first("a", q, { _, _ -> page(1) })
+        assertTrue(s.loaded)
+        assertEquals(listOf(1), s.items.map { it.anilistId })
+    }
+
+    @Test fun moreIsNotAskedWhileAFilterChangeIsWaiting() = runBlocking {
+        val s = state()
+        s.first("a", q, { _, _ -> page(1) })
+        val b = async(start = CoroutineStart.UNDISPATCHED) { s.first("b", q, { _, _ -> page(2) }) }
+        val tick = s.moreTick
+        s.requestMore()
+        s.more { _, _ -> error("must not ask") }
+        assertEquals(tick, s.moreTick)
+        assertEquals(1, s.page)
+        b.await()
+        assertEquals(listOf(2), s.items.map { it.anilistId })
+    }
+
+    @Test fun anExpiredLoginIsRememberedFromAnyPageAndClearsOnTheNextLoad() = runBlocking {
+        val s = state()
+        s.first("a", q, { _, _ -> AniListBrowse.Page(listOf(m(1)), 5, true, expired = true) })
+        assertTrue(s.expired)
+        s.first("b", q, { _, _ -> page(1) })
+        assertTrue(!s.expired)
+        s.more { _, _ -> AniListBrowse.Page(listOf(m(2)), 5, false, expired = true) }
+        assertTrue(s.expired)
+    }
 }

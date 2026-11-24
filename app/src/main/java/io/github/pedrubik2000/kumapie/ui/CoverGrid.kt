@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -55,6 +56,7 @@ internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState,
                            cell: @Composable (T, Modifier) -> Unit) {
     val density = LocalDensity.current
     var bottom by remember { mutableStateOf(24.dp) }
+    var footerUp by remember { mutableStateOf(false) }
     LaunchedEffect(state, items) {
         snapshotFlow { focus.id }.collectLatest { fid ->
             val i = items.indexOfFirst { id(it) == fid }
@@ -75,13 +77,17 @@ internal fun <T> CoverGrid(items: List<T>, id: (T) -> Any, state: LazyGridState,
                 .focusProperties {
                     if (i % COLUMNS == 0) left = entry
                     if (i < COLUMNS) up = above()
-                    if (i >= items.lastIndex / COLUMNS * COLUMNS) down = below
+                    if (i >= items.lastIndex / COLUMNS * COLUMNS) down = if (footerUp) below else FocusRequester.Cancel
                     if (i % COLUMNS == COLUMNS - 1 || i == items.lastIndex) right = FocusRequester.Cancel
                 }
                 .then(if (nav.target?.let { id(m) == it } ?: first) Modifier.focusRequester(nav.enter) else Modifier)
             cell(m, card)
         }
         if (footer != null) item(span = { GridItemSpan(maxLineSpan) }) {
+            DisposableEffect(Unit) {
+                footerUp = true
+                onDispose { footerUp = false }
+            }
             footer()
         }
     }

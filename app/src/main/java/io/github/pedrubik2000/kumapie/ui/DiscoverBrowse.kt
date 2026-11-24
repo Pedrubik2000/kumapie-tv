@@ -52,7 +52,7 @@ internal fun BrowseContent(env: DiscoverEnv, state: BrowseState, live: Live) {
     LinkWhen(env.link, items.isNotEmpty())
     LaunchedEffect(display?.filters) { if (display != null) { if (seen) grid.scrollToItem(0) else seen = true } }
     KeepFocus(display, restore, { d, id -> d.view.items.indexOfFirst { it.anilistId == id } }, grid, focus, nav, env.entry, live)
-    LaunchedEffect(focus.id, items.size, state.items.size, state.loaded) {
+    LaunchedEffect(focus.id, items.size, state.items.size, state.loaded, state.page) {
         val at = items.indexOfFirst { it.anilistId == focus.id }
         if (state.loaded && ((items.size < MORE_AHEAD && (items.isNotEmpty() || state.page < EMPTY_PAGES_CAP)) || at >= items.size - MORE_AHEAD)) state.requestMore()
     }

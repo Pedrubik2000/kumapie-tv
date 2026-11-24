@@ -2,6 +2,7 @@ package io.github.pedrubik2000.kumapie.data
 
 import android.content.SharedPreferences
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -52,12 +53,12 @@ object AniList {
     private const val CHUNK_PAUSE_MS = 250L
     private const val RETRY_PAUSE_MS = 800L
 
-    internal fun kitsuIds(ids: List<Int>, store: SharedPreferences): Map<Int, String> {
+    internal suspend fun kitsuIds(ids: List<Int>, store: SharedPreferences): Map<Int, String> {
         val cache = JSONObject(store.getString(CACHE, "{}") ?: "{}")
         for ((n, chunk) in ids.filter { !cache.has(it.toString()) }.distinct().chunked(20).withIndex()) {
-            if (n > 0) Thread.sleep(CHUNK_PAUSE_MS)
+            if (n > 0) delay(CHUNK_PAUSE_MS)
             if (runCatching { mapChunk(chunk, cache) }.isFailure) {
-                Thread.sleep(RETRY_PAUSE_MS)
+                delay(RETRY_PAUSE_MS)
                 runCatching { mapChunk(chunk, cache) }
             }
         }

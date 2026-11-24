@@ -179,7 +179,7 @@ private fun PosterCard(f: Found, modifier: Modifier, onClick: () -> Unit) = Colu
 
 /**
  * A title, Stremio's way: its backdrop with logo, rating, runtime and genres; ▶ (the episode after the last watched,
- * else the first the PC got ready, else the first one's files), + Home and its text; then the episodes. An episode
+ * else the first the PC got ready, else the first one's files) and its text; then the episodes. An episode
  * (or the movie) opens its files; a long press offers other files and watched / not watched (✓).
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -203,7 +203,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
         val t = page.shown
         val eps = page.episodes
         val wide = wide()
-        // The logo, line, ▶ and + Home, the text, then "Episodes". A tablet: left column over the dimmed backdrop.
+        // The logo, line, ▶, the text, then "Episodes". A tablet: left column over the dimmed backdrop.
         val info = @Composable {
             androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -213,7 +213,6 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                         (if (first.optBoolean("ready") && first.optString("source").isNotEmpty()) " · " + first.optString("source") else "") else tr("Watch"),
                         { play(first) }, primary = true, icon = Icons.Default.PlayArrow)
                 }
-                page.kept?.let { on -> Pill(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"), { scope.launch { page.keep() } }) }
                 AniListPill(library.settings, media)
             }
             Text(t.description, color = Colors.text, fontSize = 15.sp, maxLines = if (more) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis,

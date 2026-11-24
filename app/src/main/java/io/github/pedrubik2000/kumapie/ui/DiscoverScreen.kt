@@ -16,7 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,10 +50,9 @@ fun DiscoverScreen(api: Discovery, settings: Settings, start: Found? = null,
     val nav = RailNav(onHome, onLibrary, {}, onReview, onStats, onSettings)
     val titleNav = RailNav(onHome, onLibrary, if (start == null) ({ open = null }) else onDiscover, onReview, onStats, onSettings)
     val lists by rememberLists(settings, read, start != null)
-    val scope = rememberCoroutineScope()
     val hold = remember {
         DiscoverHold(if (settings.anilistToken.isNotEmpty()) DiscoverMode.PICK else DiscoverMode.BROWSE, PickState(PickStore(settings.prefs)),
-            BrowseState(BrowseFilters(limit = settings.browseLimit), settings), scope)
+            BrowseState(BrowseFilters(limit = settings.browseLimit), settings))
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -88,7 +86,7 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
     val mode = hold.mode
     val pick = hold.pick
     val browse = hold.browse
-    val field = remember(ranked, pick.hidden, kept, pick.added) { ranked?.let { candidates(it.list, pick.hidden, kept + pick.added) } }
+    val field = remember(ranked, pick.hidden, kept) { ranked?.let { candidates(it.list, pick.hidden, kept) } }
     val picks = remember(field, pick.chosen, pick.ready) { if (field == null || !pick.ready) null else pickFrom(field, pick.chosen) }
     DisposableEffect(Unit) { onDispose { hold.inContent = false } }
     DisposableEffect(entry) {
@@ -106,7 +104,7 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
         Box(Modifier.fillMaxSize().onFocusChanged { hold.inContent = it.hasFocus }) {
             when (mode) {
                 DiscoverMode.PICK -> PickContent(env, picks, ranked, pick)
-                DiscoverMode.DUEL -> DuelContent(env, field.takeIf { pick.ready }, ranked, pick, kept + pick.added)
+                DiscoverMode.DUEL -> DuelContent(env, field.takeIf { pick.ready }, ranked, pick)
                 DiscoverMode.BROWSE -> BrowseContent(env, browse, lists, live)
             }
         }

@@ -115,8 +115,7 @@ class TvTitleFocusTest {
     private fun toStatus() {
         waitFocus { it?.startsWith("▶") == true }
         rule.waitUntil(5_000) { hasText("Status") }
-        press(Key.DirectionRight)
-        press(Key.DirectionRight)
+        repeat(2) { if (focused() != "Status") press(Key.DirectionRight) }
         waitFocus { it == "Status" }
     }
 
@@ -181,7 +180,7 @@ class TvTitleFocusTest {
         waitFocus { it?.startsWith("▶") == true }
         rule.waitUntil(5_000) { hasText("Log in with AniList to see your list here") }
         repeat(3) { press(Key.DirectionRight) }
-        assertEquals("+ Home", focused())
+        assertTrue(focused()?.startsWith("▶") == true)
         assertTrue(!hasText("Status"))
         assertEquals(0, fake.reads)
     }
@@ -237,7 +236,6 @@ class TvTitleFocusTest {
         waitFocus { it?.startsWith("▶") == true }
         rule.waitUntil(5_000) { hasText("Couldn't read your AniList list") }
         press(Key.DirectionRight)
-        press(Key.DirectionRight)
         assertEquals("Try again", focused())
         fake.entry = { entry("CURRENT", 1) }
         rule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
@@ -262,15 +260,34 @@ class TvTitleFocusTest {
         assertEquals("Try again", focused())
     }
 
-    @Test fun whileTheReadIsLoadingPlayHasTheFocusAndRightStopsAtHome() {
+    @Test fun whileTheReadIsLoadingPlayHasTheFocusAndRightStopsAtPlay() {
         logIn()
         val fake = FakeAniList({ awaitCancellation() })
         open(listOf(true, false, false), fake)
         waitFocus { it?.startsWith("▶") == true }
         repeat(3) { press(Key.DirectionRight) }
-        assertEquals("+ Home", focused())
+        assertTrue(focused()?.startsWith("▶") == true)
         assertTrue(!hasText("Status") || fake.saved.isEmpty())
         assertEquals(0, fake.saved.size)
+    }
+
+    @Test fun aTitleOffAniListOffersPlanningAndAddingHidesItWithPlayFocused() {
+        logIn()
+        open(listOf(true, false, false), FakeAniList({ entry(null) }))
+        waitFocus { it?.startsWith("▶") == true }
+        rule.waitUntil(5_000) { hasText("+ AniList") }
+        press(Key.DirectionRight)
+        assertEquals("+ AniList", focused())
+        press(Key.DirectionCenter)
+        rule.waitUntil(5_000) { !hasText("+ AniList") }
+        waitFocus { it?.startsWith("▶") == true }
+    }
+
+    @Test fun aTitleAlreadyOnAniListHasNoAddButton() {
+        logIn()
+        open(listOf(true, false, false), FakeAniList({ entry("CURRENT", 1) }))
+        rule.waitUntil(5_000) { hasText("Status") }
+        assertTrue(!hasText("+ AniList"))
     }
 
     @Test fun aLoggedOutTokenShowsTheLoginNoteAndNothingToFocus() {
@@ -279,7 +296,7 @@ class TvTitleFocusTest {
         waitFocus { it?.startsWith("▶") == true }
         rule.waitUntil(5_000) { hasText("Log in with AniList to see your list here") }
         repeat(3) { press(Key.DirectionRight) }
-        assertEquals("+ Home", focused())
+        assertTrue(focused()?.startsWith("▶") == true)
     }
 
     @Test fun aSavedChangeSaysSavedToAniListAndAnOfflineOneSaysItWillSendLater() {

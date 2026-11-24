@@ -82,12 +82,6 @@ class TitlePageTest {
         assertEquals(true, p.kept)
     }
 
-    @Test fun keepToggles() = runBlocking {
-        val d = Fake()
-        val p = page(d).apply { loadKept() }
-        p.keep(); assertEquals(true, p.kept); assertEquals(listOf(frieren), d.saved)
-        p.keep(); assertEquals(false, p.kept); assertTrue(d.saved.isEmpty())
-    }
 
     @Test fun markWatchedUpdatesTheEpisodes() = runBlocking {
         val p = page(Fake()).apply { load() }

@@ -164,6 +164,8 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
         }
     }
     val cardOn = kitsu != null && !side
+    var added by remember(title.id) { mutableStateOf(false) }
+    val canAdd = kitsu != null && ani.phase == AniPhase.READY && ani.data?.status == null && !added
     var touched by remember { mutableStateOf(false) }
     LaunchedEffect(page.meta != null, side) { if (!side) focus.main.focusSoon() }
     LaunchedEffect(side, ani.phase) {
@@ -173,7 +175,9 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
     Box(Modifier.fillMaxSize().onPreviewKeyEvent { touched = true; if (it.type == KeyEventType.KeyDown && it.key != androidx.compose.ui.input.key.Key.DirectionCenter) focus.retried = false; false }.onBackKey(page.picking != null) { page.closeFiles() }) {
         TitleBackdrop(api, title)
         Row(Modifier.fillMaxSize().padding(start = RAIL, top = 40.dp, end = 32.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-            TitleInfo(page, ani.mine, rememberLevels(rememberQueue(jiten)), kitsu, finished, side, cardOn && (ani.phase == AniPhase.READY || ani.phase == AniPhase.FAILED), focus, play)
+            TitleInfo(page, ani.mine, rememberLevels(rememberQueue(jiten)), kitsu, finished, side, cardOn && (ani.phase == AniPhase.READY || ani.phase == AniPhase.FAILED), focus, play, canAdd) {
+                writer.added(title.id); added = true; ani.retry(); scope.launch { focus.main.focusSoon() }
+            }
             if (side) TitleSide(api, page, focus, onSettings, Modifier.weight(1f))
         }
         if (cardOn) AniListCard(ani, edits, finished, page.next?.optInt("number")?.takeIf { it > 0 }, focus,
@@ -187,10 +191,9 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
 
 @Composable
 private fun TitleInfo(page: TitlePage, mine: Mine?, levels: Levels?, kitsu: String?, finished: Boolean, side: Boolean, toCard: Boolean,
-                      focus: TitleFocus, onPlay: (JSONObject?) -> Unit) {
+                      focus: TitleFocus, onPlay: (JSONObject?) -> Unit, canAdd: Boolean, onAdd: () -> Unit) {
     val t = page.shown.let { if (it.nameJa.isEmpty() && mine != null && mine.native.isNotEmpty()) it.copy(nameJa = mine.native) else it }
     val next = page.next
-    val scope = rememberCoroutineScope()
     LaunchedEffect(levels, kitsu) { if (kitsu != null) withContext(Dispatchers.Default) { levels?.ask(listOf(kitsu), true) } }
     val cardRight = if (!side && toCard) focus.status else FocusRequester.Default
     Column(Modifier.width(520.dp)) {
@@ -202,12 +205,8 @@ private fun TitleInfo(page: TitlePage, mine: Mine?, levels: Levels?, kitsu: Stri
         levels?.of(kitsu)?.let { Box(Modifier.padding(top = 10.dp)) { DifficultyLine(it) } }
         Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (page.meta != null) Button(onClick = { onPlay(next) }, modifier = Modifier.focusRequester(focus.main)
-                .focusProperties { if (!side) down = focus.row; if (page.kept == null) right = cardRight }) { Text("▶ " + playLabel(page, next, finished)) }
-            page.kept?.let { on ->
-                Button(onClick = { scope.launch { page.keep() } }, modifier = Modifier.focusProperties { if (!side) down = focus.row; right = cardRight }) {
-                    Text(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"))
-                }
-            }
+                .focusProperties { if (!side) down = focus.row; if (!canAdd) right = cardRight }) { Text("▶ " + playLabel(page, next, finished)) }
+            if (canAdd) Button(onClick = onAdd, modifier = Modifier.focusProperties { if (!side) down = focus.row; right = cardRight }) { Text("+ AniList") }
         }
     }
 }

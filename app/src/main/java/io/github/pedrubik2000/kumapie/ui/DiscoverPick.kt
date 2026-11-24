@@ -143,8 +143,8 @@ private fun PickButtons(env: DiscoverEnv, m: Mine, state: PickState, title: Focu
         }
     }
     Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(onClick = { env.hold.addToHome(env.api, found) },
-            padding = BUTTON_PADDING, modifier = Modifier.hint(HintKind.PICK).focusRequester(env.link.to).focusProperties { left = env.entry; up = title; down = FocusRequester.Cancel }) { Text("+ " + tr("Home")) }
+        Button(onClick = { env.open(found, "title") },
+            padding = BUTTON_PADDING, modifier = Modifier.hint(HintKind.PICK).focusRequester(env.link.to).focusProperties { left = env.entry; up = title; down = FocusRequester.Cancel }) { Text("▶ " + tr("Watch")) }
         val undo = state.liveUndo()
         Button(onClick = { if (undo?.skip == false) state.undoLast() else state.notForMe(m.anilistId, m.shown()) }, padding = BUTTON_PADDING,
             modifier = Modifier.hint(HintKind.PICK).focusProperties { down = FocusRequester.Cancel }) { Text(if (undo?.skip == false) "↶ " + tr("Undo") else "✕ " + tr("Not for me")) }

@@ -25,7 +25,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -43,17 +42,13 @@ import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.mobile.offline.Library
 import io.github.pedrubik2000.kumapie.ui.Colors
-import kotlinx.coroutines.launch
 
 /**
  * Discover's top as the TV's (look plan step 2): the hero title (the TV's before the D-pad moves: the first row's first)
- * with its row's name over it, its rating line and text, ▶ Watch (its page, as the TV's) and + Home.
+ * with its row's name over it, its rating line and text, ▶ Watch (its page, as the TV's).
  */
 @Composable
 internal fun DiscoverHero(library: Library, f: Found, row: String, onOpen: () -> Unit) {
-    var kept by remember { mutableStateOf<Set<String>?>(null) }
-    LaunchedEffect(Unit) { kept = runCatching { library.discovery.saved().map { it.id }.toSet() }.getOrNull() }
-    val scope = rememberCoroutineScope()
     Column(Modifier.statusBarsPadding().padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 8.dp).fillMaxWidth(if (wide()) 0.55f else 1f)) {
         Text(tr(row).uppercase(), color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, letterSpacing = 3.sp, fontWeight = FontWeight.SemiBold)
         if (f.logo.isNotEmpty()) TitleLogo(f)
@@ -62,12 +57,6 @@ internal fun DiscoverHero(library: Library, f: Found, row: String, onOpen: () ->
         Text(f.description.replace(Regex("""\s+"""), " "), color = Colors.dim, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Pill("▶  " + tr("Watch"), onOpen, primary = true)
-            kept?.let { k ->
-                val on = f.id in k
-                Pill(if (on) "✓ " + tr("On Home") else "+ " + tr("Home"), {
-                    scope.launch { runCatching { library.discovery.save(f, !on) }.onSuccess { l -> kept = l.map { it.id }.toSet() } }
-                })
-            }
         }
     }
 }

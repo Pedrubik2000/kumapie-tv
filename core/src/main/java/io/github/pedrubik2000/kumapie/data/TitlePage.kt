@@ -39,11 +39,6 @@ class TitlePage(
 
     suspend fun loadKept() { kept = runCatching { d.saved().any { it.id == title.id } }.getOrNull() }
 
-    suspend fun keep() {
-        val on = kept ?: return
-        runCatching { d.save(title, !on) }.onSuccess { l -> kept = l.any { it.id == title.id } }
-    }
-
     suspend fun mark(e: JSONObject) {
         val id = e.getString("id")
         val on = !e.optBoolean("watched")

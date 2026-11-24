@@ -15,9 +15,7 @@ import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.data.Settings
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 internal const val NEXT_PICKS = 4
 internal const val DUEL_SIZE = 8
@@ -47,19 +45,10 @@ internal class PickState(private val store: PickStore, val clock: () -> Long = S
     var hidden by mutableStateOf(store.hidden())
     var chosen by mutableStateOf<Int?>(null)
     var loaded by mutableStateOf(Kept(emptySet()))
-    var added by mutableStateOf<Set<String>>(emptySet())
     var ready by mutableStateOf(false)
     var duel: Knockout? = null
     var undo by mutableStateOf<Undo?>(null)
-    var savedKnown = false
 
-    suspend fun onHomeIds(api: Discovery): Set<String>? {
-        if (savedKnown) return loaded.ids + added
-        val ids = runCatching { api.saved().map { it.id }.toSet() }.rethrowCancel().getOrNull() ?: return null
-        loaded = Kept(ids)
-        savedKnown = true
-        return ids + added
-    }
 
     fun notForMe(id: Int, name: String) {
         store.notForMe(id, name)
@@ -95,13 +84,6 @@ internal class PickState(private val store: PickStore, val clock: () -> Long = S
         return true
     }
 
-    fun onHome(found: String, fromWinner: Boolean = false) {
-        added = added + found
-        if (!fromWinner) {
-            chosen = null
-            duel = null
-        }
-    }
 }
 
 @Stable
@@ -130,7 +112,7 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
 }
 
 @Stable
-internal class DiscoverHold(startMode: DiscoverMode, val pick: PickState, val browse: BrowseState, private val scope: CoroutineScope) {
+internal class DiscoverHold(startMode: DiscoverMode, val pick: PickState, val browse: BrowseState) {
     var mode by mutableStateOf(startMode)
     var inContent by mutableStateOf(false)
     var restoring by mutableStateOf(false)
@@ -165,14 +147,6 @@ internal class DiscoverHold(startMode: DiscoverMode, val pick: PickState, val br
         delay(RESTORE_LIMIT_MS)
         dropRestore()
     }
-
-    fun addToHome(api: Discovery, found: Found, fromWinner: Boolean = false) {
-        scope.launch {
-            val known = pick.onHomeIds(api)
-            if (known != null && found.id in known) pick.onHome(found.id, fromWinner)
-            else runCatching { api.save(found, true) }.rethrowCancel().onSuccess { pick.onHome(found.id, fromWinner) }
-        }
-    }
 }
 
 internal class DiscoverEnv(val api: Discovery, val settings: Settings, val levels: Levels?, val link: Link, val entry: FocusRequester,
@@ -187,7 +161,7 @@ internal class DiscoverEnv(val api: Discovery, val settings: Settings, val level
 internal fun LoadPicks(api: Discovery, pick: PickState, active: Boolean) {
     LaunchedEffect(Unit) {
         if (!active) return@LaunchedEffect
-        runCatching { api.saved().map { it.id }.toSet() }.rethrowCancel().onSuccess { pick.loaded = Kept(it); pick.savedKnown = true }
+        runCatching { api.saved().map { it.id }.toSet() }.rethrowCancel().onSuccess { pick.loaded = Kept(it) }
         pick.ready = true
     }
     LaunchedEffect(Unit) {

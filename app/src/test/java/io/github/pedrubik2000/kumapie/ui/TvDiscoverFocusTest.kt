@@ -57,7 +57,6 @@ class TvDiscoverFocusTest {
     private var searches = 0
     private var searchDelay = 0L
     private var savedDelay = 0L
-    private var saveDelay = 0L
     private var onHomeList = emptyList<Found>()
     private var fresh: ((List<Mine>) -> Unit)? = null
 
@@ -78,7 +77,7 @@ class TvDiscoverFocusTest {
         override suspend fun discoverMeta(type: String, id: String) = JSONObject()
         override suspend fun discoverStreams(type: String, id: String) = JSONArray()
         override suspend fun saved(): List<Found> { kotlinx.coroutines.delay(savedDelay); return onHomeList }
-        override suspend fun save(title: Found, on: Boolean): List<Found> { kotlinx.coroutines.delay(saveDelay); saves += title; return emptyList() }
+        override suspend fun save(title: Found, on: Boolean): List<Found> { saves += title; return emptyList() }
         override suspend fun seen(id: String, on: Boolean) = Unit
     }
 
@@ -133,7 +132,7 @@ class TvDiscoverFocusTest {
 
     private fun hasCard(t: String) = rule.onAllNodesWithContentDescription(t).fetchSemanticsNodes().isNotEmpty()
 
-    private fun hasRound(n: Int) = hasText("Round $n of 3 · last one standing goes on Home")
+    private fun hasRound(n: Int) = hasText("Round $n of 3 · last one standing is your pick")
 
     private fun prefs() = Settings(RuntimeEnvironment.getApplication()).prefs
 
@@ -180,7 +179,7 @@ class TvDiscoverFocusTest {
         assertTrue(hasText("Dandadan") && !hasCard("Alpha"))
         assertTrue(focused()?.startsWith("Browse") == true)
         press(UP, RIGHT)
-        assertEquals("+ Home", focused())
+        assertEquals("▶ Watch", focused())
         press(LEFT)
         assertTrue(focused()?.startsWith("Pick for me") == true)
         press(DOWN, OK)
@@ -221,27 +220,22 @@ class TvDiscoverFocusTest {
     @Test fun eachButtonShowsTheNextPickAndKeepsItsPlace() {
         openPick()
         press(RIGHT)
-        assertEquals("+ Home", focused())
-        press(OK)
-        rule.waitUntil(5_000) { saves.size == 1 && !hasText("Dandadan") }
-        assertEquals("Dandadan", saves.single().name)
-        assertEquals("+ Home", focused())
-        assertTrue(hasText("Nana"))
+        assertEquals("▶ Watch", focused())
+        press(RIGHT, OK)
+        rule.waitUntil(5_000) { !hasText("Dandadan") }
+        assertEquals("↶ Undo", focused())
+        assertTrue(prefs().getString("discover_never", "").orEmpty().contains("\"i\":3"))
         press(RIGHT, OK)
         rule.waitUntil(5_000) { !hasText("Kaiju") }
         assertEquals("↶ Undo", focused())
-        assertTrue(prefs().getString("discover_never", "").orEmpty().contains("\"i\":4"))
-        press(RIGHT, OK)
-        rule.waitUntil(5_000) { !hasText("Lupin") }
-        assertEquals("↶ Undo", focused())
-        assertTrue(prefs().getString("discover_skipped", "").orEmpty().startsWith("5:"))
-        assertEquals(1, saves.size)
+        assertTrue(prefs().getString("discover_skipped", "").orEmpty().startsWith("4:"))
+        assertEquals(0, saves.size)
     }
 
     @Test fun downFromThePickButtonsGoesNowhereAndNextPicksAreReachedOnlyFromTheColumn() {
         openPick()
         press(RIGHT, DOWN)
-        assertEquals("+ Home", focused())
+        assertEquals("▶ Watch", focused())
         press(RIGHT, DOWN)
         assertEquals("✕ Not for me", focused())
         press(RIGHT, DOWN)
@@ -358,18 +352,15 @@ class TvDiscoverFocusTest {
         assertTrue(focused()?.contains("Mob") == true)
         press(LEFT, OK)
         rule.waitUntil(5_000) { hasText("Last one standing") }
-        waitFocus { it == "+ Home" }
+        waitFocus { it == "▶ Watch" }
     }
 
     @Test fun theKnockoutRunsToAWinnerWithLeftRightAndOk() {
         playToTheWinner()
-        press(OK)
-        rule.waitUntil(5_000) { saves.size == 1 }
-        assertEquals("Dandadan", saves.single().name)
-        waitFocus { it == "✓ On Home" }
-        press(RIGHT, RIGHT, OK)
+        waitFocus { it == "▶ Watch" }
+        press(RIGHT, OK)
         rule.waitUntil(5_000) { hasRound(1) }
-        waitFocus { it?.contains("Kaiju") == true }
+        waitFocus { it?.contains("Dandadan") == true }
     }
 
     @Test fun withFewerThanTwoCandidatesThereIsOneQuietLine() {
@@ -537,12 +528,12 @@ class TvDiscoverFocusTest {
         assertEquals(1, boards)
     }
 
-    @Test fun theWinnerOpenedAndBackIsStillTheWinnerWithOpenFocused() {
+    @Test fun theWinnerOpenedAndBackIsStillTheWinnerWithWatchFocused() {
         playToTheWinner()
-        press(RIGHT, OK)
-        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
+        press(OK)
+        rule.waitUntil(5_000) { !hasText("Last one standing") }
         press(Key.Back.keyCode)
-        waitFocus { it == "Open" }
+        waitFocus { it == "▶ Watch" }
         assertTrue(hasText("Last one standing"))
     }
 
@@ -579,30 +570,7 @@ class TvDiscoverFocusTest {
         rule.waitUntil(5_000) { !hasText("Dandadan") && hasText("Kaiju") }
     }
 
-    @Test fun plusHomeLearnsTheOnHomeSetFirstAndDoesNotSaveATitleAlreadyThere() {
-        logIn()
-        savedDelay = 10_000
-        onHomeList = listOf(title(3, "Dandadan"))
-        open()
-        waitFocus { it?.startsWith("Pick for me") == true }
-        rule.mainClock.advanceTimeBy(2_500)
-        rule.waitUntil(5_000) { hasText("Dandadan") }
-        press(RIGHT, OK)
-        rule.mainClock.advanceTimeBy(11_000)
-        rule.waitUntil(5_000) { !hasText("Dandadan") }
-        assertEquals(0, saves.size)
-    }
 
-    @Test fun aSaveInProgressIsNotLostWhenHeOpensATitleRightAfter() {
-        openPick()
-        saveDelay = 3_000
-        press(RIGHT, OK, RIGHT, RIGHT, RIGHT, OK)
-        rule.waitUntil(5_000) { focused()?.startsWith("▶") == true }
-        press(Key.Back.keyCode)
-        waitFocus { it?.contains("Kaiju") == true }
-        assertTrue(!hasText("Dandadan"))
-        assertEquals(1, saves.size)
-    }
 
     @Test fun aListThatArrivesWhileTheTitlePageIsOpenDoesNotChangeThePickOnBack() {
         openPick()
@@ -654,7 +622,7 @@ class TvDiscoverFocusTest {
     @Test fun aFreshListDoesNotChangeThePickWhileHeIsOnItsButtonsOnlyAfterHeLeaves() {
         openPick()
         press(RIGHT)
-        assertEquals("+ Home", focused())
+        assertEquals("▶ Watch", focused())
         refreshWithZed()
         assertTrue(hasText("Dandadan") && !hasText("Zed"))
         press(LEFT)

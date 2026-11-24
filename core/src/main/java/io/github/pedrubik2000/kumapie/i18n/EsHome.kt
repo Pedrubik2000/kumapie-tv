@@ -152,7 +152,7 @@ internal val esHome: Map<String, String> = mapOf(
     "%d ep" to "%d ep",
     "Keep one" to "Quédate con una",
     "Round %1\$d of %2\$d" to "Ronda %1\$d de %2\$d",
-    "last one standing goes on Home" to "la que gane va a Inicio",
+    "last one standing is your pick" to "la que gane es tu elección",
     "OR" to "O",
     "Not enough titles on your Planning list to choose between. Add more on AniList, or open Browse." to "No hay suficientes títulos en tu lista Planeado para elegir. Agrega más en AniList o abre Explorar.",
     "Last one standing" to "La ganadora",

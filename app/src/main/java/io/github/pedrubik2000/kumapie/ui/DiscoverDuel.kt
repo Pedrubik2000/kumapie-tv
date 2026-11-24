@@ -45,7 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-internal fun DuelContent(env: DiscoverEnv, field: List<Mine>?, ranked: Ranked?, state: PickState, onHomeIds: Set<String>) {
+internal fun DuelContent(env: DiscoverEnv, field: List<Mine>?, ranked: Ranked?, state: PickState) {
     val loggedIn = env.settings.anilistToken.isNotEmpty()
     val playable = loggedIn && field != null && field.size >= 2
     LinkWhen(env.link, !loggedIn || playable)
@@ -54,12 +54,12 @@ internal fun DuelContent(env: DiscoverEnv, field: List<Mine>?, ranked: Ranked?, 
         !loggedIn -> LoginPrompt(env)
         field == null || ranked == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
         !playable -> Text(tr("Not enough titles on your Planning list to choose between. Add more on AniList, or open Browse."), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
-        else -> Bracket(env, field.take(DUEL_SIZE), ranked, state, onHomeIds)
+        else -> Bracket(env, field.take(DUEL_SIZE), ranked, state)
     }
 }
 
 @Composable
-private fun Bracket(env: DiscoverEnv, field: List<Mine>, ranked: Ranked, state: PickState, onHomeIds: Set<String>) {
+private fun Bracket(env: DiscoverEnv, field: List<Mine>, ranked: Ranked, state: PickState) {
     val fieldIds = remember(field) { field.map { it.anilistId } }
     val rankedIds = remember(ranked) { ranked.list.map { it.anilistId }.toSet() }
     val saved = state.duel?.takeIf { it.usableWith(rankedIds) }
@@ -83,7 +83,7 @@ private fun Bracket(env: DiscoverEnv, field: List<Mine>, ranked: Ranked, state: 
                 state.duel = next
                 if (next.winner != null) scope.launch { env.link.to.focusSoon() }
             }
-            if (winner != null) Winner(env, winner, onHomeIds, state, onAgain = {
+            if (winner != null) Winner(env, winner, onAgain = {
                 state.duel = null
                 game = Knockout(fieldIds)
                 scope.launch { env.link.to.focusSoon() }
@@ -97,7 +97,7 @@ private fun Bracket(env: DiscoverEnv, field: List<Mine>, ranked: Ranked, state: 
 private fun Duel(env: DiscoverEnv, game: Knockout, pair: Pair<Int, Int>, byId: Map<Int, Mine>, reasons: Map<Int, String>, onChoose: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(tr("Keep one"), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-        Text(tr("Round %1\$d of %2\$d", game.round, game.rounds) + " · " + tr("last one standing goes on Home"), color = Colors.dim, fontSize = 18.sp)
+        Text(tr("Round %1\$d of %2\$d", game.round, game.rounds) + " · " + tr("last one standing is your pick"), color = Colors.dim, fontSize = 18.sp)
     }
     Row(Modifier.padding(top = 16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         listOf(pair.first, pair.second).forEachIndexed { i, id ->
@@ -130,12 +130,10 @@ private fun DuelCard(m: Mine, level: TitleDifficulty?, reason: String?, modifier
 }
 
 @Composable
-private fun Winner(env: DiscoverEnv, m: Mine, onHomeIds: Set<String>, state: PickState, onAgain: () -> Unit) {
+private fun Winner(env: DiscoverEnv, m: Mine, onAgain: () -> Unit) {
     val found = remember(m) { m.found() }
-    val added = found.id in onHomeIds
-    val openButton = remember { FocusRequester() }
     LaunchedEffect(Unit) {
-        if (env.hold.take(DiscoverMode.DUEL) == "open") openButton.focusSoon()
+        if (env.hold.take(DiscoverMode.DUEL) == "open") env.link.to.focusSoon()
         env.hold.restoring = false
     }
     Text(tr("Last one standing"), color = WHITE_DIM, fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)
@@ -146,11 +144,10 @@ private fun Winner(env: DiscoverEnv, m: Mine, onHomeIds: Set<String>, state: Pic
             Text(pickFacts(m), color = WHITE_DIM, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
             env.levels?.of(m.kitsuId)?.let { Box(Modifier.padding(top = 8.dp)) { DifficultyLine(it) } }
             Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { if (!added) env.hold.addToHome(env.api, found, fromWinner = true) },
+                Button(onClick = { env.open(found, "open") },
                     modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(env.link.to).focusProperties { left = env.entry; up = MissingKeyLine.up(env.link.to) }) {
-                    Text(if (added) "✓ " + tr("On Home") else "+ " + tr("Home"))
+                    Text("▶ " + tr("Watch"))
                 }
-                Button(onClick = { env.open(found, "open") }, modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(openButton)) { Text(tr("Open")) }
                 Button(onClick = onAgain, modifier = Modifier.hint(HintKind.CHOOSE)) { Text(tr("Again")) }
             }
         }

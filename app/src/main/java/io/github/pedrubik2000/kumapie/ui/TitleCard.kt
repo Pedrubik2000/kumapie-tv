@@ -125,6 +125,12 @@ internal fun <T : Any> CommitSoon(stepper: Stepper<T>) {
     LaunchedEffect(stepper, stepper.shown) { delay(COMMIT_AFTER_MS); stepper.commit() }
 }
 
+private fun openKey(e: KeyEvent, onOpen: () -> Unit): Boolean {
+    if (e.key != Key.DirectionCenter && e.key != Key.Enter && e.key != Key.NumPadEnter) return false
+    if (e.type == KeyEventType.KeyDown) onOpen()
+    return true
+}
+
 private fun stepKey(e: KeyEvent, onStep: (Int) -> Unit): Boolean {
     val by = when (e.key) { Key.DirectionLeft -> -1; Key.DirectionRight -> 1; else -> return false }
     if (e.type == KeyEventType.KeyDown) onStep(by)
@@ -132,23 +138,23 @@ private fun stepKey(e: KeyEvent, onStep: (Int) -> Unit): Boolean {
 }
 
 @Composable
-internal fun StepRow(label: String, value: String, modifier: Modifier, onStep: (Int) -> Unit, onLeave: () -> Unit, flat: Boolean = false) {
+internal fun StepRow(label: String, value: String, modifier: Modifier, onStep: (Int) -> Unit, onLeave: () -> Unit, flat: Boolean = false, onOpen: (() -> Unit)? = null) {
     var focused by remember { mutableStateOf(false) }
-    RowFace(label, value, focused, flat, modifier.hint(HintKind.VALUE)
+    RowFace(label, value, focused, flat, open = onOpen != null, modifier = modifier.hint(if (onOpen != null) HintKind.ROW else HintKind.VALUE)
         .onFocusChanged { if (focused && !it.isFocused) onLeave(); focused = it.isFocused }
-        .onKeyEvent { stepKey(it, onStep) }
+        .onKeyEvent { if (onOpen != null) openKey(it, onOpen) else stepKey(it, onStep) }
         .semantics(mergeDescendants = true) {}
         .focusable())
 }
 
 @Composable
-private fun RowFace(label: String, value: String, focused: Boolean, flat: Boolean, modifier: Modifier) {
+private fun RowFace(label: String, value: String, focused: Boolean, flat: Boolean, modifier: Modifier, open: Boolean = false) {
     Row(modifier.fillMaxWidth().height(40.dp)
         .background(if (focused) Color.White else if (flat) Color.Transparent else Arcade.slab, CircleShape)
         .border(1.dp, if (focused) Color.White else if (flat) Color.Transparent else Arcade.line, CircleShape)
         .padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = if (focused) Color.Black else WHITE_DIM, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        Text("‹  $value  ›", color = if (focused) Color.Black else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(if (open) "$value  ›" else "‹  $value  ›", color = if (focused) Color.Black else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }
 

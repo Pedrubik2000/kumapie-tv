@@ -1,28 +1,24 @@
 package io.github.pedrubik2000.kumapie.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,23 +34,37 @@ internal val PANEL_WIDTH = 232.dp
 internal val CONTENT_START = RAIL + PANEL_WIDTH + 16.dp
 private val ROW_PADDING = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
 
+internal enum class PickerKind { GENRES, TAGS }
+
+internal class PickerLinks(val genres: FocusRequester, val tags: FocusRequester, val open: (PickerKind) -> Unit)
+
+private fun picksLabel(p: ChipPicks): String = if (!p.any) tr("Any") else listOfNotNull(
+    p.include.size.takeIf { it > 0 }?.let { "$it ✓" }, p.exclude.size.takeIf { it > 0 }?.let { "$it ✕" }).joinToString(" ")
+
 @Composable
 internal fun LibraryColumn(all: List<Mine>, list: LibraryList, filters: LibraryFilters, entry: FocusRequester, toGrid: FocusRequester?,
-                           toRail: () -> FocusRequester, onList: (LibraryList) -> Unit, onFilters: (LibraryFilters) -> Unit, modifier: Modifier) {
+                           toRail: () -> FocusRequester, onList: (LibraryList) -> Unit, onFilters: (LibraryFilters) -> Unit, picker: PickerLinks, modifier: Modifier) {
     val counts = remember(all) { LibraryList.entries.associateWith { it.of(all).size } }
     val sides = Modifier.fillMaxWidth().focusProperties { toGrid?.let { right = it }; left = toRail() }
-    Column(modifier.width(PANEL_WIDTH).arcadePanel().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    var text by remember { mutableStateOf(filters.query) }
+    Column(modifier.width(PANEL_WIDTH).arcadePanel().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Title(tr("Library"), fontSize = 26.sp)
+        TvTextField(text, { text = it }, onDone = { onFilters(filters.copy(query = text.trim())) }, sides, placeholder = tr("Search my %d titles", all.size))
         Section("ANILIST")
         LibraryList.entries.forEach { l ->
             ListRow(l.label(), counts.getValue(l), l == list, { onList(l) }, sides.then(if (l == list) Modifier.focusRequester(entry) else Modifier), toGrid != null)
         }
-        Section(tr("Show only").uppercase())
-        CheckRow(tr("In progress"), filters.inProgress, sides) { onFilters(filters.copy(inProgress = !filters.inProgress)) }
-        CheckRow(tr("On Home"), filters.onHome, sides) { onFilters(filters.copy(onHome = !filters.onHome)) }
-        Section(tr("Difficulty").uppercase())
-        StepRow(tr("Up to"), limitLabel(filters.limit), sides,
+        Section(tr("Filters").uppercase())
+        StepRow(tr("Sort"), filters.sort.label(), sides, { by -> onFilters(filters.copy(sort = filters.sort.step(by))) }, {}, flat = true)
+        StepRow(tr("Difficulty"), limitLabel(filters.limit), sides,
             { by -> onFilters(filters.copy(limit = (filters.limit + by).coerceIn(0, LIMIT_MAX))) }, {}, flat = true)
+        StepRow(tr("Genres"), picksLabel(filters.genres), sides.then(Modifier.focusRequester(picker.genres)), {}, {}, flat = true, onOpen = { picker.open(PickerKind.GENRES) })
+        StepRow(tr("Tags"), picksLabel(filters.tags), sides.then(Modifier.focusRequester(picker.tags)), {}, {}, flat = true, onOpen = { picker.open(PickerKind.TAGS) })
+        StepRow(tr("Format"), filters.format.label(), sides, { by -> onFilters(filters.copy(format = filters.format.step(by))) }, {}, flat = true)
+        StepRow(tr("Episodes"), filters.episodes.label(), sides, { by -> onFilters(filters.copy(episodes = filters.episodes.step(by))) }, {}, flat = true)
+        StepRow(tr("Year"), filters.year.label(), sides, { by -> onFilters(filters.copy(year = filters.year.step(by))) }, {}, flat = true)
+        StepRow(tr("Airing"), filters.airing.label(), sides, { by -> onFilters(filters.copy(airing = filters.airing.step(by))) }, {}, flat = true)
+        StepRow(tr("Show only"), if (filters.inProgress) tr("In progress") else tr("All"), sides, { onFilters(filters.copy(inProgress = !filters.inProgress)) }, {}, flat = true)
     }
 }
 
@@ -76,15 +86,3 @@ internal fun ListRow(label: String, count: Int?, selected: Boolean, onSelect: ()
         Text(label, modifier = Modifier.weight(1f))
         count?.let { Text("$it", color = LocalContentColor.current.copy(alpha = 0.6f)) }
     }
-
-@Composable
-internal fun CheckRow(label: String, checked: Boolean, modifier: Modifier, onToggle: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    FlatButton(onToggle, modifier.hint(HintKind.CHECK).onFocusChanged { focused = it.isFocused }) {
-        Box(Modifier.size(18.dp).background(if (!checked) Color.Transparent else if (focused) Color.Black else Arcade.accent, RoundedCornerShape(4.dp))
-            .border(2.dp, if (focused) Color.Black else if (checked) Arcade.accent else WHITE_DIM, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
-            if (checked) Text("✓", color = if (focused) Color.White else Color.Black, fontSize = 13.sp)
-        }
-        Text(label, modifier = Modifier.padding(start = 10.dp))
-    }
-}

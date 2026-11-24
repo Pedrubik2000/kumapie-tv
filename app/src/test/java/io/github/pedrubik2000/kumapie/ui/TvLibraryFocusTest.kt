@@ -57,13 +57,13 @@ class TvLibraryFocusTest {
     private var reads = 0
     private var autoFresh = false
 
-    private fun discovery(kept: List<Found> = emptyList(), slow: Long = 0) = object : Discovery {
+    private fun discovery() = object : Discovery {
         override suspend fun board() = emptyList<Pair<String, List<Found>>>()
         override suspend fun discover(q: String) = emptyList<Found>()
         override suspend fun discoverMeta(type: String, id: String) = JSONObject()
         override suspend fun discoverStreams(type: String, id: String) = JSONArray()
-        override suspend fun saved(): List<Found> { if (slow > 0) kotlinx.coroutines.delay(slow); return kept }
-        override suspend fun save(title: Found, on: Boolean) = kept
+        override suspend fun saved() = emptyList<Found>()
+        override suspend fun save(title: Found, on: Boolean) = emptyList<Found>()
         override suspend fun seen(id: String, on: Boolean) = Unit
     }
 
@@ -91,9 +91,9 @@ class TvLibraryFocusTest {
         return JitenQueue(store, JitenApi(JitenHttp), resolve = { null }, idle = { false })
     }
 
-    private fun open(kept: List<Found> = emptyList(), jiten: JitenQueue = queue(), slow: Long = 0) {
+    private fun open(jiten: JitenQueue = queue()) {
         rule.setContent {
-            if (showing) LibraryScreen(discovery(kept, slow), Settings(RuntimeEnvironment.getApplication()), onHome = {}, onDiscover = {}, onReview = {}, onSettings = {},
+            if (showing) LibraryScreen(discovery(), Settings(RuntimeEnvironment.getApplication()), onHome = {}, onDiscover = {}, onReview = {}, onSettings = {},
                 onOpen = { opened += it; showing = false }, jiten = jiten, read = { prefs, user, _, _, fresh -> reads++; refresh = fresh; AniListLists.cached(prefs, user).also { if (autoFresh) fresh(it) } })
         }
     }
@@ -238,17 +238,41 @@ class TvLibraryFocusTest {
         assertTrue(focused()?.startsWith("Planning") == true)
     }
 
-    @Test fun upFromTheTopOfTheGridGoesToSortAndOkCyclesIt() {
+    @Test fun upFromTheTopOfTheGridStaysAndTheSortRowStepsWithLeftAndRight() {
         logIn()
         open()
         selectPlanning()
         press(RIGHT, UP)
-        assertEquals("Sort: My order", focused())
-        press(OK)
-        assertTrue(hasText("Sort: Easiest first"))
-        press(DOWN)
         assertEquals("Dandadan", focused())
+        press(LEFT)
+        rule.onNodeWithText("Sort").requestFocus()
+        assertTrue(hasText("‹  My order  ›"))
+        press(RIGHT)
+        assertTrue(hasText("‹  Easiest first  ›"))
+        press(LEFT, LEFT)
+        assertTrue(hasText("‹  Year  ›"))
     }
+
+    @Test fun okOnGenresOpensThePickerAndOkCyclesAChipIncludeThenExcludeThenOffAndBackClosesIt() {
+        logIn()
+        open()
+        selectPlanning()
+        rule.onNodeWithText("Genres").requestFocus()
+        press(OK)
+        rule.waitUntil(5_000) { hasText("Filter Planning") }
+        waitFocus { it?.startsWith("Adventure") == true }
+        press(OK)
+        rule.waitUntil(5_000) { hasText("Planning · 3 of 3 shown · Adventure") }
+        press(OK)
+        rule.waitUntil(5_000) { hasText("Planning · 0 of 3 shown · no Adventure") }
+        press(OK)
+        rule.waitUntil(5_000) { hasText("Planning · 3 titles") }
+        press(OK, OK)
+        press(BACK)
+        waitFocus { it?.startsWith("Genres") == true }
+        rule.waitUntil(5_000) { hasText("Nothing here with these filters. Change the filters on the left.") }
+    }
+
 
     @Test fun backFromTheGridGoesToTheColumn() {
         logIn()
@@ -259,34 +283,25 @@ class TvLibraryFocusTest {
         assertTrue(focused()?.startsWith("Planning") == true)
     }
 
-    @Test fun okOnACheckboxFiltersTheList() {
+    @Test fun rightOnShowOnlyFiltersTheListAndRightAgainClearsIt() {
         logIn()
         open()
         selectPlanning()
-        rule.onNodeWithText("In progress").requestFocus()
-        press(OK)
+        rule.onNodeWithText("Show only").requestFocus()
+        press(RIGHT)
         rule.waitUntil(5_000) { hasText("Planning · 1 of 3 shown") }
         assertTrue(hasCard("Kaiju"))
         assertTrue(!hasCard("Dandadan"))
-        press(OK)
+        press(RIGHT)
         rule.waitUntil(5_000) { hasText("Planning · 3 titles") }
     }
 
-    @Test fun onHomeKeepsTheSavedTitles() {
-        logIn()
-        open(kept = listOf(Found("kitsu:5", "series", "Lupin", "", "2023")))
-        selectPlanning()
-        rule.onNodeWithText("On Home").requestFocus()
-        press(OK)
-        rule.waitUntil(5_000) { hasText("Planning · 1 of 3 shown") }
-        assertTrue(hasCard("Lupin"))
-    }
 
     @Test fun leftAndRightOnTheDifficultyRowChangeTheLimitAndDoNotLeaveIt() {
         logIn()
         open(jiten = queue("1" to TitleDifficulty(2.7, 9, null, null)))
         waitFocus { it?.startsWith("Watching") == true }
-        rule.onNodeWithText("Up to").requestFocus()
+        rule.onNodeWithText("Difficulty").requestFocus()
         assertTrue(hasText("‹  Any  ›"))
         press(RIGHT)
         assertTrue(hasText("‹  Beginner  ›"))
@@ -298,9 +313,9 @@ class TvLibraryFocusTest {
         assertTrue(!hasCard("Bocchi"))
         press(LEFT)
         assertTrue(hasText("‹  Easy  ›"))
-        assertTrue(focused()?.startsWith("Up to") == true)
+        assertTrue(focused()?.startsWith("Difficulty") == true)
         press(UP)
-        assertTrue(focused()?.startsWith("On Home") == true)
+        assertTrue(focused()?.startsWith("Sort") == true)
     }
 
     @Test fun loggedOutShowsTheLoginLineWithFocusOnLogIn() {
@@ -333,9 +348,9 @@ class TvLibraryFocusTest {
         rule.waitUntil(5_000) { hasText("Nothing in this list yet. Pick another list on the left.") }
         press(UP, OK)
         rule.waitUntil(5_000) { hasCard("Dandadan") }
-        rule.onNodeWithText("On Home").requestFocus()
-        press(OK)
-        rule.waitUntil(5_000) { hasText("Nothing here with these filters. Change DIFFICULTY or SHOW ONLY on the left.") }
+        rule.onNodeWithText("Airing").requestFocus()
+        press(RIGHT)
+        rule.waitUntil(5_000) { hasText("Nothing here with these filters. Change the filters on the left.") }
     }
 
     @Test fun okOnACoverOpensItAndComingBackFocusesItAgain() {
@@ -366,7 +381,7 @@ class TvLibraryFocusTest {
 
     private fun expectFocusOn(name: String) {
         var nothing = false
-        rule.waitUntil(5_000) { nothing = nothing || hasText("Nothing here with these filters. Change DIFFICULTY or SHOW ONLY on the left."); focusedCard() == name }
+        rule.waitUntil(5_000) { nothing = nothing || hasText("Nothing here with these filters. Change the filters on the left."); focusedCard() == name }
         assertTrue(!nothing)
     }
 
@@ -386,12 +401,6 @@ class TvLibraryFocusTest {
         expectFocusOn("Kaiju")
     }
 
-    @Test fun returningWithOnHomeWhileSavedIsSlowWaitsInsteadOfShowingNothing() {
-        logIn()
-        returnTo(LibraryList.PLANNING, 4, LibraryFilters(onHome = true))
-        open(kept = listOf(Found("kitsu:4", "series", "Kaiju", "", "2023")), slow = 400)
-        expectFocusOn("Kaiju")
-    }
 
     @Test fun aRefreshThatRemovesTheFocusedCoverWaitsUntilFocusLeavesTheGrid() {
         logIn()

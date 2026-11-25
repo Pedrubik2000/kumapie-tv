@@ -93,7 +93,7 @@ fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Un
         textStyle = TextStyle(color = Colors.text, fontSize = 20.sp),
         cursorBrush = SolidColor(Colors.accent),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { editing = false; onDone() }),
+        keyboardActions = KeyboardActions(onDone = { editing = false; onDone() }, onGo = { editing = false; onDone() }),
         modifier = modifier
             .onFocusChanged { focused = it.isFocused; if (!it.isFocused) editing = false }
             // A one-line field has no use for up/down: let the D-pad leave it (it would trap focus otherwise).
@@ -102,6 +102,7 @@ fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Un
                 when (it.nativeKeyEvent.keyCode) {
                     KeyEvent.KEYCODE_DPAD_DOWN -> focusManager.moveFocus(FocusDirection.Down)
                     KeyEvent.KEYCODE_DPAD_UP -> focusManager.moveFocus(FocusDirection.Up)
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> if (editing) false else focusManager.moveFocus(FocusDirection.Right)
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> if (editing) false else { editing = true; keyboard?.show(); true }
                     else -> false
                 }

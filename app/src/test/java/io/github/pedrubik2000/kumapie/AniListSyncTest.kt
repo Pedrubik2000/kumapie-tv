@@ -222,6 +222,18 @@ class AniListSyncTest {
         assertEquals(5, saved.single().third.progress)
     }
 
+    @Test fun aTwoEpisodeSessionWritesTwoThenThree() {
+        entries[7] = Entry("CURRENT", progress = 1, started = "2026-11-20", episodes = 12)
+        val first = sync()
+        first.watchingAt("kitsu:1:2", "series", 500, 1000)
+        first.episodeDone("kitsu:1:2", "series")
+        clock += 1_300_000
+        val second = sync()
+        second.watchingAt("kitsu:1:3", "series", 500, 1000)
+        clock += 1_300_000
+        second.episodeDone("kitsu:1:3", "series")
+        assertEquals(listOf(2, 3), saved.map { it.third.progress })
+    }
     @Test fun deviceClockBehindTheServerStillWrites() {
         skew = 3_600_000L
         sync().finished("kitsu:1:1", 1)

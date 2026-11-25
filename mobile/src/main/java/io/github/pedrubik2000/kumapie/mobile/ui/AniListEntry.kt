@@ -27,6 +27,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.pedrubik2000.kumapie.data.AniList
+import io.github.pedrubik2000.kumapie.data.AniListSync
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.ui.Colors
@@ -41,13 +42,15 @@ fun statusName(status: String?) = when (status) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AniListPill(settings: Settings, media: Int?) {
+fun AniListPill(settings: Settings, media: Int?, titleId: String? = null) {
     val login by aniListLogins
     var entry by remember { mutableStateOf<AniList.Entry?>(null) }
     var editing by remember { mutableStateOf(false) }
+    val sync = remember { AniListSync(settings.prefs) }
+    // Through the sync: the episode just watched may still be waiting to be sent, and it counts.
     LaunchedEffect(media, login) {
         entry = null
-        if (media != null) entry = runCatching { settings.withAniList { AniList.entry(it, media) } }.getOrNull()
+        if (media != null) entry = runCatching { settings.withAniList { t -> titleId?.let { sync.read(t, it).entry } ?: AniList.entry(t, media) } }.getOrNull()
     }
     val e = entry ?: return
     val format = settings.anilistFormat

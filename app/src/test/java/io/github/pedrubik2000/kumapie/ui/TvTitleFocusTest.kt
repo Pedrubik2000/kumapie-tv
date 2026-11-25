@@ -71,10 +71,10 @@ class TvTitleFocusTest {
     private val title = Found("kitsu:5", "series", "Alpha", "/p/alpha.jpg", "2020")
     private var shown by mutableStateOf(true)
 
-    private fun discovery(watched: List<Boolean>) = object : Discovery {
+    private fun discovery(watched: List<Boolean>, live: () -> List<Boolean> = { watched }) = object : Discovery {
         override suspend fun board() = emptyList<Pair<String, List<Found>>>()
         override suspend fun discover(q: String) = emptyList<Found>()
-        override suspend fun discoverMeta(type: String, id: String) = JSONObject().put("episodes", JSONArray(watched.mapIndexed { i, w ->
+        override suspend fun discoverMeta(type: String, id: String) = JSONObject().put("episodes", JSONArray(live().mapIndexed { i, w ->
             JSONObject().put("id", "kitsu:5:${i + 1}").put("number", i + 1).put("watched", w)
         }))
         override suspend fun discoverStreams(type: String, id: String) = JSONArray()
@@ -297,6 +297,38 @@ class TvTitleFocusTest {
         rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         rule.waitUntil(5_000) { hasText("Couldn't read your AniList list") }
         waitFocus { it?.startsWith("▶") == true }
+    }
+
+    @Test fun comingBackFromThePlayerUnblursAndMarksTheWatchedEpisodeAndShowsTheNewCountWithoutLeavingThePage() {
+        logIn()
+        var seen = listOf(false, false, false)
+        val fake = FakeAniList({ entry("CURRENT", if (seen[0]) 1 else 0) })
+        val app = RuntimeEnvironment.getApplication()
+        val queue = JitenQueue(JitenStore(File(app.cacheDir, "jiten-title-${System.nanoTime()}.json")), JitenApi(JitenHttp), resolve = { null }, idle = { false })
+        rule.setContent { DiscoverScreen(discovery(seen) { seen }, Settings(app), start = title, jiten = queue, sync = syncOf(fake)) }
+        rule.waitUntil(5_000) { hasText("Status") }
+        assertTrue(!hasText("Watched"))
+        assertTrue(hasText("0"))
+        seen = listOf(true, false, false)
+        rule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        rule.waitUntil(5_000) { hasText("1") }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Ep 1 · Watched", substring = true).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test fun aWriteStillWaitingWhenThePlayerClosesAlreadyShowsInTheCountOnReturn() {
+        logIn()
+        val fake = FakeAniList({ entry("CURRENT", 0) })
+        val sync = syncOf(fake)
+        open(listOf(true, false, false), fake, sync)
+        rule.waitUntil(5_000) { hasText("Status") }
+        assertTrue(hasText("0"))
+        fake.online = false
+        sync.finished("kitsu:5:1", 1)
+        fake.online = true
+        rule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        rule.waitUntil(5_000) { hasText("1") }
     }
 
     @Test fun aTitleAlreadyOnAniListHasNoAddButton() {

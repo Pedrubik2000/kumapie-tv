@@ -130,6 +130,13 @@ private fun TitleBackdrop(api: Discovery, title: Found) {
 }
 
 
+/** Back from another activity (the player): not the first resume, the page opening. */
+@Composable
+private fun OnReturn(action: () -> Unit) {
+    var opened by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (opened) action() else opened = true }
+}
+
 @Composable
 internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScope.() -> Unit, jiten: JitenQueue?, sync: AniListSync?, onSettings: (() -> Unit)? = null) {
     val context = LocalContext.current
@@ -149,8 +156,8 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
     LaunchedEffect(page.picking) { page.loadFiles() }
     val kitsu = AniListSync.titleOf(title.id)?.removePrefix("kitsu:")
     val ani = rememberAniState(settings, writer, title, kitsu, edits)
-    val tick by writer.changes.collectAsState()
-    val syncState = remember(tick) { writer.stateOf(title.id) }
+    val syncState = writer.changes.collectAsState().value.let { tick -> remember(tick) { writer.stateOf(title.id) } }
+    OnReturn { scope.launch { page.back() } }
     LaunchedEffect(page, ani.data?.progress) { page.aniProgress = ani.data?.progress }
     CommitOnExit(edits, ani.phase == AniPhase.READY)
     val side = page.error != null || page.meta == null || page.picking != null

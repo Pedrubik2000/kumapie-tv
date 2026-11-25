@@ -19,8 +19,11 @@ class TitlePage(
     var files by mutableStateOf<List<JSONObject>?>(null)
     var kept by mutableStateOf<Boolean?>(null)
 
-    val resuming = d.goingNow()?.firstOrNull { it.first.id == title.id }?.second
-    private val going = resuming?.id
+    private fun resumingNow() = d.goingNow()?.firstOrNull { it.first.id == title.id }?.second
+
+    var resuming by mutableStateOf(resumingNow())
+        private set
+    private val going get() = resuming?.id
 
     val shown get() = meta?.let(d::found)?.let { f -> if (f.nameJa.isEmpty()) f.copy(nameJa = title.nameJa) else f } ?: title
     val episodes get() = meta?.optJSONArray("episodes")?.objects().orEmpty()
@@ -44,6 +47,9 @@ class TitlePage(
             fresh(it)
         }.onFailure { if (meta == null) error = it.message ?: it.toString() }
     }
+
+    /** Back from the player: what it saved (the watched marks, the place) is read again, not the page's first look. */
+    suspend fun back() { resuming = resumingNow(); load() }
 
     suspend fun retry() { error = null; load() }
 

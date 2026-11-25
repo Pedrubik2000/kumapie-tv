@@ -96,45 +96,6 @@ class TvShowFocusTest {
 class TvOnboardingTest {
     @get:Rule val rule = createComposeRule()
 
-    @Test fun backGoesOneStepBack() {
-        lateinit var activity: androidx.activity.ComponentActivity
-        rule.setContent {
-            activity = LocalContext.current as androidx.activity.ComponentActivity
-            TvOnboarding(Settings(LocalContext.current), onDone = {})
-        }
-        rule.onNodeWithText("Next").requestFocus()
-        rule.press(Key.DirectionCenter)
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("Step 2 of 4").fetchSemanticsNodes().isNotEmpty() }
-        rule.runOnUiThread { activity.onBackPressedDispatcher.onBackPressed() }
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("Step 1 of 4").fetchSemanticsNodes().isNotEmpty() }
-        assertEquals(false, activity.isFinishing)
-    }
-
-    @Test fun noJimakuKeyNoNextPastThePhoneStep() {
-        rule.setContent { TvOnboarding(Settings(LocalContext.current).apply { jimakuKey = "" }, onDone = {}) }
-        repeat(3) {
-            rule.onNodeWithText("Next").requestFocus()
-            rule.press(Key.DirectionCenter)
-            rule.waitForIdle()
-        }
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("Step 3 of 4").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithText("Add your Jimaku key from your phone first: without it, streams get no Japanese lines.").assertExists()
-    }
-
-    @Test fun noRealDebridKeyNoNextPastThePhoneStepAndBackStillWorks() {
-        lateinit var activity: androidx.activity.ComponentActivity
-        rule.setContent {
-            activity = LocalContext.current as androidx.activity.ComponentActivity
-            TvOnboarding(Settings(LocalContext.current).apply { jimakuKey = "j"; rdToken = ""; addons = emptyList() }, onDone = {})
-        }
-        repeat(3) { rule.onNodeWithText("Next").requestFocus(); rule.press(Key.DirectionCenter) }
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("Real-Debrid key missing: no video will play. Get yours at real-debrid.com/apitoken.").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithText("Step 3 of 4").assertExists()
-        assertEquals("Next", rule.focusedTitle())
-        rule.runOnUiThread { activity.onBackPressedDispatcher.onBackPressed() }
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("Step 2 of 4").fetchSemanticsNodes().isNotEmpty() }
-    }
-
     @Test fun theDictionariesEntryOpensTheQrAndLeavesBackToTheStep() {
         lateinit var activity: androidx.activity.ComponentActivity
         var backs = 0

@@ -1,161 +1,291 @@
 package io.github.pedrubik2000.kumapie.ui
 
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import io.github.pedrubik2000.kumapie.data.Addons
 import io.github.pedrubik2000.kumapie.data.Lang
+import io.github.pedrubik2000.kumapie.data.Onboarding
+import io.github.pedrubik2000.kumapie.data.RdGate
 import io.github.pedrubik2000.kumapie.data.Settings
+import io.github.pedrubik2000.kumapie.data.Startup
 import io.github.pedrubik2000.kumapie.i18n.Tr
 import io.github.pedrubik2000.kumapie.i18n.tr
+import io.github.pedrubik2000.kumapie.lang.DeviceSync
+import io.github.pedrubik2000.kumapie.lang.LivePairing
+import io.github.pedrubik2000.kumapie.lang.Pairing
 import kotlinx.coroutines.launch
 
 const val ALONE_LANG = "alone_lang"
 
 @Composable
-fun TvOnboarding(settings: Settings, onDone: () -> Unit) {
-    var step by remember { mutableIntStateOf(0) }
-    var lang by remember { mutableStateOf(settings.menuLanguage) }
-    var needKey by remember { mutableStateOf(false) }
-    var rdSaid by remember { mutableStateOf("") }
-    var rdFailed by remember { mutableIntStateOf(0) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val checking = tr("Checking with %s…", "Real-Debrid")
-    remember(lang) { Tr.use(lang) }
-    val first = remember { FocusRequester() }
-    Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(48.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(tr("Step %1\$d of %2\$d", step + 1, STEPS), color = Colors.dim, fontSize = 16.sp)
-        when (step) {
-            0 -> {
-                Heading(tr("Languages"))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    listOf("" to tr("The TV's language"), "en" to "English", "es" to "Español").forEachIndexed { i, (code, label) ->
-                        Button(onClick = {
-                            lang = code
-                            settings.menuLanguage = code
-                            if (code.isNotEmpty()) settings.speaks = code
-                        }, modifier = if (i == 0) Modifier.focusRequester(first) else Modifier) {
-                            Text((if (lang == code) "✓ " else "") + label)
-                        }
-                    }
-                }
-            }
-            1 -> TvJitenImport(settings)
-            2 -> {
-                PhonePage(settings, onSaved = { if (settings.jimakuKey.isNotBlank()) needKey = false })
-                if (needKey) Text(tr("Add your Jimaku key from your phone first: without it, streams get no Japanese lines."), color = Colors.accent, fontSize = 18.sp)
-                if (rdSaid.isNotEmpty()) Text(rdSaid, color = Colors.accent, fontSize = 18.sp)
-            }
-            else -> TvDownloads(settings)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (step > 0) Button(onClick = { step-- }) { Text(tr("Back")) }
-            Button(onClick = {
-                when {
-                    step == PHONE_STEP && settings.jimakuKey.isBlank() -> needKey = true
-                    step == PHONE_STEP -> if (rdSaid != checking) scope.launch {
-                        rdSaid = checking
-                        val g = io.github.pedrubik2000.kumapie.data.Startup.rdCheck(settings, rdFailed)
-                        if (g == io.github.pedrubik2000.kumapie.data.RdGate.UNREACHABLE) rdFailed++
-                        rdSaid = io.github.pedrubik2000.kumapie.data.Startup.rdSay(g)
-                        if (g.mayFinish) step++
-                    }
-                    step < STEPS - 1 -> step++
-                    else -> { io.github.pedrubik2000.kumapie.data.Startup.onboard(settings.prefs); onDone() }
-                }
-            },
-                modifier = if (step > 0) Modifier.focusRequester(first) else Modifier) {
-                Text((if (step < STEPS - 1) tr("Next") else tr("Start watching")))
-            }
-        }
-    }
-    LaunchedEffect(step) { runCatching { first.requestFocus() } }
-    androidx.activity.compose.BackHandler(enabled = step > 0) { step-- }
-}
-
-private const val STEPS = 4
-private const val PHONE_STEP = 2
+fun TvOnboarding(settings: Settings, onDone: () -> Unit) = TvOnboarding(settings, LivePairing(LocalContext.current.applicationContext), onDone)
 
 @Composable
-internal fun TvJitenImport(settings: Settings) {
-    val context = LocalContext.current
-    val known = remember { japaneseKnown(context, settings) }
-    val jiten = io.github.pedrubik2000.kumapie.lang.Jiten
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val last = remember { known.jitenChoice }
-    var top by remember { mutableIntStateOf(last?.first ?: 10000) }
-    val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to (last?.second?.contains(it) ?: true) }.toTypedArray()) }
-    var busy by remember { mutableStateOf(false) }
-    var said by remember { mutableStateOf(known.importedWords.size.takeIf { it > 0 }?.let { tr("%d words imported as known.", it) } ?: "") }
-    Heading(tr("Words you know"))
-    Text(tr("Already know some Japanese? Import the most frequent words as known, so the subtitles colour only what's new. Skip it if you're starting out."),
-        color = Colors.text, fontSize = 18.sp)
-    Text(tr("Most frequent words"), color = Colors.dim, fontSize = 16.sp)
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        listOf(0, 1000, 5000, 10000, 20000).forEach { n ->
-            Button(onClick = { top = n }) { Text((if (top == n) "✓ " else "") + if (n == 0) tr("None") else "%,d".format(n)) }
+internal fun TvOnboarding(settings: Settings, pairing: Pairing, onDone: () -> Unit) {
+    val prefs = settings.prefs
+    var changed by remember { mutableIntStateOf(0) }
+    var step by remember { mutableStateOf(Onboarding.next(Onboarding.done(prefs), Onboarding.copied(prefs), true) ?: Onboarding.DOWNLOADS) }
+    var lang by remember { mutableStateOf(settings.menuLanguage) }
+    remember(lang) { Tr.use(lang) }
+    val nav = remember { StepNav(settings, { step }, { step = it; changed++ }, onDone) }
+    val first = Onboarding.STEPS.first()
+    Row(Modifier.fillMaxSize().onBackKey(enabled = step != first) { nav.back() }) {
+        SetupList(nav.items(step, changed), step) { step = it }
+        Box(Modifier.weight(1f).fillMaxHeight()) {
+            key(step) {
+                if (step == Onboarding.COLOURING && step !in nav.viewOnly()) {
+                    TvWordColouring(settings, true, nav::back, nav.number(step), nav.total, { nav.advance(step) }, { nav.advance(step) })
+                } else TvStepPage(Modifier.fillMaxSize()) { StepBody(settings, pairing, nav, step, lang) { lang = it } }
+            }
+            if (step != Onboarding.COLOURING || step in nav.viewOnly()) HintBar()
         }
     }
-    jiten.SETS.entries.chunked(3).forEach { row ->
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            row.forEach { (slug, name) ->
-                Button(onClick = { sets[slug] = sets[slug] != true }) { Text((if (sets[slug] == true) "✓ " else "") + tr(name)) }
+    BackHandler(enabled = step != first) { nav.back() }
+}
+
+internal class StepNav(val settings: Settings, val step: () -> String, val set: (String) -> Unit, val finish: () -> Unit) {
+    private val prefs get() = settings.prefs
+    val total = Onboarding.counted(true).size
+
+    fun number(s: String) = Onboarding.counted(true).indexOf(s) + 1
+
+    fun advance(from: String) {
+        Onboarding.markDone(prefs, from)
+        val next = Onboarding.next(Onboarding.done(prefs), Onboarding.copied(prefs), true)
+        if (next == null || from == Onboarding.DOWNLOADS) { Startup.onboard(prefs); finish() } else set(next)
+    }
+
+    fun back() { Onboarding.STEPS.getOrNull(Onboarding.STEPS.indexOf(step()) - 1)?.let(set) }
+
+    fun viewOnly(): Set<String> = Onboarding.copied(prefs) + (if (Onboarding.MAIN in Onboarding.done(prefs)) setOf(Onboarding.MAIN) else emptySet())
+
+    private fun detail(): Map<String, String> = buildMap {
+        DeviceSync.with(settings)?.let { put(Onboarding.MAIN, it.name) }
+        if (settings.anilist.isNotBlank()) put(Onboarding.ANILIST, settings.anilist)
+        put(Onboarding.LANGUAGE, when (settings.menuLanguage) { "en" -> "English"; "es" -> "Español"; else -> tr("The TV's language") })
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    fun items(current: String, changed: Int = 0) = Onboarding.list(Onboarding.done(prefs), Onboarding.copied(prefs), true, detail(), current)
+}
+
+@Composable
+private fun SetupList(items: List<Onboarding.Item>, current: String, onOpen: (String) -> Unit) {
+    Column(Modifier.width(300.dp).fillMaxHeight().background(Arcade.band).padding(horizontal = 20.dp, vertical = 28.dp).focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(tr("Setup"), color = Colors.text, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp, start = 12.dp))
+        items.forEach { SetupRow(it, it.step == current, onOpen) }
+    }
+}
+
+@Composable
+private fun SetupRow(item: Onboarding.Item, here: Boolean, onOpen: (String) -> Unit) {
+    val settled = item.state == Onboarding.State.DONE || item.state == Onboarding.State.COPIED
+    val shape = RoundedCornerShape(14.dp)
+    val source = remember(item.step) { MutableInteractionSource() }
+    Row(Modifier.fillMaxWidth().then(if (here) Modifier.background(Color.White, shape) else Modifier)
+        .then(if (settled && !here) Modifier.hint(HintKind.CHOOSE).tvRing(shape, source).clickable(interactionSource = source, indication = null, role = Role.Button) { onOpen(item.step) } else Modifier)
+        .padding(horizontal = 12.dp, vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (here) "●" else if (settled) "✓" else "○", color = if (here) Color.Black else Colors.accent, fontSize = 18.sp)
+        Column {
+            Text(item.label, color = if (here) Color.Black else Colors.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(item.sub, color = if (here) Color.Black.copy(alpha = 0.7f) else Colors.dim, fontSize = 14.sp, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun TvStepPage(modifier: Modifier, content: @Composable () -> Unit) {
+    Column(modifier.verticalScroll(rememberScrollState()).padding(start = 48.dp, end = 48.dp, top = 36.dp, bottom = rememberHintRoom() + 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }
+}
+
+@Composable
+internal fun TvStepHeader(caption: String?, title: String, sub: String = "") {
+    if (caption != null) TvCaption(caption)
+    Text(title, color = Colors.text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+    if (sub.isNotEmpty()) Text(sub, color = Colors.dim, fontSize = 18.sp)
+}
+
+@Composable
+internal fun TvContinue(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) =
+    Button(onClick = onClick, modifier = modifier.hint(HintKind.CHOOSE),
+        colors = ButtonDefaults.colors(containerColor = Color.White, contentColor = Color.Black, focusedContainerColor = Arcade.accent, focusedContentColor = Color.Black)) { Text(label) }
+
+@Composable
+internal fun TvLink(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(6.dp)
+    val source = remember { MutableInteractionSource() }
+    Text(text, color = Colors.text, fontSize = 16.sp, textDecoration = TextDecoration.Underline,
+        modifier = modifier.hint(HintKind.CHOOSE).tvRing(shape, source)
+            .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick).padding(horizontal = 4.dp, vertical = 3.dp))
+}
+
+@Composable
+private fun StepBody(settings: Settings, pairing: Pairing, nav: StepNav, step: String, lang: String, onLang: (String) -> Unit) {
+    val copied = Onboarding.copied(settings.prefs)
+    when {
+        step == Onboarding.LANGUAGE -> LanguageStep(settings, lang, onLang) { nav.advance(step) }
+        step in nav.viewOnly() -> DoneStep(settings, nav, step, step in copied)
+        step == Onboarding.MAIN -> TvMainDevice(settings.prefs, pairing, nav.total) { nav.advance(step); onLang(settings.menuLanguage) }
+        step == Onboarding.ANILIST -> AniListStep(settings, nav) { nav.advance(step) }
+        step == Onboarding.VIDEOS -> VideosStep(settings, nav) { nav.advance(step) }
+        else -> DownloadsStep(settings, nav) { nav.advance(step) }
+    }
+}
+
+private fun caption(nav: StepNav, step: String, needed: Boolean = true) =
+    tr("Step %1\$d of %2\$d", nav.number(step), nav.total) + " · " + if (needed) tr("Needed") else tr("Optional")
+
+@Composable
+private fun LanguageStep(settings: Settings, lang: String, onLang: (String) -> Unit, onContinue: () -> Unit) {
+    val first = remember { FocusRequester() }
+    TvStepHeader(null, tr("Languages"))
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        listOf("" to tr("The TV's language"), "en" to "English", "es" to "Español").forEachIndexed { i, (code, label) ->
+            Button(onClick = {
+                onLang(code)
+                settings.menuLanguage = code
+                if (code.isNotEmpty()) settings.speaks = code
+            }, modifier = (if (i == 0) Modifier.focusRequester(first) else Modifier).hint(HintKind.CHOOSE)) {
+                Text((if (lang == code) "✓ " else "") + label)
             }
         }
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Button(onClick = {
-            if (busy) return@Button
-            busy = true
-            said = tr("Downloading from jiten.moe…")
-            scope.launch {
-                said = runCatching { tr("%d words imported as known.", known.importJiten(top, sets.filterValues { it }.keys.toSet())) }
-                    .getOrElse { it.message ?: it.toString() }
-                busy = false
-            }
-        }) { Text(tr("Import")) }
+    TvContinue(tr("Continue") + " ›", onClick = onContinue)
+    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+}
+
+@Composable
+private fun DoneStep(settings: Settings, nav: StepNav, step: String, copied: Boolean) {
+    val peer = DeviceSync.with(settings)?.name.orEmpty()
+    val item = nav.items(step).first { it.step == step }
+    val shape = RoundedCornerShape(16.dp)
+    val focus = remember { FocusRequester() }
+    val what = settings.anilist.takeIf { step == Onboarding.ANILIST && it.isNotBlank() } ?: item.label
+    TvStepHeader(if (step == Onboarding.MAIN) null else caption(nav, step, item.state != Onboarding.State.OPTIONAL), item.label)
+    Column(Modifier.fillMaxWidth().background(Arcade.slab, shape).border(1.dp, Arcade.line, shape).padding(20.dp)) {
+        Text(if (copied) tr("%s · copied from %s", what, peer) else if (peer.isNotEmpty()) tr("Paired with %s", peer) else tr("this is my first device"),
+            color = Colors.text, fontSize = 20.sp)
     }
-    if (said.isNotEmpty()) Text(said, color = Colors.text, fontSize = 18.sp)
+    TvContinue(tr("Continue") + " ›", Modifier.focusRequester(focus)) { nav.advance(step) }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+}
+
+@Composable
+private fun AniListStep(settings: Settings, nav: StepNav, onContinue: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    TvStepHeader(caption(nav, Onboarding.ANILIST), tr("AniList"), tr("Home, Library and Discover come from your AniList anime list."))
+    PhonePage(settings, SetupPart.ANILIST)
+    TvContinue(tr("Continue") + " ›", Modifier.focusRequester(focus), onContinue)
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+}
+
+@Composable
+private fun VideosStep(settings: Settings, nav: StepNav, onContinue: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val focus = remember { FocusRequester() }
+    var needKey by remember { mutableStateOf(false) }
+    var said by remember { mutableStateOf("") }
+    var failed by remember { mutableIntStateOf(0) }
+    val checking = tr("Checking with %s…", "Real-Debrid")
+    TvStepHeader(caption(nav, Onboarding.VIDEOS), tr("Videos & subtitles"), tr("Real-Debrid (paid) streams the files Torrentio finds; Jimaku brings the Japanese subtitles."))
+    PhonePage(settings, SetupPart.KEYS, onSaved = { if (settings.jimakuKey.isNotBlank()) needKey = false })
+    if (needKey) Text(tr("Add your Jimaku key from your phone first: without it, streams get no Japanese lines."), color = Colors.accent, fontSize = 18.sp)
+    if (said.isNotEmpty()) Text(said, color = Colors.accent, fontSize = 18.sp)
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        TvContinue(tr("Continue") + " ›", Modifier.focusRequester(focus)) {
+            if (settings.jimakuKey.isBlank()) needKey = true
+            else if (said != checking) scope.launch {
+                said = checking
+                val g = Startup.rdCheck(settings, failed)
+                if (g == RdGate.UNREACHABLE) failed++
+                said = Startup.rdSay(g)
+                if (g.mayFinish) onContinue()
+            }
+        }
+        Text(tr("or") + " ", color = Colors.dim, fontSize = 16.sp)
+        TvLink(tr("Skip"), onClick = onContinue)
+        Text(": " + tr("nothing plays until both keys are in"), color = Colors.dim, fontSize = 16.sp)
+    }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+}
+
+@Composable
+private fun DownloadsStep(settings: Settings, nav: StepNav, onFinish: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    TvStepHeader(tr("Step %1\$d of %2\$d", nav.number(Onboarding.DOWNLOADS), nav.total) + " · " + tr("Automatic"), tr("Downloads"),
+        tr("Dictionaries for lookups and the word splitter. They finish in the background."))
+    TvDownloads(settings)
+    Text(tr("You can start watching while they finish. Wi-Fi only."), color = Colors.dim, fontSize = 16.sp)
+    val shape = RoundedCornerShape(16.dp)
+    val sync = DeviceSync.with(settings)?.name
+    val rows = nav.items("").filter { it.step != Onboarding.DOWNLOADS }.map { it.label to it.sub } + listOfNotNull(sync?.let { tr("Sync") to tr("Paired with %s", it) })
+    Column(Modifier.fillMaxWidth().background(Arcade.slab, shape).border(1.dp, Arcade.line, shape).padding(horizontal = 20.dp, vertical = 8.dp)) {
+        rows.forEach { (what, sub) ->
+            Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("✓", color = Colors.accent, fontSize = 18.sp)
+                Text(what, color = Colors.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(200.dp))
+                Text(sub, color = Colors.dim, fontSize = 18.sp)
+            }
+        }
+    }
+    TvContinue(tr("Start watching") + " ›", Modifier.focusRequester(focus), onFinish)
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }
 
 @Composable
@@ -197,9 +327,6 @@ internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSa
 @Composable
 private fun TvDownloads(settings: Settings) {
     val context = LocalContext.current
-    Heading(tr("Downloads"))
-    Text(tr("Two downloads, once: the Japanese dictionaries (meanings, about 33 MB) and the word splitter (about 80 MB). You can start watching while they finish."),
-        color = Colors.text, fontSize = 18.sp)
     LaunchedEffect(Unit) { startJapaneseDictionaries(context, settings) }
     val model = remember { io.github.pedrubik2000.kumapie.lang.JapaneseModel(context.applicationContext) }
     LaunchedEffect(Unit) { if (!model.isReady) model.download() }

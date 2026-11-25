@@ -39,7 +39,9 @@ import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Hub
 import io.github.pedrubik2000.kumapie.lang.SetupBundle
 import io.github.pedrubik2000.kumapie.lang.SetupBundle.Got
 import io.github.pedrubik2000.kumapie.ui.Colors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private fun rowLabel(row: String) = when (row) {
     "anilist" -> tr("AniList account and list")
@@ -62,7 +64,7 @@ private fun rowSub(row: String, hub: Hub, got: Got?): String? = when (got) {
 }
 
 @Composable
-internal fun MainDeviceStep(flow: MainDeviceFlow, caption: String, onDone: () -> Unit) {
+internal fun MainDeviceStep(flow: MainDeviceFlow, caption: String, canFresh: Boolean, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     val phase by flow.phase.collectAsState()
     var picked by rememberSaveable { mutableStateOf<String?>(null) }
@@ -112,15 +114,21 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, caption: String, onDone: () ->
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             when {
                 got != null && hub != null -> Pill(tr("Continue"), {
-                    if (got is Got.Pc) flow.fresh() else flow.finish(hub, got, MainDeviceFlow.ROWS.filter { it !in unticked && available(it, got) }.toSet())
-                    onDone()
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            if (got is Got.Pc) flow.fresh() else flow.finish(hub, got, MainDeviceFlow.ROWS.filter { it !in unticked && available(it, got) }.toSet())
+                        }
+                        onDone()
+                    }
                 }, primary = true)
                 shown is Phase.Pick -> Pill(tr("Pair and copy"), { if (target != null) scope.launch { flow.pair(target) } }, Modifier.alpha(if (target != null) 1f else 0.4f), primary = true)
             }
-            Text(tr("or"), color = Glass.dim, fontSize = 14.sp)
-            Text(tr("Start fresh"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
-                modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { flow.fresh(); onDone() }.padding(vertical = 14.dp))
-            Text(": " + tr("this is my first device"), color = Glass.dim, fontSize = 14.sp)
+            if (canFresh) {
+                Text(tr("or"), color = Glass.dim, fontSize = 14.sp)
+                Text(tr("Start fresh"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { scope.launch { withContext(Dispatchers.IO) { flow.fresh() }; onDone() } }.padding(vertical = 14.dp))
+                Text(": " + tr("this is my first device"), color = Glass.dim, fontSize = 14.sp)
+            }
         }
     }
 }

@@ -53,6 +53,7 @@ object DeviceSync {
     class Peer(val name: String, val address: String, val secret: String)
     class Asking(val device: String, val secret: String, val pub: String = "") { val code: String get() = code(secret, pub) }
     class Answer(val status: Int, val body: ByteArray, val sig: String? = null)
+    class Conflict(line: String) : IOException(line)
 
     val asking = MutableStateFlow<List<Asking>>(emptyList())
     val conflicts = MutableStateFlow<Set<String>>(emptySet())
@@ -135,6 +136,7 @@ object DeviceSync {
         val secret = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
         val pub = SetupBundle.begin()
         val a = post("http://$address/pair", JSONObject().put("device", Progress.of(context).device).put("secret", secret).put("pub", pub).toString().toByteArray(), emptyMap())
+        if (a.status == 409 && String(a.body) == TWO) throw Conflict(conflictLine(Progress.of(context).device))
         if (a.status !in 200..202) throw IOException(String(a.body))
         val reply = JSONObject(String(a.body))
         val who = name.ifEmpty { reply.getString("device") }

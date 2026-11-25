@@ -6,6 +6,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 object Onboarding {
     const val DONE = "onb_done"
     const val COPIED = "onb_copied"
+    const val HUB = "onb_hub"
 
     const val LANGUAGE = "language"
     const val MAIN = "main"
@@ -31,7 +32,7 @@ object Onboarding {
             val state = when {
                 s in copied -> State.COPIED
                 s in done -> State.DONE
-                s == COLOURING || s == DOWNLOADS -> State.OPTIONAL
+                s == MAIN || s == COLOURING || s == DOWNLOADS -> State.OPTIONAL
                 else -> State.NEEDED
             }
             val sub = if (s == current && s in detail) detail.getValue(s) else when (state) {

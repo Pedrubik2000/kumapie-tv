@@ -22,7 +22,7 @@ object Startup {
     fun onboarded(prefs: Map<String, *>): Boolean = prefs[ONBOARDED] == true
 
     fun onboard(prefs: android.content.SharedPreferences) =
-        prefs.edit().putBoolean(ONBOARDED, true).remove(Onboarding.DONE).remove(Onboarding.COPIED).apply()
+        prefs.edit().putBoolean(ONBOARDED, true).remove(Onboarding.DONE).remove(Onboarding.COPIED).remove(Onboarding.HUB).remove("onb_code").apply()
 
     fun rdKey(token: String, addons: List<String>): String = token.ifEmpty {
         addons.firstNotNullOfOrNull { Regex("realdebrid=([^/|%]+)").find(it)?.groupValues?.get(1) }.orEmpty()

@@ -6,4 +6,5 @@ internal val esOnbPhone: Map<String, String> = mapOf(
     "Nothing to copy" to "Nada que copiar",
     "Pairing was lost: pair again." to "Se perdió el emparejamiento: empareja otra vez.",
     "%s didn't allow it in time: pair again." to "%s no lo permitió a tiempo: empareja otra vez.",
+    "Pair again: the app was closed while waiting" to "Empareja otra vez: la app se cerró mientras esperaba",
 )

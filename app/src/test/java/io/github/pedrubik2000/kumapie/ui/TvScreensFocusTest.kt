@@ -186,6 +186,7 @@ class TvOnboardingTest {
         TvMining.unsupported = null
         TvMining.fetching = null
         TvMining.failed = null
+        val realInstaller = TvMining.installer
         TvMining.installer = { _, _ -> listOf("jmdict.zip: no internet", "jpdb.zip: no internet") }
         try {
             TvMining.fetchJapanese(context, settings)
@@ -194,7 +195,7 @@ class TvOnboardingTest {
             val said = dictionariesState(context, settings)
             assertEquals("Couldn't download them (jmdict.zip: no internet; jpdb.zip: no internet). Trying again…", said)
         } finally {
-            TvMining.installer = { lang, progress -> TvMining.yomitan.installRecommended(lang, progress) }
+            TvMining.installer = realInstaller
             TvMining.failed = null
             TvMining.fetching = null
         }

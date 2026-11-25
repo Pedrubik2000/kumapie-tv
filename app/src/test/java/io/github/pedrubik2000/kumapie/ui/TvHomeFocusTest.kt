@@ -1,5 +1,15 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -116,11 +126,12 @@ class TvHomeFocusTest {
         rule.waitUntil(5_000) { focused() == RESUME }
     }
 
-    private fun openAndComeBack(vararg to: Long, card: String) {
+    private fun openAndComeBack(vararg to: Long, card: String, meanwhile: () -> Unit = {}) {
         press(*to)
         assertEquals(card, focused())
         press(OK)
         assertEquals(false, home)
+        meanwhile()
         home = true
         rule.waitUntil(5_000) { focused() == card }
     }
@@ -139,6 +150,44 @@ class TvHomeFocusTest {
         Thread.sleep(500)
         rule.waitForIdle()
         assertEquals("Beta", focused())
+    }
+
+    @Test fun theShowsCardStaysFocusedWhenItsRowNowOffersTheNextEpisode() {
+        openReturning()
+        openAndComeBack(DOWN, card = "Alpha") {
+            showsBody = """{"shows":[${show("a", "Alpha", "anime", episode("a2", 300.0, 200))},${show("b", "Beta", "anime", episode("b1", 500.0, 100))}]}"""
+        }
+    }
+
+    @Test fun aCardThatIsGoneFallsBackToResumeAndForgetsIt() {
+        openReturning()
+        press(DOWN, RIGHT)
+        assertEquals("Beta", focused())
+        press(OK)
+        showsBody = """{"shows":[${show("a", "Alpha", "anime", episode("a1", 300.0, 200))}]}"""
+        home = true
+        rule.waitUntil(5_000) { focused() == RESUME }
+        assertEquals(null, memory.last)
+    }
+
+    @Test fun aRestoreStopsAsSoonAsTheUserHasMovedOn() {
+        val mem = HomeMemory()
+        val moved = Spot(1, 1, "y")
+        var result: Boolean? = null
+        rule.setContent {
+            val list = rememberLazyListState()
+            LazyColumn(state = list) { items(3) { Box(Modifier.size(20.dp)) } }
+            LaunchedEffect(Unit) {
+                mem.last = Spot(0, 0, "x")
+                val job = launch { result = HomeFocus(null, mem).restore(list) }
+                withFrameNanos { }
+                mem.last = moved
+                job.join()
+            }
+        }
+        repeat(60) { if (result == null) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() } }
+        assertEquals(true, result)
+        assertEquals(moved, mem.last)
     }
 
     @Test fun backFromAListCardsTitlePageFocusesThatCard() {

@@ -160,8 +160,8 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
 @Composable
 private fun PcScreens(settings: Settings, server: String, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val homeMemory = remember { io.github.pedrubik2000.kumapie.ui.HomeMemory() }
     var profile by remember { mutableStateOf<Profile?>(null) }
+    val homeMemory = remember(server, profile) { io.github.pedrubik2000.kumapie.ui.HomeMemory() }
     val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }
     LaunchedEffect(api) { api.findLan() }
     val screen = stack.last()

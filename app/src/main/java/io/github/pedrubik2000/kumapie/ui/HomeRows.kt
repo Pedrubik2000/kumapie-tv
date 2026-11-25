@@ -105,7 +105,10 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
             LazyColumn(Modifier.fillMaxSize().rowsBelowHero(focus).backToTop(ctx, list, toTop), state = list, contentPadding = PaddingValues(bottom = 240.dp)) { homeRows(ctx) }
         }
     }
-    LaunchedEffect(d.going) { takeRailLast()?.let { railFocus[it] }?.focusSoon() ?: run { if (!focus.restore(list)) first.focusSoon() } }
+    LaunchedEffect(d.going) {
+        val rail = takeRailLast()?.let { railFocus[it] }
+        if (rail != null) { focus.memory.last = null; rail.focusSoon() } else if (!focus.restore(list)) first.focusSoon()
+    }
 }
 
 private fun Modifier.rowsBelowHero(focus: HomeFocus): Modifier = layout { m, c ->
@@ -157,7 +160,7 @@ private fun LazyListScope.goingRow(c: RowCtx, nav: RowNav?) = item(key = "going"
         LazyRow(state = remember(going) { LazyListState().also { c.focus.rows[0] = it } }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = ROW_PADDING) {
             itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
                 val target = { ContinueTarget(s, e, i, going.size, c.d.mineFor(s, e)) }
-                ResumeCard(s, e, c.card(0, i, e.id, target), width = 220.dp, picture = titlePicture(s, e, c.api)) { c.focus.leaving(0, i, e.id); c.onPlay(s, e) }
+                ResumeCard(s, e, c.card(0, i, s.id, target), width = 220.dp, picture = titlePicture(s, e, c.api)) { c.focus.leaving(0, i, s.id); c.onPlay(s, e) }
             }
         }
     } }

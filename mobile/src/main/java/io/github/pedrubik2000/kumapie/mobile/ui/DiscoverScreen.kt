@@ -213,7 +213,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                         (if (first.optBoolean("ready") && first.optString("source").isNotEmpty()) " · " + first.optString("source") else "") else tr("Watch"),
                         { play(first) }, primary = true, icon = Icons.Default.PlayArrow)
                 }
-                AniListPill(library.settings, media)
+                AniListPill(library.settings, media, title.id)
             }
             Text(t.description, color = Colors.text, fontSize = 15.sp, maxLines = if (more) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.clickable { more = !more }.padding(horizontal = 16.dp, vertical = 4.dp))

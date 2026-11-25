@@ -29,6 +29,9 @@ class AloneStream(
         it.guess = it.offset
     }
 
+    private var lastMs = 0L
+    private var lastDurationMs = 0L
+
     var built: Double? = null
         private set
 
@@ -97,6 +100,8 @@ class AloneStream(
 
     fun savePlace(positionMs: Long, durationMs: Long) {
         if (durationMs <= 0) return
+        lastMs = positionMs
+        lastDurationMs = durationMs
         sync.watchingAt(id, type, positionMs, durationMs)
         val at = place(positionMs / 1000.0, durationMs / 1000.0)
         addons?.played(id, at, durationMs / 1000.0) ?: prefs.edit().putFloat("alone_pos_$id", at.toFloat()).apply()
@@ -109,6 +114,7 @@ class AloneStream(
 
     fun leave() {
         savePlace(player.currentPosition, player.duration)
+        addons?.left(id, type, lastMs, lastDurationMs)
         if (built == null) saveOffset()
     }
 

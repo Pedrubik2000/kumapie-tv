@@ -211,6 +211,7 @@ class StreamActivity : ComponentActivity() {
                 start.url, link.getQueryParameter("file").orEmpty()) { note = it }
         }
         val live = s.live
+        androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_PAUSE) { s.leave() }
         DisposableEffect(p) {
             val listener = object : Player.Listener {
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {

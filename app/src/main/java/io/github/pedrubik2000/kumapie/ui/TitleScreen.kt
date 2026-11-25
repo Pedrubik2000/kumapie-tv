@@ -131,6 +131,27 @@ private fun TitleBackdrop(api: Discovery, title: Found) {
 
 
 @Composable
+private fun OnReturn(action: () -> Unit) {
+    var opened by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (opened) action() else opened = true }
+}
+
+@Composable
+private fun RetryFocus(phase: AniPhase, focus: TitleFocus) {
+    var wasFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(phase) {
+        if (phase == AniPhase.FAILED) wasFailed = true
+        else if (phase == AniPhase.READY && wasFailed) {
+            wasFailed = false
+            if (focus.retried) {
+                focus.retried = false
+                focus.status.focusSoon()
+            }
+        }
+    }
+}
+
+@Composable
 internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScope.() -> Unit, jiten: JitenQueue?, sync: AniListSync?, onSettings: (() -> Unit)? = null) {
     val context = LocalContext.current
     val settings = remember { Settings(context) }
@@ -151,21 +172,12 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
     val ani = rememberAniState(settings, writer, title, kitsu, edits)
     val tick by writer.changes.collectAsState()
     val syncState = remember(tick) { writer.stateOf(title.id) }
+    OnReturn { scope.launch { page.back() } }
     LaunchedEffect(page, ani.data?.progress) { page.aniProgress = ani.data?.progress }
     CommitOnExit(edits, ani.phase == AniPhase.READY)
     val side = page.error != null || page.meta == null || page.picking != null
     val finished = titleFinished(ani.data, page.episodes)
-    var wasFailed by remember { mutableStateOf(false) }
-    LaunchedEffect(ani.phase) {
-        if (ani.phase == AniPhase.FAILED) wasFailed = true
-        else if (ani.phase == AniPhase.READY && wasFailed) {
-            wasFailed = false
-            if (focus.retried) {
-                focus.retried = false
-                focus.status.focusSoon()
-            }
-        }
-    }
+    RetryFocus(ani.phase, focus)
     val cardOn = kitsu != null && !side
     var added by remember(title.id) { mutableStateOf(false) }
     val canAdd = kitsu != null && page.meta != null && ani.phase == AniPhase.READY && ani.data?.status == null && !added

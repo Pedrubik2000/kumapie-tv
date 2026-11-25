@@ -72,7 +72,7 @@ internal class RowCtx(
     val toTop: () -> Unit, val scrollTo: (Int) -> Unit, val onShow: (Show) -> Unit, val onPlay: (Show, Episode) -> Unit, val onDiscovered: (Found) -> Unit, val onLogin: () -> Unit,
 ) {
     fun card(row: Int, index: Int, key: Any, target: () -> HeroTarget?): Modifier {
-        var m: Modifier = Modifier.onFocusChanged { if (it.isFocused) { target()?.let { t -> focus.target = t }; focus.row = row; scrollTo(row) } }
+        var m: Modifier = Modifier.onFocusChanged { if (it.isFocused) { target()?.let { t -> focus.target = t }; val moved = focus.row != row; focus.row = row; if (moved) scrollTo(row) } }
         m = m.then(focus.card(row, key))
         if (index == 0 && row == 0) m = m.focusRequester(if (d.going.isEmpty()) first else below)
         if (index == 0) m = m.then(focus.start(d.names.getOrNull(row) ?: row))
@@ -87,7 +87,7 @@ internal class RowCtx(
 @Composable
 internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Levels?, first: FocusRequester, railFocus: Map<String, FocusRequester>,
                       onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit, onDiscovered: (Found) -> Unit, onLogin: () -> Unit, onDiscover: () -> Unit, held: () -> Boolean) {
-    val list = rememberLazyListState(cacheWindow = LazyLayoutCacheWindow(ahead = 600.dp, behind = 600.dp))
+    val list = rememberLazyListState(cacheWindow = LazyLayoutCacheWindow(ahead = 200.dp, behind = 200.dp))
     val scope = rememberCoroutineScope()
     val below = remember { FocusRequester() }
     val toTop = {

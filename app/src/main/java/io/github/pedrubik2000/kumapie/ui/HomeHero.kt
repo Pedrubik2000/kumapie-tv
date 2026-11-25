@@ -29,11 +29,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -119,9 +116,9 @@ private const val RESTORE_FRAMES = 30
 internal const val LOGIN_START = "login"
 
 private val HERO_HEIGHT = 390.dp
-private const val PICTURE_DEBOUNCE_MS = 250L
-private val FADE_TALL = Brush.verticalGradient(0.5f to Color.Black, 1f to Color.Transparent)
-internal val FADE_SHORT = Brush.verticalGradient(0.4f to Color.Black, 0.85f to Color.Transparent)
+private const val PICTURE_DEBOUNCE_MS = 700L
+private val FADE_TALL = Brush.verticalGradient(0.5f to Color.Transparent, 1f to Arcade.background)
+internal val FADE_SHORT = Brush.verticalGradient(0.4f to Color.Transparent, 0.85f to Arcade.background)
 internal val SCRIM_LEFT = Brush.horizontalGradient(0f to Arcade.background, 0.24f to Arcade.background.copy(alpha = 0.93f), 0.5f to Arcade.background.copy(alpha = 0.66f),
     0.8f to Arcade.background.copy(alpha = 0.22f), 1f to Arcade.background.copy(alpha = 0.1f))
 internal val SCRIM_BOTTOM = Brush.verticalGradient(0.45f to Color.Transparent, 0.75f to Arcade.background.copy(alpha = 0.6f), 1f to Arcade.background)
@@ -151,12 +148,14 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
 
 @Composable
 internal fun HeroBackdrop(picture: String, fade: () -> Brush, modifier: Modifier) =
-    Box(modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-        .drawWithContent { drawContent(); drawRect(fade(), blendMode = BlendMode.DstIn) }) {
-        Cover(picture, "", Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null)
-        Box(Modifier.matchParentSize().background(SCRIM_LEFT))
-        Box(Modifier.matchParentSize().background(SCRIM_BOTTOM))
-        Box(Modifier.matchParentSize().background(SCRIM_TOP))
+    Box(modifier.drawWithContent {
+        drawContent()
+        drawRect(SCRIM_LEFT)
+        drawRect(SCRIM_BOTTOM)
+        drawRect(SCRIM_TOP)
+        drawRect(fade())
+    }) {
+        Cover(picture, "", Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null, hero = true)
     }
 
 @Composable

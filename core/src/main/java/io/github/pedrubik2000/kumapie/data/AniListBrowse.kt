@@ -43,8 +43,8 @@ object AniListBrowse {
 
     suspend fun page(
         q: Query, page: Int, token: String, prefs: SharedPreferences,
-        ask: suspend (String, JSONObject) -> JSONObject = { t, v -> AniList.gqlCancellable(t, QUERY, v) },
-        kitsu: suspend (List<Int>, SharedPreferences) -> Map<Int, String> = AniList::kitsuIds,
+        ask: suspend (String, JSONObject) -> JSONObject = { t, v -> AniList.gqlCancellable(t, QUERY, v, short = true) },
+        kitsu: suspend (List<Int>, SharedPreferences) -> Map<Int, String> = { ids, p -> AniList.kitsuIds(ids, p, short = true) },
     ): Page = withContext(Dispatchers.IO) {
         var expired = false
         val data = try {

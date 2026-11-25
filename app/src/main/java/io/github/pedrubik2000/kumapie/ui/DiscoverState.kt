@@ -21,6 +21,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal const val NEXT_PICKS = 4
 internal const val DUEL_SIZE = 8
@@ -100,6 +101,7 @@ internal var browseGapMs = 1000L
 internal object BrowseNet {
     val lock = Mutex()
     var lastAsk = 0L
+    @Volatile var until = 0L
 }
 
 @Stable
@@ -114,7 +116,8 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
     var expired by mutableStateOf(false)
     var login by mutableStateOf(settings.anilistToken)
     var emptyNote by mutableStateOf<String?>(null)
-    var waiting by mutableStateOf(false)
+    var waitS by mutableIntStateOf(0)
+    val waiting get() = waitS > 0
     var attempt by mutableIntStateOf(0)
     var moreTick by mutableIntStateOf(0)
     var picker by mutableStateOf<PickerKind?>(null)
@@ -156,11 +159,26 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
         requestMore()
     }
 
-    private suspend fun ask(fetch: BrowseFetch, q: AniListBrowse.Query, p: Int, g: Int): AniListBrowse.Page {
-        BrowseNet.lock.lock()
+    private suspend fun countdown(g: Int) {
         try {
-            var tries = 0
             while (true) {
+                val left = (BrowseNet.until - System.currentTimeMillis() + 999) / 1000
+                if (left <= 0) return
+                waitS = left.toInt()
+                delay(1000)
+                if (g != generation) throw CancellationException("stale")
+            }
+        } finally {
+            if (g == generation) waitS = 0
+        }
+    }
+
+    private suspend fun ask(fetch: BrowseFetch, q: AniListBrowse.Query, p: Int, g: Int): AniListBrowse.Page {
+        var tries = 0
+        while (true) {
+            countdown(g)
+            BrowseNet.lock.withLock {
+                if (BrowseNet.until > System.currentTimeMillis()) return@withLock
                 val gap = browseGapMs - (System.currentTimeMillis() - BrowseNet.lastAsk)
                 if (gap > 0) delay(gap)
                 if (g != generation) throw CancellationException("stale")
@@ -169,15 +187,11 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
                     return fetch(q, p).also { BrowseNet.lastAsk = System.currentTimeMillis() }
                 } catch (e: AniList.Failed) {
                     BrowseNet.lastAsk = System.currentTimeMillis()
+                    if (e.code == 429) BrowseNet.until = maxOf(BrowseNet.until, System.currentTimeMillis() + e.retryAfter.coerceIn(1, WAIT_MAX_S) * 1000)
                     if (e.code != 429 || tries >= WAIT_TRIES) throw e
                     tries++
-                    waiting = true
-                    try { delay(e.retryAfter.coerceIn(1, WAIT_MAX_S) * 1000) } finally { waiting = false }
-                    if (g != generation) throw CancellationException("stale")
                 }
             }
-        } finally {
-            BrowseNet.lock.unlock()
         }
     }
 
@@ -187,6 +201,7 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
             return
         }
         val g = ++generation
+        waitS = 0
         moreJob?.cancel()
         val immediate = !begun || attempt != seenAttempt
         begun = true

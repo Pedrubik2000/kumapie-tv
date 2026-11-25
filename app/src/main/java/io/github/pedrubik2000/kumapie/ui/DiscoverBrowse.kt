@@ -78,7 +78,7 @@ private fun BrowseBody(env: DiscoverEnv, state: BrowseState, display: BrowseShow
     val retry = remember { FocusRequester() }
     when {
         error != null -> ErrorBox(error, onRetry = state::retry, onSettings = null, server = env.api is Api)
-        display == null -> Text(if (state.waiting) tr("Waiting for AniList…") else tr("Loading…"), color = Colors.dim)
+        display == null -> Text(if (state.waiting) waitLine(state.waitS) else tr("Loading…"), color = Colors.dim)
         else -> {
             Text(remember(display, state.total, state.expired) { styled(browseLine(display.filters, state.total, display.view, state.expired), Colors.dim) }, fontSize = 14.sp)
             if (items.isEmpty()) Text(state.emptyNote ?: emptyLine(display.filters), color = Colors.dim, modifier = Modifier.padding(top = 12.dp))
@@ -86,7 +86,7 @@ private fun BrowseBody(env: DiscoverEnv, state: BrowseState, display: BrowseShow
     }
     if (items.isNotEmpty() && error == null) CoverGrid(items, { it.anilistId }, grid,
         Modifier.focusRequester(nav.grid).onBackKey { backFromGrid(state, env.entry) }.onFocusChanged { inGrid(it.hasFocus) }.focusRestorer(nav.enter),
-        focus, env.entry, nav, { MissingKeyLine.up(nav.grid) }, (if (state.moreError != null || state.waiting) ({ MoreFooter(state.moreError, { state.retryMore(); runCatching { nav.grid.requestFocus() } }, retry) }) else null),
+        focus, env.entry, nav, { MissingKeyLine.up(nav.grid) }, (if (state.moreError != null || state.waiting) ({ MoreFooter(state.moreError, state.waitS, { state.retryMore(); runCatching { nav.grid.requestFocus() } }, retry) }) else null),
         if (state.moreError != null && !state.waiting) retry else FocusRequester.Cancel) { m, card ->
         Poster(m.cover, m.shown(), m.year.takeIf { it > 0 }?.toString().orEmpty(), null, card, level = env.levels?.of(m.kitsuId), width = 83.dp) {
             env.open(m.found(), m.anilistId)
@@ -150,9 +150,9 @@ internal fun BrowsePicker(state: BrowseState, kind: PickerKind) {
 }
 
 @Composable
-private fun MoreFooter(message: String?, onRetry: () -> Unit, focus: FocusRequester) {
+private fun MoreFooter(message: String?, waitS: Int, onRetry: () -> Unit, focus: FocusRequester) {
     if (message == null) {
-        Text(tr("Waiting for AniList…"), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
+        Text(waitLine(waitS), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
         return
     }
     Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -174,3 +174,6 @@ private fun rememberBrowseFrozen(built: BrowseShown?, frozen: Boolean): BrowseSh
 
 private fun BrowseShown.appends(old: BrowseShown): Boolean =
     filters == old.filters && view.items.size >= old.view.items.size && view.items.zip(old.view.items).all { (a, b) -> a.anilistId == b.anilistId }
+
+private fun waitLine(seconds: Int) = tr("AniList asks us to wait %d s…", seconds)
+

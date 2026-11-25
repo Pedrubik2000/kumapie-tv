@@ -138,6 +138,7 @@ internal val esSettings: Map<String, String> = mapOf(
     "The Japanese dictionary (about 80 MB to download, 200 MB on the device, once) splits Japanese into words." to
         "El diccionario de japonés (unos 80 MB de descarga, 200 MB en el dispositivo, una vez) divide el japonés en palabras.",
     "Download the Japanese dictionary" to "Descargar el diccionario de japonés",
+    "Download Jiten's word splitter" to "Descargar el divisor de palabras de Jiten",
     "Download Jiten's word splitter from the PC" to "Descargar el divisor de palabras de Jiten desde la PC",
     "Splitting episodes again: %1\$d of %2\$d" to "Dividiendo episodios de nuevo: %1\$d de %2\$d",
     "English words" to "Palabras en inglés",

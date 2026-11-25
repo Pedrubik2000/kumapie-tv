@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.lang
 
 import android.content.Context
+import android.util.Log
 import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
@@ -122,6 +123,7 @@ class JapaneseModel(private val context: Context) : Model {
      * first stream's words were made. Called when the app opens; the build waits on the same lock if it comes first.
      */
     fun warm() {
+        if (isReady) download()
         if (!splitterReady) return
         Thread {
             val t = android.os.SystemClock.elapsedRealtime()
@@ -238,7 +240,7 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
     private suspend fun splitterFiles() {
         val server = io.github.pedrubik2000.kumapie.data.Settings(applicationContext).server
         if (server.isNotEmpty()) {
-            runCatching { splitterFromPc(server) }
+            try { splitterFromPc(server) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { Log.w("kumapie", "PC splitter files: $e") }
             if (model.splitterFiles.all { it.exists() }) return
         }
         splitterFromRelease()
@@ -261,23 +263,35 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
             fetch(SplitterManifest.BASE + SplitterManifest.NAME, json, 0.05f)
             SplitterManifest.parse(json.readText())
         } catch (e: IOException) {
-            if (model.splitterFiles.all { it.exists() }) return else throw e
+            keepFilesOr(e)
+            return
+        } catch (e: org.json.JSONException) {
+            keepFilesOr(IOException(tr("the download is damaged, trying again")))
+            return
         } finally { json.delete() }
         if (stamp.exists() && stamp.readText() == manifest.version && model.splitterFiles.all { it.exists() }) return
+        val fetched = ArrayList<Pair<File, File>>()
         for (entry in manifest.files) {
             val f = File(dir, entry.name)
             if (f.exists() && entry.matches(f)) continue
-            val part = File(f.path + ".part")
+            val part = File(f.path + "." + entry.sha256.take(12) + ".part")
             if (part.length() > entry.size) part.delete()
             fetch(SplitterManifest.BASE + entry.name, part)
             if (!entry.matches(part)) {
                 part.delete()
                 throw IOException(tr("the download is damaged, trying again"))
             }
+            fetched += part to f
+        }
+        for ((part, f) in fetched) {
             f.delete()
             if (!part.renameTo(f)) throw IOException(tr("couldn't move the dictionary into place"))
         }
         stamp.writeText(manifest.version)
+    }
+
+    private fun keepFilesOr(e: IOException) {
+        if (!model.splitterFiles.all { it.exists() }) throw e
     }
 
     /**

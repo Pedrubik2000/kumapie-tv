@@ -13,15 +13,13 @@ import org.junit.Test
 
 /** [Startup]: which gate both apps show first, the onboarded flag, the update check. */
 class StartupTest {
-    @Test fun firstRunIsSettings() = assertEquals(Gate.FIRST_RUN, Startup.gate("", standalone = false, onboarded = false))
+    @Test fun aFreshInstallOpensTheOnboarding() = assertEquals(Gate.ONBOARDING, Startup.gate("", onboarded = false))
 
-    @Test fun noPcNotOnboardedIsOnboarding() = assertEquals(Gate.ONBOARDING, Startup.gate("", standalone = true, onboarded = false))
-
-    @Test fun noPcOnboardedIsTheApp() = assertEquals(Gate.APP, Startup.gate("", standalone = true, onboarded = true))
+    @Test fun noPcOnboardedIsTheApp() = assertEquals(Gate.APP, Startup.gate("", onboarded = true))
 
     @Test fun aServerIsTheApp() {
-        assertEquals(Gate.APP, Startup.gate("http://pc:8769", standalone = false, onboarded = false))
-        assertEquals(Gate.APP, Startup.gate("http://pc:8769", standalone = true, onboarded = false))
+        assertEquals(Gate.APP, Startup.gate("http://pc:8769", onboarded = false))
+        assertEquals(Gate.APP, Startup.gate("http://pc:8769", onboarded = true))
     }
 
     @Test fun onboardedIsTheKeyBothAppsWrote() {

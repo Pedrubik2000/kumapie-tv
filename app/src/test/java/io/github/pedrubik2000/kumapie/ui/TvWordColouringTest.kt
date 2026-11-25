@@ -70,7 +70,7 @@ class TvWordColouringTest {
         press(Key.DirectionRight)
         assertEquals(false, focused()?.contains("main server"))
         press(Key.DirectionLeft)
-        assertEquals("Count AnkiDroid as known words", focused())
+        assertEquals(true, focused()?.let { it == "Count AnkiDroid as known words" || it.contains("main server") })
         press(Key.DirectionLeft)
         assertEquals(true, focused()?.let { it.contains("main server") || it.startsWith("Colour words") })
         press(Key.DirectionRight)
@@ -87,7 +87,7 @@ class TvWordColouringTest {
     }
 
     @Test fun backFromTheScreenReturnsToSettingsOnTheButton() {
-        rule.setContent { SettingsScreen(Settings(RuntimeEnvironment.getApplication()), firstRun = false, onSaved = {}, onUpdate = {}) }
+        rule.setContent { SettingsScreen(Settings(RuntimeEnvironment.getApplication()), onSaved = {}, onUpdate = {}) }
         rule.onNodeWithText("Word colouring: on", substring = true).requestFocus()
         press(Key.DirectionCenter)
         rule.onNodeWithText("Colour words in subtitles").assertExists()

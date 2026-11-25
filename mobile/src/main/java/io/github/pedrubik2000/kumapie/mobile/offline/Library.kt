@@ -113,7 +113,6 @@ class Library(context: Context, val settings: Settings) {
         io.github.pedrubik2000.kumapie.lang.LeavePc.run(appContext, api, settings.server, settings.owner, languages.all,
             io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs))
         settings.server = ""
-        settings.standalone = true
     }
 
     /** Your personal dictionary to the PC, and what your other devices added; never held up by the Anki sync above. */

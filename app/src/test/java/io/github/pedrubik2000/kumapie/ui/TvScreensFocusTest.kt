@@ -120,7 +120,7 @@ class TvOnboardingTest {
     }
 
     @Test fun settingsHaveTheDictionariesEntryUnderTheFont() {
-        rule.setContent { SettingsScreen(Settings(LocalContext.current), firstRun = false, onSaved = {}, onUpdate = {}) }
+        rule.setContent { SettingsScreen(Settings(LocalContext.current), onSaved = {}, onUpdate = {}) }
         rule.onNodeWithText("Japanese dictionaries").assertExists()
         rule.onNodeWithText("Free on this TV:", substring = true).assertExists()
         rule.onNodeWithText("Font:", substring = true).requestFocus()

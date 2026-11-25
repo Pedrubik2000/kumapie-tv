@@ -12,9 +12,18 @@ internal val esOnboarding: Map<String, String> = mapOf(
     "copied" to "copiado",
     "Step %1\$d of %2\$d" to "Paso %1\$d de %2\$d",
     "Optional · saves %d steps" to "Opcional · ahorra %d pasos",
-    "Set up from your main device?" to "¿Configurar desde tu dispositivo principal?",
-    "A kumapie on the home Wi-Fi already has your AniList, keys and known words. Pair once and copy them." to
-        "Un kumapie en el Wi-Fi de casa ya tiene tu AniList, tus claves y tus palabras conocidas. Emparéjalo una vez y cópialas.",
+    "Set up from your main device or PC?" to "¿Configurar desde tu dispositivo principal o el PC?",
+    "A kumapie or a kumapie PC on the home Wi-Fi already has your AniList, keys and known words." to
+        "Un kumapie o un PC kumapie en el Wi-Fi de casa ya tiene tu AniList, tus claves y tus palabras conocidas.",
+    "kumapie PC at %s" to "PC kumapie en %s",
+    "everything comes from the PC · found on this network" to "todo viene del PC · encontrado en esta red",
+    "AniList, keys, word colouring and downloads all come from the PC: setup ends here." to
+        "AniList, claves, colores de palabras y descargas vienen del PC: la configuración termina aquí.",
+    "Use this PC" to "Usar este PC",
+    "Searching…" to "Buscando…",
+    "Connect" to "Conectar",
+    "Nothing answered at %s: not a kumapie PC, not a kumapie device." to "Nadie respondió en %s: ni un PC kumapie ni un dispositivo kumapie.",
+    "from the PC" to "del PC",
     "kumapie on %s" to "kumapie en %s",
     "%1\$s · main server · found on this network" to "%1\$s · servidor principal · encontrado en esta red",
     "Pair code: tap Allow on %1\$s when it shows %2\$s." to "Código de emparejamiento: toca Permitir en %1\$s cuando muestre %2\$s.",

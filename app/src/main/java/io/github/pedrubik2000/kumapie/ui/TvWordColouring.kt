@@ -75,8 +75,9 @@ internal fun TvWordColouring(settings: Settings, language: Language, onboarding:
     val focusManager = LocalFocusManager.current
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
     BackHandler(onBack = onBack)
+    val scroll = rememberScrollState()
     Box(Modifier.fillMaxSize().onBackKey(onBack = onBack)) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 40.dp, end = 40.dp, top = 24.dp, bottom = rememberHintRoom() + 24.dp),
+        Column(Modifier.fillMaxSize().padding(bottom = rememberHintRoom() + 8.dp).fadeBottom(36.dp, scroll).verticalScroll(scroll).padding(start = 40.dp, end = 40.dp, top = 24.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Column(Modifier.weight(1f).focusGroup(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -124,21 +125,21 @@ private fun TvColourHeader(onboarding: Boolean, step: Int, steps: Int) {
 @Composable
 private fun TvColourCard(colours: Boolean, focus: FocusRequester, onColours: (Boolean) -> Unit) {
     val shape = RoundedCornerShape(12.dp)
-    Column(Modifier.fillMaxWidth().background(Arcade.slab, shape).border(1.dp, Arcade.line, shape).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxWidth().background(Arcade.slab, shape).border(1.dp, Arcade.line, shape).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(tr("Colour words in subtitles"), color = Colors.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Text(tr("Off: plain subtitles, and this step ends here."), color = Colors.dim, fontSize = 14.sp)
+                Text(tr("Colour words in subtitles"), color = Colors.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr("Off: plain subtitles, and this step ends here."), color = Colors.dim, fontSize = 12.sp)
             }
             TvSwitch(colours, tr("Colour words in subtitles"), Modifier.focusRequester(focus), onColours)
         }
-        Text(ColourSample.line(colours), color = Colors.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp))
-        if (colours) FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(ColourSample.line(colours), color = Colors.text, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp))
+        if (colours) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             ColourSample.legend().forEach { (colour, label) ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(Modifier.size(10.dp).background(colour, RoundedCornerShape(2.dp)))
-                    Text(label, color = Colors.text, fontSize = 14.sp)
+                    Box(Modifier.size(9.dp).background(colour, RoundedCornerShape(2.dp)))
+                    Text(label, color = Colors.text, fontSize = 12.sp, maxLines = 1)
                 }
             }
         }

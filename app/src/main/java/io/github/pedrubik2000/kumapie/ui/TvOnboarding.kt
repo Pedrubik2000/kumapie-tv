@@ -19,9 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -29,6 +27,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -101,6 +100,7 @@ internal fun TvOnboarding(settings: Settings, pairing: Pairing, onDone: () -> Un
 internal class StepNav(val settings: Settings, val step: () -> String, val set: (String) -> Unit, val finish: () -> Unit) {
     private val prefs get() = settings.prefs
     val total = Onboarding.counted(true).size
+    var pc by mutableStateOf(false)
 
     fun number(s: String) = Onboarding.counted(true).indexOf(s) + 1
 
@@ -121,7 +121,7 @@ internal class StepNav(val settings: Settings, val step: () -> String, val set: 
     }
 
     @Suppress("UNUSED_PARAMETER")
-    fun items(current: String, changed: Int = 0) = Onboarding.list(Onboarding.done(prefs), Onboarding.copied(prefs), true, detail(), current)
+    fun items(current: String, changed: Int = 0) = Onboarding.list(Onboarding.done(prefs), Onboarding.copied(prefs), true, detail(), current, pc && current == Onboarding.MAIN)
 }
 
 @Composable
@@ -140,25 +140,12 @@ private fun SetupRow(item: Onboarding.Item, here: Boolean, onOpen: (String) -> U
     Row(Modifier.fillMaxWidth().then(if (here) Modifier.background(Color.White, shape) else Modifier)
         .then(if (settled && !here) Modifier.hint(HintKind.CHOOSE).tvRing(shape, source).clickable(interactionSource = source, indication = null, role = Role.Button) { onOpen(item.step) } else Modifier)
         .padding(horizontal = 12.dp, vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(if (here) "●" else if (settled) "✓" else "○", color = if (here) Color.Black else Colors.accent, fontSize = 18.sp)
+        Text(if (here) "●" else if (settled) "✓" else "○", color = if (here) Color.Black else if (item.state == Onboarding.State.PC) Colors.dim else Colors.accent, fontSize = 18.sp)
         Column {
-            Text(item.label, color = if (here) Color.Black else Colors.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(item.label, color = if (here) Color.Black else if (item.state == Onboarding.State.PC) Colors.dim else Colors.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             Text(item.sub, color = if (here) Color.Black.copy(alpha = 0.7f) else Colors.dim, fontSize = 14.sp, maxLines = 1)
         }
     }
-}
-
-@Composable
-private fun TvStepPage(modifier: Modifier, content: @Composable () -> Unit) {
-    Column(modifier.verticalScroll(rememberScrollState()).padding(start = 48.dp, end = 48.dp, top = 36.dp, bottom = rememberHintRoom() + 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }
-}
-
-@Composable
-internal fun TvStepHeader(caption: String?, title: String, sub: String = "") {
-    if (caption != null) TvCaption(caption)
-    Text(title, color = Colors.text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-    if (sub.isNotEmpty()) Text(sub, color = Colors.dim, fontSize = 18.sp)
 }
 
 @Composable
@@ -181,7 +168,7 @@ private fun StepBody(settings: Settings, pairing: Pairing, nav: StepNav, step: S
     when {
         step == Onboarding.LANGUAGE -> LanguageStep(settings, lang, onLang) { nav.advance(step) }
         step in nav.viewOnly() -> DoneStep(settings, nav, step, step in copied)
-        step == Onboarding.MAIN -> TvMainDevice(settings.prefs, pairing, nav.total) { nav.advance(step); onLang(settings.menuLanguage) }
+        step == Onboarding.MAIN -> TvMainDevice(settings.prefs, pairing, nav.total, { nav.pc = it }, nav.finish) { nav.advance(step); onLang(settings.menuLanguage) }
         step == Onboarding.ANILIST -> AniListStep(settings, nav) { nav.advance(step) }
         step == Onboarding.VIDEOS -> VideosStep(settings, nav) { nav.advance(step) }
         else -> DownloadsStep(settings, nav) { nav.advance(step) }
@@ -230,7 +217,7 @@ private fun DoneStep(settings: Settings, nav: StepNav, step: String, copied: Boo
 private fun AniListStep(settings: Settings, nav: StepNav, onContinue: () -> Unit) {
     val focus = remember { FocusRequester() }
     TvStepHeader(caption(nav, Onboarding.ANILIST), tr("AniList"), tr("Home, Library and Discover come from your AniList anime list."))
-    PhonePage(settings, SetupPart.ANILIST)
+    PhonePage(settings, SetupPart.ANILIST, heading = false)
     TvContinue(tr("Continue") + " ›", Modifier.focusRequester(focus), onContinue)
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }
@@ -244,7 +231,7 @@ private fun VideosStep(settings: Settings, nav: StepNav, onContinue: () -> Unit)
     var failed by remember { mutableIntStateOf(0) }
     val checking = tr("Checking with %s…", "Real-Debrid")
     TvStepHeader(caption(nav, Onboarding.VIDEOS), tr("Videos & subtitles"), tr("Real-Debrid (paid) streams the files Torrentio finds; Jimaku brings the Japanese subtitles."))
-    PhonePage(settings, SetupPart.KEYS, onSaved = { if (settings.jimakuKey.isNotBlank()) needKey = false })
+    PhonePage(settings, SetupPart.KEYS, onSaved = { if (settings.jimakuKey.isNotBlank()) needKey = false }, heading = false)
     if (needKey) Text(tr("Add your Jimaku key from your phone first: without it, streams get no Japanese lines."), color = Colors.accent, fontSize = 18.sp)
     if (said.isNotEmpty()) Text(said, color = Colors.accent, fontSize = 18.sp)
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -272,38 +259,26 @@ private fun DownloadsStep(settings: Settings, nav: StepNav, onFinish: () -> Unit
         tr("Dictionaries for lookups and the word splitter. They finish in the background."))
     TvDownloads(settings)
     Text(tr("You can start watching while they finish. Wi-Fi only."), color = Colors.dim, fontSize = 16.sp)
-    val shape = RoundedCornerShape(16.dp)
-    val sync = DeviceSync.with(settings)?.name
-    val rows = nav.items("").filter { it.step != Onboarding.DOWNLOADS }.map { it.label to it.sub } + listOfNotNull(sync?.let { tr("Sync") to tr("Paired with %s", it) })
-    Column(Modifier.fillMaxWidth().background(Arcade.slab, shape).border(1.dp, Arcade.line, shape).padding(horizontal = 20.dp, vertical = 8.dp)) {
-        rows.forEach { (what, sub) ->
-            Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("✓", color = Colors.accent, fontSize = 18.sp)
-                Text(what, color = Colors.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(200.dp))
-                Text(sub, color = Colors.dim, fontSize = 18.sp)
-            }
-        }
-    }
     TvContinue(tr("Start watching") + " ›", Modifier.focusRequester(focus), onFinish)
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }
 
 @Composable
-internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSaved: () -> Unit = {}) {
+internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSaved: () -> Unit = {}, heading: Boolean = true) {
     var saved by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val page = remember { SetupPage(settings, context.applicationContext, part) { saved++; onSaved() } }
     val url = remember { page.start() }
     DisposableEffect(Unit) { onDispose { page.stop() } }
     val aniList = part == SetupPart.ANILIST
-    Heading(if (aniList) tr("Log in to AniList from your phone") else tr("Set up kumapie from your phone"))
+    if (heading) Heading(if (aniList) tr("Log in to AniList from your phone") else tr("Set up kumapie from your phone"))
     if (url == null) return Text(if (aniList) tr("This TV isn't on a home network: connect it, then log in here.") else tr("This TV isn't on a home network: connect it, or add the keys in Settings later."), color = Colors.dim)
-    Row(horizontalArrangement = Arrangement.spacedBy(40.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.padding(top = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
         val qr = remember(url) { qr(url, 480) }
-        Image(qr.asImageBitmap(), null, Modifier.size(260.dp).background(Color.White).padding(10.dp))
-        Column(Modifier.width(620.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(tr("Scan this with your phone's camera (on the same Wi-Fi), or open:"), color = Colors.text, fontSize = 18.sp)
-            Text(url, color = Colors.accent, fontSize = 18.sp)
+        Image(qr.asImageBitmap(), null, Modifier.size(200.dp).background(Color.White).padding(10.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(tr("Scan this with your phone's camera (on the same Wi-Fi), or open:"), color = Colors.text, fontSize = 16.sp)
+            Text(url, color = Colors.accent, fontSize = 16.sp)
             Text(when (part) {
                 SetupPart.ANILIST -> tr("There: the AniList login link and the token field.")
                 SetupPart.KEYS -> tr("There: your Jimaku key, your Real-Debrid token and Kitsu.")
@@ -311,7 +286,7 @@ internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSa
             }, color = Colors.dim, fontSize = 16.sp)
             @Suppress("UNUSED_EXPRESSION") saved
             val p = settings.prefs
-            @Composable fun row(ok: Boolean, what: String) = Text((if (ok) "✓ " else "· ") + what, color = if (ok) Colors.text else Colors.dim, fontSize = 18.sp)
+            @Composable fun row(ok: Boolean, what: String) = Text((if (ok) "✓ " else "· ") + what, color = if (ok) Colors.text else Colors.dim, fontSize = 16.sp)
             if (!aniList) {
                 row(settings.jimakuKey.isNotEmpty(), tr("Japanese subtitles (Jimaku)"))
                 row(settings.addons.any { "torrentio.strem.fun" in it } && io.github.pedrubik2000.kumapie.data.Startup.rdKey(settings.rdToken, settings.addons).isNotEmpty(), tr("Videos (Torrentio with Real-Debrid)"))
@@ -332,10 +307,12 @@ private fun TvDownloads(settings: Settings) {
     LaunchedEffect(Unit) { if (!model.isReady) model.download() }
     val modelState by remember { model.state() }.collectAsState(initial = null)
     var dicts by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) { while (true) { dicts = dictionariesState(context, settings); kotlinx.coroutines.delay(1000) } }
+    var free by remember { mutableLongStateOf(0L) }
+    val yomitan = remember { io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(context.applicationContext) }
+    LaunchedEffect(Unit) { while (true) { dicts = dictionariesState(context, settings); free = yomitan.base.usableSpace; kotlinx.coroutines.delay(1000) } }
     Text(tr("Dictionaries: %s", dicts), color = Colors.text, fontSize = 18.sp)
     Text(tr("Word splitter: %s", modelState ?: if (model.isReady) tr("✓ ready") else tr("Starting…")), color = Colors.text, fontSize = 18.sp)
-    TvDictionaries(settings)
+    Text(tr("Free on this TV: %d MB", io.github.pedrubik2000.kumapie.lang.Recommended.mb(free)), color = Colors.text, fontSize = 18.sp)
 }
 
 @Composable

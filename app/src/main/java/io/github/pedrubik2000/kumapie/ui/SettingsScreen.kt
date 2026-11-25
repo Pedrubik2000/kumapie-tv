@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 internal object SettingsFocus { var returning = false }
 
 @Composable
-fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
+fun SettingsScreen(settings: Settings, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
                    onButtons: () -> Unit = {}) {
     val focus = remember { FocusRequester() }
     val buttons = remember { FocusRequester() }
@@ -53,19 +53,17 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         fromColouring = true
     })
     Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Title(if (firstRun) tr("Welcome to kumapie") else tr("Settings"), fontSize = 32.sp)
-        if (!firstRun) TvAniList(settings, focus)
-        ServerSettings(settings, firstRun, focus, onSaved)
-        if (!firstRun) CheckSetup(settings)
-        if (!firstRun && settings.server.isEmpty()) AloneSources(settings)
-        if (!firstRun) {
-            TvPreferences(settings, buttons, colour, onColouring = { colouring = true }) { SettingsFocus.returning = true; onButtons() }
-            TvNotForMe(settings)
-            TvDictionaries(settings)
-            TvExport()
-            if (settings.server.isEmpty()) TvSync(settings)
-            TvAbout(settings, onUpdate)
-        }
+        Title(tr("Settings"), fontSize = 32.sp)
+        TvAniList(settings, focus)
+        ServerSettings(settings, onSaved)
+        CheckSetup(settings)
+        if (settings.server.isEmpty()) AloneSources(settings)
+        TvPreferences(settings, buttons, colour, onColouring = { colouring = true }) { SettingsFocus.returning = true; onButtons() }
+        TvNotForMe(settings)
+        TvDictionaries(settings)
+        TvExport()
+        if (settings.server.isEmpty()) TvSync(settings)
+        TvAbout(settings, onUpdate)
     }
     LaunchedEffect(Unit) {
         if (fromColouring) {
@@ -77,7 +75,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
 }
 
 @Composable
-private fun ServerSettings(settings: Settings, firstRun: Boolean, focus: FocusRequester, onSaved: () -> Unit) {
+private fun ServerSettings(settings: Settings, onSaved: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
@@ -96,22 +94,13 @@ private fun ServerSettings(settings: Settings, firstRun: Boolean, focus: FocusRe
                 .onFailure { status = tr("Can't reach %1\$s (%2\$s)", url, it.message) }
         }
     }
-    if (firstRun) {
-        Text(tr("Type the address of the dojo server on the PC (Tailscale), e.g. https://my-pc.tailnet.ts.net:8445"),
-            color = Colors.dim)
-    }
     Heading(tr("Server"))
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        TvTextField(server, { server = it }, onDone = ::save,
-            modifier = Modifier.width(640.dp).let { if (firstRun) it.focusRequester(focus) else it })
+        TvTextField(server, { server = it }, onDone = ::save, modifier = Modifier.width(640.dp))
         Button(onClick = ::save) { Text(tr("Save")) }
     }
     if (status.isNotEmpty()) Text(status, color = Colors.dim)
-    if (firstRun) {
-        Text(tr("No server? kumapie also works on its own."), color = Colors.dim, modifier = Modifier.padding(top = 24.dp))
-        Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server")) }
-    }
-    if (!firstRun && settings.server.isNotEmpty()) {
+    if (settings.server.isNotEmpty()) {
         Button(onClick = {
             status = tr("Copying your words, cards and progress…")
             scope.launch {
@@ -120,7 +109,7 @@ private fun ServerSettings(settings: Settings, firstRun: Boolean, focus: FocusRe
                     io.github.pedrubik2000.kumapie.lang.LeavePc.run(context, pc, settings.server, settings.profile,
                         tvLanguages(context, settings).all,
                         io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs))
-                }.onSuccess { settings.server = ""; settings.standalone = true; onSaved() }
+                }.onSuccess { settings.server = ""; onSaved() }
                     .onFailure { status = tr("Can't reach %1\$s (%2\$s)", settings.server, it.message) }
             }
         }) { Text(tr("Use without the PC (keeps your words, cards and progress)")) }

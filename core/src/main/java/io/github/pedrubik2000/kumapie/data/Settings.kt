@@ -33,14 +33,6 @@ class Settings(context: Context) {
         get() = prefs.getString("server", "") ?: ""
         set(value) = prefs.edit().putString("server", normalizeServer(value)).apply()
 
-    /**
-     * Chosen on the first run: kumapie without a PC server (kumapie_plan.md "for other people"). A saved [server]
-     * wins: the app then works with it as always.
-     */
-    var standalone: Boolean
-        get() = prefs.getBoolean("standalone", false)
-        set(value) = prefs.edit().putBoolean("standalone", value).apply()
-
     /** Without a PC: the user's Stremio addons, their addresses as pasted ([Addons]). kumapie ships with none. */
     var addons: List<String>
         get() = prefs.getString("addons", "").orEmpty().lines().filter { it.isNotBlank() }

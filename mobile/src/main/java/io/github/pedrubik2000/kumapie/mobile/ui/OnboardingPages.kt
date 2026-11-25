@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun PageHead(caption: String, title: String, text: String) {
     ColourCaption(caption)
-    Text(title, color = Colors.text, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+    Text(title, color = Colors.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
     if (text.isNotEmpty()) Text(text, color = Glass.dim, fontSize = 15.sp)
 }
 
@@ -62,7 +62,7 @@ private fun CopiedCard(title: String, line: String) =
 internal fun LanguagePage(settings: Settings, onContinue: () -> Unit) {
     PageHead("", tr("Language"), "")
     MenuLanguage(settings)
-    Pill(tr("Continue"), onContinue, primary = true)
+    StepBar { Pill(tr("Continue"), onContinue, primary = true) }
 }
 
 @Composable
@@ -84,10 +84,12 @@ internal fun AniListPage(settings: Settings, caption: String, copiedFrom: String
         }) { Text(tr("Check")) }
         AniListLogin(settings)
     }
-    Pill(tr("Continue"), {
-        if (copiedFrom == null && (anilist.isNotBlank() || settings.anilistToken.isEmpty())) settings.anilist = anilist
-        onContinue()
-    }, primary = true)
+    StepBar {
+        Pill(tr("Continue"), {
+            if (copiedFrom == null && (anilist.isNotBlank() || settings.anilistToken.isEmpty())) settings.anilist = anilist
+            onContinue()
+        }, primary = true)
+    }
 }
 
 @Composable
@@ -119,7 +121,8 @@ internal fun VideosPage(settings: Settings, caption: String, copiedFrom: String?
             Text(tr("English under the lines: OpenSubtitles (free, no account)"))
         }
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    if (copiedFrom == null) Text(tr("Skip: nothing plays until both keys are in"), color = Glass.dim, fontSize = 13.sp)
+    StepBar {
         Pill(tr("Continue"), {
             if (copiedFrom != null) onContinue()
             else if (said != checking) scope.launch {
@@ -131,8 +134,8 @@ internal fun VideosPage(settings: Settings, caption: String, copiedFrom: String?
                 if (g.mayFinish) onContinue()
             }
         }, primary = true)
-        if (copiedFrom == null) Text(tr("Skip: nothing plays until both keys are in"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
-            modifier = Modifier.padding(start = 14.dp).sizeIn(minHeight = 48.dp).clickable { settings.setSources(kitsu, english, rd); onContinue() }.padding(vertical = 14.dp))
+        if (copiedFrom == null) Text(tr("Skip"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
+            modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { settings.setSources(kitsu, english, rd); onContinue() }.padding(vertical = 14.dp))
     }
 }
 
@@ -156,5 +159,5 @@ internal fun DownloadsPage(library: Library, caption: String, onFinish: () -> Un
     val modelState by remember { model.state() }.collectAsState(initial = null)
     Text(tr("Dictionaries: %s", dictSaid))
     Text(tr("Word splitter: %s", modelState ?: if (model.isReady) tr("✓ ready") else tr("Starting…")))
-    Pill(tr("Start watching"), onFinish, primary = true)
+    StepBar { Pill(tr("Start watching"), onFinish, primary = true) }
 }

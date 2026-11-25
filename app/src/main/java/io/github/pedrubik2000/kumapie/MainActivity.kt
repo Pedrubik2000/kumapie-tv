@@ -106,9 +106,8 @@ fun App(settings: Settings) {
     remember { io.github.pedrubik2000.kumapie.ui.SettingsFocus.returning = false }
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
-    var standalone by remember { mutableStateOf(settings.standalone) }
     var onboarded by remember { mutableStateOf(io.github.pedrubik2000.kumapie.data.Startup.onboarded(settings.prefs.all)) }
-    LaunchedEffect(standalone, server) { if (standalone && server.isEmpty()) io.github.pedrubik2000.kumapie.ui.startJapaneseDictionaries(context, settings) }
+    LaunchedEffect(server, onboarded) { if (server.isEmpty() && onboarded) io.github.pedrubik2000.kumapie.ui.startJapaneseDictionaries(context, settings) }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
 
@@ -116,16 +115,14 @@ fun App(settings: Settings) {
         update = io.github.pedrubik2000.kumapie.data.Startup.update(BuildConfig.DEBUG)
     }
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
-    val gate = io.github.pedrubik2000.kumapie.data.Startup.gate(server, standalone, onboarded)
+    val gate = io.github.pedrubik2000.kumapie.data.Startup.gate(server, onboarded)
 
     Box(Modifier.fillMaxSize().pageBackdrop { glowCovered.value }
-        .onBackKey(enabled = stack.size > 1 && gate != Gate.FIRST_RUN) { stack.removeAt(stack.lastIndex) }) {
+        .onBackKey(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }) {
         when {
-            gate == Gate.FIRST_RUN -> SettingsScreen(settings, firstRun = true,
-                onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it })
-            gate == Gate.ONBOARDING -> io.github.pedrubik2000.kumapie.ui.TvOnboarding(settings, onDone = { onboarded = true })
+            gate == Gate.ONBOARDING -> io.github.pedrubik2000.kumapie.ui.TvOnboarding(settings, onDone = { server = settings.server; onboarded = true })
             server.isEmpty() -> AloneScreens(settings, stack, onSaved = { server = settings.server }, onUpdate = { update = it })
-            else -> PcScreens(settings, server, stack, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it })
+            else -> PcScreens(settings, server, stack, onSaved = { server = settings.server }, onUpdate = { update = it })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
         io.github.pedrubik2000.kumapie.ui.TvAllowPrompt(hold = stack.lastOrNull() is Screen.Player, onSettings = { stack.add(Screen.Settings) })
@@ -137,7 +134,7 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) { io.github.pedrubik2000.kumapie.ui.moveAloneLang(settings); Tr.use(settings.menuLanguage) }
     StackEntry(stack.last()) { when (stack.last()) {
-        Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
+        Screen.Settings -> SettingsScreen(settings, onButtons = { stack.add(Screen.Buttons) },
             onSaved = onSaved, onUpdate = onUpdate)
         Screen.Buttons -> ButtonsScreen(settings)
         Screen.Stats -> StatsScreen({ io.github.pedrubik2000.kumapie.lang.Progress.of(context).stats() }, onSettings = { stack.add(Screen.Settings) })
@@ -196,7 +193,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
         is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,
             onClose = { stack.removeAt(stack.lastIndex) })
         Screen.Buttons -> ButtonsScreen(settings)
-        Screen.Settings -> SettingsScreen(settings, firstRun = false, onButtons = { stack.add(Screen.Buttons) },
+        Screen.Settings -> SettingsScreen(settings, onButtons = { stack.add(Screen.Buttons) },
             onSaved = onSaved, onUpdate = onUpdate)
     } }
 }

@@ -23,7 +23,6 @@ internal val esSettings: Map<String, String> = mapOf(
     "There: the AniList login link and the token field." to "Allí: el enlace para iniciar sesión en AniList y el campo del token.",
     "This TV isn't on a home network: connect it, then log in here." to "Esta tele no está en una red doméstica: conéctala y luego inicia sesión aquí.",
     "There: your Jimaku key, your Real-Debrid token and Kitsu." to "Allí: tu clave de Jimaku, tu token de Real-Debrid y Kitsu.",
-    "Welcome to kumapie" to "Bienvenido a kumapie",
     "Settings" to "Ajustes",
     "Making episodes" to "Crear episodios",
     "Known words" to "Palabras conocidas",

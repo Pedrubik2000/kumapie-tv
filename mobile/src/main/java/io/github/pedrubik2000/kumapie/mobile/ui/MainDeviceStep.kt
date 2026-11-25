@@ -66,7 +66,7 @@ private fun rowSub(row: String, hub: Hub, got: Got?): String? = when (got) {
 }
 
 @Composable
-internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption: String, canFresh: Boolean, onDone: () -> Unit) {
+internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption: String, canFresh: Boolean, onPcSelected: (Boolean) -> Unit, onPc: () -> Unit, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     val phase by flow.phase.collectAsState()
@@ -75,15 +75,19 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption:
     var typed by rememberSaveable { mutableStateOf("") }
     var unticked by rememberSaveable { mutableStateOf(emptyList<String>()) }
     LaunchedEffect(flow) { flow.start() }
+    val shownNow = phase
+    val chosen = if (typing) null else (shownNow as? Phase.Pick)?.let { p -> p.pcs.firstOrNull { it.address == (picked ?: p.auto) } }
+    LaunchedEffect(chosen != null) { onPcSelected(chosen != null) }
+    LaunchedEffect(shownNow is Phase.PcDone) { if (shownNow is Phase.PcDone) onPc() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).glass(RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Sync, null, tint = Color.White) }
             Column {
                 ColourCaption(caption)
-                Text(tr("Set up from your main device?"), color = Colors.text, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr("Set up from your main device or PC?"), color = Colors.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
             }
         }
-        Text(tr("A kumapie on the home Wi-Fi already has your AniList, keys and known words. Pair once and copy them."), color = Glass.dim, fontSize = 15.sp)
+        Text(tr("A kumapie or a kumapie PC on the home Wi-Fi already has your AniList, keys and known words."), color = Glass.dim, fontSize = 15.sp)
         val shown = phase
         val hub = when (shown) {
             is Phase.Waiting -> shown.hub
@@ -93,14 +97,17 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption:
         val got = (shown as? Phase.Ready)?.got
         when (shown) {
             is Phase.Looking -> Text(tr("Looking for kumapie on this network…"), color = Glass.dim)
-            is Phase.Pick -> PickHub(shown, picked ?: shown.hubs.singleOrNull()?.address, typing, typed, { picked = it; typing = false }, { typing = true; picked = null }, { typed = it }) {
+            is Phase.Pick -> PickHub(shown, picked ?: shown.auto, typing, typed, { picked = it; typing = false }, { typing = true; picked = null }, { typed = it }) {
                 scope.launch { flow.look() }
             }
             is Phase.Waiting -> WaitingHub(shown)
             is Phase.Done -> DoneCard(shown)
+            is Phase.PcDone -> Unit
+            is Phase.Connecting -> Text(tr("Connecting…"), color = Glass.dim)
             is Phase.Ready -> if (shown.got is Got.Pc) Text(tr("This hub uses a PC: there is nothing to copy from it. Set this device up here."), color = Colors.text)
         }
-        if (got !is Got.Pc && shown !is Phase.Looking && shown !is Phase.Done) Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp))) {
+        val deviceChosen = !typing && (shown as? Phase.Pick)?.let { p -> p.hubs.any { it.address == (picked ?: p.auto) } } == true
+        if ((shown is Phase.Ready && got !is Got.Pc) || shown is Phase.Waiting || deviceChosen) Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp))) {
             ColourCaption(tr("Copy from it · untick to set up here instead"), Modifier.padding(16.dp, 14.dp, 16.dp, 0.dp))
             MainDeviceFlow.ROWS.forEach { row ->
                 val on = available(row, got)
@@ -114,28 +121,44 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption:
                 }
             }
         }
-        val target = if (typing) typed.trim().takeIf { it.isNotEmpty() }?.let { Hub("", it) } else (shown as? Phase.Pick)?.hubs?.firstOrNull { it.address == (picked ?: shown.hubs.singleOrNull()?.address) }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            when {
-                shown is Phase.Done -> Pill(tr("Continue"), onDone, primary = true)
-                got != null && hub != null -> Pill(tr("Continue"), {
-                    if (!busy) {
-                        busy = true
-                        host.launch {
-                            withContext(Dispatchers.IO) {
-                                if (got is Got.Pc) flow.fresh() else flow.finish(hub, got, MainDeviceFlow.ROWS.filter { it !in unticked && available(it, got) }.toSet())
+        val target = if (typing) typed.trim().takeIf { it.isNotEmpty() }?.let { Hub("", it) } else (shown as? Phase.Pick)?.hubs?.firstOrNull { it.address == (picked ?: shown.auto) }
+        val fresh = { if (!busy) { busy = true; host.launch { withContext(Dispatchers.IO) { flow.fresh() }; onDone() } } }
+        StepBar {
+            val primary: String? = when {
+                shown is Phase.Done -> tr("Continue")
+                got != null && hub != null -> tr("Continue")
+                chosen != null -> tr("Use this PC") + " ›"
+                shown is Phase.Pick && target != null -> tr("Pair and copy")
+                else -> null
+            }
+            if (primary != null) {
+                Pill(primary, {
+                    when {
+                        shown is Phase.Done -> onDone()
+                        got != null && hub != null -> if (!busy) {
+                            busy = true
+                            host.launch {
+                                withContext(Dispatchers.IO) {
+                                    if (got is Got.Pc) flow.fresh() else flow.finish(hub, got, MainDeviceFlow.ROWS.filter { it !in unticked && available(it, got) }.toSet())
+                                }
+                                onDone()
                             }
-                            onDone()
                         }
+                        chosen != null -> if (!busy) { busy = true; scope.launch { flow.usePc(chosen, wan = true); busy = false } }
+                        target != null -> scope.launch { flow.pair(target) }
                     }
                 }, primary = true)
-                shown is Phase.Pick -> Pill(tr("Pair and copy"), { if (target != null) scope.launch { flow.pair(target) } }, Modifier.alpha(if (target != null) 1f else 0.4f), primary = true)
-            }
-            if (canFresh && shown !is Phase.Done) {
-                Text(tr("or"), color = Glass.dim, fontSize = 14.sp)
+                if (canFresh && shown !is Phase.Done) {
+                    Text(tr("or"), color = Glass.dim, fontSize = 14.sp)
+                    Text(tr("Start fresh"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { fresh() }.padding(vertical = 14.dp))
+                }
+            } else if (canFresh && shown is Phase.Pick) Column {
+                Pill(tr("Start fresh"), { fresh() }, primary = true)
+                Text(tr("this is my first device"), color = Glass.dim, fontSize = 13.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 6.dp, top = 2.dp))
+            } else if (canFresh && shown !is Phase.Connecting && shown !is Phase.PcDone && shown !is Phase.Done) {
                 Text(tr("Start fresh"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { if (!busy) { busy = true; host.launch { withContext(Dispatchers.IO) { flow.fresh() }; onDone() } } }.padding(vertical = 14.dp))
-                Text(": " + tr("this is my first device"), color = Glass.dim, fontSize = 14.sp)
+                    modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { fresh() }.padding(vertical = 14.dp))
             }
         }
     }
@@ -147,6 +170,11 @@ private fun PickHub(pick: Phase.Pick, selected: String?, typing: Boolean, typed:
         if (pick.notice.isNotEmpty()) Text(pick.notice, color = Colors.unknown, fontSize = 15.sp)
         pick.hubs.forEach { h ->
             ColourRadioCard(!typing && h.address == selected, tr("kumapie on %s", h.name), tr("%1\$s · main server · found on this network", h.address)) { onPick(h.address) }
+        }
+        pick.pcs.forEach { (a) ->
+            val on = !typing && a == selected
+            ColourRadioCard(on, tr("kumapie PC at %s", a), tr("everything comes from the PC · found on this network")) { onPick(a) }
+            if (on) Text(tr("AniList, keys, word colouring and downloads all come from the PC: setup ends here."), color = Glass.dim, fontSize = 14.sp)
         }
         if (typing) OutlinedTextField(typed, onTyped, Modifier.fillMaxWidth(), label = { Text(tr("Address of the main device (ip:port)")) }, singleLine = true)
         Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {

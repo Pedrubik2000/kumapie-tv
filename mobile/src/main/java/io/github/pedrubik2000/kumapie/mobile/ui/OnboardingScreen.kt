@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +23,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -67,11 +73,12 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     val flow = remember { MainDeviceFlow(prefs, LivePairing(context.applicationContext)) }
     val phase by flow.phase.collectAsState()
     val pairing = ((phase as? MainDeviceFlow.Phase.Waiting)?.hub ?: (phase as? MainDeviceFlow.Phase.Ready)?.hub)?.let { it.name.ifEmpty { it.address } }.orEmpty()
-    val items = remember(rev, current, pairing) { Onboarding.list(done, copied, ja, details(settings, pairing), current) }
+    var pcSelected by remember { mutableStateOf(false) }
+    val items = remember(rev, current, pairing, pcSelected) { Onboarding.list(done, copied, ja, details(settings, pairing), current, pcSelected && current == Onboarding.MAIN) }
     val counted = Onboarding.counted(ja)
     SideEffect { stepNow = current }
     val caption = tr("Step %1\$d of %2\$d", counted.indexOf(current) + 1, counted.size) + " · " +
-        if (current == Onboarding.MAIN) tr("Optional · saves %d steps", counted.count { it in SAVES }) else if (items.first { it.step == current }.state == State.OPTIONAL) tr("Optional") else tr("Needed")
+        if (current == Onboarding.MAIN) (if ((phase as? MainDeviceFlow.Phase.Pick)?.let { it.hubs.isNotEmpty() || it.pcs.isNotEmpty() } ?: (phase is MainDeviceFlow.Phase.Ready || phase is MainDeviceFlow.Phase.Waiting)) tr("Optional · saves %d steps", counted.count { it in SAVES }) else tr("Optional")) else if (current == Onboarding.DOWNLOADS) tr("Automatic") else if (items.first { it.step == current }.state == State.OPTIONAL) tr("Optional") else tr("Needed")
     val previous = items.map { it.step }.let { s -> s.getOrNull(s.indexOf(current) - 1) }
     fun go(step: String?) { opened = step; rev++ }
     fun complete(step: String) { Onboarding.markDone(prefs, step); go(null) }
@@ -82,12 +89,16 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     }
     Scaffold { pad ->
         BoxWithConstraints(Modifier.padding(pad).fillMaxSize()) {
-            val wide = maxWidth >= 840.dp
+            val wide = maxWidth >= 840.dp && maxHeight >= 600.dp
+            val bar = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
             val body: @Composable () -> Unit = {
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(Modifier.fillMaxSize().imePadding()) {
+                val scroll = rememberScrollState()
+                Column(Modifier.weight(1f).fadeTop(16.dp, scroll).verticalScroll(scroll).padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                  CompositionLocalProvider(LocalStepBar provides bar) {
                     when (current) {
                         Onboarding.LANGUAGE -> LanguagePage(settings) { complete(current) }
-                        Onboarding.MAIN -> MainDeviceStep(flow, hostScope, caption, Onboarding.MAIN !in done) { if (stepNow == Onboarding.MAIN) go(null) else rev++ }
+                        Onboarding.MAIN -> MainDeviceStep(flow, hostScope, caption, Onboarding.MAIN !in done, { pcSelected = it }, onDone) { if (stepNow == Onboarding.MAIN) go(null) else rev++ }
                         Onboarding.ANILIST -> AniListPage(settings, caption, from.takeIf { Onboarding.ANILIST in copied }) { complete(current) }
                         Onboarding.VIDEOS -> VideosPage(settings, caption, from.takeIf { Onboarding.VIDEOS in copied }) { complete(current) }
                         else -> DownloadsPage(library, caption) {
@@ -96,7 +107,9 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                             onDone()
                         }
                     }
-                    if (previous != null) Text(tr("Back"), color = Glass.dim, fontSize = 14.sp, modifier = Modifier.clickable { go(previous) }.padding(vertical = 14.dp))
+                  }
+                }
+                BarHost(bar, previous?.let { p -> { go(p) } })
                 }
             }
             val open = { step: String -> items.first { it.step == step }.state.let { if (it == State.DONE || it == State.COPIED) go(step) } }
@@ -112,14 +125,24 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun BarHost(bar: MutableState<(@Composable () -> Unit)?>, back: (() -> Unit)?) {
+    if (bar.value == null && back == null) return
+    FlowRow(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 24.dp), verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (back != null) Text(tr("Back"), color = Glass.dim, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterVertically).sizeIn(minHeight = 48.dp).clickable(onClick = back).padding(vertical = 14.dp))
+        Row(Modifier.align(Alignment.CenterVertically), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { bar.value?.invoke() }
+    }
+}
+
+@Composable
 private fun SideList(items: List<Onboarding.Item>, current: String, open: (String) -> Unit) {
-    Column(Modifier.width(300.dp).fillMaxHeight().background(Glass.solid).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.width(300.dp).fillMaxHeight().background(Glass.solid).verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(tr("Setup"), color = Colors.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(10.dp))
         items.forEach { i ->
             val on = i.step == current
             val ink = if (on) Color.Black else Color.White
             Column(Modifier.fillMaxWidth().clickable { open(i.step) }.then(if (on) Modifier.background(Color.White, RoundedCornerShape(14.dp)) else Modifier).padding(12.dp)) {
-                Text((if (i.state == State.DONE || i.state == State.COPIED) "✓ " else "") + i.label, color = ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text((if (i.state == State.DONE || i.state == State.COPIED) "✓ " else "") + i.label, color = if (i.state == State.PC) Glass.dim else ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Text(i.sub, color = if (on) Color(0xFF444444) else Glass.dim, fontSize = 13.sp)
             }
         }

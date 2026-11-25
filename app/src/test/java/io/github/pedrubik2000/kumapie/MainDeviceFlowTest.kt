@@ -6,10 +6,15 @@ import io.github.pedrubik2000.kumapie.lang.DeviceSync
 import io.github.pedrubik2000.kumapie.lang.DeviceSync.Poll
 import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow
 import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Hub
+import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Pc
 import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Phase
 import io.github.pedrubik2000.kumapie.lang.Pairing
 import io.github.pedrubik2000.kumapie.lang.SetupBundle.Got
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -29,7 +34,20 @@ private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(e
     var forgot = 0
     var applied: Set<String>? = null
     private var at = 0
-    override suspend fun discover(ms: Long) = listOf("Tab S7+" to "192.168.0.154:47823")
+    var pcs = listOf(Pc("192.168.0.10:8769", "https://pc.ts.net:8445"))
+    var pcUp = setOf<String>()
+    var triedPc = mutableListOf<String>()
+    var cancels = false
+    var hangs = false
+    var discoverGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    override suspend fun discover(ms: Long): List<Pair<String, String>> { discoverGate?.await(); return listOf("Tab S7+" to "192.168.0.154:47823") }
+    override suspend fun discoverPcs(ms: Long) = pcs
+    override suspend fun usePc(url: String): String {
+        triedPc += url
+        if (hangs) kotlinx.coroutines.awaitCancellation()
+        if (cancels) throw kotlinx.coroutines.CancellationException("left")
+        return if (url in pcUp) { Settings(RuntimeEnvironment.getApplication()).server = url; "" } else "No answer from $url"
+    }
     override suspend fun ask(name: String, address: String): DeviceSync.Asked { fails?.let { throw it }; asks++; asked = Hub(name, address); return DeviceSync.Asked("4829", oldHub) }
     override suspend fun allowed(): Poll { calls++; return polls[minOf(at++, polls.size - 1)] }
     fun script(p: List<Poll>) { polls = p; at = 0 }
@@ -240,6 +258,135 @@ class MainDeviceFlowTest {
         flow.pair(hub)
         assertTrue(flow.phase.value is Phase.Ready)
         assertEquals(0, pairing.forgot)
+    }
+
+    @Test fun lookFindsBothKindsAndAPcCardIsOffered() = runBlocking {
+        val flow = MainDeviceFlow(prefs, FakePairing(emptyList()))
+        flow.look()
+        val pick = flow.phase.value as Phase.Pick
+        assertEquals(listOf(Pc("192.168.0.10:8769", "https://pc.ts.net:8445")), pick.pcs)
+        assertEquals(hub, pick.hubs.single())
+        assertEquals(hub.address, pick.auto)
+    }
+
+    @Test fun usePcSetsTheServerAndOnboardsAndAFailureStaysOnTheStep() = runBlocking {
+        Settings(RuntimeEnvironment.getApplication()).server = ""
+        prefs.edit().remove("onboarded").commit()
+        val pairing = FakePairing(emptyList())
+        val flow = MainDeviceFlow(prefs, pairing)
+        flow.look()
+        flow.usePc(Pc("192.168.0.10:8769"), wan = false)
+        val pick = flow.phase.value as Phase.Pick
+        assertTrue(pick.notice.startsWith("No answer from http://192.168.0.10:8769"))
+        assertEquals(hub, pick.hubs.single())
+        assertEquals("", Settings(RuntimeEnvironment.getApplication()).server)
+        pairing.pcUp = setOf("http://192.168.0.10:8769")
+        flow.usePc(Pc("192.168.0.10:8769"), wan = false)
+        assertEquals(Phase.PcDone("192.168.0.10:8769"), flow.phase.value)
+        assertEquals("http://192.168.0.10:8769", Settings(RuntimeEnvironment.getApplication()).server)
+        assertTrue(io.github.pedrubik2000.kumapie.data.Startup.onboarded(prefs.all))
+    }
+
+    @Test fun aPhoneSavesThePcsPublicAddressWhenItAnswersElseTheLanOneAndATvKeepsTheLan() = runBlocking {
+        val pc = Pc("192.168.0.10:8769", "https://pc.ts.net:8445")
+        val both = FakePairing(emptyList()).apply { pcUp = setOf(pc.url, "http://192.168.0.10:8769") }
+        MainDeviceFlow(prefs, both).usePc(pc, wan = true)
+        assertEquals("https://pc.ts.net:8445", Settings(RuntimeEnvironment.getApplication()).server)
+        val lanOnly = FakePairing(emptyList()).apply { pcUp = setOf("http://192.168.0.10:8769") }
+        MainDeviceFlow(prefs, lanOnly).usePc(pc, wan = true)
+        assertEquals(listOf("https://pc.ts.net:8445", "http://192.168.0.10:8769"), lanOnly.triedPc)
+        assertEquals("http://192.168.0.10:8769", Settings(RuntimeEnvironment.getApplication()).server)
+        val tv = FakePairing(emptyList()).apply { pcUp = setOf(pc.url, "http://192.168.0.10:8769") }
+        MainDeviceFlow(prefs, tv).usePc(pc, wan = false)
+        assertEquals(listOf("http://192.168.0.10:8769"), tv.triedPc)
+    }
+
+    @Test fun cancellingWhileAskingThePcIsNotAnAnswer() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED)).apply { cancels = true }
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        flow.look()
+        var thrown = false
+        try { flow.pair(Hub("", "10.0.0.9")) } catch (c: kotlinx.coroutines.CancellationException) { thrown = true }
+        assertTrue(thrown)
+        assertTrue(flow.phase.value !is Phase.Pick || (flow.phase.value as Phase.Pick).notice.isEmpty())
+    }
+
+    @Test fun leavingWhileConnectingPutsTheStepBack() = runBlocking {
+        val pairing = FakePairing(emptyList())
+        val flow = MainDeviceFlow(prefs, pairing)
+        flow.look()
+        val before = flow.phase.value
+        pairing.hangs = true
+        val job = launch(Dispatchers.Default) { flow.usePc(Pc("192.168.0.10:8769"), wan = false) }
+        while (flow.phase.value !is Phase.Connecting) yield()
+        job.cancelAndJoin()
+        assertEquals(before, flow.phase.value)
+        val typed = launch(Dispatchers.Default) { flow.pair(Hub("", "10.0.0.9")) }
+        while (flow.phase.value !is Phase.Connecting) yield()
+        typed.cancelAndJoin()
+        assertEquals(before, flow.phase.value)
+    }
+
+    @Test fun startFreshWhileConnectingCancelsTheLateAnswer() = runBlocking {
+        Settings(RuntimeEnvironment.getApplication()).server = ""
+        prefs.edit().remove("onboarded").commit()
+        Onboarding.reset(prefs)
+        val pairing = FakePairing(emptyList()).apply { hangs = true }
+        val flow = MainDeviceFlow(prefs, pairing)
+        flow.look()
+        val job = launch(Dispatchers.Default) { flow.usePc(Pc("192.168.0.10:8769"), wan = false) }
+        while (flow.phase.value !is Phase.Connecting) yield()
+        flow.fresh()
+        job.join()
+        assertEquals(Phase.Done("", emptySet()), flow.phase.value)
+        assertEquals("", Settings(RuntimeEnvironment.getApplication()).server)
+    }
+
+    @Test fun aScanEndingAfterATypedConnectDoesNotOverwriteIt() = runBlocking {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val pairing = FakePairing(emptyList()).apply { discoverGate = gate; pcUp = setOf("http://10.0.0.5:8769") }
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        val scan = launch(Dispatchers.Default) { flow.look() }
+        while (flow.phase.value !is Phase.Looking) yield()
+        flow.pair(Hub("", "10.0.0.5"))
+        assertEquals(Phase.PcDone("10.0.0.5"), flow.phase.value)
+        gate.complete(Unit)
+        scan.join()
+        assertEquals(Phase.PcDone("10.0.0.5"), flow.phase.value)
+    }
+
+    @Test fun aTypedAddressNobodyAnswersSaysSo() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED)).apply { fails = java.net.SocketTimeoutException("t") }
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        flow.pair(Hub("", "10.0.0.9"))
+        assertEquals("Nothing answered at 10.0.0.9:47823: not a kumapie PC, not a kumapie device.", (flow.phase.value as Phase.Pick).notice)
+    }
+
+    @Test fun aTypedPcAddressWorksWithOrWithoutAPortAndADeviceFallsThroughToPairing() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED)).apply { pcUp = setOf("http://10.0.0.5:8769", "http://10.0.0.6:9000") }
+        val a = MainDeviceFlow(prefs, pairing) {}
+        a.pair(Hub("", "10.0.0.5"))
+        assertEquals(Phase.PcDone("10.0.0.5"), a.phase.value)
+        val b = MainDeviceFlow(prefs, pairing) {}
+        b.pair(Hub("", "10.0.0.6:9000"))
+        assertEquals(Phase.PcDone("10.0.0.6:9000"), b.phase.value)
+        assertEquals(0, pairing.asks)
+        val c = MainDeviceFlow(prefs, pairing) {}
+        c.pair(Hub("", "192.168.0.7"))
+        assertEquals("http://192.168.0.7:8769", pairing.triedPc.last())
+        assertEquals("192.168.0.7:47823", pairing.asked?.address)
+        assertTrue(c.phase.value is Phase.Ready)
+    }
+
+    @Test fun aTypedAddressWithASchemeIsOnlyAPcAndKeepsItsError() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED))
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        flow.look()
+        flow.pair(Hub("", "https://pc.ts.net:8445"))
+        assertEquals(0, pairing.asks)
+        val pick = flow.phase.value as Phase.Pick
+        assertTrue(pick.notice.startsWith("No answer from https://pc.ts.net:8445"))
+        assertEquals(hub, pick.hubs.single())
     }
 
     @Test fun failAndLookDoNothingOnceDone() = runBlocking {

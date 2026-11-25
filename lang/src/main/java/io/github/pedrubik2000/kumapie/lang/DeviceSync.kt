@@ -2,8 +2,6 @@ package io.github.pedrubik2000.kumapie.lang
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.net.nsd.NsdManager
-import android.net.nsd.NsdServiceInfo
 import android.util.Log
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -18,7 +16,6 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.DeviceFile.objects
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -41,6 +38,7 @@ import javax.crypto.spec.SecretKeySpec
 object DeviceSync {
     const val PORT = 47823
     const val SERVICE = "_kumapiesync._tcp."
+    const val PC_SERVICE = "_kumapiepc._tcp."
     const val ANSWERS = "sync_answers"
     const val BACKGROUND = "sync_background"
     private const val WITH = "sync_with"
@@ -286,34 +284,8 @@ object DeviceSync {
         Answer(code, (if (code < 400) inputStream else errorStream)?.use { it.readBytes() } ?: ByteArray(0), getHeaderField("X-Sig"))
     }
 
-    suspend fun discover(context: Context, ms: Long): List<Pair<String, String>> {
-        val nsd = context.getSystemService(NsdManager::class.java) ?: return emptyList()
-        val out = java.util.concurrent.CopyOnWriteArrayList<Pair<String, String>>()
-        val me = Progress.of(context).device
-        val listener = object : NsdManager.DiscoveryListener {
-            override fun onServiceFound(info: NsdServiceInfo) {
-                if (info.serviceName == me) return
-                @Suppress("DEPRECATION")
-                nsd.resolveService(info, object : NsdManager.ResolveListener {
-                    override fun onServiceResolved(i: NsdServiceInfo) {
-                        @Suppress("DEPRECATION") val host = i.host?.hostAddress ?: return
-                        out.removeAll { it.first == i.serviceName }
-                        out += i.serviceName to "$host:${i.port}"
-                        found.value = out.toList()
-                    }
-                    override fun onResolveFailed(i: NsdServiceInfo, e: Int) { Log.w("kumapie", "sync: resolve ${i.serviceName}: $e") }
-                })
-            }
-            override fun onServiceLost(info: NsdServiceInfo) {}
-            override fun onDiscoveryStarted(type: String) {}
-            override fun onDiscoveryStopped(type: String) {}
-            override fun onStartDiscoveryFailed(type: String, e: Int) { Log.w("kumapie", "sync: discovery $e") }
-            override fun onStopDiscoveryFailed(type: String, e: Int) {}
-        }
-        runCatching { nsd.discoverServices(SERVICE, NsdManager.PROTOCOL_DNS_SD, listener) }.onFailure { return emptyList() }
-        try { delay(ms) } finally { runCatching { nsd.stopServiceDiscovery(listener) } }
-        return out.toList()
-    }
+    suspend fun discover(context: Context, ms: Long): List<Pair<String, String>> =
+        NsdScan.scan(context, ms, SERVICE, Progress.of(context).device) { l -> found.value = l.map { it.name to it.address } }.map { it.name to it.address }
 }
 
 class DeviceSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {

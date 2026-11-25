@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) addonsAndKey(intent, settings) // not again on rotation: an addon removed since came back
         // The download notification (Android 13+ asks once).
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
-        enableEdgeToEdge()
+        enableEdgeToEdge(androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT), androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         val library = Library(applicationContext, settings)
         window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.DeviceSync.start(applicationContext) }, 5000)
         // kumapie://prepare?person&lang&type&id (the kumapie add-on's stream in Stremio): the PC makes the episode, then it plays.
@@ -163,7 +163,6 @@ class MainActivity : ComponentActivity() {
 fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = false, openImprove: Boolean = false, prepare: Map<String, String>? = null) {
     val settings = library.settings
     var server by remember { mutableStateOf(settings.server) }
-    var standalone by remember { mutableStateOf(settings.standalone) } // no PC server: chosen on the first run, as on the TV
     var onboarded by remember { mutableStateOf(io.github.pedrubik2000.kumapie.data.Startup.onboarded(settings.prefs.all)) }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home).apply { if (openSearch) add(Screen.Search); if (openImprove) add(Screen.Improve); if (prepare != null) add(Screen.Prepare(prepare)) } }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -185,7 +184,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     // Without a PC, as on the TV: JMdict, JMnedict and JPDB download in the background on the first run (and again if it
     // didn't finish, or JPDB joined the set later), so a word has a meaning without a trip to Settings.
     // Not during onboarding: its last step installs them (a second install waited on the first, "Starting…").
-    val gate = io.github.pedrubik2000.kumapie.data.Startup.gate(server, standalone, onboarded)
+    val gate = io.github.pedrubik2000.kumapie.data.Startup.gate(server, onboarded)
     LaunchedEffect(gate, server) {
         if (gate != io.github.pedrubik2000.kumapie.data.Gate.APP || server.isNotEmpty()) return@LaunchedEffect
         val dicts = io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(appContext)
@@ -222,14 +221,12 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
 
     Row(Modifier.fillMaxSize().pageBackdrop()) {
     io.github.pedrubik2000.kumapie.mobile.ui.AllowPrompt(hold = stack.last().let { it is Screen.Player || it is Screen.Watch || it == Screen.Feed }, onSettings = { stack += Screen.Settings("device") })
-    if (wide() && gate != io.github.pedrubik2000.kumapie.data.Gate.FIRST_RUN && tab != "-") Box(Modifier.fillMaxHeight().width(98.dp), contentAlignment = Alignment.CenterStart) {
+    if (wide() && tab != "-") Box(Modifier.fillMaxHeight().width(98.dp), contentAlignment = Alignment.CenterStart) {
         GlassMenu(main, tab, { top(null) }, { more = true })
     }
     Box(Modifier.weight(1f).fillMaxHeight()) {
-        if (gate == io.github.pedrubik2000.kumapie.data.Gate.FIRST_RUN) {
-            SettingsScreen(library, firstRun = true, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it })
-        } else if (gate == io.github.pedrubik2000.kumapie.data.Gate.ONBOARDING) { // without a PC: the setup (languages, Jimaku, sources, downloads), once
-            io.github.pedrubik2000.kumapie.mobile.ui.OnboardingScreen(library, onDone = { onboarded = true })
+        if (gate == io.github.pedrubik2000.kumapie.data.Gate.ONBOARDING) { // the setup (language, main server, Jimaku, sources, downloads), once
+            io.github.pedrubik2000.kumapie.mobile.ui.OnboardingScreen(library, onDone = { server = settings.server; onboarded = true })
         } else when (val screen = stack.last()) {
             Screen.Home -> HomeScreen(
                 library,
@@ -269,7 +266,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
             }
             is Screen.Prepare -> PrepareScreen(library, screen.query, onPlay = { s, e -> stack[stack.lastIndex] = Screen.Player(s, e) }, onBack = { stack.removeAt(stack.lastIndex) })
             Screen.Feed -> FeedScreen(library, langShows, homeLang, onBack = { stack.removeAt(stack.lastIndex) })
-            is Screen.Settings -> SettingsScreen(library, firstRun = false, onSaved = { server = settings.server; standalone = settings.standalone },
+            is Screen.Settings -> SettingsScreen(library, onSaved = { server = settings.server },
                 onUpdate = { update = it }, section = screen.section)
             Screen.Improve -> ImproveScreen(library, langShows, homeLang, onPlay = { s, e, at -> stack += Screen.Player(s, e, at) },
                 onBack = { stack.removeAt(stack.lastIndex) })

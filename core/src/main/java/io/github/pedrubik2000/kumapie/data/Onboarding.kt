@@ -15,8 +15,9 @@ object Onboarding {
     const val COLOURING = "colouring"
     const val DOWNLOADS = "downloads"
     val STEPS = listOf(LANGUAGE, MAIN, ANILIST, VIDEOS, COLOURING, DOWNLOADS)
+    val FROM_PC = setOf(ANILIST, VIDEOS, COLOURING, DOWNLOADS)
 
-    enum class State { DONE, COPIED, NEEDED, OPTIONAL }
+    enum class State { DONE, COPIED, NEEDED, OPTIONAL, PC }
 
     data class Item(val step: String, val label: String, val state: State, val sub: String)
 
@@ -27,9 +28,10 @@ object Onboarding {
 
     fun counted(learningJa: Boolean): List<String> = STEPS.filter { it != LANGUAGE && applies(it, learningJa) }
 
-    fun list(done: Set<String>, copied: Set<String>, learningJa: Boolean, detail: Map<String, String> = emptyMap(), current: String? = null): List<Item> =
+    fun list(done: Set<String>, copied: Set<String>, learningJa: Boolean, detail: Map<String, String> = emptyMap(), current: String? = null, pc: Boolean = false): List<Item> =
         STEPS.filter { applies(it, learningJa) }.map { s ->
             val state = when {
+                pc && s in FROM_PC -> State.PC
                 s in copied -> State.COPIED
                 s in done -> State.DONE
                 s == MAIN || s == COLOURING || s == DOWNLOADS -> State.OPTIONAL
@@ -38,7 +40,8 @@ object Onboarding {
             val sub = if (s == current && s in detail) detail.getValue(s) else when (state) {
                 State.COPIED -> tr("copied")
                 State.DONE -> detail[s] ?: tr("Done")
-                State.OPTIONAL -> tr("Optional")
+                State.OPTIONAL -> if (s == DOWNLOADS) tr("Automatic") else tr("Optional")
+                State.PC -> tr("from the PC")
                 State.NEEDED -> tr("Needed")
             }
             Item(s, label(s), state, sub)

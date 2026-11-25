@@ -103,6 +103,59 @@ class TvHomeFocusTest {
 
     private fun waitForCard(title: String) = rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription(title).fetchSemanticsNodes().isNotEmpty() }
 
+    private val memory = HomeMemory()
+
+    private fun openReturning() {
+        rule.setContent {
+            val settings = Settings(LocalContext.current)
+            val t = tick
+            if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro", onShow = {}, onPlay = { _, _ -> home = false },
+                onSettings = {}, onStats = {}, onProfiles = {}, onLibrary = {}, onDiscover = {}, onDiscovered = { home = false },
+                lists = { if (t < 0) emptyList() else null }, memory = memory)
+        }
+        rule.waitUntil(5_000) { focused() == RESUME }
+    }
+
+    private fun openAndComeBack(vararg to: Long, card: String) {
+        press(*to)
+        assertEquals(card, focused())
+        press(OK)
+        assertEquals(false, home)
+        home = true
+        rule.waitUntil(5_000) { focused() == card }
+    }
+
+    @Test fun backFromAContinueWatchingCardsTitlePageFocusesThatCard() {
+        openReturning()
+        openAndComeBack(DOWN, RIGHT, card = "Beta")
+        rule.onNodeWithText("CONTINUE WATCHING · 2 OF 2").assertExists()
+    }
+
+    @Test fun theCardStaysFocusedWhenHomeRefreshesWithEqualContentAfterTheReturn() {
+        openReturning()
+        openAndComeBack(DOWN, RIGHT, card = "Beta")
+        tick++
+        rule.waitForIdle()
+        Thread.sleep(500)
+        rule.waitForIdle()
+        assertEquals("Beta", focused())
+    }
+
+    @Test fun backFromAListCardsTitlePageFocusesThatCard() {
+        logIn(mine("1", "Frieren", "CURRENT", progress = 11, episodes = 28), mine("2", "Dandadan", "PLANNING", progress = 0, episodes = 12))
+        openReturning()
+        waitForCard("Frieren")
+        openAndComeBack(DOWN, DOWN, card = "Frieren")
+    }
+
+    @Test fun backFromTheHeroResumeButtonStillFocusesResume() {
+        openReturning()
+        press(OK)
+        assertEquals(false, home)
+        home = true
+        rule.waitUntil(5_000) { focused() == RESUME }
+    }
+
     @Test fun resumeIsFocusedWhenHomeOpens() = openHome()
 
     @Test fun downFromResumeGoesToTheRowUnderIt() {

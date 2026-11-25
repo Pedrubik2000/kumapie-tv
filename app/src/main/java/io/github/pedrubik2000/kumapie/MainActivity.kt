@@ -132,6 +132,7 @@ fun App(settings: Settings) {
 @Composable
 private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val homeMemory = remember { io.github.pedrubik2000.kumapie.ui.HomeMemory() }
     LaunchedEffect(Unit) { io.github.pedrubik2000.kumapie.ui.moveAloneLang(settings); Tr.use(settings.menuLanguage) }
     StackEntry(stack.last()) { when (stack.last()) {
         Screen.Settings -> SettingsScreen(settings, onButtons = { stack.add(Screen.Buttons) },
@@ -151,7 +152,7 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
             onShow = { s -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, s.episodes.first()))) },
             onPlay = { s, e -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e))) },
             onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) }, onProfiles = {}, onReview = { stack.add(Screen.Review(it)) },
-            onDiscover = { stack.goTop(Screen.Discover()) }, onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.goTop(Screen.Library) })
+            onDiscover = { stack.goTop(Screen.Discover()) }, onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.goTop(Screen.Library) }, memory = homeMemory)
     } }
     if (stack.last().let { it == Screen.Home || it is Screen.Discover }) io.github.pedrubik2000.kumapie.ui.RdMissingLine(settings) { stack.add(Screen.Settings) }
 }
@@ -159,6 +160,7 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
 @Composable
 private fun PcScreens(settings: Settings, server: String, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val homeMemory = remember { io.github.pedrubik2000.kumapie.ui.HomeMemory() }
     var profile by remember { mutableStateOf<Profile?>(null) }
     val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }
     LaunchedEffect(api) { api.findLan() }
@@ -181,7 +183,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
             },
             onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
             onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.goTop(Screen.Discover()) },
-            onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.goTop(Screen.Library) })
+            onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.goTop(Screen.Library) }, memory = homeMemory)
         is Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api, settings, screen.open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
             onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) }, onLibrary = { stack.goTop(Screen.Library) }, onStats = { stack.add(Screen.Stats) }, onDiscover = { stack.goTop(Screen.Discover()) })
         Screen.Library -> io.github.pedrubik2000.kumapie.ui.LibraryScreen(api, settings,

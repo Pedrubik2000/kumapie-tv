@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -49,8 +51,17 @@ import io.github.pedrubik2000.kumapie.data.resumeLine
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.delay
 
+class Spot(val at: Int, val index: Int, val key: Any)
+
 @Stable
-class HomeFocus(first: HeroTarget?) {
+class HomeMemory {
+    var last: Spot? = null
+}
+
+@Stable
+class HomeFocus(first: HeroTarget?, val memory: HomeMemory = HomeMemory()) {
+    private val cards = HashMap<String, FocusRequester>()
+    val rows = HashMap<Int, LazyListState>()
     var target by mutableStateOf(first)
     var row by mutableIntStateOf(0)
     val tall: Boolean get() = target.let { it == null || it is ResumeTarget }
@@ -60,6 +71,25 @@ class HomeFocus(first: HeroTarget?) {
     fun start(key: Any): Modifier {
         val r = starts.getOrPut(key) { FocusRequester() }
         return Modifier.focusRequester(r).onFocusChanged { if (it.isFocused) back = r }
+    }
+
+    fun card(at: Int, key: Any): Modifier {
+        val id = "$at:$key"
+        return Modifier.focusRequester(cards.getOrPut(id) { FocusRequester() })
+            .onFocusChanged { if (it.isFocused && memory.last?.let { m -> "${m.at}:${m.key}" } != id) memory.last = null }
+    }
+
+    fun leaving(at: Int, index: Int, key: Any) { memory.last = Spot(at, index, key) }
+
+    suspend fun restore(list: LazyListState): Boolean {
+        val s = memory.last ?: return false
+        repeat(RESTORE_FRAMES) {
+            runCatching { list.scrollToItem(s.at) }
+            runCatching { rows[s.at]?.scrollToItem(s.index) }
+            withFrameNanos { }
+            if (cards["${s.at}:${s.key}"]?.let { runCatching { it.requestFocus() }.getOrDefault(false) } == true) return true
+        }
+        return false
     }
 
     fun forget(): Modifier = Modifier.onFocusChanged { if (it.isFocused) back = null }
@@ -76,6 +106,7 @@ class HomeFocus(first: HeroTarget?) {
     }
 }
 
+private const val RESTORE_FRAMES = 30
 internal const val LOGIN_START = "login"
 
 private val HERO_HEIGHT = 390.dp

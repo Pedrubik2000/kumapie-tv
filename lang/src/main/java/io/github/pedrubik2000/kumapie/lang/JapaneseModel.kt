@@ -229,6 +229,7 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
     private val model = JapaneseModel(context)
     override val what = tr("the Japanese dictionary")
     override val notificationId = 994
+    override val showAtStart = false
 
     override suspend fun run() {
         if (!model.isReady) sudachi()
@@ -260,7 +261,7 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
         val stamp = File(dir, "jiten-splitter.version")
         val json = File(dir, SplitterManifest.NAME + ".part").apply { delete() }
         val manifest = try {
-            fetch(SplitterManifest.BASE + SplitterManifest.NAME, json, 0.05f)
+            fetch(SplitterManifest.BASE + SplitterManifest.NAME, json, quiet = true)
             SplitterManifest.parse(json.readText())
         } catch (e: IOException) {
             keepFilesOr(e)
@@ -288,6 +289,8 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
             if (!part.renameTo(f)) throw IOException(tr("couldn't move the dictionary into place"))
         }
         stamp.writeText(manifest.version)
+        val keep = manifest.files.map { "${it.name}.${it.sha256.take(12)}.part" }.toSet()
+        dir.listFiles { f -> f.name.endsWith(".part") && f.name !in keep && model.splitterFiles.any { f.name.startsWith(it.name) } }?.forEach { it.delete() }
     }
 
     private fun keepFilesOr(e: IOException) {

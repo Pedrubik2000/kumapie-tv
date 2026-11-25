@@ -33,9 +33,10 @@ abstract class AssetWorker(context: Context, params: WorkerParameters) : Corouti
     abstract val what: String
     abstract val notificationId: Int
     abstract suspend fun run()
+    open val showAtStart = true
 
     override suspend fun doWork(): Result {
-        runCatching { setForeground(foreground(0f)) }
+        if (showAtStart) runCatching { setForeground(foreground(0f)) }
         return try {
             withContext(Dispatchers.IO) { run() }
             Result.success()
@@ -46,7 +47,7 @@ abstract class AssetWorker(context: Context, params: WorkerParameters) : Corouti
     }
 
     /** GET [url] into [part], continuing a partial file; progress 0..[share] of the bar. */
-    protected suspend fun fetch(url: String, part: File, share: Float = 0.9f) {
+    protected suspend fun fetch(url: String, part: File, share: Float = 0.9f, quiet: Boolean = false) {
         val have = if (part.exists()) part.length() else 0L
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.connectTimeout = 15_000
@@ -69,7 +70,7 @@ abstract class AssetWorker(context: Context, params: WorkerParameters) : Corouti
                         if (n < 0) break
                         out.write(buf, 0, n)
                         done += n
-                        if (total > 0) report(tr("Downloading: %1\$d of %2\$d MB", done / 1_000_000, total / 1_000_000), share * done / total)
+                        if (total > 0 && !quiet) report(tr("Downloading: %1\$d of %2\$d MB", done / 1_000_000, total / 1_000_000), share * done / total)
                     }
                 }
             }

@@ -197,6 +197,15 @@ class BrowseStateTest {
     }
 
 
+    @Test fun theLastTooManyRequestsAnswerStillSetsTheWaitSoTryAgainDoesNotHitItAtOnce() = runBlocking {
+        val s = state()
+        s.first("a", q, { _, _ -> throw io.github.pedrubik2000.kumapie.data.AniList.Failed(429, "AniList: too many requests", 1) })
+        assertTrue(s.error != null)
+        assertTrue(BrowseNet.until > System.currentTimeMillis())
+        BrowseNet.until = 0
+    }
+
+
     @Test fun aThirdTooManyRequestsAnswerIsAnError() = runBlocking {
         val s = state()
         var asks = 0

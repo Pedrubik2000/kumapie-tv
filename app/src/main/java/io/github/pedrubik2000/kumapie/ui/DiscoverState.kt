@@ -187,9 +187,9 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
                     return fetch(q, p).also { BrowseNet.lastAsk = System.currentTimeMillis() }
                 } catch (e: AniList.Failed) {
                     BrowseNet.lastAsk = System.currentTimeMillis()
+                    if (e.code == 429) BrowseNet.until = maxOf(BrowseNet.until, System.currentTimeMillis() + e.retryAfter.coerceIn(1, WAIT_MAX_S) * 1000)
                     if (e.code != 429 || tries >= WAIT_TRIES) throw e
                     tries++
-                    BrowseNet.until = maxOf(BrowseNet.until, System.currentTimeMillis() + e.retryAfter.coerceIn(1, WAIT_MAX_S) * 1000)
                 }
             }
         }

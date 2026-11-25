@@ -93,7 +93,8 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
             val bar = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
             val body: @Composable () -> Unit = {
                 Column(Modifier.fillMaxSize().imePadding()) {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                val scroll = rememberScrollState()
+                Column(Modifier.weight(1f).fadeTop(16.dp, scroll).verticalScroll(scroll).padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                   CompositionLocalProvider(LocalStepBar provides bar) {
                     when (current) {
                         Onboarding.LANGUAGE -> LanguagePage(settings) { complete(current) }

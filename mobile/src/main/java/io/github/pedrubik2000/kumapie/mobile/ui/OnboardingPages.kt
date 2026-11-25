@@ -121,6 +121,7 @@ internal fun VideosPage(settings: Settings, caption: String, copiedFrom: String?
             Text(tr("English under the lines: OpenSubtitles (free, no account)"))
         }
     }
+    if (copiedFrom == null) Text(tr("Skip: nothing plays until both keys are in"), color = Glass.dim, fontSize = 13.sp)
     StepBar {
         Pill(tr("Continue"), {
             if (copiedFrom != null) onContinue()
@@ -133,8 +134,8 @@ internal fun VideosPage(settings: Settings, caption: String, copiedFrom: String?
                 if (g.mayFinish) onContinue()
             }
         }, primary = true)
-        if (copiedFrom == null) Text(tr("Skip: nothing plays until both keys are in"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
-            modifier = Modifier.padding(start = 14.dp).sizeIn(minHeight = 48.dp).clickable { settings.setSources(kitsu, english, rd); onContinue() }.padding(vertical = 14.dp))
+        if (copiedFrom == null) Text(tr("Skip"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
+            modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { settings.setSources(kitsu, english, rd); onContinue() }.padding(vertical = 14.dp))
     }
 }
 

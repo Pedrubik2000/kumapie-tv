@@ -88,7 +88,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
             val found = async { pairing.discoverPcs(DISCOVER_MS) }
             devices.await() to found.await()
         }
-        state.value = Phase.Pick(hubs.map { Hub(it.first, it.second) }, notice, pcs)
+        if (state.value is Phase.Looking) state.value = Phase.Pick(hubs.map { Hub(it.first, it.second) }, notice, pcs)
     }
 
     private suspend fun connect(url: String, address: String): String {

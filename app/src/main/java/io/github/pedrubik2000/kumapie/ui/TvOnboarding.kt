@@ -273,7 +273,7 @@ internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSa
     val aniList = part == SetupPart.ANILIST
     if (heading) Heading(if (aniList) tr("Log in to AniList from your phone") else tr("Set up kumapie from your phone"))
     if (url == null) return Text(if (aniList) tr("This TV isn't on a home network: connect it, then log in here.") else tr("This TV isn't on a home network: connect it, or add the keys in Settings later."), color = Colors.dim)
-    Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.padding(top = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
         val qr = remember(url) { qr(url, 480) }
         Image(qr.asImageBitmap(), null, Modifier.size(200.dp).background(Color.White).padding(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {

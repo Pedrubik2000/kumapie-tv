@@ -39,7 +39,8 @@ private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(e
     var triedPc = mutableListOf<String>()
     var cancels = false
     var hangs = false
-    override suspend fun discover(ms: Long) = listOf("Tab S7+" to "192.168.0.154:47823")
+    var discoverGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    override suspend fun discover(ms: Long): List<Pair<String, String>> { discoverGate?.await(); return listOf("Tab S7+" to "192.168.0.154:47823") }
     override suspend fun discoverPcs(ms: Long) = pcs
     override suspend fun usePc(url: String): String {
         triedPc += url
@@ -339,6 +340,19 @@ class MainDeviceFlowTest {
         job.join()
         assertEquals(Phase.Done("", emptySet()), flow.phase.value)
         assertEquals("", Settings(RuntimeEnvironment.getApplication()).server)
+    }
+
+    @Test fun aScanEndingAfterATypedConnectDoesNotOverwriteIt() = runBlocking {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val pairing = FakePairing(emptyList()).apply { discoverGate = gate; pcUp = setOf("http://10.0.0.5:8769") }
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        val scan = launch(Dispatchers.Default) { flow.look() }
+        while (flow.phase.value !is Phase.Looking) yield()
+        flow.pair(Hub("", "10.0.0.5"))
+        assertEquals(Phase.PcDone("10.0.0.5"), flow.phase.value)
+        gate.complete(Unit)
+        scan.join()
+        assertEquals(Phase.PcDone("10.0.0.5"), flow.phase.value)
     }
 
     @Test fun aTypedAddressNobodyAnswersSaysSo() = runBlocking {

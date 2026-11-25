@@ -49,6 +49,7 @@ object DeviceSync {
     private const val WORK = "device-sync"
     private const val CONFLICT_MS = 10 * 60_000L
     private const val STALE_MS = 20_000L
+    private const val DEAD_MS = 120_000L
     private const val TWO = "Two devices asked with the same name: pair again."
 
     class Peer(val name: String, val address: String, val secret: String)
@@ -150,7 +151,7 @@ object DeviceSync {
 
     internal fun shown(secret: String, pub: String, reply: JSONObject): String = if (reply.optBoolean("setup")) code(secret, pub) else code(secret)
 
-    enum class Poll { WAITING, ALLOWED, CONFLICT, GONE }
+    enum class Poll { WAITING, ALLOWED, CONFLICT, GONE, UNREACHABLE }
 
     internal fun polled(a: Answer): Poll = when {
         a.status == 200 -> Poll.ALLOWED
@@ -165,7 +166,7 @@ object DeviceSync {
         val peer = with(settings) ?: return@withContext Poll.GONE
         val pub = SetupBundle.pub() ?: return@withContext Poll.GONE
         val body = JSONObject().put("device", Progress.of(context).device).put("secret", peer.secret).put("pub", pub).toString().toByteArray()
-        val poll = runCatching { polled(post("http://${peer.address}/pair", body, emptyMap())) }.getOrDefault(Poll.WAITING)
+        val poll = runCatching { polled(post("http://${peer.address}/pair", body, emptyMap())) }.getOrDefault(Poll.UNREACHABLE)
         if (poll == Poll.CONFLICT) { forget(settings); SetupBundle.clearKey() }
         poll
     }
@@ -242,11 +243,12 @@ object DeviceSync {
     internal fun requested(prefs: SharedPreferences, who: String, asked: String, pub: String, me: String, now: Long = System.currentTimeMillis()): Answer {
         val reply = JSONObject().put("device", me).put("setup", true).toString().toByteArray()
         if (peers(prefs).optString(who) == asked) return Answer(200, reply)
+        asking.value = asking.value.filter { now - it.seen <= DEAD_MS }
         if (who in conflicts.value && now - (conflictAt[who] ?: 0L) > CONFLICT_MS) dismissConflict(who)
         if (who in conflicts.value) return Answer(409, TWO.toByteArray())
         val old = asking.value.firstOrNull { it.device == who }
         if (old != null && (old.secret != asked || old.pub != pub)) {
-            if (now - old.seen <= STALE_MS) {
+            if (now - old.seen <= STALE_MS || code(asked, pub) == old.code) {
                 asking.value = asking.value.filter { it !== old }
                 conflictAt[who] = now
                 conflicts.value = conflicts.value + who

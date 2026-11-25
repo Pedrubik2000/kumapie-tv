@@ -202,4 +202,32 @@ class MainDeviceFlowTest {
         flow.pair(hub)
         assertEquals("Couldn't reach Tab S7+", (flow.phase.value as Phase.Pick).notice)
     }
+
+    @Test fun unreachableForFifteenSecondsForgetsThePairing() = runBlocking {
+        var now = 0L
+        val pairing = FakePairing(listOf(Poll.UNREACHABLE))
+        val flow = MainDeviceFlow(prefs, pairing, { now }) { now += 2_000 }
+        flow.pair(hub)
+        assertEquals("Couldn't reach Tab S7+: pair again.", (flow.phase.value as Phase.Pick).notice)
+        assertEquals(1, pairing.forgot)
+        assertTrue(now in 15_000..20_000)
+    }
+
+    @Test fun aBlipUnderFifteenSecondsKeepsPolling() = runBlocking {
+        var now = 0L
+        val pairing = FakePairing(listOf(Poll.UNREACHABLE, Poll.UNREACHABLE, Poll.WAITING, Poll.ALLOWED), bundle)
+        val flow = MainDeviceFlow(prefs, pairing, { now }) { now += 2_000 }
+        flow.pair(hub)
+        assertTrue(flow.phase.value is Phase.Ready)
+        assertEquals(0, pairing.forgot)
+    }
+
+    @Test fun failAndLookDoNothingOnceDone() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED), bundle)
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        flow.pair(hub)
+        flow.finish(hub, bundle, setOf("anilist"))
+        flow.look("x")
+        assertTrue(flow.phase.value is Phase.Done)
+    }
 }

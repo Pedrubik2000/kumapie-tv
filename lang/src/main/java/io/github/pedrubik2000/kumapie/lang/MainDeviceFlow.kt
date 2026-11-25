@@ -30,7 +30,7 @@ class LivePairing(private val context: Context) : Pairing {
     override suspend fun fetch() = SetupBundle.fetch(context)
     override fun apply(got: SetupBundle.Got.Ok, ticked: Set<String>) = SetupBundle.apply(context, got, ticked)
     override fun peer() = DeviceSync.with(Settings(context))?.let { MainDeviceFlow.Hub(it.name, it.address) }
-    override fun forget() = DeviceSync.unpair(context)
+    override fun forget() { SetupBundle.clearKey(); DeviceSync.unpair(context) }
     override fun hasKey() = SetupBundle.pub() != null
     override fun me() = Progress.of(context).device
 }
@@ -63,6 +63,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
     }
 
     suspend fun look(notice: String = "") {
+        if (state.value is Phase.Done) return
         state.value = Phase.Looking
         state.value = Phase.Pick(pairing.discover(DISCOVER_MS).map { Hub(it.first, it.second) }, notice)
     }
@@ -89,7 +90,8 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
 
     private suspend fun poll(hub: Hub, code: String) {
         pending = Phase.Waiting(hub, code).also { state.value = it }
-        val end = clock() + DEADLINE_MS
+        var heard = clock()
+        val end = heard + DEADLINE_MS
         while (clock() < end) {
             when (pairing.allowed()) {
                 DeviceSync.Poll.ALLOWED -> return fetched(hub)
@@ -98,7 +100,14 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
                     return look(DeviceSync.conflictLine(pairing.me()))
                 }
                 DeviceSync.Poll.GONE -> return fail(tr("Pairing was lost: pair again."))
-                DeviceSync.Poll.WAITING -> pause(POLL_MS)
+                DeviceSync.Poll.WAITING -> {
+                    heard = clock()
+                    pause(POLL_MS)
+                }
+                DeviceSync.Poll.UNREACHABLE -> {
+                    if (clock() - heard > UNREACHABLE_MS) return fail(tr("Couldn't reach %s: pair again.", hub.name.ifEmpty { hub.address }))
+                    pause(POLL_MS)
+                }
             }
         }
         look(tr("%s didn't allow it in time: pair again.", hub.name))
@@ -113,6 +122,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
     }
 
     private suspend fun fail(notice: String) {
+        if (state.value is Phase.Done) return
         pending = null
         pairing.forget()
         look(notice)
@@ -147,6 +157,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
         const val DISCOVER_MS = 8_000L
         const val POLL_MS = 2_000L
         const val DEADLINE_MS = 180_000L
+        const val UNREACHABLE_MS = 15_000L
         val ROWS = listOf("anilist", "keys", "colouring", SetupBundle.SYNC, "languages")
 
         fun hub(prefs: SharedPreferences): String = prefs.getString(HUB, "").orEmpty()

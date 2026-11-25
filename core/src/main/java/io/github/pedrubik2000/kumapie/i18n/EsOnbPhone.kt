@@ -12,4 +12,5 @@ internal val esOnbPhone: Map<String, String> = mapOf(
     "Couldn't reach %s" to "No se pudo conectar con %s",
     "Copied from %1\$s: %2\$s" to "Copiado de %1\$s: %2\$s",
     "Set up fresh" to "Configurado desde cero",
+    "Couldn't reach %s: pair again." to "No se pudo conectar con %s: empareja otra vez.",
 )

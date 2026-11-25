@@ -47,6 +47,8 @@ object DeviceSync {
     private const val PEERS = "sync_peers"
     private const val LAST = "sync_last"
     private const val WORK = "device-sync"
+    private const val CONFLICT_MS = 10 * 60_000L
+    private const val TWO = "Two devices asked with the same name: pair again."
 
     class Peer(val name: String, val address: String, val secret: String)
     class Asking(val device: String, val secret: String, val pub: String = "") { val code: String get() = code(secret, pub) }
@@ -134,14 +136,18 @@ object DeviceSync {
         val pub = SetupBundle.begin()
         val a = post("http://$address/pair", JSONObject().put("device", Progress.of(context).device).put("secret", secret).put("pub", pub).toString().toByteArray(), emptyMap())
         if (a.status !in 200..202) throw IOException(String(a.body))
-        val who = name.ifEmpty { JSONObject(String(a.body)).getString("device") }
+        val reply = JSONObject(String(a.body))
+        val who = name.ifEmpty { reply.getString("device") }
         settings.prefs.edit().putString(WITH, JSONObject().put("name", who).put("address", address).put("secret", secret).toString()).apply()
-        code(secret, pub)
+        shown(secret, pub, reply)
     }
+
+    internal fun shown(secret: String, pub: String, reply: JSONObject): String = if (reply.optBoolean("setup")) code(secret, pub) else code(secret)
 
     suspend fun allowed(context: Context): Boolean = withContext(Dispatchers.IO) {
         val peer = with(Settings(context)) ?: return@withContext false
-        runCatching { post("http://${peer.address}/pair", JSONObject().put("device", Progress.of(context).device).put("secret", peer.secret).toString().toByteArray(), emptyMap()).status == 200 }.getOrDefault(false)
+        val pub = SetupBundle.pub() ?: return@withContext false
+        runCatching { post("http://${peer.address}/pair", JSONObject().put("device", Progress.of(context).device).put("secret", peer.secret).put("pub", pub).toString().toByteArray(), emptyMap()).status == 200 }.getOrDefault(false)
     }
 
     suspend fun syncNow(context: Context): String = withContext(Dispatchers.IO) {
@@ -206,16 +212,26 @@ object DeviceSync {
         }
     }
 
-    internal fun requested(prefs: SharedPreferences, who: String, asked: String, pub: String, me: String): Answer {
-        val reply = JSONObject().put("device", me).toString().toByteArray()
+    private val conflictAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    fun dismissConflict(name: String) {
+        conflictAt.remove(name)
+        conflicts.value = conflicts.value - name
+    }
+
+    internal fun requested(prefs: SharedPreferences, who: String, asked: String, pub: String, me: String, now: Long = System.currentTimeMillis()): Answer {
+        val reply = JSONObject().put("device", me).put("setup", true).toString().toByteArray()
         if (peers(prefs).optString(who) == asked) return Answer(200, reply)
+        if (who in conflicts.value && now - (conflictAt[who] ?: 0L) > CONFLICT_MS) dismissConflict(who)
+        if (who in conflicts.value) return Answer(409, TWO.toByteArray())
         val old = asking.value.firstOrNull { it.device == who }
         if (old != null && (old.secret != asked || old.pub != pub)) {
             asking.value = asking.value.filter { it !== old }
+            conflictAt[who] = now
             conflicts.value = conflicts.value + who
-            return Answer(409, "Two devices asked with the same name: pair again.".toByteArray())
+            return Answer(409, TWO.toByteArray())
         }
-        if (old == null) { asking.value = asking.value + Asking(who, asked, pub); conflicts.value = conflicts.value - who }
+        if (old == null) asking.value = asking.value + Asking(who, asked, pub)
         return Answer(202, reply)
     }
 

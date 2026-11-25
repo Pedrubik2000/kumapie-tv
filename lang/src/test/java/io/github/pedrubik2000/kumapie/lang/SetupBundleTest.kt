@@ -78,7 +78,7 @@ class SetupBundleTest {
 
     private fun paired(pub: String, now: Long = 1_000L) = hub().also { SetupBundle.grant(it, "tab", pub, now) }
 
-    private fun fresh() { DeviceSync.asking.value = emptyList(); DeviceSync.conflicts.value = emptySet() }
+    private fun fresh() { DeviceSync.asking.value = emptyList(); DeviceSync.conflicts.value.forEach { DeviceSync.dismissConflict(it) } }
 
     @Test fun sealedBundleOpensWithTheSameSecretAndNotWithAnother() {
         val client = SetupBundle.ephemeral()
@@ -155,6 +155,43 @@ class SetupBundleTest {
         DeviceSync.requested(prefs, "x", secret, "A", "me")
         assertEquals(409, DeviceSync.requested(prefs, "x", other, "A", "me").status)
         fresh()
+    }
+
+    @Test fun theClientsOwnPollKeepsItsRequestAndAllowAnswers200() {
+        fresh()
+        val prefs = Prefs()
+        val pub = SetupBundle.begin()
+        assertEquals(pub, SetupBundle.pub())
+        assertEquals(202, DeviceSync.requested(prefs, "tab", secret, pub, "me").status)
+        assertEquals(202, DeviceSync.requested(prefs, "tab", secret, SetupBundle.pub().orEmpty(), "me").status)
+        assertTrue(DeviceSync.conflicts.value.isEmpty())
+        DeviceSync.allow(prefs, DeviceSync.asking.value.single(), 1_000L)
+        assertEquals(200, DeviceSync.requested(prefs, "tab", secret, pub, "me").status)
+    }
+
+    @Test fun aConflictStaysUntilDismissedOrTenMinutes() {
+        fresh()
+        val prefs = Prefs()
+        DeviceSync.requested(prefs, "tab", secret, "A", "me", 1_000L)
+        assertEquals(409, DeviceSync.requested(prefs, "tab", other, "B", "me", 2_000L).status)
+        assertEquals(409, DeviceSync.requested(prefs, "tab", other, "B", "me", 3_000L).status)
+        assertTrue(DeviceSync.asking.value.isEmpty())
+        DeviceSync.dismissConflict("tab")
+        assertEquals(202, DeviceSync.requested(prefs, "tab", secret, "A", "me", 4_000L).status)
+        fresh()
+        DeviceSync.requested(prefs, "tab", secret, "A", "me", 1_000L)
+        DeviceSync.requested(prefs, "tab", other, "B", "me", 2_000L)
+        assertEquals(409, DeviceSync.requested(prefs, "tab", secret, "A", "me", 2_000L + 600_000L).status)
+        assertEquals(202, DeviceSync.requested(prefs, "tab", secret, "A", "me", 2_001L + 600_000L).status)
+        fresh()
+    }
+
+    @Test fun theCodeMatchesTheHubsGenerationOldHubsShowTheOldCode() {
+        val pub = "A"
+        val new = JSONObject(String(DeviceSync.requested(Prefs(), "tab", secret, pub, "me").also { fresh() }.body))
+        assertEquals(DeviceSync.code(secret, pub), DeviceSync.shown(secret, pub, new))
+        val old = JSONObject().put("device", "hub")
+        assertEquals(DeviceSync.code(secret), DeviceSync.shown(secret, pub, old))
     }
 
     @Test fun theHubRoutesSetupAndKeepsUnknownPaths404() {

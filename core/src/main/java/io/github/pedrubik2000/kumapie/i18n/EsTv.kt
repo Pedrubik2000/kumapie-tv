@@ -343,7 +343,7 @@ internal val esTv: Map<String, String> = mapOf(
     "Only Planning" to "Solo Planeados",
     "All anime" to "Todo el anime",
     "%s on AniList" to "%s en AniList",
-    "Waiting for AniList…" to "Esperando a AniList…",
+    "AniList asks us to wait %d s…" to "AniList nos pide esperar %d s…",
     "%s episodes" to "%s episodios",
     "not on my list" to "no en mi lista",
     "only my Planning" to "solo mis Planeados",

@@ -18,7 +18,7 @@ object AniListBrowse {
         val onList: Boolean? = null, val idIn: List<Int>? = null,
     )
 
-    class Page(val items: List<Mine>, val total: Int, val hasNext: Boolean, val expired: Boolean = false)
+    class Page(val items: List<Mine>, val total: Int, val hasNext: Boolean, val expired: Boolean = false, val ids: suspend () -> Map<Int, String> = { emptyMap() })
 
     private const val QUERY = "query(\$p:Int,\$search:String,\$sort:[MediaSort],\$gi:[String],\$gn:[String],\$ti:[String],\$tn:[String],\$f:[MediaFormat]," +
         "\$st:MediaStatus,\$eg:Int,\$el:Int,\$sg:FuzzyDateInt,\$sl:FuzzyDateInt,\$ol:Boolean,\$ids:[Int]){Page(page:\$p,perPage:$PER_PAGE){pageInfo{total hasNextPage} " +
@@ -43,8 +43,8 @@ object AniListBrowse {
 
     suspend fun page(
         q: Query, page: Int, token: String, prefs: SharedPreferences,
-        ask: suspend (String, JSONObject) -> JSONObject = { t, v -> AniList.gqlCancellable(t, QUERY, v) },
-        kitsu: suspend (List<Int>, SharedPreferences) -> Map<Int, String> = AniList::kitsuIds,
+        ask: suspend (String, JSONObject) -> JSONObject = { t, v -> AniList.gqlCancellable(t, QUERY, v, short = true) },
+        kitsu: suspend (List<Int>, SharedPreferences) -> Map<Int, String> = { ids, p -> AniList.kitsuIds(ids, p, short = true) },
     ): Page = withContext(Dispatchers.IO) {
         var expired = false
         val data = try {
@@ -55,7 +55,8 @@ object AniListBrowse {
         }.getJSONObject("Page")
         val media = data.getJSONArray("media").objects()
         val info = data.optJSONObject("pageInfo")
-        val items = AniListLists.parse(media.map { JSONObject().put("media", it) }, kitsu(media.map { it.getInt("id") }, prefs))
-        Page(items, info?.optInt("total") ?: items.size, info?.optBoolean("hasNextPage") ?: false, expired)
+        val items = AniListLists.parse(media.map { JSONObject().put("media", it) }, AniList.cachedKitsu(media.map { it.getInt("id") }, prefs), unmapped = "")
+        val missing = items.filter { it.kitsuId.isEmpty() }.map { it.anilistId }
+        Page(items, info?.optInt("total") ?: items.size, info?.optBoolean("hasNextPage") ?: false, expired) { if (missing.isEmpty()) emptyMap() else kitsu(missing, prefs) }
     }
 }

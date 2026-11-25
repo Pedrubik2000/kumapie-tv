@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,10 +27,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import io.github.pedrubik2000.kumapie.data.AniList
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.i18n.tr
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val MORE_AHEAD = 12
@@ -75,10 +79,11 @@ private fun BrowseHero(env: DiscoverEnv, filters: BrowseFilters, items: List<Min
 private fun BrowseBody(env: DiscoverEnv, state: BrowseState, display: BrowseShown?, items: List<Mine>, grid: LazyGridState, focus: LibFocus, nav: GridNav,
                        inGrid: (Boolean) -> Unit) {
     val error = state.error
+    val scope = rememberCoroutineScope()
     val retry = remember { FocusRequester() }
     when {
         error != null -> ErrorBox(error, onRetry = state::retry, onSettings = null, server = env.api is Api)
-        display == null -> Text(if (state.waiting) tr("Waiting for AniList…") else tr("Loading…"), color = Colors.dim)
+        display == null -> Text(if (state.waiting) waitLine(state.waitS) else tr("Loading…"), color = Colors.dim)
         else -> {
             Text(remember(display, state.total, state.expired) { styled(browseLine(display.filters, state.total, display.view, state.expired), Colors.dim) }, fontSize = 14.sp)
             if (items.isEmpty()) Text(state.emptyNote ?: emptyLine(display.filters), color = Colors.dim, modifier = Modifier.padding(top = 12.dp))
@@ -86,10 +91,10 @@ private fun BrowseBody(env: DiscoverEnv, state: BrowseState, display: BrowseShow
     }
     if (items.isNotEmpty() && error == null) CoverGrid(items, { it.anilistId }, grid,
         Modifier.focusRequester(nav.grid).onBackKey { backFromGrid(state, env.entry) }.onFocusChanged { inGrid(it.hasFocus) }.focusRestorer(nav.enter),
-        focus, env.entry, nav, { MissingKeyLine.up(nav.grid) }, (if (state.moreError != null || state.waiting) ({ MoreFooter(state.moreError, { state.retryMore(); runCatching { nav.grid.requestFocus() } }, retry) }) else null),
+        focus, env.entry, nav, { MissingKeyLine.up(nav.grid) }, (if (state.moreError != null || state.waiting) ({ MoreFooter(state.moreError, state.waitS, { state.retryMore(); runCatching { nav.grid.requestFocus() } }, retry) }) else null),
         if (state.moreError != null && !state.waiting) retry else FocusRequester.Cancel) { m, card ->
         Poster(m.cover, m.shown(), m.year.takeIf { it > 0 }?.toString().orEmpty(), null, card, level = env.levels?.of(m.kitsuId), width = 83.dp) {
-            env.open(m.found(), m.anilistId)
+            openTitle(env, state, scope, m)
         }
     }
 }
@@ -123,14 +128,14 @@ private fun rememberBrowse(state: BrowseState, levels: Levels?): BrowseShown? {
 @Composable
 private fun BrowseAsks(levels: Levels?, all: List<Mine>, needed: Boolean, grid: LazyGridState, items: List<Mine>) {
     val owner = remember { Any() }
-    AskVisible(levels, grid, remember(items) { items.map { it.kitsuId } })
+    AskVisible(levels, grid, remember(items) { items.map { it.kitsuId.ifEmpty { null } } })
     DisposableEffect(levels) { onDispose { levels?.release(owner) } }
     LaunchedEffect(levels, needed, all) {
         levels ?: return@LaunchedEffect
         withContext(Dispatchers.Default) {
-            levels.know(all)
+            levels.know(all.filter { it.kitsuId.isNotEmpty() })
             levels.drop(owner)
-            if (needed) levels.ask(all.map { it.kitsuId }, false, owner)
+            if (needed) levels.ask(all.map { it.kitsuId }.filter { it.isNotEmpty() }, false, owner)
         }
     }
 }
@@ -150,9 +155,9 @@ internal fun BrowsePicker(state: BrowseState, kind: PickerKind) {
 }
 
 @Composable
-private fun MoreFooter(message: String?, onRetry: () -> Unit, focus: FocusRequester) {
+private fun MoreFooter(message: String?, waitS: Int, onRetry: () -> Unit, focus: FocusRequester) {
     if (message == null) {
-        Text(tr("Waiting for AniList…"), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
+        Text(waitLine(waitS), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
         return
     }
     Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -174,3 +179,10 @@ private fun rememberBrowseFrozen(built: BrowseShown?, frozen: Boolean): BrowseSh
 
 private fun BrowseShown.appends(old: BrowseShown): Boolean =
     filters == old.filters && view.items.size >= old.view.items.size && view.items.zip(old.view.items).all { (a, b) -> a.anilistId == b.anilistId }
+
+private fun waitLine(seconds: Int) = tr("AniList asks us to wait %d s…", seconds)
+
+private fun openTitle(env: DiscoverEnv, state: BrowseState, scope: CoroutineScope, m: Mine) {
+    if (m.kitsuId.isNotEmpty()) return env.open(m.found(), m.anilistId)
+    scope.launch { state.withKitsu(m) { AniList.kitsuIds(it, env.settings.prefs, short = true) }?.let { env.open(it.found(), it.anilistId) } }
+}

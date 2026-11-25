@@ -21,6 +21,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal const val NEXT_PICKS = 4
 internal const val DUEL_SIZE = 8
@@ -114,7 +115,8 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
     var expired by mutableStateOf(false)
     var login by mutableStateOf(settings.anilistToken)
     var emptyNote by mutableStateOf<String?>(null)
-    var waiting by mutableStateOf(false)
+    var waitS by mutableIntStateOf(0)
+    val waiting get() = waitS > 0
     var attempt by mutableIntStateOf(0)
     var moreTick by mutableIntStateOf(0)
     var picker by mutableStateOf<PickerKind?>(null)
@@ -157,10 +159,9 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
     }
 
     private suspend fun ask(fetch: BrowseFetch, q: AniListBrowse.Query, p: Int, g: Int): AniListBrowse.Page {
-        BrowseNet.lock.lock()
-        try {
-            var tries = 0
-            while (true) {
+        var tries = 0
+        while (true) {
+            val wait = BrowseNet.lock.withLock {
                 val gap = browseGapMs - (System.currentTimeMillis() - BrowseNet.lastAsk)
                 if (gap > 0) delay(gap)
                 if (g != generation) throw CancellationException("stale")
@@ -170,16 +171,26 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
                 } catch (e: AniList.Failed) {
                     BrowseNet.lastAsk = System.currentTimeMillis()
                     if (e.code != 429 || tries >= WAIT_TRIES) throw e
-                    tries++
-                    waiting = true
-                    try { delay(e.retryAfter.coerceIn(1, WAIT_MAX_S) * 1000) } finally { waiting = false }
-                    if (g != generation) throw CancellationException("stale")
+                    e.retryAfter
                 }
             }
-        } finally {
-            BrowseNet.lock.unlock()
+            tries++
+            try {
+                for (left in wait.coerceIn(1, WAIT_MAX_S).toInt() downTo 1) { waitS = left; delay(1000) }
+            } finally { waitS = 0 }
+            if (g != generation) throw CancellationException("stale")
         }
     }
+
+    private suspend fun fill(g: Int, p: AniListBrowse.Page) {
+        val blank = p.items.filter { it.kitsuId.isEmpty() }.map { it.anilistId }.toSet()
+        if (blank.isEmpty()) return
+        val ids = p.ids()
+        if (g == generation) items = items.mapNotNull { m -> if (m.anilistId !in blank) m else ids[m.anilistId]?.let { m.copy(kitsuId = it) } }
+    }
+
+    suspend fun withKitsu(m: Mine, ids: suspend (List<Int>) -> Map<Int, String>): Mine? =
+        items.firstOrNull { it.anilistId == m.anilistId && it.kitsuId.isNotEmpty() } ?: ids(listOf(m.anilistId))[m.anilistId]?.let { m.copy(kitsuId = it) }
 
     suspend fun first(key: Any, q: AniListBrowse.Query?, fetch: BrowseFetch) {
         if (fetchedFor == key) {
@@ -210,6 +221,8 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
                 all = all + p.items
             }
             finish(g, key, AniListBrowse.Page(all, p.total, p.hasNext, p.expired), pages, q, null)
+            if (g == generation) firstPending = false
+            fill(g, p)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -236,6 +249,8 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
             if (g != generation) return
             val have = items.map { it.anilistId }.toSet()
             items = items + p.items.filter { it.anilistId !in have }; hasNext = p.hasNext; page = next; expired = expired || p.expired
+            moreBusy = false
+            fill(g, p)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

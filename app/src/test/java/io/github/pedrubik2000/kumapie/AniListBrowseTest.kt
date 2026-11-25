@@ -45,13 +45,17 @@ class AniListBrowseTest {
         assertFalse(AniListBrowse.variables(AniListBrowse.Query(), 1, loggedIn = false).has("search"))
     }
 
-    @Test fun aPageKeepsTheTitlesKitsuKnowsAndItsTotalAndNext() = runBlocking {
-        val page = AniListBrowse.page(AniListBrowse.Query(), 1, "t", prefs, { _, _ -> answer(312, true, 1, 2, 3) }, { ids, _ -> ids.filter { it != 2 }.associateWith { "k$it" } })
-        assertEquals(listOf(1, 3), page.items.map { it.anilistId })
-        assertEquals(listOf("k1", "k3"), page.items.map { it.kitsuId })
+    @Test fun aPageComesBackBeforeKitsuIdsAndTheIdsFillTheMissingOnesAfter() = runBlocking {
+        var asked: List<Int>? = null
+        val page = AniListBrowse.page(AniListBrowse.Query(), 1, "t", prefs, { _, _ -> answer(312, true, 1, 2, 3) }, { ids, _ -> asked = ids; ids.filter { it != 2 }.associateWith { "k$it" } })
+        assertEquals(null, asked)
+        assertEquals(listOf(1, 2, 3), page.items.map { it.anilistId })
+        assertEquals(listOf("", "", ""), page.items.map { it.kitsuId })
         assertEquals(listOf("Detective"), page.items.first().tags)
         assertEquals(312, page.total)
         assertTrue(page.hasNext)
+        assertEquals(mapOf(1 to "k1", 3 to "k3"), page.ids())
+        assertEquals(listOf(1, 2, 3), asked)
     }
 
     @Test fun aStaleTokenIsRetriedWithoutOne() = runBlocking {

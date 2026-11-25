@@ -72,4 +72,10 @@ class DeviceSyncTest {
     @Test(expected = IllegalArgumentException::class) fun anotherPersonsFileIsNotMerged() {
         files.tablet().import(files.chromecast().export().put("person", "giovanna"))
     }
+
+    @Test fun theHubsPromptCodeIsTheCodeTheClientShows() {
+        val a = DeviceSync.Asking("Tablet", secret, "pubkey")
+        assertEquals(a.code, DeviceSync.shown(secret, "pubkey", JSONObject().put("setup", true)))
+        assertNotEquals(DeviceSync.code(secret), a.code)
+    }
 }

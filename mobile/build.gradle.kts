@@ -14,6 +14,7 @@ val appVersionCode = appVersion.split(".").map { it.takeWhile(Char::isDigit).toI
 android {
     namespace = "io.github.pedrubik2000.kumapie.mobile"
     compileSdk = 37
+    testOptions.unitTests.isIncludeAndroidResources = true
 
     defaultConfig {
         applicationId = "io.github.pedrubik2000.kumapie.mobile"
@@ -133,6 +134,10 @@ android.sourceSets.getByName("main").jniLibs.srcDir(vvOrt)
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.18.1") // AllowPromptTest
+    testImplementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
     implementation(files(vvAar))
     implementation("com.google.code.gson:gson:2.10.1") // VOICEVOX's Java API needs these three (its .module file)
     implementation("jakarta.annotation:jakarta.annotation-api:2.1.1")

@@ -221,6 +221,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     }
 
     Row(Modifier.fillMaxSize().pageBackdrop()) {
+    io.github.pedrubik2000.kumapie.mobile.ui.AllowPrompt(hold = stack.last().let { it is Screen.Player || it is Screen.Watch || it == Screen.Feed }, onSettings = { stack += Screen.Settings("device") })
     if (wide() && gate != io.github.pedrubik2000.kumapie.data.Gate.FIRST_RUN && tab != "-") Box(Modifier.fillMaxHeight().width(98.dp), contentAlignment = Alignment.CenterStart) {
         GlassMenu(main, tab, { top(null) }, { more = true })
     }

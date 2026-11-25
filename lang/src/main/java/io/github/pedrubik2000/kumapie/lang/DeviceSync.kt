@@ -114,12 +114,19 @@ object DeviceSync {
         settings.prefs.edit().putString(LAST, line).apply()
     }
 
-    fun start(context: Context) {
+    fun start(context: Context) { listen(context); schedule(context) }
+
+    fun listen(context: Context) {
         val settings = Settings(context)
         last.value = settings.prefs.getString(LAST, "").orEmpty()
         if (settings.server.isNotEmpty()) return
         if (settings.prefs.getBoolean(ANSWERS, false)) SyncListener.start(context)
         if (settings.prefs.getBoolean(BACKGROUND, false)) SyncService.start(context)
+    }
+
+    fun schedule(context: Context) {
+        val settings = Settings(context)
+        if (settings.server.isNotEmpty()) return
         if (with(settings) != null) WorkManager.getInstance(context).enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<DeviceSyncWorker>(1, TimeUnit.HOURS).setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build()).build())
         soon(context)

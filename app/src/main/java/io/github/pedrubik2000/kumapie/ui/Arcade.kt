@@ -147,7 +147,8 @@ fun CoverPicture(image: String, modifier: Modifier) {
 @Composable
 internal fun Cover(model: Any?, title: String, modifier: Modifier, showTitle: Boolean = true,
                    fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
-                   alignment: Alignment = Alignment.Center, description: String? = title) {
+                   alignment: Alignment = Alignment.Center, description: String? = title, hero: Boolean = false) {
+    if (hero) return HeroPicture(model, alignment, modifier)
     var loaded by androidx.compose.runtime.remember(model) { mutableStateOf(false) }
     Box(modifier) {
         if (!loaded) {
@@ -157,6 +158,13 @@ internal fun Cover(model: Any?, title: String, modifier: Modifier, showTitle: Bo
         coil3.compose.AsyncImage(model = model, contentDescription = description, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             alignment = alignment, modifier = Modifier.matchParentSize(), onSuccess = { loaded = true }, onError = { loaded = false })
     }
+}
+
+@Composable
+private fun HeroPicture(model: Any?, alignment: Alignment, modifier: Modifier) {
+    var last by androidx.compose.runtime.remember { mutableStateOf<androidx.compose.ui.graphics.painter.Painter?>(null) }
+    coil3.compose.AsyncImage(model = model, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        alignment = alignment, modifier = modifier, placeholder = last, onSuccess = { last = it.painter })
 }
 
 /** A card's fill: none, the picture covers it (one GPU layer less per card). */

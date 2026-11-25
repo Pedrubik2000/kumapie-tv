@@ -20,6 +20,6 @@ fun Modifier.pageBackdrop(covered: () -> Boolean = { false }): Modifier =
             drawRect(Brush.radialGradient(listOf(Color(0xFF1A2333), Colors.background), center = Offset(w * 0.15f, 0f), radius = w * 0.7f))
         }
         onDrawBehind {
-            if (!covered()) drawImage(glow, dstSize = IntSize(size.width.toInt(), size.height.toInt()), filterQuality = FilterQuality.Low)
+            if (!covered()) drawImage(glow, dstSize = IntSize(size.width.toInt(), size.height.toInt()), filterQuality = FilterQuality.Low) else drawRect(Colors.background)
         }
     }

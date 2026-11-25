@@ -72,9 +72,12 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
         state != null -> Text("${tr(model.label)}: $state", fontSize = 14.sp, color = Colors.dim)
         ready -> {
             Text(tr("%1\$s: ready (%2\$s).", tr(model.label), model.name), fontSize = 14.sp, color = Colors.dim)
-            // Jiten's word splitter (item 26b): two more files from the PC, optional.
+            // Jiten's word splitter (item 26b): two more files, from the PC or the public release.
             if (model is io.github.pedrubik2000.kumapie.lang.JapaneseModel && !model.splitterReady)
-                OutlinedButton(onClick = { model.download() }) { Text(tr("Download Jiten's word splitter from the PC")) }
+                OutlinedButton(onClick = { model.download() }) {
+                    val noPc = io.github.pedrubik2000.kumapie.data.Settings(androidx.compose.ui.platform.LocalContext.current).server.isEmpty()
+                    Text(if (noPc) tr("Download Jiten's word splitter") else tr("Download Jiten's word splitter from the PC"))
+                }
         }
         else -> {
             if (model.about.isNotEmpty()) Text(tr(model.about), fontSize = 14.sp, color = Colors.dim)

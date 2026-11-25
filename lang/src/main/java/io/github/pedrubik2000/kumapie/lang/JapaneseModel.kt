@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.lang
 
 import android.content.Context
+import android.util.Log
 import io.github.pedrubik2000.kumapie.i18n.tr
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
@@ -122,6 +123,7 @@ class JapaneseModel(private val context: Context) : Model {
      * first stream's words were made. Called when the app opens; the build waits on the same lock if it comes first.
      */
     fun warm() {
+        if (isReady) download()
         if (!splitterReady) return
         Thread {
             val t = android.os.SystemClock.elapsedRealtime()
@@ -227,6 +229,7 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
     private val model = JapaneseModel(context)
     override val what = tr("the Japanese dictionary")
     override val notificationId = 994
+    override val showAtStart = false
 
     override suspend fun run() {
         if (!model.isReady) sudachi()
@@ -234,16 +237,64 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
         resplitLocal()
     }
 
-    /** Jiten's files from the device's PC; none when no PC is set up (Sudachi alone splits then). */
+    /** Jiten's files: the device's PC first when one is set, else (or when it fails) the public pre-release, verified. */
     private suspend fun splitterFiles() {
         val server = io.github.pedrubik2000.kumapie.data.Settings(applicationContext).server
-        if (server.isEmpty()) return
+        if (server.isNotEmpty()) {
+            try { splitterFromPc(server) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { Log.w("kumapie", "PC splitter files: $e") }
+            if (model.splitterFiles.all { it.exists() }) return
+        }
+        splitterFromRelease()
+    }
+
+    private suspend fun splitterFromPc(server: String) {
         for (f in model.splitterFiles) {
             if (f.exists()) continue
             val part = File(f.path + ".part")
             fetch("$server/api/models/${f.name}", part)
             if (!part.renameTo(f)) throw IOException(tr("couldn't move the dictionary into place"))
         }
+    }
+
+    private suspend fun splitterFromRelease() {
+        val dir = model.dic.parentFile!!
+        val stamp = File(dir, "jiten-splitter.version")
+        val json = File(dir, SplitterManifest.NAME + ".part").apply { delete() }
+        val manifest = try {
+            fetch(SplitterManifest.BASE + SplitterManifest.NAME, json, quiet = true)
+            SplitterManifest.parse(json.readText())
+        } catch (e: IOException) {
+            keepFilesOr(e)
+            return
+        } catch (e: org.json.JSONException) {
+            keepFilesOr(IOException(tr("the download is damaged, trying again")))
+            return
+        } finally { json.delete() }
+        if (stamp.exists() && stamp.readText() == manifest.version && model.splitterFiles.all { it.exists() }) return
+        val fetched = ArrayList<Pair<File, File>>()
+        for (entry in manifest.files) {
+            val f = File(dir, entry.name)
+            if (f.exists() && entry.matches(f)) continue
+            val part = File(f.path + "." + entry.sha256.take(12) + ".part")
+            if (part.length() > entry.size) part.delete()
+            fetch(SplitterManifest.BASE + entry.name, part)
+            if (!entry.matches(part)) {
+                part.delete()
+                throw IOException(tr("the download is damaged, trying again"))
+            }
+            fetched += part to f
+        }
+        for ((part, f) in fetched) {
+            f.delete()
+            if (!part.renameTo(f)) throw IOException(tr("couldn't move the dictionary into place"))
+        }
+        stamp.writeText(manifest.version)
+        val keep = manifest.files.map { "${it.name}.${it.sha256.take(12)}.part" }.toSet()
+        dir.listFiles { f -> f.name.endsWith(".part") && f.name !in keep && model.splitterFiles.any { f.name.startsWith(it.name) } }?.forEach { it.delete() }
+    }
+
+    private fun keepFilesOr(e: IOException) {
+        if (!model.splitterFiles.all { it.exists() }) throw e
     }
 
     /**

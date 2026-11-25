@@ -172,10 +172,41 @@ class TvOnboardingTest {
     @Test fun aFailedDictionaryDownloadSaysSo() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()
         TvMining.fetching = null
+        TvMining.unsupported = null
         TvMining.failed = "no internet" to System.currentTimeMillis()
         val said = dictionariesState(context, Settings(context))
         TvMining.failed = null
         assertEquals("Couldn't download them (no internet). Trying again…", said)
+    }
+
+    @Test fun everyDownloadFailingShowsTheErrorsAndRetries() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val settings = Settings(context).apply { server = "" }
+        TvMining.languages(context, settings)
+        TvMining.unsupported = null
+        TvMining.fetching = null
+        TvMining.failed = null
+        val realInstaller = TvMining.installer
+        TvMining.installer = { _, _ -> listOf("jmdict.zip: no internet", "jpdb.zip: no internet") }
+        try {
+            TvMining.fetchJapanese(context, settings)
+            val end = System.currentTimeMillis() + 5_000
+            while ((TvMining.fetching != null || TvMining.failed == null) && System.currentTimeMillis() < end) Thread.sleep(20)
+            val said = dictionariesState(context, settings)
+            assertEquals("Couldn't download them (jmdict.zip: no internet; jpdb.zip: no internet). Trying again…", said)
+        } finally {
+            TvMining.installer = realInstaller
+            TvMining.failed = null
+            TvMining.fetching = null
+        }
+    }
+
+    @Test fun aMissingNativeLibrarySaysSoInsteadOfStarting() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        TvMining.unsupported = "dlopen failed: library not found"
+        val said = dictionariesState(context, Settings(context))
+        TvMining.unsupported = null
+        assertEquals("Dictionaries can't run on this device: dlopen failed: library not found", said)
     }
 }
 

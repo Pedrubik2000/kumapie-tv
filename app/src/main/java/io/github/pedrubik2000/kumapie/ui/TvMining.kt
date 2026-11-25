@@ -47,6 +47,8 @@ internal object TvMining {
     val mined = HashMap<String, Long>()
     @Volatile var fetching: String? = null
     @Volatile var failed: Pair<String, Long>? = null
+    @Volatile var unsupported: String? = null
+    internal var installer: suspend (Lang, (String) -> Unit) -> List<String> = { lang, progress -> yomitan.installRecommended(lang, progress) }
     @Volatile var reading = false
     @android.annotation.SuppressLint("StaticFieldLeak") var web: WebView? = null
 
@@ -74,7 +76,11 @@ internal object TvMining {
             fetching = tr("Downloading the Japanese dictionaries…")
             work.launch {
                 failed = null
-                runCatching { yomitan.installRecommended(Lang.JAPANESE) { fetching = it }.forEach { Log.i("kumapie", "ja dictionary: $it") } }
+                runCatching {
+                    val lines = installer(Lang.JAPANESE) { fetching = it }
+                    lines.forEach { Log.i("kumapie", "ja dictionary: $it") }
+                    if (yomitan.of(Lang.JAPANESE).isEmpty() && lines.isNotEmpty()) error(lines.joinToString("; "))
+                }
                     .onFailure { Log.w("kumapie", "Japanese dictionaries: $it"); failed = (it.message ?: it.toString()) to System.currentTimeMillis() }
                 fetching = null
             }
@@ -99,6 +105,7 @@ internal object TvMining {
 }
 
 fun dictionariesState(context: Context, settings: Settings): String {
+    TvMining.unsupported?.let { return tr("Dictionaries can't run on this device: %s", it) }
     TvMining.languages(context, settings)
     TvMining.fetching?.let { return it }
     if (TvMining.yomitan.of(Lang.JAPANESE).isNotEmpty()) return tr("✓ ready")
@@ -108,6 +115,8 @@ fun dictionariesState(context: Context, settings: Settings): String {
 }
 
 suspend fun startJapaneseDictionaries(context: Context, settings: Settings) = withContext(Dispatchers.IO) {
+    TvMining.unsupported = io.github.pedrubik2000.kumapie.lang.dictionaryEngineError()
+    if (TvMining.unsupported != null) return@withContext
     TvMining.languages(context, settings)
     if (TvMining.yomitan.of(Lang.JAPANESE).isEmpty()) TvMining.fetchJapanese(context, settings)
 }

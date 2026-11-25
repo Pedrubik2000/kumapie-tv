@@ -490,6 +490,25 @@ class TvLibraryFocusTest {
         rule.waitUntil(5_000) { hasCard("Dandadan") }
     }
 
+    private fun searchFocused() = rule.onAllNodes(isFocused() and androidx.compose.ui.test.hasImeAction(androidx.compose.ui.text.input.ImeAction.Done))
+        .fetchSemanticsNodes().isNotEmpty()
+
+    @Test fun rightAndLeftLeaveTheSearchField() {
+        logIn()
+        open()
+        waitFocus { it?.startsWith("Watching") == true }
+        rule.waitUntil(5_000) { hasCard("Frieren") }
+        val search = rule.onNode(androidx.compose.ui.test.hasImeAction(androidx.compose.ui.text.input.ImeAction.Done))
+        search.requestFocus()
+        assertTrue(searchFocused())
+        press(RIGHT)
+        assertEquals("Frieren", focused())
+        search.requestFocus()
+        assertTrue(searchFocused())
+        press(LEFT)
+        assertTrue(!searchFocused())
+    }
+
     private companion object {
         val DOWN = Key.DirectionDown.keyCode; val UP = Key.DirectionUp.keyCode; val LEFT = Key.DirectionLeft.keyCode
         val RIGHT = Key.DirectionRight.keyCode; val OK = Key.DirectionCenter.keyCode; val BACK = Key.Back.keyCode

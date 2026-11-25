@@ -189,7 +189,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     LaunchedEffect(gate, server) {
         if (gate != io.github.pedrubik2000.kumapie.data.Gate.APP || server.isNotEmpty()) return@LaunchedEffect
         val dicts = io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(appContext)
-        if (dicts.lacksRecommended(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE))
+        if (io.github.pedrubik2000.kumapie.lang.dictionaryEngineError() == null && dicts.lacksRecommended(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE))
             runCatching { dicts.installRecommended(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) {} }
                 .onSuccess { it.forEach { l -> android.util.Log.i("kumapie", "ja dictionary: $l") } }
     }

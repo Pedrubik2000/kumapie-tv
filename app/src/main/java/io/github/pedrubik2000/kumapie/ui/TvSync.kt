@@ -12,6 +12,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Settings
@@ -55,10 +58,12 @@ internal fun TvSync(settings: Settings) {
         Text(if (looking) tr("Looking on the Wi-Fi…") else tr("Find devices"))
     }
     found.forEach { (name, a) -> Button(onClick = { pair(a) }) { Text(tr("Sync with %s", name)) } }
+    val pairButton = remember { FocusRequester() }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        TvTextField(address, { address = it }, onDone = { if (address.isNotBlank()) pair(address.trim()) }, modifier = Modifier.width(640.dp),
+        TvTextField(address, { address = it }, onDone = { if (address.isNotBlank()) pair(address.trim()) },
+            modifier = Modifier.width(640.dp).focusProperties { down = pairButton; right = pairButton },
             placeholder = tr("Or its address (192.168.1.20:%d)", DeviceSync.PORT))
-        Button(onClick = { if (address.isNotBlank()) pair(address.trim()) }) { Text(tr("Pair")) }
+        Button(onClick = { if (address.isNotBlank()) pair(address.trim()) }, modifier = Modifier.focusRequester(pairButton)) { Text(tr("Pair")) }
     }
     if (message.isNotEmpty()) Text(message, color = Colors.text)
     Button(onClick = {

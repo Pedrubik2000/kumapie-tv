@@ -49,6 +49,22 @@ class AloneNudgeTest {
         assertEquals(11.3, at, 1e-9)
     }
 
+    @Test fun openingTwiceStartsAtFitPlusNudgeBothTimes() {
+        val app = RuntimeEnvironment.getApplication()
+        val file = "ep1.mkv"
+        prefs.edit().putFloat(AloneStream.offKey(id, file), 12.4f).apply()
+        prefs.edit().putString(AloneStream.fileKey(id), file).apply()
+        AloneStream.nudge(prefs, id, 2.0)
+        repeat(2) {
+            val player = androidx.media3.exoplayer.ExoPlayer.Builder(app).build()
+            val s = AloneStream(prefs, null, player, id, "series", "Show", "Show", "http://127.0.0.1/v", file) {}
+            assertEquals(14.4, s.live.offset, 1e-4)
+            s.leave()
+            player.release()
+            assertEquals(12.4f, prefs.getFloat(AloneStream.offKey(id, file), 0f), 1e-4f)
+        }
+    }
+
     @Test fun anOldCombinedValueIsTheFitWithNoNudge() {
         withFit(-2.8f)
         assertEquals(0.0, AloneStream.kept(prefs, id), 0.0)

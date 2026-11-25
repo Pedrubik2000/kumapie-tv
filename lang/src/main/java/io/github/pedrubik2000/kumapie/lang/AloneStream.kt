@@ -15,6 +15,7 @@ class AloneStream(
     val id: String, val type: String, val show: String, val title: String, val video: String, private val file: String,
     onError: (String?) -> Unit,
 ) {
+    private var startNudge = 0.0
     private val t0 = android.os.SystemClock.elapsedRealtime()
     private val sync = io.github.pedrubik2000.kumapie.data.AniListSync(prefs)
 
@@ -34,8 +35,6 @@ class AloneStream(
 
     private var lastMs = 0L
     private var lastDurationMs = 0L
-
-    private var startNudge = 0.0
 
     var built: Double? = null
         private set
@@ -74,7 +73,7 @@ class AloneStream(
         val by = lateShift(built, fitted, fitted) ?: return false
         if (by != 0.0) shift(by)
         android.util.Log.i("kumapie", "late fit: $fitted s from ${live.refCount} lines, lines moved $by s")
-        live.offset = fitted
+        live.offset = fitted + nudge(prefs, id)
         built = fitted
         saveOffset()
         fitApplied = true

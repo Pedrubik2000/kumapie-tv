@@ -43,7 +43,7 @@ class TvAllowPromptTest {
 
     @Test fun askingShowsTheCodeNotTheSecretFocusesNotNowAndAllowAllows() {
         DeviceSync.asking.value = listOf(a)
-        rule.setContent { TvAllowPrompt(hold = false, guardMs = 0) }
+        rule.setContent { TvAllowPrompt(hold = false, onSettings = {}, guardMs = 0) }
         rule.waitForIdle()
         rule.onNodeWithText("Tablet wants to pair. Code ${a.code}.").assertIsDisplayed()
         rule.onNodeWithText("s3cret", substring = true).assertDoesNotExist()
@@ -54,7 +54,7 @@ class TvAllowPromptTest {
     }
 
     @Test fun backIsNotNowAndFocusReturnsToTheScreenBehind() {
-        rule.setContent { Column { Button(onClick = {}) { Text("Behind") }; TvAllowPrompt(hold = false) } }
+        rule.setContent { Column { Button(onClick = {}) { Text("Behind") }; TvAllowPrompt(hold = false, onSettings = {}) } }
         rule.onNodeWithText("Behind").requestFocus()
         DeviceSync.asking.value = listOf(a)
         rule.waitForIdle()
@@ -67,7 +67,7 @@ class TvAllowPromptTest {
 
     @Test fun aQuickOkRightAfterItOpensDoesNothing() {
         DeviceSync.asking.value = listOf(a)
-        rule.setContent { TvAllowPrompt(hold = false, guardMs = 60_000) }
+        rule.setContent { TvAllowPrompt(hold = false, onSettings = {}, guardMs = 60_000) }
         rule.waitForIdle()
         press(Key.DirectionLeft.keyCode, Key.DirectionCenter.keyCode, Key.Enter.keyCode)
         rule.onNodeWithText("Allow").assertIsDisplayed()
@@ -77,7 +77,7 @@ class TvAllowPromptTest {
     @Test fun nothingShowsWhileThePlayerIsUpAndItComesAfterItCloses() {
         DeviceSync.asking.value = listOf(a)
         var hold by mutableStateOf(true)
-        rule.setContent { TvAllowPrompt(hold = hold) }
+        rule.setContent { TvAllowPrompt(hold = hold, onSettings = {}) }
         rule.waitForIdle()
         rule.onNodeWithText("Allow").assertDoesNotExist()
         hold = false
@@ -88,7 +88,7 @@ class TvAllowPromptTest {
     @Test fun notNowStaysHiddenOnAPollAgainAndTheNextRequestWaitsTenSeconds() {
         val b = DeviceSync.Asking("Phone", "other", "pub2")
         DeviceSync.asking.value = listOf(a)
-        rule.setContent { TvAllowPrompt(hold = false, guardMs = 0) }
+        rule.setContent { TvAllowPrompt(hold = false, onSettings = {}, guardMs = 0) }
         rule.waitForIdle()
         press(Key.DirectionCenter.keyCode)
         DeviceSync.asking.value = listOf(DeviceSync.Asking("Tablet", "s3cret", "pubkey"), b)
@@ -100,11 +100,25 @@ class TvAllowPromptTest {
 
     @Test fun conflictShowsItsLineAndOkDismisses() {
         DeviceSync.conflicts.value = setOf("Tablet")
-        rule.setContent { TvAllowPrompt(hold = false, guardMs = 0) }
+        rule.setContent { TvAllowPrompt(hold = false, onSettings = {}, guardMs = 0) }
         rule.waitForIdle()
         rule.onNodeWithText(DeviceSync.conflictLine("Tablet")).assertIsDisplayed()
         assertEquals("OK", focused())
         press(Key.DirectionCenter.keyCode)
         assertTrue(DeviceSync.conflicts.value.isEmpty())
+    }
+
+    @Test fun manyRequestsShowOneSettingsPromptWithOkFocusedAndOpenSettingsGoesThere() {
+        DeviceSync.asking.value = (1..4).map { DeviceSync.Asking("Dev$it", "sec$it", "pub$it") }
+        var opened = 0
+        rule.setContent { TvAllowPrompt(hold = false, onSettings = { opened++ }, guardMs = 0) }
+        rule.waitForIdle()
+        rule.onNodeWithText("Several devices are asking to pair. Check the codes in Settings › Sync.").assertIsDisplayed()
+        rule.onNodeWithText("Allow").assertDoesNotExist()
+        assertEquals("OK", focused())
+        press(Key.DirectionLeft.keyCode, Key.DirectionCenter.keyCode)
+        assertEquals(1, opened)
+        rule.onNodeWithText("Open Settings").assertDoesNotExist()
+        assertEquals(4, DeviceSync.asking.value.size)
     }
 }

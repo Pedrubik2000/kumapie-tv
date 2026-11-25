@@ -28,7 +28,7 @@ class AllowPromptTest {
 
     @Test fun askingShowsCodeNotSecretAndAllowCallsAllow() {
         DeviceSync.asking.value = listOf(a)
-        rule.setContent { AllowPrompt(hold = false) }
+        rule.setContent { AllowPrompt(hold = false, onSettings = {}) }
         rule.onNodeWithText("Tablet wants to pair. Code ${a.code}.").assertIsDisplayed()
         rule.onNodeWithText("s3cret", substring = true).assertDoesNotExist()
         rule.onNodeWithText("pubkey", substring = true).assertDoesNotExist()
@@ -39,7 +39,7 @@ class AllowPromptTest {
 
     @Test fun notNowHidesThatRequestEvenWhenItIsPolledAgainAndANewDeviceShows() {
         DeviceSync.asking.value = listOf(a)
-        rule.setContent { AllowPrompt(hold = false, paceMs = 0) }
+        rule.setContent { AllowPrompt(hold = false, onSettings = {}, paceMs = 0) }
         rule.onNodeWithText("Not now").performClick()
         rule.waitForIdle()
         rule.onNodeWithText("Allow").assertDoesNotExist()
@@ -56,7 +56,7 @@ class AllowPromptTest {
     @Test fun aSecondRequestWaitsTenSecondsAfterTheFirst() {
         val b = DeviceSync.Asking("Phone", "other", "pub2")
         DeviceSync.asking.value = listOf(a, b)
-        rule.setContent { AllowPrompt(hold = false) }
+        rule.setContent { AllowPrompt(hold = false, onSettings = {}) }
         rule.onNodeWithText("Not now").performClick()
         rule.waitForIdle()
         rule.onNodeWithText("Allow").assertDoesNotExist()
@@ -67,7 +67,7 @@ class AllowPromptTest {
     @Test fun nothingShowsWhileThePlayerIsUpAndItComesAfterItCloses() {
         DeviceSync.asking.value = listOf(a)
         var hold by mutableStateOf(true)
-        rule.setContent { AllowPrompt(hold = hold) }
+        rule.setContent { AllowPrompt(hold = hold, onSettings = {}) }
         rule.waitForIdle()
         rule.onNodeWithText("Allow").assertDoesNotExist()
         DeviceSync.conflicts.value = setOf("Tablet")
@@ -80,10 +80,32 @@ class AllowPromptTest {
 
     @Test fun conflictShowsItsLineAndOkDismisses() {
         DeviceSync.conflicts.value = setOf("Tablet")
-        rule.setContent { AllowPrompt(hold = false) }
+        rule.setContent { AllowPrompt(hold = false, onSettings = {}) }
         rule.onNodeWithText(DeviceSync.conflictLine("Tablet")).assertIsDisplayed()
         rule.onNodeWithText("OK").performClick()
         rule.waitForIdle()
         assertTrue(DeviceSync.conflicts.value.isEmpty())
+    }
+
+    private fun four() = (1..4).map { DeviceSync.Asking("Dev$it", "sec$it", "pub$it") }
+
+    @Test fun manyRequestsShowOneSettingsPromptNotACycleAndOpenSettingsGoesThere() {
+        DeviceSync.asking.value = four()
+        var opened = 0
+        rule.setContent { AllowPrompt(hold = false, onSettings = { opened++ }) }
+        rule.onNodeWithText("Several devices are asking to pair. Check the codes in Settings › Sync.").assertIsDisplayed()
+        rule.onNodeWithText("Allow").assertDoesNotExist()
+        rule.onNodeWithText("Open Settings").performClick()
+        rule.waitForIdle()
+        assertEquals(1, opened)
+        rule.onNodeWithText("Several devices are asking to pair. Check the codes in Settings › Sync.").assertDoesNotExist()
+        rule.onNodeWithText("Allow").assertDoesNotExist()
+        assertEquals(4, DeviceSync.asking.value.size)
+    }
+
+    @Test fun threeRequestsAreStillOneByOne() {
+        DeviceSync.asking.value = four().take(3)
+        rule.setContent { AllowPrompt(hold = false, onSettings = {}) }
+        rule.onNodeWithText("Allow").assertIsDisplayed()
     }
 }

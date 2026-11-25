@@ -33,12 +33,14 @@ import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.DeviceSync
 @Composable
-internal fun TvAllowPrompt(hold: Boolean, paceMs: Long = 10_000, guardMs: Long = 500) {
+internal fun TvAllowPrompt(hold: Boolean, onSettings: () -> Unit, paceMs: Long = 10_000, guardMs: Long = 500) {
     val context = LocalContext.current
     val asking by DeviceSync.asking.collectAsState()
     val conflicts by DeviceSync.conflicts.collectAsState()
     val later = rememberSaveable { mutableStateListOf<String>() }
-    val cand = asking.firstOrNull { "${it.device}/${it.code}" !in later }
+    val pending = asking.filter { "${it.device}/${it.code}" !in later }
+    val flood = pending.size > 3
+    val cand = pending.firstOrNull().takeIf { !flood }
     var open by remember { mutableStateOf<DeviceSync.Asking?>(null) }
     var cool by remember { mutableStateOf(false) }
     LaunchedEffect(cand, hold, cool) {
@@ -52,8 +54,12 @@ internal fun TvAllowPrompt(hold: Boolean, paceMs: Long = 10_000, guardMs: Long =
     LaunchedEffect(cool) { if (cool) { delay(paceMs); cool = false } }
     val name = conflicts.firstOrNull().takeIf { !hold }
     val a = open
-    val line = name?.let { DeviceSync.conflictLine(it) } ?: a?.let { tr("%1\$s wants to pair. Code %2\$s.", it.device, it.code) } ?: return
-    val no = { if (name != null) DeviceSync.dismissConflict(name) else if (a != null) later += "${a.device}/${a.code}" }
+    val many = flood && !hold && name == null
+    val line = name?.let { DeviceSync.conflictLine(it) }
+        ?: (if (many) tr("Several devices are asking to pair. Check the codes in Settings › Sync.") else null)
+        ?: a?.let { tr("%1\$s wants to pair. Code %2\$s.", it.device, it.code) } ?: return
+    val hide = { later += pending.map { "${it.device}/${it.code}" } }
+    val no = { if (name != null) DeviceSync.dismissConflict(name) else if (many) hide() else if (a != null) later += "${a.device}/${a.code}" }
     val focus = remember(name, a) { FocusRequester() }
     val openedAt = remember(name, a) { System.nanoTime() }
     val ok = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
@@ -65,7 +71,10 @@ internal fun TvAllowPrompt(hold: Boolean, paceMs: Long = 10_000, guardMs: Long =
                 Text(line, color = Colors.text, fontSize = 20.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (name != null) Button(onClick = no, modifier = Modifier.focusRequester(focus)) { Text(tr("OK"), fontSize = 16.sp) }
-                    else a?.let {
+                    else if (many) {
+                        Button(onClick = { hide(); onSettings() }) { Text(tr("Open Settings"), fontSize = 16.sp) }
+                        Button(onClick = no, modifier = Modifier.focusRequester(focus)) { Text(tr("OK"), fontSize = 16.sp) }
+                    } else a?.let {
                         Button(onClick = { DeviceSync.allow(context, it) }) { Text(tr("Allow"), fontSize = 16.sp) }
                         Button(onClick = no, modifier = Modifier.focusRequester(focus)) { Text(tr("Not now"), fontSize = 16.sp) }
                     }

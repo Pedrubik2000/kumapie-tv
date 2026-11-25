@@ -56,9 +56,9 @@ object AniListLists {
     private fun tags(a: JSONArray?): List<String> =
         a?.objects().orEmpty().filter { it.optInt("rank") >= TAG_MIN_RANK && !it.optBoolean("isMediaSpoiler") && !it.optBoolean("isGeneralSpoiler") }.map { it.getString("name") }
 
-    fun parse(entries: List<JSONObject>, kitsu: Map<Int, String>, unmapped: String? = null): List<Mine> = entries.mapNotNull { e ->
+    fun parse(entries: List<JSONObject>, kitsu: Map<Int, String>): List<Mine> = entries.mapNotNull { e ->
         val m = e.getJSONObject("media")
-        val k = kitsu[m.getInt("id")] ?: unmapped ?: return@mapNotNull null
+        val k = kitsu[m.getInt("id")] ?: return@mapNotNull null
         fun text(o: JSONObject?, f: String) = o?.optString(f)?.takeIf { it != "null" }.orEmpty()
         val t = m.optJSONObject("title")
         Mine(m.getInt("id"), k, text(t, "native"), text(t, "romaji"), text(m.optJSONObject("coverImage"), "extraLarge"), text(m, "bannerImage"),

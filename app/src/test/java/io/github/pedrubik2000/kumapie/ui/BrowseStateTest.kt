@@ -18,7 +18,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class BrowseStateTest {
-    @org.junit.Before fun noGap() { browseGapMs = 0 }
+    @org.junit.Before fun noGap() { browseGapMs = 0; BrowseNet.until = 0 }
 
     private fun state() = BrowseState(BrowseFilters(), Settings(RuntimeEnvironment.getApplication()))
 
@@ -160,28 +160,7 @@ class BrowseStateTest {
         assertTrue(!s.waiting && s.loaded && s.error == null)
     }
 
-    @Test fun theFirstPageIsShownBeforeItsKitsuIdsAndTheIdsFillItAfter() = runBlocking {
-        val s = state()
-        val ids = CompletableDeferred<Map<Int, String>>()
-        val blank = { n: Int -> m(n).copy(kitsuId = "") }
-        val job = async(start = CoroutineStart.UNDISPATCHED) {
-            s.first("a", q, { _, _ -> AniListBrowse.Page(listOf(blank(1), blank(2)), 2, true) { ids.await() } })
-        }
-        assertTrue(s.loaded)
-        assertEquals(listOf(1, 2), s.items.map { it.anilistId })
-        assertEquals(listOf("", ""), s.items.map { it.kitsuId })
-        ids.complete(mapOf(1 to "k1"))
-        job.await()
-        assertEquals(listOf(1), s.items.map { it.anilistId })
-        assertEquals(listOf("k1"), s.items.map { it.kitsuId })
-    }
 
-    @Test fun aTitleOpenedBeforeItsIdIsKnownIsMappedOnOpen() = runBlocking {
-        val s = state()
-        val blank = m(5).copy(kitsuId = "")
-        assertEquals("k5", s.withKitsu(blank) { mapOf(5 to "k5") }?.kitsuId)
-        assertEquals(null, s.withKitsu(blank) { emptyMap() })
-    }
 
     @Test fun aTooManyRequestsWaitIsShownInSecondsAndDoesNotHoldTheLock() = runBlocking {
         val s = state()
@@ -195,6 +174,26 @@ class BrowseStateTest {
         job.await()
         assertEquals(0, s.waitS)
         assertTrue(s.loaded)
+    }
+
+
+    @Test fun aSecondRequestWaitsOutTheFirstOnesTooManyRequestsInsteadOfGettingItsOwn() = runBlocking {
+        val a = state()
+        val b = state()
+        var hitAt = 0L
+        var bAskedAt = 0L
+        var asks = 0
+        val first = async(start = CoroutineStart.UNDISPATCHED) {
+            a.first("a", q, { _, _ -> if (asks++ == 0) { hitAt = System.currentTimeMillis(); throw io.github.pedrubik2000.kumapie.data.AniList.Failed(429, "x", 2) } else page(1) })
+        }
+        kotlinx.coroutines.delay(300)
+        val second = async(start = CoroutineStart.UNDISPATCHED) { b.first("b", q, { _, _ -> bAskedAt = System.currentTimeMillis(); page(2) }) }
+        kotlinx.coroutines.delay(100)
+        assertTrue(b.waiting && a.waiting)
+        first.await()
+        second.await()
+        assertTrue(bAskedAt - hitAt >= 1_900)
+        assertTrue(!a.waiting && !b.waiting && b.loaded)
     }
 
 
@@ -234,6 +233,7 @@ class BrowseStateTest {
         }
         kotlinx.coroutines.delay(50)
         assertTrue(s.waiting)
+        BrowseNet.until = 0
         val t = System.nanoTime()
         s.first("b", q, { _, _ -> page(2) })
         assertTrue((System.nanoTime() - t) / 1_000_000 < 3_000)

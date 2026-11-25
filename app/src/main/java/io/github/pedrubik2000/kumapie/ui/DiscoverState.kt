@@ -101,6 +101,7 @@ internal var browseGapMs = 1000L
 internal object BrowseNet {
     val lock = Mutex()
     var lastAsk = 0L
+    @Volatile var until = 0L
 }
 
 @Stable
@@ -158,10 +159,26 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
         requestMore()
     }
 
+    private suspend fun countdown(g: Int) {
+        try {
+            while (true) {
+                val left = (BrowseNet.until - System.currentTimeMillis() + 999) / 1000
+                if (left <= 0) return
+                waitS = left.toInt()
+                delay(1000)
+                if (g != generation) throw CancellationException("stale")
+            }
+        } finally {
+            if (g == generation) waitS = 0
+        }
+    }
+
     private suspend fun ask(fetch: BrowseFetch, q: AniListBrowse.Query, p: Int, g: Int): AniListBrowse.Page {
         var tries = 0
         while (true) {
-            val wait = BrowseNet.lock.withLock {
+            countdown(g)
+            BrowseNet.lock.withLock {
+                if (BrowseNet.until > System.currentTimeMillis()) return@withLock
                 val gap = browseGapMs - (System.currentTimeMillis() - BrowseNet.lastAsk)
                 if (gap > 0) delay(gap)
                 if (g != generation) throw CancellationException("stale")
@@ -171,26 +188,12 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
                 } catch (e: AniList.Failed) {
                     BrowseNet.lastAsk = System.currentTimeMillis()
                     if (e.code != 429 || tries >= WAIT_TRIES) throw e
-                    e.retryAfter
+                    tries++
+                    BrowseNet.until = maxOf(BrowseNet.until, System.currentTimeMillis() + e.retryAfter.coerceIn(1, WAIT_MAX_S) * 1000)
                 }
             }
-            tries++
-            try {
-                for (left in wait.coerceIn(1, WAIT_MAX_S).toInt() downTo 1) { waitS = left; delay(1000) }
-            } finally { waitS = 0 }
-            if (g != generation) throw CancellationException("stale")
         }
     }
-
-    private suspend fun fill(g: Int, p: AniListBrowse.Page) {
-        val blank = p.items.filter { it.kitsuId.isEmpty() }.map { it.anilistId }.toSet()
-        if (blank.isEmpty()) return
-        val ids = p.ids()
-        if (g == generation) items = items.mapNotNull { m -> if (m.anilistId !in blank) m else ids[m.anilistId]?.let { m.copy(kitsuId = it) } }
-    }
-
-    suspend fun withKitsu(m: Mine, ids: suspend (List<Int>) -> Map<Int, String>): Mine? =
-        items.firstOrNull { it.anilistId == m.anilistId && it.kitsuId.isNotEmpty() } ?: ids(listOf(m.anilistId))[m.anilistId]?.let { m.copy(kitsuId = it) }
 
     suspend fun first(key: Any, q: AniListBrowse.Query?, fetch: BrowseFetch) {
         if (fetchedFor == key) {
@@ -198,6 +201,7 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
             return
         }
         val g = ++generation
+        waitS = 0
         moreJob?.cancel()
         val immediate = !begun || attempt != seenAttempt
         begun = true
@@ -221,8 +225,6 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
                 all = all + p.items
             }
             finish(g, key, AniListBrowse.Page(all, p.total, p.hasNext, p.expired), pages, q, null)
-            if (g == generation) firstPending = false
-            fill(g, p)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -249,8 +251,6 @@ internal class BrowseState(initial: BrowseFilters, private val settings: Setting
             if (g != generation) return
             val have = items.map { it.anilistId }.toSet()
             items = items + p.items.filter { it.anilistId !in have }; hasNext = p.hasNext; page = next; expired = expired || p.expired
-            moreBusy = false
-            fill(g, p)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

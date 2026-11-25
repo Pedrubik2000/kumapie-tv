@@ -57,10 +57,7 @@ object AniList {
     private const val CHUNK_PAUSE_MS = 250L
     private const val RETRY_PAUSE_MS = 800L
 
-    internal fun cachedKitsu(ids: List<Int>, store: SharedPreferences): Map<Int, String> =
-        JSONObject(store.getString(CACHE, "{}") ?: "{}").let { c -> ids.associateWith { c.optString(it.toString()) }.filterValues { it.isNotEmpty() } }
-
-    suspend fun kitsuIds(ids: List<Int>, store: SharedPreferences, short: Boolean = false): Map<Int, String> {
+    internal suspend fun kitsuIds(ids: List<Int>, store: SharedPreferences, short: Boolean = false): Map<Int, String> {
         val cache = JSONObject(store.getString(CACHE, "{}") ?: "{}")
         for ((n, chunk) in ids.filter { !cache.has(it.toString()) }.distinct().chunked(20).withIndex()) {
             if (n > 0) delay(CHUNK_PAUSE_MS)

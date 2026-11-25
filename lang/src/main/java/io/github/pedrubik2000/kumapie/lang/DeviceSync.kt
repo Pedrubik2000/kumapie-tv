@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.lang
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
@@ -48,15 +49,16 @@ object DeviceSync {
     private const val WORK = "device-sync"
 
     class Peer(val name: String, val address: String, val secret: String)
-    class Asking(val device: String, val secret: String) { val code: String get() = code(secret) }
+    class Asking(val device: String, val secret: String, val pub: String = "") { val code: String get() = code(secret, pub) }
     class Answer(val status: Int, val body: ByteArray, val sig: String? = null)
 
     val asking = MutableStateFlow<List<Asking>>(emptyList())
+    val conflicts = MutableStateFlow<Set<String>>(emptySet())
     val found = MutableStateFlow<List<Pair<String, String>>>(emptyList())
     val last = MutableStateFlow("")
     private val lock = Mutex()
 
-    fun code(secret: String): String = BigInteger(1, mac(secret, "pair".toByteArray())).mod(BigInteger.valueOf(10_000)).toString().padStart(4, '0')
+    fun code(secret: String, pub: String = ""): String = BigInteger(1, mac(secret, "pair".toByteArray() + pub.toByteArray())).mod(BigInteger.valueOf(10_000)).toString().padStart(4, '0')
 
     fun sign(secret: String, body: ByteArray): String = mac(secret, body).joinToString("") { "%02x".format(it) }
 
@@ -85,7 +87,12 @@ object DeviceSync {
 
     fun forget(settings: Settings) = settings.prefs.edit().remove(WITH).apply()
 
-    private fun peers(settings: Settings) = runCatching { JSONObject(settings.prefs.getString(PEERS, "{}")!!) }.getOrDefault(JSONObject())
+    fun unpair(context: Context) {
+        forget(Settings(context))
+        WorkManager.getInstance(context).run { cancelUniqueWork(WORK); cancelUniqueWork("$WORK-now") }
+    }
+
+    private fun peers(prefs: SharedPreferences) = runCatching { JSONObject(prefs.getString(PEERS, "{}").orEmpty()) }.getOrDefault(JSONObject())
 
     private fun files(context: Context) = DeviceFiles(context, LangKit.get(context, Settings(context)).languages.all)
 
@@ -115,6 +122,7 @@ object DeviceSync {
     suspend fun pair(context: Context, address: String): String {
         if (Settings(context).server.isNotEmpty()) return tr("This device syncs with its PC.")
         val code = ask(context, "", address)
+        start(context)
         val name = with(Settings(context))?.name.orEmpty()
         return tr("On %1\$s, allow %2\$s (code %3\$s). Then it syncs.", name, Progress.of(context).device, code)
     }
@@ -123,12 +131,12 @@ object DeviceSync {
         val settings = Settings(context)
         check(settings.server.isEmpty()) { tr("This device syncs with its PC.") }
         val secret = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
-        val a = post("http://$address/pair", JSONObject().put("device", Progress.of(context).device).put("secret", secret).toString().toByteArray(), emptyMap())
+        val pub = SetupBundle.begin()
+        val a = post("http://$address/pair", JSONObject().put("device", Progress.of(context).device).put("secret", secret).put("pub", pub).toString().toByteArray(), emptyMap())
         if (a.status !in 200..202) throw IOException(String(a.body))
         val who = name.ifEmpty { JSONObject(String(a.body)).getString("device") }
         settings.prefs.edit().putString(WITH, JSONObject().put("name", who).put("address", address).put("secret", secret).toString()).apply()
-        start(context)
-        code(secret)
+        code(secret, pub)
     }
 
     suspend fun allowed(context: Context): Boolean = withContext(Dispatchers.IO) {
@@ -172,17 +180,13 @@ object DeviceSync {
     internal fun answer(context: Context, path: String, device: String?, sig: String?, body: ByteArray): Answer {
         val settings = Settings(context)
         if (settings.server.isNotEmpty()) return Answer(409, tr("This device syncs with its PC.").toByteArray())
-        val secret = device?.let { peers(settings).optString(it).ifEmpty { null } }
+        val secret = device?.let { peers(settings.prefs).optString(it).ifEmpty { null } }
         return when (path) {
             "/pair" -> {
                 val o = JSONObject(String(body))
-                val who = o.getString("device")
-                val asked = o.getString("secret")
-                val reply = JSONObject().put("device", Progress.of(context).device).toString().toByteArray()
-                if (peers(settings).optString(who) == asked) Answer(200, reply)
-                else { asking.value = asking.value.filter { it.device != who } + Asking(who, asked); Answer(202, reply) }
+                requested(settings.prefs, o.getString("device"), o.getString("secret"), o.optString("pub"), Progress.of(context).device)
             }
-            "/setup" -> SetupBundle.serve(settings.server, secret, settings.prefs, body, sig)
+            "/setup" -> SetupBundle.serve(settings.server, secret, device, settings.prefs, body, sig, System.currentTimeMillis())
             "/sync" -> {
                 refusal(settings.server, secret, body, sig) ?: runBlocking {
                     lock.withLock {
@@ -202,9 +206,24 @@ object DeviceSync {
         }
     }
 
-    fun allow(context: Context, a: Asking) {
-        val settings = Settings(context)
-        settings.prefs.edit().putString(PEERS, peers(settings).put(a.device, a.secret).toString()).apply()
+    internal fun requested(prefs: SharedPreferences, who: String, asked: String, pub: String, me: String): Answer {
+        val reply = JSONObject().put("device", me).toString().toByteArray()
+        if (peers(prefs).optString(who) == asked) return Answer(200, reply)
+        val old = asking.value.firstOrNull { it.device == who }
+        if (old != null && (old.secret != asked || old.pub != pub)) {
+            asking.value = asking.value.filter { it !== old }
+            conflicts.value = conflicts.value + who
+            return Answer(409, "Two devices asked with the same name: pair again.".toByteArray())
+        }
+        if (old == null) { asking.value = asking.value + Asking(who, asked, pub); conflicts.value = conflicts.value - who }
+        return Answer(202, reply)
+    }
+
+    fun allow(context: Context, a: Asking) = allow(Settings(context).prefs, a, System.currentTimeMillis())
+
+    internal fun allow(prefs: SharedPreferences, a: Asking, now: Long) {
+        SetupBundle.grant(prefs, a.device, a.pub, now)
+        prefs.edit().putString(PEERS, peers(prefs).put(a.device, a.secret).toString()).apply()
         asking.value = asking.value.filter { it !== a }
     }
 

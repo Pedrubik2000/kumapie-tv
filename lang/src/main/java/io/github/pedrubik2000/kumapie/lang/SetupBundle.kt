@@ -6,6 +6,7 @@ import io.github.pedrubik2000.kumapie.data.AniListSync
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.Tr
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -27,7 +28,11 @@ import javax.crypto.spec.SecretKeySpec
 object SetupBundle {
     const val COPIED = "onb_copied"
     const val SYNC = "sync"
+    const val SETUP = "sync_setup"
     private const val FAILED = "Could not copy the setup."
+    private const val GONE = "Could not copy the setup: pair the devices again."
+    private const val WINDOW_MS = 10 * 60_000L
+    @Volatile private var key: KeyPair? = null
     private val ANKI = listOf("anki_decks_", "anki_word_", "anki_reading_")
     private val rules: Map<String, (String) -> Boolean> = mapOf(
         "anilist" to { k -> k in setOf("anilist_token", "anilist_user", "anilist_format", "anilist_viewer") },
@@ -91,27 +96,46 @@ object SetupBundle {
             .doFinal(un64(o.getString("box")))
     }
 
-    fun serve(server: String, secret: String?, prefs: SharedPreferences, body: ByteArray, sig: String?): DeviceSync.Answer {
-        DeviceSync.refusal(server, secret, body, sig)?.let { return it }
+    private fun signed(body: ByteArray) = "/setup\n".toByteArray() + body
+
+    fun begin(): String = ephemeral().also { key = it }.let { b64(it.public.encoded) }
+
+    private fun store(prefs: SharedPreferences) = runCatching { JSONObject(prefs.getString(SETUP, "{}").orEmpty()) }.getOrDefault(JSONObject())
+
+    fun grant(prefs: SharedPreferences, device: String, pub: String, now: Long) {
+        if (pub.isNotEmpty()) prefs.edit().putString(SETUP, store(prefs).put(device, JSONObject().put("pub", pub).put("at", now)).toString()).commit()
+    }
+
+    private fun take(prefs: SharedPreferences, device: String, now: Long): String? {
+        val all = store(prefs)
+        val entry = all.optJSONObject(device) ?: return null
+        prefs.edit().putString(SETUP, all.apply { remove(device) }.toString()).commit()
+        return entry.optString("pub").takeIf { it.isNotEmpty() && now - entry.optLong("at") in 0..WINDOW_MS }
+    }
+
+    fun serve(server: String, secret: String?, device: String?, prefs: SharedPreferences, body: ByteArray, sig: String?, now: Long): DeviceSync.Answer {
+        DeviceSync.refusal(server, secret, signed(body), sig)?.let { return it }
+        val pub = device?.let { take(prefs, it, now) } ?: return DeviceSync.Answer(403, GONE.toByteArray())
         return runCatching {
-            val out = seal(requireNotNull(secret), un64(JSONObject(String(body)).getString("pub")), build(prefs).toString().toByteArray())
-            DeviceSync.Answer(200, out, DeviceSync.sign(secret, out))
+            val out = seal(requireNotNull(secret), un64(pub), build(prefs).toString().toByteArray())
+            DeviceSync.Answer(200, out, DeviceSync.sign(secret, signed(out)))
         }.getOrElse { DeviceSync.Answer(422, FAILED.toByteArray()) }
     }
 
     suspend fun fetch(context: Context): Got = withContext(Dispatchers.IO) {
-        val peer = DeviceSync.with(Settings(context)) ?: return@withContext Got.Failed(FAILED)
+        val peer = DeviceSync.with(Settings(context))
+        val mine = key
+        if (peer == null || mine == null) return@withContext Got.Failed(GONE)
         runCatching {
-            val mine = ephemeral()
-            val body = JSONObject().put("pub", b64(mine.public.encoded)).toString().toByteArray()
-            val a = DeviceSync.post("http://${peer.address}/setup", body, mapOf("X-Device" to Progress.of(context).device, "X-Sig" to DeviceSync.sign(peer.secret, body)))
+            val body = "{}".toByteArray()
+            val a = DeviceSync.post("http://${peer.address}/setup", body, mapOf("X-Device" to Progress.of(context).device, "X-Sig" to DeviceSync.sign(peer.secret, signed(body))))
             when (a.status) {
-                200 -> if (!DeviceSync.verify(peer.secret, a.body, a.sig)) Got.Failed(FAILED) else read(JSONObject(String(open(peer.secret, mine, a.body))))
+                200 -> if (!DeviceSync.verify(peer.secret, signed(a.body), a.sig)) Got.Failed(FAILED) else read(JSONObject(String(open(peer.secret, mine, a.body)))).also { key = null }
                 404 -> Got.Old
                 409 -> Got.Pc
-                else -> Got.Failed(String(a.body))
+                else -> Got.Failed(GONE)
             }
-        }.getOrElse { Got.Failed(FAILED) }
+        }.onFailure { if (it is CancellationException) throw it }.getOrElse { Got.Failed(FAILED) }
     }
 
     internal fun read(o: JSONObject): Got.Ok {
@@ -125,7 +149,11 @@ object SetupBundle {
         write(settings.prefs, got, ticked, AnkiCards(context).installed().isNotEmpty())
         Tr.use(settings.menuLanguage)
         Lang.speaker = settings.speaks
-        if (SYNC in ticked) DeviceSync.soon(context) else DeviceSync.forget(settings)
+        if (SYNC in ticked) DeviceSync.start(context) else DeviceSync.unpair(context)
+    }
+
+    private fun valid(part: JSONObject, wants: (String) -> Boolean) = part.keys().asSequence().filter(wants).all { k ->
+        part.get(k).let { v -> v is Boolean || v is String || (v is JSONArray && (0 until v.length()).all { v.get(it) is String }) }
     }
 
     internal fun write(prefs: SharedPreferences, got: Got.Ok, ticked: Set<String>, anki: Boolean) {
@@ -133,7 +161,8 @@ object SetupBundle {
         val copied = prefs.getStringSet(COPIED, emptySet()).orEmpty().toMutableSet()
         got.parts.filterKeys { it in ticked && it in rules }.forEach { (name, part) ->
             val wants = rules.getValue(name)
-            if (name == "anilist" && !part.optString("anilist_viewer").equals(prefs.getString("anilist_viewer", ""), ignoreCase = true)) AniListSync.forget(prefs)
+            if (!valid(part, wants)) return@forEach
+            if (name == "anilist" && !part.optString("anilist_viewer").equals(prefs.getString("anilist_viewer", ""), ignoreCase = true)) AniListSync.forget(prefs, edit, save = false)
             if (name == "anilist") edit.putBoolean("anilist_logged_out", false)
             part.keys().asSequence().filter { wants(it) && (anki || !isAnki(it)) }.forEach { k -> edit.put(k, part.get(k)) }
             if (anki || name != "colouring" || part.optString("anki_source", "none") == "none") copied += name

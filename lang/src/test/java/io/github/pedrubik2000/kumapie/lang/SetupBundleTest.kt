@@ -69,36 +69,110 @@ class SetupBundleTest {
         assertFalse(SetupBundle.build(p).getJSONObject("parts").has("anilist"))
     }
 
+    private fun sig(key: String, body: ByteArray) = DeviceSync.sign(key, "/setup\n".toByteArray() + body)
+
+    private fun pubOf(k: java.security.KeyPair) = java.util.Base64.getEncoder().encodeToString(k.public.encoded)
+
+    private val other = "50".repeat(32)
+    private val none = "{}".toByteArray()
+
+    private fun paired(pub: String, now: Long = 1_000L) = hub().also { SetupBundle.grant(it, "tab", pub, now) }
+
+    private fun fresh() { DeviceSync.asking.value = emptyList(); DeviceSync.conflicts.value = emptySet() }
+
     @Test fun sealedBundleOpensWithTheSameSecretAndNotWithAnother() {
         val client = SetupBundle.ephemeral()
-        val body = JSONObject().put("pub", java.util.Base64.getEncoder().encodeToString(client.public.encoded)).toString().toByteArray()
-        val a = SetupBundle.serve("", secret, hub(), body, DeviceSync.sign(secret, body))
+        val prefs = paired(pubOf(client))
+        val a = SetupBundle.serve("", secret, "tab", prefs, none, sig(secret, none), 2_000L)
         assertEquals(200, a.status)
-        assertTrue(DeviceSync.verify(secret, a.body, a.sig))
+        assertTrue(DeviceSync.verify(secret, "/setup\n".toByteArray() + a.body, a.sig))
+        assertFalse(DeviceSync.verify(secret, a.body, a.sig))
         assertFalse("TOKEN" in String(a.body))
         assertEquals(SetupBundle.build(hub()).toString(), String(SetupBundle.open(secret, client, a.body)))
-        assertFalse(runCatching { SetupBundle.open("50".repeat(32), client, a.body) }.isSuccess)
-        assertFalse(DeviceSync.verify("50".repeat(32), a.body, a.sig))
+        assertFalse(runCatching { SetupBundle.open(other, client, a.body) }.isSuccess)
+    }
+
+    @Test fun aSniffedSecretAndAnotherKeyOpenNothing() {
+        val real = SetupBundle.ephemeral()
+        val thief = SetupBundle.ephemeral()
+        val body = JSONObject().put("pub", pubOf(thief)).toString().toByteArray()
+        val a = SetupBundle.serve("", secret, "tab", paired(pubOf(real)), body, sig(secret, body), 2_000L)
+        assertEquals(200, a.status)
+        assertFalse(runCatching { SetupBundle.open(secret, thief, a.body) }.isSuccess)
+        assertTrue(runCatching { SetupBundle.open(secret, real, a.body) }.isSuccess)
+        assertEquals(403, SetupBundle.serve("", secret, "tab", hub(), none, sig(secret, none), 2_000L).status)
     }
 
     @Test fun onlyAPairedSignedPeerIsAnswered() {
-        val body = JSONObject().put("pub", "AAAA").toString().toByteArray()
-        assertEquals(403, SetupBundle.serve("", secret, hub(), body, null).status)
-        assertEquals(403, SetupBundle.serve("", secret, hub(), body, DeviceSync.sign("50".repeat(32), body)).status)
-        assertEquals(403, SetupBundle.serve("", null, hub(), body, DeviceSync.sign(secret, body)).status)
-        assertEquals(409, SetupBundle.serve("http://pc:8769", secret, hub(), body, DeviceSync.sign(secret, body)).status)
-        assertEquals(422, SetupBundle.serve("", secret, hub(), body, DeviceSync.sign(secret, body)).status)
-        assertEquals("Could not copy the setup.", String(SetupBundle.serve("", secret, hub(), body, DeviceSync.sign(secret, body)).body))
+        val prefs = paired("AAAA")
+        assertEquals(403, SetupBundle.serve("", secret, "tab", prefs, none, null, 2_000L).status)
+        assertEquals(403, SetupBundle.serve("", secret, "tab", prefs, none, sig(other, none), 2_000L).status)
+        assertEquals(403, SetupBundle.serve("", null, "tab", prefs, none, sig(secret, none), 2_000L).status)
+        assertEquals(403, SetupBundle.serve("", secret, "tab", prefs, none, DeviceSync.sign(secret, none), 2_000L).status)
+        assertEquals(409, SetupBundle.serve("http://pc:8769", secret, "tab", prefs, none, sig(secret, none), 2_000L).status)
+        val bad = SetupBundle.serve("", secret, "tab", prefs, none, sig(secret, none), 2_000L)
+        assertEquals(422, bad.status)
+        assertEquals("Could not copy the setup.", String(bad.body))
+    }
+
+    @Test fun setupIsServedOnceAndOnlyWithinTenMinutesOfAllow() {
+        val pub = pubOf(SetupBundle.ephemeral())
+        val prefs = paired(pub)
+        assertEquals(200, SetupBundle.serve("", secret, "tab", prefs, none, sig(secret, none), 1_000L + 600_000L).status)
+        assertEquals(403, SetupBundle.serve("", secret, "tab", prefs, none, sig(secret, none), 1_500L).status)
+        val late = paired(pub)
+        assertEquals(403, SetupBundle.serve("", secret, "tab", late, none, sig(secret, none), 1_000L + 600_001L).status)
+        assertEquals(403, SetupBundle.serve("", secret, "tab", late, none, sig(secret, none), 1_500L).status)
+    }
+
+    @Test fun anOldPairWithoutAPubStillPairsButGetsNoSetup() {
+        fresh()
+        val prefs = hub()
+        assertEquals(202, DeviceSync.requested(prefs, "tab", secret, "", "me").status)
+        val a = DeviceSync.asking.value.single()
+        assertEquals(DeviceSync.code(secret), a.code)
+        DeviceSync.allow(prefs, a, 1_000L)
+        assertEquals(200, DeviceSync.requested(prefs, "tab", secret, "", "me").status)
+        assertEquals(403, SetupBundle.serve("", secret, "tab", prefs, none, sig(secret, none), 2_000L).status)
+    }
+
+    @Test fun theCodeDependsOnThePub() {
+        assertTrue(DeviceSync.code(secret, "A") != DeviceSync.code(secret, "B"))
+        assertTrue(DeviceSync.code(secret, "A") != DeviceSync.code(secret))
+        assertEquals(DeviceSync.code(secret, "A"), DeviceSync.code(secret, "A"))
+    }
+
+    @Test fun aSwappedPendingRequestDropsBothAndMarksAConflict() {
+        fresh()
+        val prefs = Prefs()
+        assertEquals(202, DeviceSync.requested(prefs, "tab", secret, "A", "me").status)
+        assertEquals(202, DeviceSync.requested(prefs, "tab", secret, "A", "me").status)
+        assertEquals(1, DeviceSync.asking.value.size)
+        assertEquals(409, DeviceSync.requested(prefs, "tab", secret, "B", "me").status)
+        assertTrue(DeviceSync.asking.value.isEmpty())
+        assertEquals(setOf("tab"), DeviceSync.conflicts.value)
+        assertNull(prefs.getString("sync_peers", null))
+        DeviceSync.requested(prefs, "x", secret, "A", "me")
+        assertEquals(409, DeviceSync.requested(prefs, "x", other, "A", "me").status)
+        fresh()
     }
 
     @Test fun theHubRoutesSetupAndKeepsUnknownPaths404() {
-        val prefs = hub().apply { map["sync_peers"] = """{"tab":"$secret"}""" }
+        val prefs = paired(pubOf(SetupBundle.ephemeral()), System.currentTimeMillis()).apply { map["sync_peers"] = """{"tab":"$secret"}""" }
         val c: Context = ctx(prefs)
         assertEquals(404, DeviceSync.answer(c, "/nope", "tab", null, ByteArray(0)).status)
-        val body = "{}".toByteArray()
-        assertEquals(403, DeviceSync.answer(c, "/setup", "tab", null, body).status)
-        assertEquals(403, DeviceSync.answer(c, "/setup", "stranger", DeviceSync.sign(secret, body), body).status)
-        assertEquals(422, DeviceSync.answer(c, "/setup", "tab", DeviceSync.sign(secret, body), body).status)
+        assertEquals(403, DeviceSync.answer(c, "/setup", "tab", null, none).status)
+        assertEquals(403, DeviceSync.answer(c, "/setup", "stranger", sig(secret, none), none).status)
+        assertEquals(200, DeviceSync.answer(c, "/setup", "tab", sig(secret, none), none).status)
+        assertEquals(403, DeviceSync.answer(c, "/setup", "tab", sig(secret, none), none).status)
+    }
+
+    @Test fun aPartWithAnUnknownTypeIsNotCopied() {
+        val odd = SetupBundle.Got.Ok(mapOf("keys" to JSONObject().put("rd_token", 5), "languages" to JSONObject().put("speaks", "es")), emptyMap())
+        val client = Prefs()
+        SetupBundle.write(client, odd, setOf("keys", "languages"), anki = true)
+        assertFalse(client.contains("rd_token"))
+        assertEquals(setOf("languages"), client.getStringSet("onb_copied", null))
     }
 
     @Test fun ticksApplyOnlyTheirPartsInOneCommitAndRememberThem() {

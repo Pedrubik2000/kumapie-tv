@@ -19,6 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -72,7 +74,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     val counted = Onboarding.counted(ja)
     SideEffect { stepNow = current }
     val caption = tr("Step %1\$d of %2\$d", counted.indexOf(current) + 1, counted.size) + " · " +
-        if (current == Onboarding.MAIN) tr("Optional · saves %d steps", counted.count { it in SAVES }) else if (items.first { it.step == current }.state == State.OPTIONAL) tr("Optional") else tr("Needed")
+        if (current == Onboarding.MAIN) (if ((phase as? MainDeviceFlow.Phase.Pick)?.let { it.hubs.isNotEmpty() || it.pcs.isNotEmpty() } ?: (phase is MainDeviceFlow.Phase.Ready || phase is MainDeviceFlow.Phase.Waiting)) tr("Optional · saves %d steps", counted.count { it in SAVES }) else tr("Optional")) else if (items.first { it.step == current }.state == State.OPTIONAL) tr("Optional") else tr("Needed")
     val previous = items.map { it.step }.let { s -> s.getOrNull(s.indexOf(current) - 1) }
     fun go(step: String?) { opened = step; rev++ }
     fun complete(step: String) { Onboarding.markDone(prefs, step); go(null) }
@@ -84,8 +86,11 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     Scaffold { pad ->
         BoxWithConstraints(Modifier.padding(pad).fillMaxSize()) {
             val wide = maxWidth >= 840.dp
+            val bar = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
             val body: @Composable () -> Unit = {
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 72.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(Modifier.fillMaxSize()) {
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                  CompositionLocalProvider(LocalStepBar provides bar) {
                     when (current) {
                         Onboarding.LANGUAGE -> LanguagePage(settings) { complete(current) }
                         Onboarding.MAIN -> MainDeviceStep(flow, hostScope, caption, Onboarding.MAIN !in done, { pcSelected = it }, onDone) { if (stepNow == Onboarding.MAIN) go(null) else rev++ }
@@ -98,6 +103,9 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                         }
                     }
                     if (previous != null) Text(tr("Back"), color = Glass.dim, fontSize = 14.sp, modifier = Modifier.clickable { go(previous) }.padding(vertical = 14.dp))
+                  }
+                }
+                BarHost(bar)
                 }
             }
             val open = { step: String -> items.first { it.step == step }.state.let { if (it == State.DONE || it == State.COPIED) go(step) } }
@@ -110,6 +118,11 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun BarHost(bar: MutableState<(@Composable () -> Unit)?>) {
+    bar.value?.let { b -> Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { b() } }
 }
 
 @Composable

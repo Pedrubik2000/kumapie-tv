@@ -62,7 +62,7 @@ private fun CopiedCard(title: String, line: String) =
 internal fun LanguagePage(settings: Settings, onContinue: () -> Unit) {
     PageHead("", tr("Language"), "")
     MenuLanguage(settings)
-    Pill(tr("Continue"), onContinue, primary = true)
+    StepBar { Pill(tr("Continue"), onContinue, primary = true) }
 }
 
 @Composable
@@ -84,10 +84,12 @@ internal fun AniListPage(settings: Settings, caption: String, copiedFrom: String
         }) { Text(tr("Check")) }
         AniListLogin(settings)
     }
-    Pill(tr("Continue"), {
-        if (copiedFrom == null && (anilist.isNotBlank() || settings.anilistToken.isEmpty())) settings.anilist = anilist
-        onContinue()
-    }, primary = true)
+    StepBar {
+        Pill(tr("Continue"), {
+            if (copiedFrom == null && (anilist.isNotBlank() || settings.anilistToken.isEmpty())) settings.anilist = anilist
+            onContinue()
+        }, primary = true)
+    }
 }
 
 @Composable
@@ -119,7 +121,7 @@ internal fun VideosPage(settings: Settings, caption: String, copiedFrom: String?
             Text(tr("English under the lines: OpenSubtitles (free, no account)"))
         }
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    StepBar {
         Pill(tr("Continue"), {
             if (copiedFrom != null) onContinue()
             else if (said != checking) scope.launch {
@@ -156,5 +158,5 @@ internal fun DownloadsPage(library: Library, caption: String, onFinish: () -> Un
     val modelState by remember { model.state() }.collectAsState(initial = null)
     Text(tr("Dictionaries: %s", dictSaid))
     Text(tr("Word splitter: %s", modelState ?: if (model.isReady) tr("✓ ready") else tr("Starting…")))
-    Pill(tr("Start watching"), onFinish, primary = true)
+    StepBar { Pill(tr("Start watching"), onFinish, primary = true) }
 }

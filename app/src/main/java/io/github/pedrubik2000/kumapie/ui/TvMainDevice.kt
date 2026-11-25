@@ -98,7 +98,8 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
         val p = phase as? Phase.Pick
         if (p != null && !inside) runCatching { (if (p.hubs.isNotEmpty() || p.pcs.isNotEmpty()) card else field).requestFocus() }
     }
-    val saves = ROWS.take(3).count { it in ticked && available(phase, it) }
+    val found = (phase as? Phase.Pick)?.let { it.hubs.isNotEmpty() || it.pcs.isNotEmpty() } ?: (phase is Phase.Ready || phase is Phase.Waiting)
+    val saves = if (!found) 0 else if (pcPicked) ROWS.size - 1 else ROWS.take(3).count { it in ticked && available(phase, it) }
     Column(Modifier.fillMaxWidth().onFocusChanged { inside = it.hasFocus }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         TvStepHeader(tr("Step %1\$d of %2\$d", 1, steps) + " · " + if (saves > 0) tr("Optional · saves %d steps", saves) else tr("Optional"),tr("Set up from your main device or PC?"),
             tr("A kumapie or a kumapie PC on the home Wi-Fi already has your AniList, keys and known words."))

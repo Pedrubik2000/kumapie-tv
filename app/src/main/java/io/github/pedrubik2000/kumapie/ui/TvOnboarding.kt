@@ -258,18 +258,6 @@ private fun DownloadsStep(settings: Settings, nav: StepNav, onFinish: () -> Unit
         tr("Dictionaries for lookups and the word splitter. They finish in the background."))
     TvDownloads(settings)
     Text(tr("You can start watching while they finish. Wi-Fi only."), color = Colors.dim, fontSize = 16.sp)
-    val shape = RoundedCornerShape(16.dp)
-    val sync = DeviceSync.with(settings)?.name
-    val rows = nav.items("").filter { it.step != Onboarding.DOWNLOADS }.map { it.label to it.sub } + listOfNotNull(sync?.let { tr("Sync") to tr("Paired with %s", it) })
-    Column(Modifier.fillMaxWidth().background(Arcade.slab, shape).border(1.dp, Arcade.line, shape).padding(horizontal = 20.dp, vertical = 8.dp)) {
-        rows.forEach { (what, sub) ->
-            Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("✓", color = Colors.accent, fontSize = 18.sp)
-                Text(what, color = Colors.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(200.dp))
-                Text(sub, color = Colors.dim, fontSize = 18.sp)
-            }
-        }
-    }
     TvContinue(tr("Start watching") + " ›", Modifier.focusRequester(focus), onFinish)
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }
@@ -284,12 +272,12 @@ internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSa
     val aniList = part == SetupPart.ANILIST
     Heading(if (aniList) tr("Log in to AniList from your phone") else tr("Set up kumapie from your phone"))
     if (url == null) return Text(if (aniList) tr("This TV isn't on a home network: connect it, then log in here.") else tr("This TV isn't on a home network: connect it, or add the keys in Settings later."), color = Colors.dim)
-    Row(horizontalArrangement = Arrangement.spacedBy(40.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
         val qr = remember(url) { qr(url, 480) }
-        Image(qr.asImageBitmap(), null, Modifier.size(260.dp).background(Color.White).padding(10.dp))
-        Column(Modifier.width(620.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(tr("Scan this with your phone's camera (on the same Wi-Fi), or open:"), color = Colors.text, fontSize = 18.sp)
-            Text(url, color = Colors.accent, fontSize = 18.sp)
+        Image(qr.asImageBitmap(), null, Modifier.size(220.dp).background(Color.White).padding(10.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(tr("Scan this with your phone's camera (on the same Wi-Fi), or open:"), color = Colors.text, fontSize = 16.sp)
+            Text(url, color = Colors.accent, fontSize = 16.sp)
             Text(when (part) {
                 SetupPart.ANILIST -> tr("There: the AniList login link and the token field.")
                 SetupPart.KEYS -> tr("There: your Jimaku key, your Real-Debrid token and Kitsu.")
@@ -297,7 +285,7 @@ internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSa
             }, color = Colors.dim, fontSize = 16.sp)
             @Suppress("UNUSED_EXPRESSION") saved
             val p = settings.prefs
-            @Composable fun row(ok: Boolean, what: String) = Text((if (ok) "✓ " else "· ") + what, color = if (ok) Colors.text else Colors.dim, fontSize = 18.sp)
+            @Composable fun row(ok: Boolean, what: String) = Text((if (ok) "✓ " else "· ") + what, color = if (ok) Colors.text else Colors.dim, fontSize = 16.sp)
             if (!aniList) {
                 row(settings.jimakuKey.isNotEmpty(), tr("Japanese subtitles (Jimaku)"))
                 row(settings.addons.any { "torrentio.strem.fun" in it } && io.github.pedrubik2000.kumapie.data.Startup.rdKey(settings.rdToken, settings.addons).isNotEmpty(), tr("Videos (Torrentio with Real-Debrid)"))
@@ -321,7 +309,8 @@ private fun TvDownloads(settings: Settings) {
     LaunchedEffect(Unit) { while (true) { dicts = dictionariesState(context, settings); kotlinx.coroutines.delay(1000) } }
     Text(tr("Dictionaries: %s", dicts), color = Colors.text, fontSize = 18.sp)
     Text(tr("Word splitter: %s", modelState ?: if (model.isReady) tr("✓ ready") else tr("Starting…")), color = Colors.text, fontSize = 18.sp)
-    TvDictionaries(settings)
+    val free = remember { io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(context.applicationContext).base.usableSpace }
+    Text(tr("Free on this TV: %d MB", io.github.pedrubik2000.kumapie.lang.Recommended.mb(free)), color = Colors.text, fontSize = 18.sp)
 }
 
 @Composable

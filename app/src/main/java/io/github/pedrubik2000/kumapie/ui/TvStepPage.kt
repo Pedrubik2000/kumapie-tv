@@ -26,7 +26,7 @@ internal fun TvStepPage(modifier: Modifier, content: @Composable () -> Unit) {
     val header = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
     Column(modifier) {
         StepHeaderHost(header)
-        Column(Modifier.weight(1f).padding(bottom = rememberHintRoom() + 8.dp).verticalScroll(rememberScrollState()).padding(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 24.dp),
+        Column(Modifier.weight(1f).padding(bottom = rememberHintRoom() + 8.dp).verticalScroll(rememberScrollState()).padding(start = 48.dp, end = 48.dp, top = 12.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             CompositionLocalProvider(LocalStepHeader provides header) { content() }
         }
@@ -35,7 +35,7 @@ internal fun TvStepPage(modifier: Modifier, content: @Composable () -> Unit) {
 
 @Composable
 private fun StepHeaderHost(header: MutableState<(@Composable () -> Unit)?>) {
-    header.value?.let { Column(Modifier.padding(start = 48.dp, end = 48.dp, top = 36.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { it() } }
+    header.value?.let { Column(Modifier.padding(start = 48.dp, end = 48.dp, top = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { it() } }
 }
 
 @Composable
@@ -44,11 +44,11 @@ internal fun TvStepHeader(caption: String?, title: String, sub: String = "") {
     val body = remember(caption, title, sub) {
         @Composable {
             if (caption != null) TvCaption(caption)
-            Text(title, color = Colors.text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-            if (sub.isNotEmpty()) Text(sub, color = Colors.dim, fontSize = 18.sp)
+            Text(title, color = Colors.text, fontSize = 34.sp, lineHeight = 42.sp, fontWeight = FontWeight.Bold)
+            if (sub.isNotEmpty()) Text(sub, color = Colors.dim, fontSize = 16.sp)
         }
     }
-    if (slot == null) Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { body() } else {
+    if (slot == null) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { body() } else {
         SideEffect { if (slot.value !== body) slot.value = body }
         DisposableEffect(slot) { onDispose { slot.value = null } }
     }

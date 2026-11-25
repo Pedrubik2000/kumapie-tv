@@ -122,7 +122,7 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption:
             }
         }
         val target = if (typing) typed.trim().takeIf { it.isNotEmpty() }?.let { Hub("", it) } else (shown as? Phase.Pick)?.hubs?.firstOrNull { it.address == (picked ?: shown.auto) }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        StepBar {
             when {
                 shown is Phase.Done -> Pill(tr("Continue"), onDone, primary = true)
                 got != null && hub != null -> Pill(tr("Continue"), {

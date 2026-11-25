@@ -62,7 +62,7 @@ class WordPicker(
         if (spots.isEmpty()) return false
         ctl.pause()
         isOpen = true
-        land(firstColoured(spots, ::status)) // from the top line down (user, 2026-10-14, 2026-11-25)
+        landFirst(spots) // from the top line down (user, 2026-10-14, 2026-11-25)
         return true
     }
 
@@ -175,8 +175,10 @@ class WordPicker(
         val spots = spots()
         val lines = spots.map { it.line }.distinct()
         val target = lines.getOrNull(lines.indexOf(line) + by) ?: return
-        land(firstColoured(spots.filter { it.line == target }, ::status))
+        landFirst(spots.filter { it.line == target })
     }
+
+    private fun landFirst(spots: List<Spot>) = land(if (ctl.plainWords) spots.first() else firstColoured(spots, ::status))
 
     private fun defSpots(): List<Int> =
         definition?.target?.mapIndexedNotNull { i, s -> if (s.word != null) i else null } ?: emptyList()

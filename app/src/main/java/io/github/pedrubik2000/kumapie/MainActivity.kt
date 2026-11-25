@@ -107,7 +107,7 @@ fun App(settings: Settings) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
     var onboarded by remember { mutableStateOf(io.github.pedrubik2000.kumapie.data.Startup.onboarded(settings.prefs.all)) }
-    LaunchedEffect(server) { if (server.isEmpty()) io.github.pedrubik2000.kumapie.ui.startJapaneseDictionaries(context, settings) }
+    LaunchedEffect(server, onboarded) { if (server.isEmpty() && onboarded) io.github.pedrubik2000.kumapie.ui.startJapaneseDictionaries(context, settings) }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
 

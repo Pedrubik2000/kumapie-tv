@@ -19,9 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -147,19 +145,6 @@ private fun SetupRow(item: Onboarding.Item, here: Boolean, onOpen: (String) -> U
             Text(item.sub, color = if (here) Color.Black.copy(alpha = 0.7f) else Colors.dim, fontSize = 14.sp, maxLines = 1)
         }
     }
-}
-
-@Composable
-private fun TvStepPage(modifier: Modifier, content: @Composable () -> Unit) {
-    Column(modifier.verticalScroll(rememberScrollState()).padding(start = 48.dp, end = 48.dp, top = 36.dp, bottom = rememberHintRoom() + 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }
-}
-
-@Composable
-internal fun TvStepHeader(caption: String?, title: String, sub: String = "") {
-    if (caption != null) TvCaption(caption)
-    Text(title, color = Colors.text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-    if (sub.isNotEmpty()) Text(sub, color = Colors.dim, fontSize = 18.sp)
 }
 
 @Composable

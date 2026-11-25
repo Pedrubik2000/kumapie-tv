@@ -4,7 +4,10 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.isFocused
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -55,7 +58,7 @@ class TvOnboardingFlowTest {
     private class Fake(val hubs: List<Pair<String, String>>, val allowed: DeviceSync.Poll, val got: SetupBundle.Got, val onApply: () -> Unit, val pcs: List<String> = emptyList()) : Pairing {
         private var asked: MainDeviceFlow.Hub? = null
         override suspend fun discover(ms: Long) = hubs
-        override suspend fun discoverPcs(ms: Long) = pcs
+        override suspend fun discoverPcs(ms: Long) = pcs.map { MainDeviceFlow.Pc(it) }
         override suspend fun usePc(url: String): String =
             if (pcs.any { url == "http://$it" }) { Settings(RuntimeEnvironment.getApplication()).server = url; "" } else "No answer from $url"
         override suspend fun ask(name: String, address: String) = DeviceSync.Asked("4829").also { asked = MainDeviceFlow.Hub(name, address) }
@@ -120,6 +123,28 @@ class TvOnboardingFlowTest {
         assertEquals("http://192.168.0.10:8769", settings.server)
         assertTrue(Startup.onboarded(settings.prefs.all))
         assertEquals(1, done)
+    }
+
+    @Test fun theTicksWaitForADeviceAndTheGreyedListGoesWhenTheStepIsLeft() {
+        val two = listOf(hub, "Pixel 8a" to "192.168.0.162:47823")
+        open(api(hubs = two, pcs = listOf("192.168.0.10:8769")))
+        rule.onNodeWithText("Mined words and reviews").assertDoesNotExist()
+        rule.onNodeWithText("kumapie on Tab S7+").performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitForIdle()
+        rule.onNodeWithText("Mined words and reviews").assertExists()
+        rule.onNodeWithText("kumapie PC at 192.168.0.10:8769").performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitForIdle()
+        rule.onNodeWithText("Mined words and reviews").assertDoesNotExist()
+        assertEquals(4, rule.onAllNodesWithText("from the PC").fetchSemanticsNodes().size)
+        rule.onNodeWithText("Start fresh").performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitForIdle()
+        rule.onAllNodesWithText("from the PC").assertCountEquals(0)
+    }
+
+    @Test fun theTitleStaysWhenFocusReachesTheBottomButtons() {
+        open(api(hubs = listOf(hub)))
+        repeat(3) { press(Key.DirectionDown) }
+        rule.onNodeWithText("Set up from your main device or PC?").assertIsDisplayed()
     }
 
     @Test fun fieldRightGoesToContinueAndContinueRightToStartFresh() {

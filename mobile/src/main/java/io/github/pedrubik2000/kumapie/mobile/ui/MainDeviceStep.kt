@@ -76,15 +76,15 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption:
     var unticked by rememberSaveable { mutableStateOf(emptyList<String>()) }
     LaunchedEffect(flow) { flow.start() }
     val shownNow = phase
-    val chosen = if (typing) null else (shownNow as? Phase.Pick)?.let { p -> (picked ?: p.auto)?.takeIf { it in p.pcs } }
-    LaunchedEffect(chosen) { onPcSelected(chosen != null) }
+    val chosen = if (typing) null else (shownNow as? Phase.Pick)?.let { p -> p.pcs.firstOrNull { it.address == (picked ?: p.auto) } }
+    LaunchedEffect(chosen != null) { onPcSelected(chosen != null) }
     LaunchedEffect(shownNow is Phase.PcDone) { if (shownNow is Phase.PcDone) onPc() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).glass(RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Sync, null, tint = Color.White) }
             Column {
                 ColourCaption(caption)
-                Text(tr("Set up from your main device or PC?"), color = Colors.text, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr("Set up from your main device or PC?"), color = Colors.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
             }
         }
         Text(tr("A kumapie or a kumapie PC on the home Wi-Fi already has your AniList, keys and known words."), color = Glass.dim, fontSize = 15.sp)
@@ -103,9 +103,11 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption:
             is Phase.Waiting -> WaitingHub(shown)
             is Phase.Done -> DoneCard(shown)
             is Phase.PcDone -> Unit
+            is Phase.Connecting -> Text(tr("Connecting…"), color = Glass.dim)
             is Phase.Ready -> if (shown.got is Got.Pc) Text(tr("This hub uses a PC: there is nothing to copy from it. Set this device up here."), color = Colors.text)
         }
-        if (got !is Got.Pc && shown !is Phase.Looking && shown !is Phase.Done && shown !is Phase.PcDone && chosen == null) Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp))) {
+        val deviceChosen = !typing && (shown as? Phase.Pick)?.let { p -> p.hubs.any { it.address == (picked ?: p.auto) } } == true
+        if ((shown is Phase.Ready && got !is Got.Pc) || shown is Phase.Waiting || deviceChosen) Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp))) {
             ColourCaption(tr("Copy from it · untick to set up here instead"), Modifier.padding(16.dp, 14.dp, 16.dp, 0.dp))
             MainDeviceFlow.ROWS.forEach { row ->
                 val on = available(row, got)
@@ -134,7 +136,7 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption:
                         }
                     }
                 }, primary = true)
-                chosen != null -> Pill(tr("Use this PC") + " ›", { if (!busy) { busy = true; scope.launch { flow.usePc(chosen); busy = false } } }, primary = true)
+                chosen != null -> Pill(tr("Use this PC") + " ›", { if (!busy) { busy = true; scope.launch { flow.usePc(chosen, wan = true); busy = false } } }, primary = true)
                 shown is Phase.Pick -> Pill(tr("Pair and copy"), { if (target != null) scope.launch { flow.pair(target) } }, Modifier.alpha(if (target != null) 1f else 0.4f), primary = true)
             }
             if (canFresh && shown !is Phase.Done) {
@@ -154,7 +156,7 @@ private fun PickHub(pick: Phase.Pick, selected: String?, typing: Boolean, typed:
         pick.hubs.forEach { h ->
             ColourRadioCard(!typing && h.address == selected, tr("kumapie on %s", h.name), tr("%1\$s · main server · found on this network", h.address)) { onPick(h.address) }
         }
-        pick.pcs.forEach { a ->
+        pick.pcs.forEach { (a) ->
             val on = !typing && a == selected
             ColourRadioCard(on, tr("kumapie PC at %s", a), tr("everything comes from the PC · found on this network")) { onPick(a) }
             if (on) Text(tr("AniList, keys, word colouring and downloads all come from the PC: setup ends here."), color = Glass.dim, fontSize = 14.sp)

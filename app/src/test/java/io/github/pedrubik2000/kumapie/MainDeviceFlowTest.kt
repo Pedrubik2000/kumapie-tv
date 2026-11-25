@@ -6,6 +6,7 @@ import io.github.pedrubik2000.kumapie.lang.DeviceSync
 import io.github.pedrubik2000.kumapie.lang.DeviceSync.Poll
 import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow
 import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Hub
+import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Pc
 import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Phase
 import io.github.pedrubik2000.kumapie.lang.Pairing
 import io.github.pedrubik2000.kumapie.lang.SetupBundle.Got
@@ -29,13 +30,15 @@ private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(e
     var forgot = 0
     var applied: Set<String>? = null
     private var at = 0
-    var pcs = listOf("192.168.0.10:8769")
+    var pcs = listOf(Pc("192.168.0.10:8769", "https://pc.ts.net:8445"))
     var pcUp = setOf<String>()
     var triedPc = mutableListOf<String>()
+    var cancels = false
     override suspend fun discover(ms: Long) = listOf("Tab S7+" to "192.168.0.154:47823")
     override suspend fun discoverPcs(ms: Long) = pcs
     override suspend fun usePc(url: String): String {
         triedPc += url
+        if (cancels) throw kotlinx.coroutines.CancellationException("left")
         return if (url in pcUp) { Settings(RuntimeEnvironment.getApplication()).server = url; "" } else "No answer from $url"
     }
     override suspend fun ask(name: String, address: String): DeviceSync.Asked { fails?.let { throw it }; asks++; asked = Hub(name, address); return DeviceSync.Asked("4829", oldHub) }
@@ -254,7 +257,7 @@ class MainDeviceFlowTest {
         val flow = MainDeviceFlow(prefs, FakePairing(emptyList()))
         flow.look()
         val pick = flow.phase.value as Phase.Pick
-        assertEquals(listOf("192.168.0.10:8769"), pick.pcs)
+        assertEquals(listOf(Pc("192.168.0.10:8769", "https://pc.ts.net:8445")), pick.pcs)
         assertEquals(hub, pick.hubs.single())
         assertEquals(hub.address, pick.auto)
     }
@@ -265,16 +268,47 @@ class MainDeviceFlowTest {
         val pairing = FakePairing(emptyList())
         val flow = MainDeviceFlow(prefs, pairing)
         flow.look()
-        flow.usePc("192.168.0.10:8769")
+        flow.usePc(Pc("192.168.0.10:8769"), wan = false)
         val pick = flow.phase.value as Phase.Pick
         assertTrue(pick.notice.startsWith("No answer from http://192.168.0.10:8769"))
         assertEquals(hub, pick.hubs.single())
         assertEquals("", Settings(RuntimeEnvironment.getApplication()).server)
         pairing.pcUp = setOf("http://192.168.0.10:8769")
-        flow.usePc("192.168.0.10:8769")
+        flow.usePc(Pc("192.168.0.10:8769"), wan = false)
         assertEquals(Phase.PcDone("192.168.0.10:8769"), flow.phase.value)
         assertEquals("http://192.168.0.10:8769", Settings(RuntimeEnvironment.getApplication()).server)
         assertTrue(io.github.pedrubik2000.kumapie.data.Startup.onboarded(prefs.all))
+    }
+
+    @Test fun aPhoneSavesThePcsPublicAddressWhenItAnswersElseTheLanOneAndATvKeepsTheLan() = runBlocking {
+        val pc = Pc("192.168.0.10:8769", "https://pc.ts.net:8445")
+        val both = FakePairing(emptyList()).apply { pcUp = setOf(pc.url, "http://192.168.0.10:8769") }
+        MainDeviceFlow(prefs, both).usePc(pc, wan = true)
+        assertEquals("https://pc.ts.net:8445", Settings(RuntimeEnvironment.getApplication()).server)
+        val lanOnly = FakePairing(emptyList()).apply { pcUp = setOf("http://192.168.0.10:8769") }
+        MainDeviceFlow(prefs, lanOnly).usePc(pc, wan = true)
+        assertEquals(listOf("https://pc.ts.net:8445", "http://192.168.0.10:8769"), lanOnly.triedPc)
+        assertEquals("http://192.168.0.10:8769", Settings(RuntimeEnvironment.getApplication()).server)
+        val tv = FakePairing(emptyList()).apply { pcUp = setOf(pc.url, "http://192.168.0.10:8769") }
+        MainDeviceFlow(prefs, tv).usePc(pc, wan = false)
+        assertEquals(listOf("http://192.168.0.10:8769"), tv.triedPc)
+    }
+
+    @Test fun cancellingWhileAskingThePcIsNotAnAnswer() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED)).apply { cancels = true }
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        flow.look()
+        var thrown = false
+        try { flow.pair(Hub("", "10.0.0.9")) } catch (c: kotlinx.coroutines.CancellationException) { thrown = true }
+        assertTrue(thrown)
+        assertTrue(flow.phase.value !is Phase.Pick || (flow.phase.value as Phase.Pick).notice.isEmpty())
+    }
+
+    @Test fun aTypedAddressNobodyAnswersSaysSo() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED)).apply { fails = java.net.SocketTimeoutException("t") }
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        flow.pair(Hub("", "10.0.0.9"))
+        assertEquals("Nothing answered at 10.0.0.9:47823: not a kumapie PC, not a kumapie device.", (flow.phase.value as Phase.Pick).notice)
     }
 
     @Test fun aTypedPcAddressWorksWithOrWithoutAPortAndADeviceFallsThroughToPairing() = runBlocking {

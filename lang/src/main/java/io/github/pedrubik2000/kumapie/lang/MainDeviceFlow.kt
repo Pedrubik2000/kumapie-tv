@@ -3,7 +3,6 @@ package io.github.pedrubik2000.kumapie.lang
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Onboarding
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Startup
@@ -17,7 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface Pairing {
     suspend fun discover(ms: Long): List<Pair<String, String>>
-    suspend fun discoverPcs(ms: Long): List<String> = emptyList()
+    suspend fun discoverPcs(ms: Long): List<MainDeviceFlow.Pc> = emptyList()
     suspend fun usePc(url: String): String
     suspend fun ask(name: String, address: String): DeviceSync.Asked
     suspend fun allowed(): DeviceSync.Poll
@@ -31,10 +30,11 @@ interface Pairing {
 
 class LivePairing(private val context: Context) : Pairing {
     override suspend fun discover(ms: Long) = DeviceSync.discover(context, ms)
-    override suspend fun discoverPcs(ms: Long) = DeviceSync.discover(context, ms, DeviceSync.PC_SERVICE).map { it.second }
-    override suspend fun usePc(url: String): String = runCatching { Api(url).info() }.fold(
-        { Settings(context).server = url; "" },
-        { tr("No answer from %1\$s: %2\$s", url, it.message) })
+    override suspend fun discoverPcs(ms: Long) = NsdScan.scan(context, ms, DeviceSync.PC_SERVICE).map { MainDeviceFlow.Pc(it.address, it.url) }
+    override suspend fun usePc(url: String): String = PcProbe.check(url).let { err ->
+        if (err.isEmpty()) Settings(context).server = url
+        if (err.isEmpty()) "" else tr("No answer from %1\$s: %2\$s", url, err)
+    }
     override suspend fun ask(name: String, address: String) = DeviceSync.ask(context, name, address)
     override suspend fun allowed() = DeviceSync.allowed(context)
     override suspend fun fetch() = SetupBundle.fetch(context)
@@ -47,16 +47,18 @@ class LivePairing(private val context: Context) : Pairing {
 
 class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: Pairing, private val clock: () -> Long = System::currentTimeMillis, private val pause: suspend (Long) -> Unit = { delay(it) }) {
     data class Hub(val name: String, val address: String)
+    data class Pc(val address: String, val url: String = "")
 
     sealed interface Phase {
         data object Looking : Phase
-        data class Pick(val hubs: List<Hub>, val notice: String = "", val pcs: List<String> = emptyList()) : Phase {
-            val auto: String? get() = hubs.singleOrNull()?.address ?: pcs.singleOrNull().takeIf { hubs.isEmpty() }
+        data class Pick(val hubs: List<Hub>, val notice: String = "", val pcs: List<Pc> = emptyList()) : Phase {
+            val auto: String? get() = hubs.singleOrNull()?.address ?: pcs.singleOrNull()?.address.takeIf { hubs.isEmpty() }
         }
         data class Waiting(val hub: Hub, val code: String, val old: Boolean = false) : Phase
         data class Ready(val hub: Hub, val got: SetupBundle.Got) : Phase
         data class Done(val hub: String, val copied: Set<String>) : Phase
         data class PcDone(val address: String) : Phase
+        data class Connecting(val address: String) : Phase
     }
 
     private val state = MutableStateFlow<Phase>(Phase.Looking)
@@ -69,7 +71,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
             return
         }
         when (val now = state.value) {
-            is Phase.Ready, is Phase.Pick, is Phase.Done, is Phase.PcDone -> return
+            is Phase.Ready, is Phase.Pick, is Phase.Done, is Phase.PcDone, is Phase.Connecting -> return
             is Phase.Waiting -> if (now.code.isBlank()) look() else poll(now.hub, now.code, now.old)
             is Phase.Looking -> if (pairing.peer() != null && !pairing.hasKey() && Onboarding.MAIN !in Onboarding.done(prefs)) look(tr("Pair again: the app was closed while waiting")) else look()
         }
@@ -86,8 +88,8 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
         state.value = Phase.Pick(hubs.map { Hub(it.first, it.second) }, notice, pcs)
     }
 
-    private suspend fun connect(address: String): String {
-        val err = pairing.usePc(pcUrl(address))
+    private suspend fun connect(url: String, address: String): String {
+        val err = pairing.usePc(url)
         if (err.isEmpty()) {
             Startup.onboard(prefs)
             state.value = Phase.PcDone(address)
@@ -95,18 +97,19 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
         return err
     }
 
-    suspend fun usePc(address: String) {
+    suspend fun usePc(pc: Pc, wan: Boolean) {
         val before = state.value as? Phase.Pick
-        val err = connect(address)
+        state.value = Phase.Connecting(pc.address)
+        val err = if (wan && pc.url.isNotEmpty() && connect(pc.url, pc.address).isEmpty()) "" else connect(pcUrl(pc.address), pc.address)
         if (err.isNotEmpty()) state.value = (before ?: Phase.Pick(emptyList())).copy(notice = err)
     }
 
     suspend fun pair(typed: Hub) {
-        if (state.value is Phase.Waiting) return
+        if (state.value is Phase.Waiting || state.value is Phase.Connecting) return
         if (typed.name.isEmpty() && typed.address.isNotBlank()) {
             val before = state.value as? Phase.Pick
-            state.value = Phase.Waiting(typed, "")
-            val err = connect(typed.address)
+            state.value = Phase.Connecting(typed.address)
+            val err = connect(pcUrl(typed.address), typed.address)
             if (err.isEmpty()) return
             if (typed.address.trim().startsWith("http", ignoreCase = true)) {
                 state.value = (before ?: Phase.Pick(emptyList())).copy(notice = err)
@@ -127,7 +130,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
             return fail(e.message.orEmpty())
         } catch (e: Exception) {
             Log.w("kumapie", "pair: ${e.javaClass.simpleName}: ${e.message}")
-            return fail(tr("Couldn't reach %s", hub.name.ifEmpty { hub.address }))
+            return fail(if (typed.name.isEmpty()) tr("Nothing answered at %s: not a kumapie PC, not a kumapie device.", hub.address) else tr("Couldn't reach %s", hub.name))
         }
         poll(hub.copy(name = hub.name.ifEmpty { pairing.peer()?.name.orEmpty() }), asked.code, asked.old)
     }

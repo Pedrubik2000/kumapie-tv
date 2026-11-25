@@ -76,7 +76,7 @@ internal fun TvWordColouring(settings: Settings, language: Language, onboarding:
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
     BackHandler(onBack = onBack)
     Box(Modifier.fillMaxSize().onBackKey(onBack = onBack)) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 40.dp, end = 40.dp, top = 24.dp, bottom = rememberHintRoom() + 24.dp),
+        Column(Modifier.fillMaxSize().padding(bottom = rememberHintRoom() + 8.dp).verticalScroll(rememberScrollState()).padding(start = 40.dp, end = 40.dp, top = 24.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Column(Modifier.weight(1f).focusGroup(), verticalArrangement = Arrangement.spacedBy(9.dp)) {

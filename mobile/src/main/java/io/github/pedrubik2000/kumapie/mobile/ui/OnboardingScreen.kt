@@ -85,7 +85,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
         BoxWithConstraints(Modifier.padding(pad).fillMaxSize()) {
             val wide = maxWidth >= 840.dp
             val body: @Composable () -> Unit = {
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 72.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     when (current) {
                         Onboarding.LANGUAGE -> LanguagePage(settings) { complete(current) }
                         Onboarding.MAIN -> MainDeviceStep(flow, hostScope, caption, Onboarding.MAIN !in done, { pcSelected = it }, onDone) { if (stepNow == Onboarding.MAIN) go(null) else rev++ }
@@ -114,7 +114,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
 
 @Composable
 private fun SideList(items: List<Onboarding.Item>, current: String, open: (String) -> Unit) {
-    Column(Modifier.width(300.dp).fillMaxHeight().background(Glass.solid).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.width(300.dp).fillMaxHeight().background(Glass.solid).verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(tr("Setup"), color = Colors.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(10.dp))
         items.forEach { i ->
             val on = i.step == current

@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun PageHead(caption: String, title: String, text: String) {
     ColourCaption(caption)
-    Text(title, color = Colors.text, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+    Text(title, color = Colors.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
     if (text.isNotEmpty()) Text(text, color = Glass.dim, fontSize = 15.sp)
 }
 

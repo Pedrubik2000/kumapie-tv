@@ -15,6 +15,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -63,7 +64,7 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
     var job by remember { mutableStateOf<Job?>(null) }
     var ticked by remember { mutableStateOf(ROWS.toSet()) }
     var address by remember { mutableStateOf("") }
-    var picked by remember(phase) { mutableStateOf((phase as? Phase.Pick)?.auto) }
+    var picked by remember((phase as? Phase.Pick)?.let { it.hubs to it.pcs }) { mutableStateOf((phase as? Phase.Pick)?.auto) }
     val card = remember { FocusRequester() }
     val field = remember { FocusRequester() }
     val pairButton = remember { FocusRequester() }
@@ -71,7 +72,7 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
     var note by remember { mutableStateOf("") }
     fun run(block: suspend () -> Unit) { job?.cancel(); job = scope.launch { block() } }
     fun pair() {
-        if (phase is Phase.Waiting) return
+        if (phase is Phase.Waiting || phase is Phase.Connecting) return
         val hubs = (phase as? Phase.Pick)?.hubs.orEmpty()
         val to = address.trim().ifEmpty { picked }
         if (to == null) {
@@ -82,7 +83,10 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
         note = ""
         run { flow.pair(hubs.firstOrNull { it.address == to } ?: Hub("", to)) }
     }
-    val pcPicked = address.isBlank() && (phase as? Phase.Pick)?.pcs?.contains(picked) == true
+    val pcChosen = if (address.isBlank()) (phase as? Phase.Pick)?.pcs?.firstOrNull { it.address == picked } else null
+    val pcPicked = pcChosen != null
+    val deviceChosen = address.isBlank() && (phase as? Phase.Pick)?.hubs?.any { it.address == picked } == true
+    DisposableEffect(Unit) { onDispose { onPcSelected(false) } }
     LaunchedEffect(pcPicked) { onPcSelected(pcPicked) }
     LaunchedEffect(phase is Phase.PcDone) { if (phase is Phase.PcDone) onPc() }
     LaunchedEffect(Unit) { run { flow.start() } }
@@ -98,7 +102,7 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
         MainHubs(phase, picked.takeIf { address.isBlank() }, card) { picked = it; address = ""; note = "" }
         MainStatus(phase)
         if (note.isNotEmpty()) Text(note, color = Colors.accent, fontSize = 18.sp)
-        if (!pcPicked) {
+        if (phase is Phase.Ready || phase is Phase.Waiting || deviceChosen) {
             TvCaption(tr("Copy from it · untick to set up here instead"), Modifier.padding(top = 6.dp))
             MainTicks(phase, ticked) { ticked = it }
         }
@@ -109,7 +113,7 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
             val ready = phase as? Phase.Ready
             TvContinue(if (ready != null) tr("Continue") + " ›" else if (pcPicked) tr("Use this PC") + " ›" else tr("Pair and copy"), Modifier.focusRequester(pairButton)) {
-                if (pcPicked) run { flow.usePc(picked.orEmpty()) }
+                if (pcChosen != null) run { flow.usePc(pcChosen, wan = false) }
                 else if (ready != null) { flow.finish(ready.hub, ready.got, ticked.filter { available(phase, it) }.toSet()); onAdvance() } else pair()
             }
             Text(tr("or") + " ", color = Colors.dim, fontSize = 16.sp)
@@ -126,7 +130,7 @@ private fun MainHubs(phase: Phase, picked: String?, card: FocusRequester, onPick
             phase.hubs.forEachIndexed { i, h ->
                 HubCard(tr("kumapie on %s", h.name), hubSub(h), h.address == picked, null, if (i == 0) Modifier.focusRequester(card) else Modifier) { onPick(h.address) }
             }
-            phase.pcs.forEachIndexed { i, a ->
+            phase.pcs.forEachIndexed { i, (a) ->
                 HubCard(tr("kumapie PC at %s", a), tr("everything comes from the PC · found on this network"), a == picked, null,
                     if (i == 0 && phase.hubs.isEmpty()) Modifier.focusRequester(card) else Modifier) { onPick(a) }
                 if (a == picked) Text(tr("AniList, keys, word colouring and downloads all come from the PC: setup ends here."), color = Colors.dim, fontSize = 16.sp)
@@ -134,7 +138,7 @@ private fun MainHubs(phase: Phase, picked: String?, card: FocusRequester, onPick
         }
         is Phase.Waiting -> HubCard(tr("kumapie on %s", phase.hub.name), hubSub(phase.hub), true, phase.code.ifEmpty { null }) {}
         is Phase.Ready -> HubCard(tr("kumapie on %s", phase.hub.name), hubSub(phase.hub), true, null) {}
-        Phase.Looking, is Phase.Done, is Phase.PcDone -> Unit
+        Phase.Looking, is Phase.Done, is Phase.PcDone, is Phase.Connecting -> Unit
     }
 }
 
@@ -152,6 +156,7 @@ private fun MainStatus(phase: Phase) {
             if (phase.old) Text(tr("Allow shows in Settings > Sync with another device on %s", phase.hub.name), color = Colors.dim, fontSize = 14.sp)
         }
         is Phase.Done, is Phase.PcDone -> Unit
+        is Phase.Connecting -> Text(tr("Connecting…"), color = Colors.text, fontSize = 18.sp)
         is Phase.Ready -> if (phase.got == SetupBundle.Got.Pc) Text(tr("This hub uses a PC: there is nothing to copy from it. Set this device up here."), color = Colors.accent, fontSize = 18.sp)
     }
 }

@@ -54,6 +54,7 @@ What the TV does for someone with no PC, in their words. Each line is proved on 
 `C:\dojo\work\kumapie\proof.sh <feature>` (screenshot in `proof\<feature>.png`); `proof.sh all` runs them all.
 1. `language`: choose a language with no PC and reach Home.
 2. `back`: Back in onboarding goes one step back (the remote's Back and the Back button).
+2b. `onboarding_pc`: Main server > Type the address > a kumapie PC (a stub on 127.0.0.1 answering GET /api/tv, reached as 10.0.2.2:<port>): the app probes it, asks who is watching, and lands on Home.
 3. `settings`: Settings opens with a Torrentio URL that has options.
 4. `show`: open a show and see the words coloured.
 5. `word`: pause, open a word, rate it.

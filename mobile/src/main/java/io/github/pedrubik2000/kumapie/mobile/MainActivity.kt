@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) addonsAndKey(intent, settings) // not again on rotation: an addon removed since came back
         // The download notification (Android 13+ asks once).
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
-        enableEdgeToEdge()
+        enableEdgeToEdge(androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT), androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         val library = Library(applicationContext, settings)
         window.decorView.postDelayed({ io.github.pedrubik2000.kumapie.lang.DeviceSync.start(applicationContext) }, 5000)
         // kumapie://prepare?person&lang&type&id (the kumapie add-on's stream in Stremio): the PC makes the episode, then it plays.

@@ -234,6 +234,41 @@ class AniListSyncTest {
         second.episodeDone("kitsu:1:3", "series")
         assertEquals(listOf(2, 3), saved.map { it.third.progress })
     }
+    private fun addons() = Addons(emptyList(), prefs, sync())
+
+    @Test fun leavingAt92PercentWritesTheEpisodeAndAt50DoesNot() {
+        entries[7] = Entry("CURRENT", progress = 1, started = "2026-11-20", episodes = 12)
+        addons().left("kitsu:1:3", "series", 500_000, 1_000_000)
+        assertTrue(saved.isEmpty())
+        addons().left("kitsu:1:2", "series", 920_000, 1_000_000)
+        assertEquals(listOf(2), saved.map { it.third.progress })
+        addons().left("kitsu:1:3", "series", 1_350_000, 1_450_000)
+        assertEquals(listOf(2, 3), saved.map { it.third.progress })
+    }
+
+    @Test fun leavingInTheLast120SecondsCountsEvenUnder90Percent() {
+        entries[7] = Entry("CURRENT", progress = 1, started = "2026-11-20", episodes = 12)
+        addons().left("kitsu:1:2", "series", 890_000, 1_000_000)
+        assertEquals(listOf(2), saved.map { it.third.progress })
+    }
+
+    @Test fun nextAt95ThenTheNextOnesEndWriteBothInOrder() {
+        entries[7] = Entry("CURRENT", progress = 1, started = "2026-11-20", episodes = 12)
+        addons().left("kitsu:1:2", "series", 950_000, 1_000_000)
+        clock += 1_300_000
+        addons().done("kitsu:1:3", "series")
+        assertEquals(listOf(2, 3), saved.map { it.third.progress })
+    }
+
+    @Test fun theEndFollowedByTheLeaveWritesOnce() {
+        entries[7] = Entry("CURRENT", progress = 1, started = "2026-11-20", episodes = 12)
+        val a = addons()
+        a.done("kitsu:1:2", "series")
+        a.left("kitsu:1:2", "series", 1_000_000, 1_000_000)
+        addons().left("kitsu:1:2", "series", 999_000, 1_000_000)
+        assertEquals(listOf(2), saved.map { it.third.progress })
+    }
+
     @Test fun deviceClockBehindTheServerStillWrites() {
         skew = 3_600_000L
         sync().finished("kitsu:1:1", 1)

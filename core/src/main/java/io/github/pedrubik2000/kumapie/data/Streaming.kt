@@ -66,8 +66,7 @@ sealed interface StreamStart {
 suspend fun Addons.next(query: Map<String, String>, looking: (Int) -> Unit = {}): Map<String, String>? {
     val type = query["type"] ?: "series"
     val id = query["id"].orEmpty()
-    runCatching { seen(id, true) }
-    sync.episodeDone(id, type)
+    done(id, type)
     val next = Addons.nextId(type, id) ?: return null
     val n = next.substringAfterLast(':').toInt()
     looking(n)

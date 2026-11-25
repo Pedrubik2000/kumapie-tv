@@ -39,6 +39,15 @@ class Addons(urls: List<String>, private val store: SharedPreferences, val sync:
     private val bases = urls.map(::base).filter { it.isNotEmpty() }.distinct()
     private val manifests = java.util.concurrent.ConcurrentHashMap<String, JSONObject>()
 
+    fun done(id: String, type: String) {
+        store.edit().putStringSet(SEEN, store.getStringSet(SEEN, emptySet()).orEmpty() + id).apply()
+        sync.episodeDone(id, type)
+    }
+
+    fun left(id: String, type: String, positionMs: Long, durationMs: Long) {
+        if (nearEnd(positionMs / 1000.0, durationMs / 1000.0)) done(id, type)
+    }
+
     private suspend fun manifests(): List<Pair<String, JSONObject>> = kotlinx.coroutines.coroutineScope {
         bases.map { b ->
             async { (manifests[b] ?: runCatching { JSONObject(get("$b/manifest.json")) }.getOrNull()?.also { manifests[b] = it })?.let { b to it } }

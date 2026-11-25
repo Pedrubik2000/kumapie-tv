@@ -75,6 +75,7 @@ class AniListSync(
     }
 
     fun episodeDone(id: String, type: String) {
+        if (!completed.add(id)) return
         episodeOf(id, type == "movie")?.let { finished(id, it) }
     }
 
@@ -208,12 +209,14 @@ class AniListSync(
         private val store = Any()
         private val sent = HashSet<String>()
         private val stuck = HashSet<String>()
+        private val completed = HashSet<String>()
         private val version = MutableStateFlow(0)
 
         fun resetState() {
             synchronized(store) {
                 sent.clear()
                 stuck.clear()
+                completed.clear()
             }
             version.update { it + 1 }
         }

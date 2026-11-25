@@ -48,7 +48,6 @@ class TitlePage(
         }.onFailure { if (meta == null) error = it.message ?: it.toString() }
     }
 
-    /** Back from the player: what it saved (the watched marks, the place) is read again, not the page's first look. */
     suspend fun back() { resuming = resumingNow(); load() }
 
     suspend fun retry() { error = null; load() }

@@ -15,6 +15,7 @@ class AloneStream(
     val id: String, val type: String, val show: String, val title: String, val video: String, private val file: String,
     onError: (String?) -> Unit,
 ) {
+    private var startNudge = 0.0
     private val t0 = android.os.SystemClock.elapsedRealtime()
     private val sync = io.github.pedrubik2000.kumapie.data.AniListSync(prefs)
 
@@ -24,9 +25,12 @@ class AloneStream(
     }, others = { skip ->
         Jimaku.lines(prefs.getString("jimaku_key", "").orEmpty(), show, null, episodeNumber(id), file, skip).map { Triple(it.start, it.end, it.text) }
     }, switched = { l -> Jimaku.keep(show, null, episodeNumber(id), file, l.map { Jimaku.Line(it.first, it.second, it.third) }, fitted = true) }).also {
+        cleanOffsets(prefs)
         prefs.edit().putString(fileKey(id), file).apply()
-        it.offset = prefs.getFloat(offKey(id, file), 0f).toDouble()
+        startNudge = nudge(prefs, id)
+        it.offset = prefs.getFloat(offKey(id, file), 0f).toDouble() + startNudge
         it.guess = it.offset
+        it.hand = { handed(prefs, id) }
     }
 
     private var lastMs = 0L
@@ -54,7 +58,7 @@ class AloneStream(
         ep = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             languages.of(built0.lang).known.run { refreshDue(); apply(built0) }
         }
-        built = live.offset
+        built = live.offset - startNudge
         saveOffset()
         live.stopUnlessFitting()
         android.util.Log.i("kumapie", "words ready: lines ${tLines - t0} ms after open, english ${tEnglish - tLines}, " +
@@ -64,10 +68,13 @@ class AloneStream(
 
     fun fitLanded(shift: (Double) -> Unit): Boolean {
         if (fitApplied) return true
-        val by = lateShift(built, live.offset, live.fitted) ?: return false
+        if (handed(prefs, id)) return false
+        val fitted = live.fitted ?: return false
+        val by = lateShift(built, fitted, fitted) ?: return false
         if (by != 0.0) shift(by)
-        android.util.Log.i("kumapie", "late fit: ${live.fitted} s from ${live.refCount} lines, lines moved $by s")
-        built = live.offset
+        android.util.Log.i("kumapie", "late fit: $fitted s from ${live.refCount} lines, lines moved $by s")
+        live.offset = fitted + nudge(prefs, id)
+        built = fitted
         saveOffset()
         fitApplied = true
         return true
@@ -85,11 +92,11 @@ class AloneStream(
     private var moved = 1
 
     fun piecesLanded(shift: (Double, Double) -> Unit) {
-        if (!fitApplied) return
+        if (!fitApplied || handed(prefs, id)) return
         moved = moves(live.pieces, moved, shift)
     }
 
-    private fun saveOffset() = prefs.edit().putFloat(offKey(id, file), live.offset.toFloat()).apply()
+    private fun saveOffset() = prefs.edit().putFloat(offKey(id, file), (built ?: (live.offset - startNudge)).toFloat()).apply()
 
     private suspend fun duration(): Double? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
         kotlinx.coroutines.withTimeoutOrNull(DURATION_WAIT) {
@@ -105,6 +112,7 @@ class AloneStream(
         sync.watchingAt(id, type, positionMs, durationMs)
         val at = place(positionMs / 1000.0, durationMs / 1000.0)
         addons?.played(id, at, durationMs / 1000.0) ?: prefs.edit().putFloat("alone_pos_$id", at.toFloat()).apply()
+        cleanOffsets(prefs)
         prefs.edit().putString(fileKey(id), file).apply()
     }
 
@@ -135,12 +143,46 @@ class AloneStream(
 
         fun shift(ctl: io.github.pedrubik2000.kumapie.player.SceneController, prefs: SharedPreferences, by: Double) {
             ctl.shift(by)
-            prefs.edit().putFloat(keptKey(prefs, ctl.episode.id), kept(prefs, ctl.episode.id).toFloat() + by.toFloat()).apply()
+            nudge(prefs, ctl.episode.id, by)
         }
+
+        fun nudge(prefs: SharedPreferences, id: String, by: Double) {
+            val total = nudge(prefs, id) + by
+            prefs.edit().putFloat(nudgeKey(prefs, id), total.toFloat()).putBoolean(handKey(prefs, id), isHand(total)).apply()
+        }
+
+        fun clearNudge(prefs: SharedPreferences, id: String): Double {
+            val was = nudge(prefs, id)
+            prefs.edit().remove(nudgeKey(prefs, id)).remove(handKey(prefs, id)).apply()
+            return was
+        }
+
+        fun reset(ctl: io.github.pedrubik2000.kumapie.player.SceneController, prefs: SharedPreferences) {
+            ctl.shift(-clearNudge(prefs, ctl.episode.id))
+        }
+
+        fun isHand(total: Double) = kotlin.math.abs(total) > 1.0
+
+        fun staleOffsets(all: Map<String, *>): List<String> = all.filter { (k, v) ->
+            k.startsWith("alone_off_") && !k.endsWith("|hand") && !k.endsWith("|nudge") && v is Float && kotlin.math.abs(v) > 30f && all[k + "|hand"] != true
+        }.keys.toList()
+
+        fun cleanOffsets(prefs: SharedPreferences) {
+            if (prefs.getBoolean("alone_off_clean", false)) return
+            prefs.edit().apply { staleOffsets(prefs.all).forEach(::remove) }.putBoolean("alone_off_clean", true).apply()
+        }
+
+        private fun handKey(prefs: SharedPreferences, id: String) = keptKey(prefs, id) + "|hand"
+
+        private fun nudgeKey(prefs: SharedPreferences, id: String) = keptKey(prefs, id) + "|nudge"
+
+        fun handed(prefs: SharedPreferences, id: String) = prefs.getBoolean(handKey(prefs, id), false)
 
         private fun keptKey(prefs: SharedPreferences, id: String) = offKey(id, prefs.getString(fileKey(id), "").orEmpty())
 
-        fun kept(prefs: SharedPreferences, id: String): Double = prefs.getFloat(keptKey(prefs, id), 0f).toDouble()
+        fun nudge(prefs: SharedPreferences, id: String): Double = prefs.getFloat(nudgeKey(prefs, id), 0f).toDouble()
+
+        fun kept(prefs: SharedPreferences, id: String): Double = nudge(prefs, id)
 
         fun fileKey(id: String) = "alone_file_" + io.github.pedrubik2000.kumapie.data.Addons.titleOf(id.removePrefix("alone:"))
 

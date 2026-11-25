@@ -452,7 +452,7 @@ internal fun ScenePlayer(
     // A no-PC episode (made from Jimaku's lines as it streamed) moves where it plays; nothing on disk to reload.
     // Kept for next time on this device (DiscoverScreen's alone_off_<id>, the shift its lines start from), as on the TV.
     val shiftsHere = onShift == null && episode.id.startsWith("alone:")
-    var shiftedHere by remember { androidx.compose.runtime.mutableDoubleStateOf(0.0) }
+    var shiftedHere by remember { androidx.compose.runtime.mutableDoubleStateOf(if (shiftsHere) io.github.pedrubik2000.kumapie.lang.AloneStream.nudge(settings.prefs, episode.id) else 0.0) }
     if (options) {
         ModalBottomSheet(properties = DarkSheet, onDismissRequest = { options = false }) {
             Options(ctl, seekStep, { seekStep = it; settings.seekStep = it }, if (onUpright == null) null else ({ options = false; onUpright() }), uprightNow,
@@ -460,7 +460,8 @@ internal fun ScenePlayer(
                     ?: if (shiftsHere) ({ secs: Double ->
                         io.github.pedrubik2000.kumapie.lang.AloneStream.shift(ctl, settings.prefs, secs); shiftedHere += secs // shared with the TV
                     }) else null,
-                onShift?.let { library.local.shifted(episode.id) } ?: shiftedHere.takeIf { shiftsHere })
+                onShift?.let { library.local.shifted(episode.id) } ?: shiftedHere.takeIf { shiftsHere },
+                if (shiftsHere) ({ io.github.pedrubik2000.kumapie.lang.AloneStream.reset(ctl, settings.prefs); shiftedHere = 0.0 }) else null)
         }
     }
     if (backlog) {

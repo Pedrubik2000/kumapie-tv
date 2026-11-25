@@ -480,20 +480,7 @@ private fun PlayerOptions(ctl: SceneController, onClose: () -> Unit, onHelp: () 
             Button(onClick = { ctl.changeSubtitles(ctl.subtitles.next()) }, modifier = Modifier.fillMaxWidth()) {
                 Text(tr("Subtitles: %s", ctl.subtitles.label(ctl.lang)))
             }
-            // A no-PC episode (Jimaku's lines, made as it streamed): every line earlier / later, kept for next time
-            // (StreamActivity's alone_off_<id>, the shift it starts from).
-            if (ctl.episode.id.startsWith("alone:")) {
-                var kept by remember { mutableStateOf(io.github.pedrubik2000.kumapie.lang.AloneStream.kept(ctl.settings.prefs, ctl.episode.id)) }
-                fun shift(by: Double) {
-                    io.github.pedrubik2000.kumapie.lang.AloneStream.shift(ctl, ctl.settings.prefs, by) // shared with the phone
-                    kept = io.github.pedrubik2000.kumapie.lang.AloneStream.kept(ctl.settings.prefs, ctl.episode.id)
-                }
-                Text(tr("Subtitle timing") + " " + "%+.1f s".format(java.util.Locale.ROOT, kept), color = Colors.dim, fontSize = 18.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Button(onClick = { shift(-0.5) }, modifier = Modifier.weight(1f)) { Text("−0.5 s") }
-                    Button(onClick = { shift(0.5) }, modifier = Modifier.weight(1f)) { Text("+0.5 s") }
-                }
-            }
+            if (ctl.episode.id.startsWith("alone:")) SyncNudge(ctl)
             Button(onClick = onHelp, modifier = Modifier.fillMaxWidth()) { Text(tr("Help: the buttons")) }
             Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text(tr("Close")) }
         }

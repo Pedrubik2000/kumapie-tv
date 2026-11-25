@@ -46,7 +46,7 @@ class LiveLinesFitTest {
     @Test fun aFileWithoutTheOpeningFitsOver60Seconds() {
         // Eden of the East 2: Coalgirls' Japanese file is 80.1 s earlier than the [bonkai77] video all through.
         val japanese = (0 until 60).runningFold(6.0) { t, i -> t + 2 + ((i * 7919) % 37) * 0.31 }
-        val english = japanese.filterIndexed { i, _ -> i % 4 != 1 }.map { it + 80.1 }.filter { it in 200.0..300.0 }
+        val english = japanese.filterIndexed { i, _ -> i % 4 != 1 }.map { it + 80.1 }.filter { it in 200.0..420.0 }
         assertEquals(80.1, LiveLines.fit(english, japanese)!!, 0.11)
     }
 

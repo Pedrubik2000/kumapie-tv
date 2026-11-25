@@ -36,6 +36,8 @@ class LiveLines(
     /** The [offset] it started from (saved last time): the fit replaces it, as it does 0; a hand nudge doesn't. */
     var guess: Double? = null
 
+    var hand: () -> Boolean = { false }
+
     /** The offset [fit] found from the file's other subtitle track (null: not yet / no track); a hand nudge after it wins. */
     var fitted by mutableStateOf<Double?>(null)
         private set
@@ -148,7 +150,7 @@ class LiveLines(
         while (true) {
             if (fitted == null && refs.size >= MIN_REFS && refs.size % 2 == 0 && refs.size != tried) {
                 tried = refs.size
-                fit(refs, starts)?.let { if (offset == 0.0 || offset == guess) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
+                fit(refs, starts)?.let { if (replaceable(hand(), offset, guess)) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
             }
             // The first file never fits (another script, or a loose one): the next ranked files against the lines heard so
             // far; one that fits replaces it (its new [lines] remake the episode's words).
@@ -160,7 +162,7 @@ class LiveLines(
                     android.util.Log.i("LiveLines", "file ${i + 1} fitted $f s from ${refs.size} lines (the first didn't)")
                     starts = other.map { it.first }
                     lines = other
-                    if (offset == 0.0 || offset == guess) offset = f
+                    if (replaceable(hand(), offset, guess)) offset = f
                     fitted = f
                     switched(other)
                     break
@@ -264,6 +266,8 @@ class LiveLines(
          * removed block, an OP of another length). Offset null: the stretch after the last fit doesn't fit (yet). Null:
          * another cut (fewer stretches fit than not, over [PIECES] offsets, or over [SPAN] s apart: Rakugo's TV-cut file
          * on the Blu-ray, +12 s then -352 ... -1968 s).
+         * A shift over [BIG] s (Rakugo 1: 71.3 s from 8 lines of a monologue, the lines then off for the whole episode) needs
+         * 20 lines heard and 4 times any other offset's, so it waits for more lines; a real one (Eden of the East 2's 80.1 s) has them.
          * ponytail: at most [PIECES] offsets [SPAN] s apart, by [PIECE] s windows; a file of another cut is "not fitted".
          */
         fun fit(refs: List<Double>, starts: List<Double>): Double? {
@@ -277,7 +281,8 @@ class LiveLines(
             val other = scored.filter { kotlin.math.abs(it.first - bin) > 3 }.maxOfOrNull { it.second } ?: 0
             val (lo, hi) = refs.min() - bin / 10.0 - 1 to refs.max() - bin / 10.0 + 1
             val possible = minOf(refs.size, starts.count { it in lo..hi })
-            return if (n >= 6 && n * 2 >= possible && n * 2 >= other * 3) bin / 10.0 else null
+            val big = kotlin.math.abs(bin) > BIG * 10
+            return if (n >= 6 && (!big || refs.size >= 20) && n * 2 >= possible && (if (big) n >= other * 4 else n * 2 >= other * 3)) bin / 10.0 else null
         }
 
         fun pieces(refs: List<Double>, starts: List<Double>): List<Pair<Double, Double?>>? {
@@ -308,6 +313,9 @@ class LiveLines(
             return (refs[k - 1] + refs[k]) / 2
         }
 
+        private const val BIG = 30.0
+
+        fun replaceable(hand: Boolean, offset: Double, guess: Double?) = !hand && (offset == 0.0 || offset == guess)
         private const val PIECE = 240.0
         private const val PIECE_EVERY = 20
         private const val PIECES = 4

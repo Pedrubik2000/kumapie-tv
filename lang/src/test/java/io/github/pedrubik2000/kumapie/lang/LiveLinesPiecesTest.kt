@@ -2,6 +2,7 @@ package io.github.pedrubik2000.kumapie.lang
 
 import io.github.pedrubik2000.kumapie.player.LiveLines
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -61,5 +62,43 @@ class LiveLinesPiecesTest {
         assertEquals(1, done)
         assertEquals(2, AloneStream.moves(listOf(0.0 to 2.0, 737.0 to 32.0), done) { by, from -> calls += by to from })
         assertEquals(listOf(30.0 to 707.0), calls)
+    }
+
+    // Rakugo Shinjuu 1 (Pedro, 2026-11-25): 8 lines of a monologue fitted 71.3 s, the lines were then off all episode.
+    private val monologue = (0 until 8).map { 300.0 + it * 6.1 + (it % 3) * 0.7 }
+    private val file = lines(60).filter { it < 280 || it > 420 } + monologue.map { it - 71.3 }
+
+    @Test fun eightLinesDoNotFitASeventyOneSecondShift() = assertNull(LiveLines.fit(monologue, file))
+
+    @Test fun aBigShiftFitsOnceManyLinesAgree() {
+        val refs = starts.filter { it in 100.0..400.0 }.map { it + 71.3 }
+        assertEquals(71.3, requireNotNull(LiveLines.fit(refs, starts)), 0.11)
+    }
+
+    @Test fun aHandShiftIsNeverReplacedByTheFit() {
+        assertTrue(LiveLines.replaceable(false, 0.0, null))
+        assertTrue(LiveLines.replaceable(false, 3.0, 3.0))
+        assertFalse(LiveLines.replaceable(true, 0.0, null))
+        assertFalse(LiveLines.replaceable(true, 3.0, 3.0))
+        assertFalse(LiveLines.replaceable(false, 5.0, 3.0))
+    }
+
+    @Test fun aBigShiftNeedsFourTimesTheRunnerUp() {
+        val a = starts.take(30)
+        val refs = a.map { it + 71.3 }
+        assertEquals(71.3, requireNotNull(LiveLines.fit(refs, a)), 0.11)
+        assertNull("a second offset with half the hits", LiveLines.fit(a.take(16).map { it + 71.3 } + a.drop(16).take(8).map { it + 40.0 }, a))
+    }
+
+    @Test fun onlyANudgeOverOneSecondIsAHandShift() {
+        assertFalse(AloneStream.isHand(0.5))
+        assertFalse(AloneStream.isHand(-1.0))
+        assertTrue(AloneStream.isHand(-1.5))
+    }
+
+    @Test fun oldBigSavedOffsetsAreDroppedUnlessHandMade() {
+        val all = mapOf("alone_off_k:1:1|a.mkv" to 71.3f, "alone_off_k:1:2|b.mkv" to 71.3f, "alone_off_k:1:2|b.mkv|hand" to true,
+            "alone_off_k:1:3" to 2.4f, "alone_off_k:1:4" to -80.1f, "alone_file_x" to "a.mkv")
+        assertEquals(listOf("alone_off_k:1:1|a.mkv", "alone_off_k:1:4").sorted(), AloneStream.staleOffsets(all).sorted())
     }
 }

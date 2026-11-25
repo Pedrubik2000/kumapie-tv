@@ -12,7 +12,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,6 +79,10 @@ fun ProgressBar(fraction: Float, modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun imeVisible() = WindowInsets.isImeVisible
+
 /** A one-line text field that shows a ring when the D-pad is on it (OK opens the TV keyboard). */
 @Composable
 fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Unit, modifier: Modifier = Modifier, placeholder: String = "") {
@@ -85,6 +92,9 @@ fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Un
     var editing by remember { mutableStateOf(false) }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    val imeOpen = imeVisible()
+    var imeWasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(imeOpen) { if (imeOpen) imeWasOpen = true else if (imeWasOpen) { imeWasOpen = false; editing = false } }
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -103,6 +113,7 @@ fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Un
                     KeyEvent.KEYCODE_DPAD_DOWN -> focusManager.moveFocus(FocusDirection.Down)
                     KeyEvent.KEYCODE_DPAD_UP -> focusManager.moveFocus(FocusDirection.Up)
                     KeyEvent.KEYCODE_DPAD_RIGHT -> if (editing) false else focusManager.moveFocus(FocusDirection.Right)
+                    KeyEvent.KEYCODE_DPAD_LEFT -> if (editing) false else focusManager.moveFocus(FocusDirection.Left)
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> if (editing) false else { editing = true; keyboard?.show(); true }
                     else -> false
                 }

@@ -151,9 +151,11 @@ private fun Downloads(library: Library) {
     Text(tr("Downloads"), fontSize = 22.sp)
     Text(tr("Two downloads, once: the Japanese dictionaries (meanings, about 33 MB) and the word splitter (about 80 MB). You can start watching while they finish."))
     val dicts = remember { YomitanDictionaries.get(context.applicationContext) }
-    var dictSaid by remember { mutableStateOf(if (dicts.of(Lang.JAPANESE).isNotEmpty()) tr("✓ ready") else tr("Starting…")) }
+    val noEngine = remember { io.github.pedrubik2000.kumapie.lang.dictionaryEngineError() }
+    var dictSaid by remember { mutableStateOf(noEngine?.let { tr("Dictionaries can't run on this device: %s", it) }
+        ?: if (dicts.of(Lang.JAPANESE).isNotEmpty()) tr("✓ ready") else tr("Starting…")) }
     LaunchedEffect(Unit) {
-        if (dicts.of(Lang.JAPANESE).isEmpty()) {
+        if (noEngine == null && dicts.of(Lang.JAPANESE).isEmpty()) {
             runCatching { dicts.installRecommended(Lang.JAPANESE) { dictSaid = it } }
                 .onSuccess { dictSaid = if (dicts.of(Lang.JAPANESE).isNotEmpty()) tr("✓ ready") else it.joinToString("\n") }
                 .onFailure { dictSaid = it.message ?: it.toString() }

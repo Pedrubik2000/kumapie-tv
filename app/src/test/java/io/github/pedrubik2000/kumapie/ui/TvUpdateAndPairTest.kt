@@ -42,7 +42,11 @@ class TvUpdateAndPairTest {
         press(Key.DirectionLeft)
         press(Key.DirectionUp)
         assertEquals("Notes take focus above the buttons", true, focused()?.startsWith("Change number 1") == true)
-        press(Key.DirectionDown) // scrolls the notes first
+        val scrolled = { rule.onNode(isFocused()).fetchSemanticsNode().config.getOrNull(SemanticsProperties.VerticalScrollAxisRange)?.value?.invoke() ?: -1f }
+        assertEquals(0f, scrolled(), 0f)
+        press(Key.DirectionDown)
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals(true, scrolled() > 0f)
         assertEquals(true, focused()?.startsWith("Change number 1"))
         repeat(40) { press(Key.DirectionDown) }
         assertEquals("Update", focused())

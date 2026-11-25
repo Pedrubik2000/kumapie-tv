@@ -21,6 +21,16 @@ class AnkiSourceTest {
         assertNull(AnkiSource.appFor(AnkiSource.NONE, listOf(kuma3, droid)))
     }
 
+    @Test fun theTwoTicksMakeOneChoiceAndBack() {
+        listOf(false to false, true to false, false to true, true to true).forEach { (k, d) ->
+            val c = AnkiSource.choice(k, d)
+            assertEquals(k, AnkiSource.kuma3On(c))
+            assertEquals(d, AnkiSource.droidOn(c))
+        }
+        assertEquals(AnkiSource.ANY, AnkiSource.choice(true, true))
+        assertEquals(AnkiSource.NONE, AnkiSource.choice(false, false))
+    }
+
     @Test fun defaultsAreTodaysBehaviour() {
         assertEquals("none", AnkiSource.NONE)
         assertEquals(listOf("Japanese Mined"), AnkiSource.decks(null, Lang.JAPANESE))

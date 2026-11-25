@@ -23,6 +23,17 @@ object AnkiSource {
         return wanted.firstOrNull { it in installed }
     }
 
+    fun kuma3On(choice: String) = choice == KUMA3 || choice == ANY
+
+    fun droidOn(choice: String) = choice == ANKIDROID || choice == ANY
+
+    fun choice(kuma3: Boolean, droid: Boolean) = when {
+        kuma3 && droid -> ANY
+        kuma3 -> KUMA3
+        droid -> ANKIDROID
+        else -> NONE
+    }
+
     fun decks(stored: String?, lang: Lang): List<String> = stored.orEmpty().split(SEP).filter { it.isNotBlank() }.ifEmpty { listOf(lang.deck) }
 
     fun encode(decks: List<String>): String = decks.joinToString(SEP)

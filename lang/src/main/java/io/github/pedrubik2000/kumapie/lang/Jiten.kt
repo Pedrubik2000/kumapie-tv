@@ -18,8 +18,8 @@ object Jiten {
         "particles" to "Particles",
         "counters" to "Counters",
         "onomatopoeia" to "Onomatopoeia",
-        "grammar" to "Grammar words",
-        "honorific" to "Honorific & humble",
+        "grammar" to "Grammar",
+        "honorific" to "Honorifics",
         "interjections" to "Interjections",
     )
 

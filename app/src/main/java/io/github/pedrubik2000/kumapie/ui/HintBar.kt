@@ -28,7 +28,7 @@ import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 
-internal enum class HintKind { PLAY, EPISODE, EPISODE_FILES, VALUE, ROW, CHECK, COVER, DUEL, PICK, CHOOSE, NEXT, HERO, SELECT, RAIL, RAIL_HERE }
+internal enum class HintKind { PLAY, EPISODE, EPISODE_FILES, VALUE, ROW, CHECK, COVER, DUEL, PICK, CHOOSE, NEXT, HERO, SELECT, RAIL, RAIL_HERE, TICK }
 
 internal val HintKind.isRail: Boolean get() = this == HintKind.RAIL || this == HintKind.RAIL_HERE
 
@@ -46,6 +46,7 @@ internal fun hintOf(kind: HintKind): List<Pair<String, String>> = when (kind) {
     HintKind.NEXT -> listOf("OK" to tr("Show this one"))
     HintKind.HERO -> listOf("OK" to tr("Choose"), "▼" to tr("Rows"))
     HintKind.SELECT -> listOf("OK" to tr("Select"))
+    HintKind.TICK -> listOf("OK" to tr("Tick"), "▲▼" to tr("Move"))
     HintKind.RAIL, HintKind.RAIL_HERE -> emptyList()
 }
 

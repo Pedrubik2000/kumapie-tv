@@ -154,7 +154,6 @@ internal fun TvJitenImport(settings: Settings) {
                 busy = false
             }
         }) { Text(tr("Import")) }
-        if (known.importedWords.isNotEmpty()) Button(onClick = { if (!busy) { known.removeImported(); said = "" } }) { Text(tr("Remove imported")) }
     }
     if (said.isNotEmpty()) Text(said, color = Colors.text, fontSize = 18.sp)
 }

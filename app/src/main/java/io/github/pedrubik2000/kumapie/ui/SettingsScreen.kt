@@ -45,6 +45,13 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
     val buttons = remember { FocusRequester() }
     val back = remember { SettingsFocus.returning.also { SettingsFocus.returning = false } }
     val scroll = rememberScrollState()
+    val colour = remember { FocusRequester() }
+    var colouring by remember { mutableStateOf(false) }
+    var fromColouring by remember { mutableStateOf(false) }
+    if (colouring) return TvWordColouring(settings, onboarding = false, onBack = {
+        colouring = false
+        fromColouring = true
+    })
     Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Title(if (firstRun) tr("Welcome to kumapie") else tr("Settings"), fontSize = 32.sp)
         if (!firstRun) TvAniList(settings, focus)
@@ -52,7 +59,7 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         if (!firstRun) CheckSetup(settings)
         if (!firstRun && settings.server.isEmpty()) AloneSources(settings)
         if (!firstRun) {
-            TvPreferences(settings, buttons) { SettingsFocus.returning = true; onButtons() }
+            TvPreferences(settings, buttons, colour, onColouring = { colouring = true }) { SettingsFocus.returning = true; onButtons() }
             TvNotForMe(settings)
             TvDictionaries(settings)
             TvExport()
@@ -61,7 +68,10 @@ fun SettingsScreen(settings: Settings, firstRun: Boolean, onSaved: () -> Unit, o
         }
     }
     LaunchedEffect(Unit) {
-        if (back) runCatching { buttons.requestFocus() }
+        if (fromColouring) {
+            fromColouring = false
+            runCatching { colour.requestFocus() }
+        } else if (back) runCatching { buttons.requestFocus() }
         else { runCatching { focus.requestFocus() }; kotlinx.coroutines.delay(100); scroll.scrollTo(0) }
     }
 }
@@ -162,11 +172,10 @@ private fun AloneSources(settings: Settings) {
         TvTextField(key, { key = it }, onDone = ::keep, modifier = Modifier.width(640.dp))
         Button(onClick = ::keep) { Text(tr("Save")) }
     }
-    TvJitenImport(settings)
 }
 
 @Composable
-private fun TvPreferences(settings: Settings, buttons: FocusRequester, onButtons: () -> Unit) {
+private fun TvPreferences(settings: Settings, buttons: FocusRequester, colour: FocusRequester, onColouring: () -> Unit, onButtons: () -> Unit) {
     Heading(tr("Buttons and help"), Modifier.padding(top = 24.dp))
     var showHelp by remember { mutableStateOf(settings.showHelp) }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -192,10 +201,9 @@ private fun TvPreferences(settings: Settings, buttons: FocusRequester, onButtons
     Button(onClick = { blur = !blur; settings.blurUnwatched = blur }) {
         Text(tr("Blur episodes I haven't watched: %s", if (blur) tr("on") else tr("off")))
     }
-    Heading(tr("Word colours"), Modifier.padding(top = 24.dp))
-    var plain by remember { mutableStateOf(settings.plainWords) }
-    Button(onClick = { plain = !plain; settings.plainWords = plain }) {
-        Text(tr("Word colours: %s", if (plain) tr("off (lookup only)") else tr("on")))
+    Heading(tr("Word colouring"), Modifier.padding(top = 24.dp))
+    Button(onClick = onColouring, modifier = Modifier.focusRequester(colour)) {
+        Text(tr("Word colouring: %s", if (settings.plainWords) tr("off (lookup only)") else tr("on")))
     }
     Heading(tr("Japanese subtitles"), Modifier.padding(top = 24.dp))
     var font by remember { mutableStateOf(settings.japaneseFont) }

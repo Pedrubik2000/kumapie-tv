@@ -11,6 +11,7 @@ class HintBarTest {
         assertEquals("◀▶ Change · ▲▼ Leave", hintText(HintKind.VALUE))
         assertEquals("OK Select · ▶ Titles", hintText(HintKind.ROW))
         assertEquals("OK On / off", hintText(HintKind.CHECK))
+        assertEquals("OK Tick · ▲▼ Move", hintText(HintKind.TICK))
         assertEquals("OK Open", hintText(HintKind.COVER))
         assertEquals("◀▶ Choose · OK Keep", hintText(HintKind.DUEL))
         assertEquals("OK Choose · ▲ Title", hintText(HintKind.PICK))

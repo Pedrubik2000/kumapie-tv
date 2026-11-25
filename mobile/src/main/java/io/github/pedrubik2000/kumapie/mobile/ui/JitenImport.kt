@@ -56,9 +56,6 @@ internal fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, 
                 busy = false
             }
         }) { Text(tr("Import")) }
-        if (known.importedWords.isNotEmpty()) OutlinedButton(enabled = !busy, onClick = {
-            known.removeImported(); said = ""; onImported()
-        }) { Text(tr("Remove imported")) }
     }
     if (said.isNotEmpty()) Text(said, fontSize = 14.sp, color = Colors.dim)
     Text(tr("Known while the word has no card in Japanese Mined. Names and fillers (えっと) count as known anyway. Changing this keeps the words you marked yourself."),

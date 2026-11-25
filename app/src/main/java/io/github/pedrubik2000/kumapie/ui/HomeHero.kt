@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.Stable
@@ -147,7 +148,8 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
 }
 
 @Composable
-internal fun HeroBackdrop(picture: String, fade: () -> Brush, modifier: Modifier) =
+internal fun HeroBackdrop(picture: String, fade: () -> Brush, modifier: Modifier) {
+    DisposableEffect(Unit) { glowCovered.value = true; onDispose { glowCovered.value = false } }
     Box(modifier.drawWithContent {
         drawContent()
         drawRect(SCRIM_LEFT)
@@ -157,6 +159,7 @@ internal fun HeroBackdrop(picture: String, fade: () -> Brush, modifier: Modifier
     }) {
         Cover(picture, "", Modifier.matchParentSize(), showTitle = false, alignment = Alignment.TopCenter, description = null, hero = true)
     }
+}
 
 @Composable
 internal fun heroPicture(target: HeroTarget?, api: Discovery): String {

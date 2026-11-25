@@ -2,7 +2,6 @@ package io.github.pedrubik2000.kumapie.ui
 
 import android.view.InputDevice
 import android.view.KeyEvent
-import coil3.request.allowRgb565
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -164,14 +163,9 @@ internal fun Cover(model: Any?, title: String, modifier: Modifier, showTitle: Bo
 @Composable
 private fun HeroPicture(model: Any?, alignment: Alignment, modifier: Modifier) {
     var last by androidx.compose.runtime.remember { mutableStateOf<androidx.compose.ui.graphics.painter.Painter?>(null) }
-    val request = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(model)
-        .size(HERO_PX_W, HERO_PX_H).allowRgb565(true).build()
-    coil3.compose.AsyncImage(model = request, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+    coil3.compose.AsyncImage(model = model, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
         alignment = alignment, modifier = modifier, placeholder = last, onSuccess = { last = it.painter })
 }
-
-private const val HERO_PX_W = 960
-private const val HERO_PX_H = 390
 
 /** A card's fill: none, the picture covers it (one GPU layer less per card). */
 @Composable fun arcadeCardColors() = CardDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent,

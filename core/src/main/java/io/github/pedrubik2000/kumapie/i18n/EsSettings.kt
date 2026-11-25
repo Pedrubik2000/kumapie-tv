@@ -292,6 +292,7 @@ internal val esSettings: Map<String, String> = mapOf(
     "This file is %1\$s's and this device is %2\$s's: not merged." to "Este archivo es de %1\$s y este dispositivo es de %2\$s: no se junta.",
     "This device syncs with its PC." to "Este dispositivo se sincroniza con su PC.",
     "Not paired: allow this device on the other one first." to "Sin emparejar: primero permite este dispositivo en el otro.",
+    "Two devices asked as %1\$s. Pair again." to "Dos dispositivos pidieron como %1\$s. Empareja otra vez.",
     "Wrong signature: pair the devices again." to "Firma incorrecta: empareja los dispositivos otra vez.",
     "On %1\$s, allow %2\$s (code %3\$s). Then it syncs." to "En %1\$s, permite %2\$s (código %3\$s). Luego se sincroniza.",
     "%1\$s: not synced with %2\$s: %3\$s" to "%1\$s: no se sincronizó con %2\$s: %3\$s",

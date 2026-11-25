@@ -144,10 +144,24 @@ object DeviceSync {
 
     internal fun shown(secret: String, pub: String, reply: JSONObject): String = if (reply.optBoolean("setup")) code(secret, pub) else code(secret)
 
-    suspend fun allowed(context: Context): Boolean = withContext(Dispatchers.IO) {
-        val peer = with(Settings(context)) ?: return@withContext false
-        val pub = SetupBundle.pub() ?: return@withContext false
-        runCatching { post("http://${peer.address}/pair", JSONObject().put("device", Progress.of(context).device).put("secret", peer.secret).put("pub", pub).toString().toByteArray(), emptyMap()).status == 200 }.getOrDefault(false)
+    enum class Poll { WAITING, ALLOWED, CONFLICT, GONE }
+
+    internal fun polled(a: Answer): Poll = when {
+        a.status == 200 -> Poll.ALLOWED
+        a.status == 409 && String(a.body) == TWO -> Poll.CONFLICT
+        else -> Poll.WAITING
+    }
+
+    fun conflictLine(name: String): String = tr("Two devices asked as %1\$s. Pair again.", name)
+
+    suspend fun allowed(context: Context): Poll = withContext(Dispatchers.IO) {
+        val settings = Settings(context)
+        val peer = with(settings) ?: return@withContext Poll.GONE
+        val pub = SetupBundle.pub() ?: return@withContext Poll.GONE
+        val body = JSONObject().put("device", Progress.of(context).device).put("secret", peer.secret).put("pub", pub).toString().toByteArray()
+        val poll = runCatching { polled(post("http://${peer.address}/pair", body, emptyMap())) }.getOrDefault(Poll.WAITING)
+        if (poll == Poll.CONFLICT) { forget(settings); SetupBundle.clearKey() }
+        poll
     }
 
     suspend fun syncNow(context: Context): String = withContext(Dispatchers.IO) {

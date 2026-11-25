@@ -96,6 +96,8 @@ object SetupBundle {
             .doFinal(un64(o.getString("box")))
     }
 
+    fun clearKey() { key = null }
+
     fun pub(): String? = key?.let { b64(it.public.encoded) }
 
     private fun signed(body: ByteArray) = "/setup\n".toByteArray() + body

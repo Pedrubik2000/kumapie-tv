@@ -194,6 +194,25 @@ class SetupBundleTest {
         assertEquals(DeviceSync.code(secret), DeviceSync.shown(secret, pub, old))
     }
 
+    @Test fun aPollTellsAConflictFromWaiting() {
+        assertEquals(DeviceSync.Poll.ALLOWED, DeviceSync.polled(DeviceSync.Answer(200, ByteArray(0))))
+        assertEquals(DeviceSync.Poll.WAITING, DeviceSync.polled(DeviceSync.Answer(202, ByteArray(0))))
+        assertEquals(DeviceSync.Poll.WAITING, DeviceSync.polled(DeviceSync.Answer(409, "This device syncs with its PC.".toByteArray())))
+        fresh()
+        val prefs = Prefs()
+        DeviceSync.requested(prefs, "tab", secret, "A", "me")
+        val swap = DeviceSync.requested(prefs, "tab", other, "B", "me")
+        assertEquals(DeviceSync.Poll.CONFLICT, DeviceSync.polled(swap))
+        fresh()
+        SetupBundle.begin()
+        SetupBundle.clearKey()
+        assertNull(SetupBundle.pub())
+        try {
+            io.github.pedrubik2000.kumapie.i18n.Tr.use("es")
+            assertEquals("Dos dispositivos pidieron como tab. Empareja otra vez.", DeviceSync.conflictLine("tab"))
+        } finally { io.github.pedrubik2000.kumapie.i18n.Tr.use("en") }
+    }
+
     @Test fun theHubRoutesSetupAndKeepsUnknownPaths404() {
         val prefs = paired(pubOf(SetupBundle.ephemeral()), System.currentTimeMillis()).apply { map["sync_peers"] = """{"tab":"$secret"}""" }
         val c: Context = ctx(prefs)

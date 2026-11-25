@@ -64,3 +64,7 @@ What the TV does for someone with no PC, in their words. Each line is proved on 
 8. `next`: the episode ends and the next one starts.
 9. `export`: Settings > Export everything writes one file of words, cards, reviews and progress for another device to import.
 10. `sync`: Settings > Sync with another device pairs the TV with the tablet (a code shown on the TV, allowed on the tablet) and syncs over the Wi-Fi: words known, marks, reviews, places, stats and the review history by word: a word with a card on the TV has its colour on the tablet and Mine there says "Already a card on <TV>" once (two emulators: `proof_mobile.sh sync`).
+11. `home_rail`: on Home the side rail is entered only with ← from the first column of a row; → from the rail returns to the row card that had the focus (↑/→/← inside the row never enter it).
+12. `title_page`: OK on a Home row's card opens its title page (Episodes); Back returns to Home with the same card focused.
+13. `library_back`: rail > Library; Back = Home (not the app's exit, not Discover).
+14. `discover_back`: rail > Discover; Back = Home. (`discover` is the other half: Back from a title opened in Discover returns to the same poster, and from a search to its results.)

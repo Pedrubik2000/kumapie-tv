@@ -61,6 +61,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     val done = remember(rev) { Onboarding.done(prefs) }
     val copied = remember(rev) { Onboarding.copied(prefs) }
     val current = opened ?: Onboarding.next(done, copied, ja) ?: Onboarding.DOWNLOADS
+    val hostScope = androidx.compose.runtime.rememberCoroutineScope()
     val flow = remember { MainDeviceFlow(prefs, LivePairing(context.applicationContext)) }
     val phase by flow.phase.collectAsState()
     val pairing = ((phase as? MainDeviceFlow.Phase.Waiting)?.hub ?: (phase as? MainDeviceFlow.Phase.Ready)?.hub)?.let { it.name.ifEmpty { it.address } }.orEmpty()
@@ -83,7 +84,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     when (current) {
                         Onboarding.LANGUAGE -> LanguagePage(settings) { complete(current) }
-                        Onboarding.MAIN -> MainDeviceStep(flow, caption, Onboarding.MAIN !in done) { go(null) }
+                        Onboarding.MAIN -> MainDeviceStep(flow, hostScope, caption, Onboarding.MAIN !in done) { go(null) }
                         Onboarding.ANILIST -> AniListPage(settings, caption, from.takeIf { Onboarding.ANILIST in copied }) { complete(current) }
                         Onboarding.VIDEOS -> VideosPage(settings, caption, from.takeIf { Onboarding.VIDEOS in copied }) { complete(current) }
                         else -> DownloadsPage(library, caption) {

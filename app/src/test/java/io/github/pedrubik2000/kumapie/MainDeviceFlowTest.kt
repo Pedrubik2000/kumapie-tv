@@ -156,4 +156,50 @@ class MainDeviceFlowTest {
         assertEquals(0, pairing.forgot)
         assertEquals(0, pairing.calls)
     }
+
+    @Test fun afterFinishTheFlowIsDoneAndCannotCopyAgain() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED), bundle)
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        flow.pair(hub)
+        flow.finish(hub, bundle, setOf("anilist"))
+        assertEquals(Phase.Done("Tab S7+", Onboarding.copied(prefs)), flow.phase.value)
+        pairing.applied = null
+        flow.finish(hub, bundle, setOf("anilist", "keys"))
+        flow.fresh()
+        assertEquals(null, pairing.applied)
+        assertEquals(0, pairing.forgot)
+        flow.start()
+        assertTrue(flow.phase.value is Phase.Done)
+    }
+
+    @Test fun startWhenMainIsDoneShowsTheSummary() = runBlocking {
+        Onboarding.markDone(prefs, "main")
+        prefs.edit().putString(MainDeviceFlow.HUB, "Tab S7+").commit()
+        val flow = MainDeviceFlow(prefs, FakePairing(listOf(Poll.WAITING)))
+        flow.start()
+        assertEquals(Phase.Done("Tab S7+", emptySet()), flow.phase.value)
+    }
+
+    @Test fun freshEndsInDone() {
+        val flow = MainDeviceFlow(prefs, FakePairing(emptyList()))
+        flow.fresh()
+        assertEquals(Phase.Done("", emptySet()), flow.phase.value)
+    }
+
+    @Test fun aWaitingFlowWithoutACodeStartsLookingAgain() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.WAITING)).apply { fails = kotlinx.coroutines.CancellationException("left") }
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        runCatching { flow.pair(hub) }
+        assertEquals(Phase.Waiting(hub, ""), flow.phase.value)
+        pairing.fails = null
+        flow.start()
+        assertTrue(flow.phase.value is Phase.Pick)
+    }
+
+    @Test fun networkErrorsShowATranslatedReachLineNotTheJavaText() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.WAITING)).apply { fails = java.net.SocketTimeoutException("connect timed out") }
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        flow.pair(hub)
+        assertEquals("Couldn't reach Tab S7+", (flow.phase.value as Phase.Pick).notice)
+    }
 }

@@ -39,6 +39,7 @@ import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Hub
 import io.github.pedrubik2000.kumapie.lang.SetupBundle
 import io.github.pedrubik2000.kumapie.lang.SetupBundle.Got
 import io.github.pedrubik2000.kumapie.ui.Colors
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,8 +65,9 @@ private fun rowSub(row: String, hub: Hub, got: Got?): String? = when (got) {
 }
 
 @Composable
-internal fun MainDeviceStep(flow: MainDeviceFlow, caption: String, canFresh: Boolean, onDone: () -> Unit) {
+internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption: String, canFresh: Boolean, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
     val phase by flow.phase.collectAsState()
     var picked by rememberSaveable { mutableStateOf<String?>(null) }
     var typing by rememberSaveable { mutableStateOf(false) }
@@ -94,9 +96,10 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, caption: String, canFresh: Boo
                 scope.launch { flow.look() }
             }
             is Phase.Waiting -> WaitingHub(shown)
+            is Phase.Done -> DoneCard(shown)
             is Phase.Ready -> if (shown.got is Got.Pc) Text(tr("This hub uses a PC: there is nothing to copy from it. Set this device up here."), color = Colors.text)
         }
-        if (got !is Got.Pc && shown !is Phase.Looking) Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp))) {
+        if (got !is Got.Pc && shown !is Phase.Looking && shown !is Phase.Done) Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp))) {
             ColourCaption(tr("Copy from it · untick to set up here instead"), Modifier.padding(16.dp, 14.dp, 16.dp, 0.dp))
             MainDeviceFlow.ROWS.forEach { row ->
                 val on = available(row, got)
@@ -113,20 +116,24 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, caption: String, canFresh: Boo
         val target = if (typing) typed.trim().takeIf { it.isNotEmpty() }?.let { Hub("", it) } else (shown as? Phase.Pick)?.hubs?.firstOrNull { it.address == (picked ?: shown.hubs.singleOrNull()?.address) }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             when {
+                shown is Phase.Done -> Pill(tr("Continue"), onDone, primary = true)
                 got != null && hub != null -> Pill(tr("Continue"), {
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            if (got is Got.Pc) flow.fresh() else flow.finish(hub, got, MainDeviceFlow.ROWS.filter { it !in unticked && available(it, got) }.toSet())
+                    if (!busy) {
+                        busy = true
+                        host.launch {
+                            withContext(Dispatchers.IO) {
+                                if (got is Got.Pc) flow.fresh() else flow.finish(hub, got, MainDeviceFlow.ROWS.filter { it !in unticked && available(it, got) }.toSet())
+                            }
+                            onDone()
                         }
-                        onDone()
                     }
                 }, primary = true)
                 shown is Phase.Pick -> Pill(tr("Pair and copy"), { if (target != null) scope.launch { flow.pair(target) } }, Modifier.alpha(if (target != null) 1f else 0.4f), primary = true)
             }
-            if (canFresh) {
+            if (canFresh && shown !is Phase.Done) {
                 Text(tr("or"), color = Glass.dim, fontSize = 14.sp)
                 Text(tr("Start fresh"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { scope.launch { withContext(Dispatchers.IO) { flow.fresh() }; onDone() } }.padding(vertical = 14.dp))
+                    modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { if (!busy) { busy = true; host.launch { withContext(Dispatchers.IO) { flow.fresh() }; onDone() } } }.padding(vertical = 14.dp))
                 Text(": " + tr("this is my first device"), color = Glass.dim, fontSize = 14.sp)
             }
         }
@@ -165,4 +172,15 @@ private fun WaitingHub(w: Phase.Waiting) {
     if (w.code.isNotEmpty()) Text(tr("Pair code: tap Allow on %1\$s when it shows %2\$s.", name, w.code), color = Glass.dim, fontSize = 15.sp)
     Text(tr("Waiting for you to tap Allow on %s…", name), color = Colors.text, fontSize = 15.sp)
     Text(tr("Allow shows in Settings > Sync with another device on %s", name), color = Glass.dim, fontSize = 13.sp)
+}
+
+@Composable
+private fun DoneCard(done: Phase.Done) {
+    val copied = io.github.pedrubik2000.kumapie.data.Onboarding.list(emptySet(), done.copied, true).filter { it.state == io.github.pedrubik2000.kumapie.data.Onboarding.State.COPIED }.joinToString { it.label }
+    val line = when {
+        done.hub.isEmpty() -> tr("Set up fresh")
+        copied.isEmpty() -> tr("Paired with %s", done.hub)
+        else -> tr("Copied from %1\$s: %2\$s", done.hub, copied)
+    }
+    Text(line, color = Colors.text, fontSize = 17.sp, modifier = Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp)).padding(16.dp))
 }

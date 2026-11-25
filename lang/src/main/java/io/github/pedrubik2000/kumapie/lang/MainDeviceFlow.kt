@@ -2,6 +2,7 @@ package io.github.pedrubik2000.kumapie.lang
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import io.github.pedrubik2000.kumapie.data.Onboarding
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
@@ -42,6 +43,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
         data class Pick(val hubs: List<Hub>, val notice: String = "") : Phase
         data class Waiting(val hub: Hub, val code: String) : Phase
         data class Ready(val hub: Hub, val got: SetupBundle.Got) : Phase
+        data class Done(val hub: String, val copied: Set<String>) : Phase
     }
 
     private val state = MutableStateFlow<Phase>(Phase.Looking)
@@ -49,9 +51,13 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
     val phase: StateFlow<Phase> get() = state
 
     suspend fun start() {
+        if (state.value is Phase.Looking && Onboarding.MAIN in Onboarding.done(prefs)) {
+            state.value = Phase.Done(hub(prefs), Onboarding.copied(prefs))
+            return
+        }
         when (val now = state.value) {
-            is Phase.Ready, is Phase.Pick -> return
-            is Phase.Waiting -> poll(now.hub, now.code)
+            is Phase.Ready, is Phase.Pick, is Phase.Done -> return
+            is Phase.Waiting -> if (now.code.isBlank()) look() else poll(now.hub, now.code)
             is Phase.Looking -> if (pairing.peer() != null && !pairing.hasKey() && Onboarding.MAIN !in Onboarding.done(prefs)) look(tr("Pair again: the app was closed while waiting")) else look()
         }
     }
@@ -72,8 +78,11 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
             throw c
         } catch (c: DeviceSync.Conflict) {
             return fail(c.message.orEmpty())
+        } catch (e: IllegalStateException) {
+            return fail(e.message.orEmpty())
         } catch (e: Exception) {
-            return fail(tr("Couldn't pair: %s", e.message ?: e.toString()))
+            Log.w("kumapie", "pair: ${e.javaClass.simpleName}: ${e.message}")
+            return fail(tr("Couldn't reach %s", hub.name.ifEmpty { hub.address }))
         }
         poll(hub.copy(name = hub.name.ifEmpty { pairing.peer()?.name.orEmpty() }), code)
     }
@@ -110,6 +119,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
     }
 
     fun finish(hub: Hub, got: SetupBundle.Got, ticked: Set<String>) {
+        if (state.value !is Phase.Ready) return
         val ok = got as? SetupBundle.Got.Ok ?: SetupBundle.Got.Ok(emptyMap(), emptyMap())
         pairing.apply(ok, ticked)
         val keys = ok.parts["keys"]
@@ -122,11 +132,14 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
         }
         prefs.edit().putStringSet(Onboarding.COPIED, steps.toSet()).putString(HUB, hub.name).commit()
         Onboarding.markDone(prefs, Onboarding.MAIN)
+        state.value = Phase.Done(hub.name, Onboarding.copied(prefs))
     }
 
     fun fresh() {
+        if (state.value is Phase.Done || Onboarding.MAIN in Onboarding.done(prefs)) return
         pairing.forget()
         Onboarding.startFresh(prefs)
+        state.value = Phase.Done("", emptySet())
     }
 
     companion object {

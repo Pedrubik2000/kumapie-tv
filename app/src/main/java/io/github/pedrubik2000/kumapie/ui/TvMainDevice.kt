@@ -64,7 +64,10 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
     var job by remember { mutableStateOf<Job?>(null) }
     var ticked by remember { mutableStateOf(ROWS.toSet()) }
     var address by remember { mutableStateOf("") }
-    var picked by remember((phase as? Phase.Pick)?.let { it.hubs to it.pcs }) { mutableStateOf((phase as? Phase.Pick)?.auto) }
+    var picked by remember { mutableStateOf<String?>(null) }
+    (phase as? Phase.Pick)?.let { p ->
+        LaunchedEffect(p.hubs, p.pcs) { if (p.hubs.none { it.address == picked } && p.pcs.none { it.address == picked }) picked = p.auto }
+    }
     val card = remember { FocusRequester() }
     val field = remember { FocusRequester() }
     val pairButton = remember { FocusRequester() }

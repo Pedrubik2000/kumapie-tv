@@ -3,6 +3,7 @@ package io.github.pedrubik2000.kumapie.lang
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
@@ -19,8 +20,9 @@ data class Found(val name: String, val address: String, val url: String = "")
 
 object NsdScan {
     private val resolving = Mutex()
-    private const val RESOLVE_MS = 5_000L
+    private const val RESOLVE_MS = 2_000L
     private const val RETRY_MS = 300L
+    private const val PARALLEL_FROM = 34
 
     suspend fun scan(context: Context, ms: Long, type: String, skip: String = "", onFound: (List<Found>) -> Unit = {}): List<Found> {
         val nsd = context.getSystemService(NsdManager::class.java) ?: return emptyList()
@@ -50,13 +52,16 @@ object NsdScan {
         }
     }
 
-    private suspend fun resolve(nsd: NsdManager, info: NsdServiceInfo): NsdServiceInfo? = resolving.withLock {
+    private suspend fun resolve(nsd: NsdManager, info: NsdServiceInfo): NsdServiceInfo? =
+        if (Build.VERSION.SDK_INT < PARALLEL_FROM) resolving.withLock { resolveRetrying(nsd, info) } else resolveRetrying(nsd, info)
+
+    private suspend fun resolveRetrying(nsd: NsdManager, info: NsdServiceInfo): NsdServiceInfo? {
         var r = once(nsd, info)
         if (r.second == NsdManager.FAILURE_ALREADY_ACTIVE) {
             delay(RETRY_MS)
             r = once(nsd, info)
         }
-        r.first
+        return r.first
     }
 
     private suspend fun once(nsd: NsdManager, info: NsdServiceInfo): Pair<NsdServiceInfo?, Int> = withTimeoutOrNull(RESOLVE_MS) {

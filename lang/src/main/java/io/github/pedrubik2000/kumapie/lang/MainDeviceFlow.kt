@@ -71,7 +71,8 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
             return
         }
         when (val now = state.value) {
-            is Phase.Ready, is Phase.Pick, is Phase.Done, is Phase.PcDone, is Phase.Connecting -> return
+            is Phase.Ready, is Phase.Pick, is Phase.Done, is Phase.PcDone -> return
+            is Phase.Connecting -> look()
             is Phase.Waiting -> if (now.code.isBlank()) look() else poll(now.hub, now.code, now.old)
             is Phase.Looking -> if (pairing.peer() != null && !pairing.hasKey() && Onboarding.MAIN !in Onboarding.done(prefs)) look(tr("Pair again: the app was closed while waiting")) else look()
         }
@@ -98,21 +99,31 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
     }
 
     suspend fun usePc(pc: Pc, wan: Boolean) {
-        val before = state.value as? Phase.Pick
+        val before = state.value
         state.value = Phase.Connecting(pc.address)
-        val err = if (wan && pc.url.isNotEmpty() && connect(pc.url, pc.address).isEmpty()) "" else connect(pcUrl(pc.address), pc.address)
-        if (err.isNotEmpty()) state.value = (before ?: Phase.Pick(emptyList())).copy(notice = err)
+        val err = try {
+            if (wan && pc.url.isNotEmpty() && connect(pc.url, pc.address).isEmpty()) "" else connect(pcUrl(pc.address), pc.address)
+        } catch (t: Throwable) {
+            state.value = before
+            throw t
+        }
+        if (err.isNotEmpty()) state.value = ((before as? Phase.Pick) ?: Phase.Pick(emptyList())).copy(notice = err)
     }
 
     suspend fun pair(typed: Hub) {
         if (state.value is Phase.Waiting || state.value is Phase.Connecting) return
         if (typed.name.isEmpty() && typed.address.isNotBlank()) {
-            val before = state.value as? Phase.Pick
+            val before = state.value
             state.value = Phase.Connecting(typed.address)
-            val err = connect(pcUrl(typed.address), typed.address)
+            val err = try {
+                connect(pcUrl(typed.address), typed.address)
+            } catch (t: Throwable) {
+                state.value = before
+                throw t
+            }
             if (err.isEmpty()) return
             if (typed.address.trim().startsWith("http", ignoreCase = true)) {
-                state.value = (before ?: Phase.Pick(emptyList())).copy(notice = err)
+                state.value = ((before as? Phase.Pick) ?: Phase.Pick(emptyList())).copy(notice = err)
                 return
             }
         }

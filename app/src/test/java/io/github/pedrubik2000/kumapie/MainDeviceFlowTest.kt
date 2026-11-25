@@ -10,7 +10,11 @@ import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Pc
 import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Phase
 import io.github.pedrubik2000.kumapie.lang.Pairing
 import io.github.pedrubik2000.kumapie.lang.SetupBundle.Got
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -34,10 +38,12 @@ private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(e
     var pcUp = setOf<String>()
     var triedPc = mutableListOf<String>()
     var cancels = false
+    var hangs = false
     override suspend fun discover(ms: Long) = listOf("Tab S7+" to "192.168.0.154:47823")
     override suspend fun discoverPcs(ms: Long) = pcs
     override suspend fun usePc(url: String): String {
         triedPc += url
+        if (hangs) kotlinx.coroutines.awaitCancellation()
         if (cancels) throw kotlinx.coroutines.CancellationException("left")
         return if (url in pcUp) { Settings(RuntimeEnvironment.getApplication()).server = url; "" } else "No answer from $url"
     }
@@ -302,6 +308,22 @@ class MainDeviceFlowTest {
         try { flow.pair(Hub("", "10.0.0.9")) } catch (c: kotlinx.coroutines.CancellationException) { thrown = true }
         assertTrue(thrown)
         assertTrue(flow.phase.value !is Phase.Pick || (flow.phase.value as Phase.Pick).notice.isEmpty())
+    }
+
+    @Test fun leavingWhileConnectingPutsTheStepBack() = runBlocking {
+        val pairing = FakePairing(emptyList())
+        val flow = MainDeviceFlow(prefs, pairing)
+        flow.look()
+        val before = flow.phase.value
+        pairing.hangs = true
+        val job = launch(Dispatchers.Default) { flow.usePc(Pc("192.168.0.10:8769"), wan = false) }
+        while (flow.phase.value !is Phase.Connecting) yield()
+        job.cancelAndJoin()
+        assertEquals(before, flow.phase.value)
+        val typed = launch(Dispatchers.Default) { flow.pair(Hub("", "10.0.0.9")) }
+        while (flow.phase.value !is Phase.Connecting) yield()
+        typed.cancelAndJoin()
+        assertEquals(before, flow.phase.value)
     }
 
     @Test fun aTypedAddressNobodyAnswersSaysSo() = runBlocking {

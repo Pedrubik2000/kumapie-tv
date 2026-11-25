@@ -153,9 +153,12 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption:
                     Text(tr("Start fresh"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
                         modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { fresh() }.padding(vertical = 14.dp))
                 }
-            } else if (canFresh) Column {
+            } else if (canFresh && shown is Phase.Pick) Column {
                 Pill(tr("Start fresh"), { fresh() }, primary = true)
                 Text(tr("this is my first device"), color = Glass.dim, fontSize = 13.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 6.dp, top = 2.dp))
+            } else if (canFresh && shown !is Phase.Connecting && shown !is Phase.PcDone && shown !is Phase.Done) {
+                Text(tr("Start fresh"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { fresh() }.padding(vertical = 14.dp))
             }
         }
     }

@@ -78,7 +78,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     val counted = Onboarding.counted(ja)
     SideEffect { stepNow = current }
     val caption = tr("Step %1\$d of %2\$d", counted.indexOf(current) + 1, counted.size) + " · " +
-        if (current == Onboarding.MAIN) (if ((phase as? MainDeviceFlow.Phase.Pick)?.let { it.hubs.isNotEmpty() || it.pcs.isNotEmpty() } ?: (phase is MainDeviceFlow.Phase.Ready || phase is MainDeviceFlow.Phase.Waiting)) tr("Optional · saves %d steps", counted.count { it in SAVES }) else tr("Optional")) else if (items.first { it.step == current }.state == State.OPTIONAL) tr("Optional") else tr("Needed")
+        if (current == Onboarding.MAIN) (if ((phase as? MainDeviceFlow.Phase.Pick)?.let { it.hubs.isNotEmpty() || it.pcs.isNotEmpty() } ?: (phase is MainDeviceFlow.Phase.Ready || phase is MainDeviceFlow.Phase.Waiting)) tr("Optional · saves %d steps", counted.count { it in SAVES }) else tr("Optional")) else if (current == Onboarding.DOWNLOADS) tr("Automatic") else if (items.first { it.step == current }.state == State.OPTIONAL) tr("Optional") else tr("Needed")
     val previous = items.map { it.step }.let { s -> s.getOrNull(s.indexOf(current) - 1) }
     fun go(step: String?) { opened = step; rev++ }
     fun complete(step: String) { Onboarding.markDone(prefs, step); go(null) }
@@ -127,9 +127,9 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 private fun BarHost(bar: MutableState<(@Composable () -> Unit)?>, back: (() -> Unit)?) {
     if (bar.value == null && back == null) return
-    FlowRow(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp), verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    FlowRow(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 24.dp), verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         if (back != null) Text(tr("Back"), color = Glass.dim, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterVertically).sizeIn(minHeight = 48.dp).clickable(onClick = back).padding(vertical = 14.dp))
-        bar.value?.invoke()
+        Row(Modifier.align(Alignment.CenterVertically), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { bar.value?.invoke() }
     }
 }
 

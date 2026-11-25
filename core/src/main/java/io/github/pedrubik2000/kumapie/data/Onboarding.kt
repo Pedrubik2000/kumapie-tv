@@ -40,7 +40,7 @@ object Onboarding {
             val sub = if (s == current && s in detail) detail.getValue(s) else when (state) {
                 State.COPIED -> tr("copied")
                 State.DONE -> detail[s] ?: tr("Done")
-                State.OPTIONAL -> tr("Optional")
+                State.OPTIONAL -> if (s == DOWNLOADS) tr("Automatic") else tr("Optional")
                 State.PC -> tr("from the PC")
                 State.NEEDED -> tr("Needed")
             }

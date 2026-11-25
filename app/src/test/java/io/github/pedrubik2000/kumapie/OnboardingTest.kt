@@ -53,7 +53,7 @@ class OnboardingTest {
         assertEquals(State.COPIED to "copied", l.getValue("anilist").let { it.state to it.sub })
         assertEquals(State.NEEDED to "Needed", l.getValue("videos").let { it.state to it.sub })
         assertEquals(State.OPTIONAL to "Optional", l.getValue("colouring").let { it.state to it.sub })
-        assertEquals(State.OPTIONAL to "Optional", l.getValue("downloads").let { it.state to it.sub })
+        assertEquals(State.OPTIONAL to "Automatic", l.getValue("downloads").let { it.state to it.sub })
         assertEquals(Onboarding.STEPS, Onboarding.list(emptySet(), emptySet(), true).map { it.step })
     }
 

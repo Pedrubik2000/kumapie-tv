@@ -57,15 +57,18 @@ class TvOnboardingFitTest {
         rule.onNodeWithText("Pair and copy").assertDoesNotExist()
     }
 
-    @Test fun aniListFits() {
+    @Test fun aniListFitsWithFocusOnContinue() {
         at("language", "main")
         rule.onNodeWithText("Home, Library and Discover come from your AniList anime list.").assertIsDisplayed()
+        rule.onNodeWithText("Scan this with your phone's camera", substring = true).assertIsDisplayed()
         rule.onNodeWithText("Continue ›").assertIsDisplayed()
     }
 
     @Test fun videosFits() {
         at("language", "main", "anilist")
         rule.onNodeWithText("Videos & subtitles").assertIsDisplayed()
+        rule.onNodeWithText("Real-Debrid (paid) streams", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Scan this with your phone's camera", substring = true).assertIsDisplayed()
         rule.onNodeWithText("Continue ›").assertIsDisplayed()
         rule.onNodeWithText("Skip").assertIsDisplayed()
     }

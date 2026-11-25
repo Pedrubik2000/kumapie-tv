@@ -217,7 +217,7 @@ private fun DoneStep(settings: Settings, nav: StepNav, step: String, copied: Boo
 private fun AniListStep(settings: Settings, nav: StepNav, onContinue: () -> Unit) {
     val focus = remember { FocusRequester() }
     TvStepHeader(caption(nav, Onboarding.ANILIST), tr("AniList"), tr("Home, Library and Discover come from your AniList anime list."))
-    PhonePage(settings, SetupPart.ANILIST)
+    PhonePage(settings, SetupPart.ANILIST, heading = false)
     TvContinue(tr("Continue") + " ›", Modifier.focusRequester(focus), onContinue)
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }
@@ -231,7 +231,7 @@ private fun VideosStep(settings: Settings, nav: StepNav, onContinue: () -> Unit)
     var failed by remember { mutableIntStateOf(0) }
     val checking = tr("Checking with %s…", "Real-Debrid")
     TvStepHeader(caption(nav, Onboarding.VIDEOS), tr("Videos & subtitles"), tr("Real-Debrid (paid) streams the files Torrentio finds; Jimaku brings the Japanese subtitles."))
-    PhonePage(settings, SetupPart.KEYS, onSaved = { if (settings.jimakuKey.isNotBlank()) needKey = false })
+    PhonePage(settings, SetupPart.KEYS, onSaved = { if (settings.jimakuKey.isNotBlank()) needKey = false }, heading = false)
     if (needKey) Text(tr("Add your Jimaku key from your phone first: without it, streams get no Japanese lines."), color = Colors.accent, fontSize = 18.sp)
     if (said.isNotEmpty()) Text(said, color = Colors.accent, fontSize = 18.sp)
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -264,18 +264,18 @@ private fun DownloadsStep(settings: Settings, nav: StepNav, onFinish: () -> Unit
 }
 
 @Composable
-internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSaved: () -> Unit = {}) {
+internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSaved: () -> Unit = {}, heading: Boolean = true) {
     var saved by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val page = remember { SetupPage(settings, context.applicationContext, part) { saved++; onSaved() } }
     val url = remember { page.start() }
     DisposableEffect(Unit) { onDispose { page.stop() } }
     val aniList = part == SetupPart.ANILIST
-    Heading(if (aniList) tr("Log in to AniList from your phone") else tr("Set up kumapie from your phone"))
+    if (heading) Heading(if (aniList) tr("Log in to AniList from your phone") else tr("Set up kumapie from your phone"))
     if (url == null) return Text(if (aniList) tr("This TV isn't on a home network: connect it, then log in here.") else tr("This TV isn't on a home network: connect it, or add the keys in Settings later."), color = Colors.dim)
     Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
         val qr = remember(url) { qr(url, 480) }
-        Image(qr.asImageBitmap(), null, Modifier.size(220.dp).background(Color.White).padding(10.dp))
+        Image(qr.asImageBitmap(), null, Modifier.size(200.dp).background(Color.White).padding(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(tr("Scan this with your phone's camera (on the same Wi-Fi), or open:"), color = Colors.text, fontSize = 16.sp)
             Text(url, color = Colors.accent, fontSize = 16.sp)

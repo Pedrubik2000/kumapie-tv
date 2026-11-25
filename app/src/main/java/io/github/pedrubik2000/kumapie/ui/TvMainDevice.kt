@@ -66,9 +66,7 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
     var ticked by remember { mutableStateOf(ROWS.toSet()) }
     var address by remember { mutableStateOf("") }
     var picked by remember { mutableStateOf<String?>(null) }
-    (phase as? Phase.Pick)?.let { p ->
-        LaunchedEffect(p.hubs, p.pcs) { if (p.hubs.none { it.address == picked } && p.pcs.none { it.address == picked }) picked = p.auto }
-    }
+    (phase as? Phase.Pick)?.let { p -> LaunchedEffect(p.hubs, p.pcs) { if (p.hubs.none { it.address == picked } && p.pcs.none { it.address == picked }) picked = p.auto } }
     val card = remember { FocusRequester() }
     val field = remember { FocusRequester() }
     val pairButton = remember { FocusRequester() }
@@ -90,8 +88,7 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
     val pcChosen = if (address.isBlank()) (phase as? Phase.Pick)?.pcs?.firstOrNull { it.address == picked } else null
     val pcPicked = pcChosen != null
     val deviceChosen = address.isBlank() && (phase as? Phase.Pick)?.hubs?.any { it.address == picked } == true
-    DisposableEffect(Unit) { onDispose { onPcSelected(false) } }
-    LaunchedEffect(pcPicked) { onPcSelected(pcPicked) }
+    DisposableEffect(pcPicked) { onPcSelected(pcPicked); onDispose { onPcSelected(false) } }
     LaunchedEffect(phase is Phase.PcDone) { if (phase is Phase.PcDone) onPc() }
     LaunchedEffect(Unit) { run { flow.start() } }
     LaunchedEffect(phase == Phase.Looking) { if (phase == Phase.Looking && !inside) runCatching { pairButton.requestFocus() } }
@@ -117,9 +114,11 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
             placeholder = tr("Address of the main device (ip:port)"))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
             val ready = phase as? Phase.Ready
-            val nothing = ready == null && (phase is Phase.Looking || phase is Phase.Pick) && !pcPicked && !deviceChosen && address.isBlank()
-            TvContinue(if (ready != null) tr("Continue") + " ›" else if (pcPicked) tr("Use this PC") + " ›" else if (nothing) tr("Start fresh") else tr("Pair and copy"), Modifier.focusRequester(pairButton)) {
-                if (nothing) { job?.cancel(); flow.fresh(); onAdvance() }
+            val looking = phase is Phase.Looking
+            val nothing = ready == null && phase is Phase.Pick && !pcPicked && !deviceChosen && address.isBlank()
+            TvContinue(if (ready != null) tr("Continue") + " ›" else if (pcPicked) tr("Use this PC") + " ›" else if (looking) tr("Searching…") else if (nothing) tr("Start fresh") else if (address.isNotBlank()) tr("Connect") else tr("Pair and copy"), Modifier.focusRequester(pairButton)) {
+                if (looking) Unit
+                else if (nothing) { job?.cancel(); flow.fresh(); onAdvance() }
                 else if (pcChosen != null) run { flow.usePc(pcChosen, wan = false) }
                 else if (ready != null) { flow.finish(ready.hub, ready.got, ticked.filter { available(phase, it) }.toSet()); onAdvance() } else pair()
             }

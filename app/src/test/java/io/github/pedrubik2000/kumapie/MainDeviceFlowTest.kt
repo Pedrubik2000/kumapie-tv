@@ -326,6 +326,21 @@ class MainDeviceFlowTest {
         assertEquals(before, flow.phase.value)
     }
 
+    @Test fun startFreshWhileConnectingCancelsTheLateAnswer() = runBlocking {
+        Settings(RuntimeEnvironment.getApplication()).server = ""
+        prefs.edit().remove("onboarded").commit()
+        Onboarding.reset(prefs)
+        val pairing = FakePairing(emptyList()).apply { hangs = true }
+        val flow = MainDeviceFlow(prefs, pairing)
+        flow.look()
+        val job = launch(Dispatchers.Default) { flow.usePc(Pc("192.168.0.10:8769"), wan = false) }
+        while (flow.phase.value !is Phase.Connecting) yield()
+        flow.fresh()
+        job.join()
+        assertEquals(Phase.Done("", emptySet()), flow.phase.value)
+        assertEquals("", Settings(RuntimeEnvironment.getApplication()).server)
+    }
+
     @Test fun aTypedAddressNobodyAnswersSaysSo() = runBlocking {
         val pairing = FakePairing(listOf(Poll.ALLOWED)).apply { fails = java.net.SocketTimeoutException("t") }
         val flow = MainDeviceFlow(prefs, pairing) {}

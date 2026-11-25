@@ -10,6 +10,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,6 +64,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
 
     private val state = MutableStateFlow<Phase>(Phase.Looking)
     private var pending: Phase.Waiting? = null
+    @Volatile private var connecting: kotlinx.coroutines.Job? = null
     val phase: StateFlow<Phase> get() = state
 
     suspend fun start() {
@@ -101,11 +103,14 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
     suspend fun usePc(pc: Pc, wan: Boolean) {
         val before = state.value
         state.value = Phase.Connecting(pc.address)
+        connecting = currentCoroutineContext()[kotlinx.coroutines.Job]
         val err = try {
             if (wan && pc.url.isNotEmpty() && connect(pc.url, pc.address).isEmpty()) "" else connect(pcUrl(pc.address), pc.address)
         } catch (t: Throwable) {
-            state.value = before
+            if (state.value is Phase.Connecting) state.value = before
             throw t
+        } finally {
+            connecting = null
         }
         if (err.isNotEmpty()) state.value = ((before as? Phase.Pick) ?: Phase.Pick(emptyList())).copy(notice = err)
     }
@@ -115,11 +120,14 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
         if (typed.name.isEmpty() && typed.address.isNotBlank()) {
             val before = state.value
             state.value = Phase.Connecting(typed.address)
+            connecting = currentCoroutineContext()[kotlinx.coroutines.Job]
             val err = try {
                 connect(pcUrl(typed.address), typed.address)
             } catch (t: Throwable) {
-                state.value = before
+                if (state.value is Phase.Connecting) state.value = before
                 throw t
+            } finally {
+                connecting = null
             }
             if (err.isEmpty()) return
             if (typed.address.trim().startsWith("http", ignoreCase = true)) {
@@ -205,6 +213,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
 
     fun fresh() {
         if (state.value is Phase.Done || Onboarding.MAIN in Onboarding.done(prefs)) return
+        connecting?.cancel()
         pairing.forget()
         Onboarding.startFresh(prefs)
         state.value = Phase.Done("", emptySet())

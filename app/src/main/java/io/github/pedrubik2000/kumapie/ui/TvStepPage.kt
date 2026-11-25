@@ -24,9 +24,10 @@ private val LocalStepHeader = compositionLocalOf<MutableState<(@Composable () ->
 @Composable
 internal fun TvStepPage(modifier: Modifier, content: @Composable () -> Unit) {
     val header = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
+    val scroll = rememberScrollState()
     Column(modifier) {
         StepHeaderHost(header)
-        Column(Modifier.weight(1f).padding(bottom = rememberHintRoom() + 8.dp).fadeBottom(28.dp).verticalScroll(rememberScrollState()).padding(start = 48.dp, end = 48.dp, top = 12.dp, bottom = 16.dp),
+        Column(Modifier.weight(1f).padding(bottom = rememberHintRoom() + 8.dp).fadeBottom(28.dp, scroll).verticalScroll(scroll).padding(start = 48.dp, end = 48.dp, top = 12.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             CompositionLocalProvider(LocalStepHeader provides header) { content() }
         }

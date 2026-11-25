@@ -20,6 +20,8 @@ internal val esOnboarding: Map<String, String> = mapOf(
     "AniList, keys, word colouring and downloads all come from the PC: setup ends here." to
         "AniList, claves, colores de palabras y descargas vienen del PC: la configuración termina aquí.",
     "Use this PC" to "Usar este PC",
+    "Searching…" to "Buscando…",
+    "Connect" to "Conectar",
     "Nothing answered at %s: not a kumapie PC, not a kumapie device." to "Nadie respondió en %s: ni un PC kumapie ni un dispositivo kumapie.",
     "from the PC" to "del PC",
     "kumapie on %s" to "kumapie en %s",

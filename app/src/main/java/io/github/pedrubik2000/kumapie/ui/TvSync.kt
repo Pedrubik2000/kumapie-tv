@@ -36,7 +36,8 @@ internal fun TvSync(settings: Settings) {
     var background by remember { mutableStateOf(settings.prefs.getBoolean(DeviceSync.BACKGROUND, false)) }
     val last by DeviceSync.last.collectAsState()
     val found by DeviceSync.found.collectAsState()
-    val asking = DeviceSync.live(DeviceSync.asking.collectAsState().value, rememberNow())
+    val raw = DeviceSync.asking.collectAsState().value
+    val asking = DeviceSync.live(raw, rememberNow(raw.isNotEmpty()))
     fun pair(a: String) {
         message = tr("Pairing…")
         scope.launch {

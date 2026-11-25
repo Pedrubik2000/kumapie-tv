@@ -9,8 +9,12 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 
 @Composable
-fun rememberNow(everyMs: Long = 5_000): Long {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(everyMs) { while (true) { delay(everyMs); now = System.currentTimeMillis() } }
+fun rememberNow(enabled: Boolean = true, everyMs: Long = 5_000, clock: () -> Long = System::currentTimeMillis): Long {
+    var now by remember { mutableLongStateOf(clock()) }
+    LaunchedEffect(enabled, everyMs) {
+        if (!enabled) return@LaunchedEffect
+        now = clock()
+        while (true) { delay(everyMs); now = clock() }
+    }
     return now
 }

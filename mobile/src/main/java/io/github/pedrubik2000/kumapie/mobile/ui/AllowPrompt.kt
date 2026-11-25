@@ -19,9 +19,11 @@ import io.github.pedrubik2000.kumapie.ui.rememberNow
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun AllowPrompt(hold: Boolean, onSettings: () -> Unit, paceMs: Long = 10_000) {
+internal fun AllowPrompt(hold: Boolean, onSettings: () -> Unit, paceMs: Long = 10_000, clock: () -> Long = System::currentTimeMillis) {
     val context = LocalContext.current
-    val asking = DeviceSync.live(DeviceSync.asking.collectAsState().value, rememberNow())
+    val raw = DeviceSync.asking.collectAsState().value
+    val now = rememberNow(raw.isNotEmpty(), clock = clock)
+    val asking = DeviceSync.live(raw, now)
     val conflicts by DeviceSync.conflicts.collectAsState()
     val later = rememberSaveable { mutableStateListOf<String>() }
     val pending = asking.filter { "${it.device}/${it.code}" !in later }

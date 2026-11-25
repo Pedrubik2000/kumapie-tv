@@ -48,7 +48,8 @@ internal fun SyncSection(settings: Settings) {
     var address by remember { mutableStateOf("") }
     val last by DeviceSync.last.collectAsState()
     val found by DeviceSync.found.collectAsState()
-    val asking = DeviceSync.live(DeviceSync.asking.collectAsState().value, io.github.pedrubik2000.kumapie.ui.rememberNow())
+    val raw = DeviceSync.asking.collectAsState().value
+    val asking = DeviceSync.live(raw, io.github.pedrubik2000.kumapie.ui.rememberNow(raw.isNotEmpty()))
     fun pair(a: String) = withLan {
         message = tr("Pairing…")
         scope.launch {

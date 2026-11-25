@@ -54,14 +54,15 @@ class TvAllowPromptTest {
     }
 
     @Test fun anAskTheClientStoppedPollingNeverShowsAndOneThatGoesStaleClosesByItself() {
-        val gone = DeviceSync.Asking("Gone", "x", "y").apply { seen = System.currentTimeMillis() - 30_000 }
-        val going = DeviceSync.Asking("Tablet", "s3cret", "pubkey").apply { seen = System.currentTimeMillis() - 19_500 }
+        var t = 1_000_000L
+        val gone = DeviceSync.Asking("Gone", "x", "y").apply { seen = t - 30_000 }
+        val going = DeviceSync.Asking("Tablet", "s3cret", "pubkey").apply { seen = t - 19_500 }
         DeviceSync.asking.value = listOf(gone, going)
-        rule.setContent { TvAllowPrompt(hold = false, onSettings = {}, guardMs = 0) }
+        rule.setContent { TvAllowPrompt(hold = false, onSettings = {}, guardMs = 0, clock = { t }) }
         rule.waitForIdle()
         rule.onNodeWithText("Gone wants", substring = true).assertDoesNotExist()
         rule.onNodeWithText("Tablet wants to pair. Code ${going.code}.").assertIsDisplayed()
-        Thread.sleep(700)
+        t += 1_000
         rule.mainClock.advanceTimeBy(5_100)
         rule.onNodeWithText("Tablet wants", substring = true).assertDoesNotExist()
     }

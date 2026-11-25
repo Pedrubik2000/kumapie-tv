@@ -22,6 +22,7 @@ import org.robolectric.annotation.Config
 private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(emptyMap(), emptyMap())) : Pairing {
     var asked: Hub? = null
     var asks = 0
+    var oldHub = false
     var calls = 0
     var key = true
     var fails: Exception? = null
@@ -29,7 +30,7 @@ private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(e
     var applied: Set<String>? = null
     private var at = 0
     override suspend fun discover(ms: Long) = listOf("Tab S7+" to "192.168.0.154:47823")
-    override suspend fun ask(name: String, address: String): String { fails?.let { throw it }; asks++; asked = Hub(name, address); return "4829" }
+    override suspend fun ask(name: String, address: String): DeviceSync.Asked { fails?.let { throw it }; asks++; asked = Hub(name, address); return DeviceSync.Asked("4829", oldHub) }
     override suspend fun allowed(): Poll { calls++; return polls[minOf(at++, polls.size - 1)] }
     fun script(p: List<Poll>) { polls = p; at = 0 }
     override suspend fun fetch() = got
@@ -38,8 +39,6 @@ private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(e
     override fun forget() { forgot++ }
     override fun hasKey() = key
     override fun me() = "Phone"
-    var oldHub = false
-    override fun old() = oldHub
 }
 
 @RunWith(RobolectricTestRunner::class)

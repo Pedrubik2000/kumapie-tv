@@ -252,6 +252,20 @@ class AniListSyncTest {
         assertEquals(listOf(2), saved.map { it.third.progress })
     }
 
+    @Test fun aShortEpisodeLeftAt5SecondsIsNotFinished() {
+        addons().left("kitsu:1:2", "series", 5_000, 150_000)
+        assertTrue(saved.isEmpty())
+    }
+
+    @Test fun anEpisodeDoneWhileLoggedOutIsStillWrittenAfterLogin() {
+        prefs.edit().putString("anilist_token", "").commit()
+        val s = sync()
+        s.episodeDone("kitsu:1:2", "series")
+        prefs.edit().putString("anilist_token", "t").commit()
+        s.episodeDone("kitsu:1:2", "series")
+        assertEquals(listOf(2), saved.map { it.third.progress })
+    }
+
     @Test fun nextAt95ThenTheNextOnesEndWriteBothInOrder() {
         entries[7] = Entry("CURRENT", progress = 1, started = "2026-11-20", episodes = 12)
         addons().left("kitsu:1:2", "series", 950_000, 1_000_000)

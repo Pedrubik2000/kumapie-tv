@@ -309,8 +309,8 @@ class TvTitleFocusTest {
         rule.waitUntil(5_000) { hasText("Status") }
         assertTrue(!hasText("Watched"))
         assertTrue(hasText("0"))
-        seen = listOf(true, false, false)
         rule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        seen = listOf(true, false, false)
         rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         rule.waitUntil(5_000) { hasText("1") }
         rule.waitUntil(5_000) { rule.onAllNodesWithText("Ep 1 · Watched", substring = true).fetchSemanticsNodes().isNotEmpty() }
@@ -323,10 +323,10 @@ class TvTitleFocusTest {
         open(listOf(true, false, false), fake, sync)
         rule.waitUntil(5_000) { hasText("Status") }
         assertTrue(hasText("0"))
+        rule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
         fake.online = false
         sync.finished("kitsu:5:1", 1)
         fake.online = true
-        rule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
         rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         rule.waitUntil(5_000) { hasText("1") }
     }

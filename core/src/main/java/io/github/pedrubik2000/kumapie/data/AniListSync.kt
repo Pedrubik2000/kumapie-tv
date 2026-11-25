@@ -75,8 +75,9 @@ class AniListSync(
     }
 
     fun episodeDone(id: String, type: String) {
-        if (!completed.add(id)) return
-        episodeOf(id, type == "movie")?.let { finished(id, it) }
+        if (synchronized(store) { id in completed }) return
+        val n = episodeOf(id, type == "movie") ?: return
+        if (finished(id, n)) synchronized(store) { completed.add(id) }
     }
 
     fun watchingAt(episodeId: String, type: String, positionMs: Long, durationMs: Long) {
@@ -111,9 +112,9 @@ class AniListSync(
 
     private fun clock() = now() + (offset() ?: 0)
 
-    private fun queue(id: String, change: (JSONObject) -> Unit) {
-        val title = titleOf(id) ?: return
-        if (token().isEmpty()) return
+    private fun queue(id: String, change: (JSONObject) -> Unit): Boolean {
+        val title = titleOf(id) ?: return false
+        if (token().isEmpty()) return false
         synchronized(store) {
             val all = pending()
             val item = all.optJSONObject(title) ?: JSONObject().also { all.put(title, it) }
@@ -123,6 +124,7 @@ class AniListSync(
         }
         mark(title, saved = false, waiting = false)
         scope.launch { lock.withLock { flush() } }
+        return true
     }
 
     private fun pending() = runCatching { JSONObject(prefs.getString(QUEUE, "{}").orEmpty()) }.getOrDefault(JSONObject())

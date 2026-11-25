@@ -46,7 +46,7 @@ fun partway(at: Double?, duration: Double) = at != null && duration > 0 && at > 
 
 fun finished(watched: Boolean, at: Double?, duration: Double) = watched || at != null && duration > 0 && duration - at <= 120
 
-fun nearEnd(at: Double, duration: Double) = duration > 0 && (at >= duration * 0.9 || finished(false, at, duration))
+fun nearEnd(at: Double, duration: Double) = duration > 0 && (at >= duration * 0.9 || duration >= 600 && duration - at <= 120)
 
 data class Watching(val id: String, val watched: Boolean, val resume: Double?, val duration: Double, val resumedAt: Long)
 

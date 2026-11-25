@@ -2,6 +2,7 @@ package io.github.pedrubik2000.kumapie.lang
 
 import io.github.pedrubik2000.kumapie.player.LiveLines
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -75,7 +76,29 @@ class LiveLinesPiecesTest {
     }
 
     @Test fun aHandShiftIsNeverReplacedByTheFit() {
-        assertEquals(2.4, requireNotNull(AloneStream.lateShift(0.0, 2.4, 2.4)), 1e-9)
-        assertNull(AloneStream.lateShift(0.0, 2.4, 2.4, hand = true))
+        assertTrue(LiveLines.replaceable(false, 0.0, null))
+        assertTrue(LiveLines.replaceable(false, 3.0, 3.0))
+        assertFalse(LiveLines.replaceable(true, 0.0, null))
+        assertFalse(LiveLines.replaceable(true, 3.0, 3.0))
+        assertFalse(LiveLines.replaceable(false, 5.0, 3.0))
+    }
+
+    @Test fun aBigShiftNeedsFourTimesTheRunnerUp() {
+        val a = starts.take(30)
+        val refs = a.map { it + 71.3 }
+        assertEquals(71.3, requireNotNull(LiveLines.fit(refs, a)), 0.11)
+        assertNull("a second offset with half the hits", LiveLines.fit(a.take(16).map { it + 71.3 } + a.drop(16).take(8).map { it + 40.0 }, a))
+    }
+
+    @Test fun onlyANudgeOverOneSecondIsAHandShift() {
+        assertFalse(AloneStream.isHand(0.5))
+        assertFalse(AloneStream.isHand(-1.0))
+        assertTrue(AloneStream.isHand(-1.5))
+    }
+
+    @Test fun oldBigSavedOffsetsAreDroppedUnlessHandMade() {
+        val all = mapOf("alone_off_k:1:1|a.mkv" to 71.3f, "alone_off_k:1:2|b.mkv" to 71.3f, "alone_off_k:1:2|b.mkv|hand" to true,
+            "alone_off_k:1:3" to 2.4f, "alone_off_k:1:4" to -80.1f, "alone_file_x" to "a.mkv")
+        assertEquals(listOf("alone_off_k:1:1|a.mkv", "alone_off_k:1:4").sorted(), AloneStream.staleOffsets(all).sorted())
     }
 }

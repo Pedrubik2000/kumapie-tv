@@ -24,10 +24,11 @@ class AloneStream(
     }, others = { skip ->
         Jimaku.lines(prefs.getString("jimaku_key", "").orEmpty(), show, null, episodeNumber(id), file, skip).map { Triple(it.start, it.end, it.text) }
     }, switched = { l -> Jimaku.keep(show, null, episodeNumber(id), file, l.map { Jimaku.Line(it.first, it.second, it.third) }, fitted = true) }).also {
+        cleanOffsets(prefs)
         prefs.edit().putString(fileKey(id), file).apply()
         it.offset = prefs.getFloat(offKey(id, file), 0f).toDouble()
         it.guess = it.offset
-        it.hand = handed(prefs, id)
+        it.hand = { handed(prefs, id) }
     }
 
     private var lastMs = 0L
@@ -65,7 +66,8 @@ class AloneStream(
 
     fun fitLanded(shift: (Double) -> Unit): Boolean {
         if (fitApplied) return true
-        val by = lateShift(built, live.offset, live.fitted, handed(prefs, id)) ?: return false
+        if (handed(prefs, id)) { fitApplied = true; return true }
+        val by = lateShift(built, live.offset, live.fitted) ?: return false
         if (by != 0.0) shift(by)
         android.util.Log.i("kumapie", "late fit: ${live.fitted} s from ${live.refCount} lines, lines moved $by s")
         built = live.offset
@@ -106,6 +108,7 @@ class AloneStream(
         sync.watchingAt(id, type, positionMs, durationMs)
         val at = place(positionMs / 1000.0, durationMs / 1000.0)
         addons?.played(id, at, durationMs / 1000.0) ?: prefs.edit().putFloat("alone_pos_$id", at.toFloat()).apply()
+        cleanOffsets(prefs)
         prefs.edit().putString(fileKey(id), file).apply()
     }
 
@@ -136,8 +139,24 @@ class AloneStream(
 
         fun shift(ctl: io.github.pedrubik2000.kumapie.player.SceneController, prefs: SharedPreferences, by: Double) {
             ctl.shift(by)
-            prefs.edit().putFloat(keptKey(prefs, ctl.episode.id), kept(prefs, ctl.episode.id).toFloat() + by.toFloat())
-                .putBoolean(handKey(prefs, ctl.episode.id), true).apply()
+            val total = kept(prefs, ctl.episode.id).toFloat() + by.toFloat()
+            prefs.edit().putFloat(keptKey(prefs, ctl.episode.id), total).putBoolean(handKey(prefs, ctl.episode.id), isHand(total.toDouble())).apply()
+        }
+
+        fun reset(ctl: io.github.pedrubik2000.kumapie.player.SceneController, prefs: SharedPreferences) {
+            ctl.shift(-kept(prefs, ctl.episode.id))
+            prefs.edit().remove(keptKey(prefs, ctl.episode.id)).remove(handKey(prefs, ctl.episode.id)).apply()
+        }
+
+        fun isHand(total: Double) = kotlin.math.abs(total) > 1.0
+
+        fun staleOffsets(all: Map<String, *>): List<String> = all.filter { (k, v) ->
+            k.startsWith("alone_off_") && !k.endsWith("|hand") && v is Float && kotlin.math.abs(v) > 30f && all[k + "|hand"] != true
+        }.keys.toList()
+
+        fun cleanOffsets(prefs: SharedPreferences) {
+            if (prefs.getBoolean("alone_off_clean", false)) return
+            prefs.edit().apply { staleOffsets(prefs.all).forEach(::remove) }.putBoolean("alone_off_clean", true).apply()
         }
 
         private fun handKey(prefs: SharedPreferences, id: String) = keptKey(prefs, id) + "|hand"
@@ -176,7 +195,7 @@ class AloneStream(
 
         fun place(at: Double, length: Double) = if (at > length - 120) 0.0 else at
 
-        fun lateShift(built: Double?, offset: Double, fitted: Double?, hand: Boolean = false): Double? =
-            if (built == null || fitted == null || hand) null else offset - built
+        fun lateShift(built: Double?, offset: Double, fitted: Double?): Double? =
+            if (built == null || fitted == null) null else offset - built
     }
 }

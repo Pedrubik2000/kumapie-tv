@@ -36,7 +36,7 @@ class LiveLines(
     /** The [offset] it started from (saved last time): the fit replaces it, as it does 0; a hand nudge doesn't. */
     var guess: Double? = null
 
-    var hand = false
+    var hand: () -> Boolean = { false }
 
     /** The offset [fit] found from the file's other subtitle track (null: not yet / no track); a hand nudge after it wins. */
     var fitted by mutableStateOf<Double?>(null)
@@ -150,7 +150,7 @@ class LiveLines(
         while (true) {
             if (fitted == null && refs.size >= MIN_REFS && refs.size % 2 == 0 && refs.size != tried) {
                 tried = refs.size
-                fit(refs, starts)?.let { if (!hand && (offset == 0.0 || offset == guess)) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
+                fit(refs, starts)?.let { if (replaceable(hand(), offset, guess)) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
             }
             // The first file never fits (another script, or a loose one): the next ranked files against the lines heard so
             // far; one that fits replaces it (its new [lines] remake the episode's words).
@@ -162,7 +162,7 @@ class LiveLines(
                     android.util.Log.i("LiveLines", "file ${i + 1} fitted $f s from ${refs.size} lines (the first didn't)")
                     starts = other.map { it.first }
                     lines = other
-                    if (!hand && (offset == 0.0 || offset == guess)) offset = f
+                    if (replaceable(hand(), offset, guess)) offset = f
                     fitted = f
                     switched(other)
                     break
@@ -282,7 +282,7 @@ class LiveLines(
             val (lo, hi) = refs.min() - bin / 10.0 - 1 to refs.max() - bin / 10.0 + 1
             val possible = minOf(refs.size, starts.count { it in lo..hi })
             val big = kotlin.math.abs(bin) > BIG * 10
-            return if (n >= 6 && (!big || refs.size >= 20) && n * 2 >= possible && n * 2 >= other * (if (big) 4 else 3)) bin / 10.0 else null
+            return if (n >= 6 && (!big || refs.size >= 20) && n * 2 >= possible && (if (big) n >= other * 4 else n * 2 >= other * 3)) bin / 10.0 else null
         }
 
         fun pieces(refs: List<Double>, starts: List<Double>): List<Pair<Double, Double?>>? {
@@ -314,6 +314,8 @@ class LiveLines(
         }
 
         private const val BIG = 30.0
+
+        fun replaceable(hand: Boolean, offset: Double, guess: Double?) = !hand && (offset == 0.0 || offset == guess)
         private const val PIECE = 240.0
         private const val PIECE_EVERY = 20
         private const val PIECES = 4

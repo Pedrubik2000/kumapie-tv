@@ -28,6 +28,7 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Skip intro" to "Saltar intro",
     "Skip ending" to "Saltar final",
     "Subtitle timing" to "Sincronía de subtítulos",
+    "Reset sync" to "Restablecer sincronía",
     " (moved %+.1f s so far)" to " (movidos %+.1f s hasta ahora)",
     "− shows the subtitles earlier, + later. Every line of the episode moves." to
         "− muestra los subtítulos antes, + después. Se mueven todas las líneas del episodio.",

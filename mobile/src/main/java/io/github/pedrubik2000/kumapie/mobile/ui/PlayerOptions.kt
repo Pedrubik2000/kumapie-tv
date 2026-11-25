@@ -25,7 +25,7 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 /** The player's modes, saved on the device; and a reminder of the gestures. */
 @Composable
 internal fun Options(ctl: SceneController, seekStep: Int, onSeekStep: (Int) -> Unit, onUpright: (() -> Unit)? = null, uprightNow: Boolean = false,
-                    onShift: ((Double) -> Unit)? = null, shifted: Double? = null) {
+                    onShift: ((Double) -> Unit)? = null, shifted: Double? = null, onReset: (() -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OptionRow(tr("Primed Listening: wait before each line (read, then play)"), ctl.pauseAtSceneStart, ctl::togglePauseAtSceneStart)
@@ -49,6 +49,7 @@ internal fun Options(ctl: SceneController, seekStep: Int, onSeekStep: (Int) -> U
                 }
             }
             Text(tr("− shows the subtitles earlier, + later. Every line of the episode moves."), color = Colors.dim, fontSize = 12.sp)
+            if (onReset != null) FilterChip(selected = false, onClick = onReset, label = { Text(tr("Reset sync"), fontSize = 12.sp) })
         }
         Text(tr("Subtitles"), color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
         // Scrolls: on a phone "German + English" was squeezed into three lines.

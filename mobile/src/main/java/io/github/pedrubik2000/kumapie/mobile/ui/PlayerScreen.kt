@@ -460,7 +460,8 @@ internal fun ScenePlayer(
                     ?: if (shiftsHere) ({ secs: Double ->
                         io.github.pedrubik2000.kumapie.lang.AloneStream.shift(ctl, settings.prefs, secs); shiftedHere += secs // shared with the TV
                     }) else null,
-                onShift?.let { library.local.shifted(episode.id) } ?: shiftedHere.takeIf { shiftsHere })
+                onShift?.let { library.local.shifted(episode.id) } ?: shiftedHere.takeIf { shiftsHere },
+                if (shiftsHere) ({ io.github.pedrubik2000.kumapie.lang.AloneStream.reset(ctl, settings.prefs); shiftedHere = 0.0 }) else null)
         }
     }
     if (backlog) {

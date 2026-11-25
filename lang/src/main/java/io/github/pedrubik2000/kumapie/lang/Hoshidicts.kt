@@ -20,7 +20,7 @@ import java.io.IOException
  * tools/hoshidicts/jni. Results come back as JSON.
  */
 internal object Hoshidicts {
-    init { System.loadLibrary("hoshidicts_jni") }
+    val loadError: String? = try { System.loadLibrary("hoshidicts_jni"); null } catch (e: Throwable) { e.message ?: e.toString() }
     @JvmStatic external fun nativeImport(source: String, outDir: String): String
     @JvmStatic external fun nativeOpen(): Long
     @JvmStatic external fun nativeClose(handle: Long)

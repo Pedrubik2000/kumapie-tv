@@ -26,6 +26,7 @@ internal val esTv: Map<String, String> = mapOf(
     "In the word picker" to "Al elegir una palabra",
     "Replay line" to "Repetir la línea",
     "Replay line and play on" to "Repetir la línea y seguir",
+    "Dictionaries can't run on this device: %s" to "Los diccionarios no funcionan en este dispositivo: %s",
     "Couldn't download them (%s). Trying again…" to "No se pudieron descargar (%s). Probando de nuevo…",
     "Subtitles: hidden → blurred → both blurred → %s → both" to
         "Subtítulos: ocultos → borrosos → los dos borrosos → %s → los dos",

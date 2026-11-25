@@ -234,16 +234,50 @@ class JapaneseModelWorker(context: Context, params: WorkerParameters) : AssetWor
         resplitLocal()
     }
 
-    /** Jiten's files from the device's PC; none when no PC is set up (Sudachi alone splits then). */
+    /** Jiten's files: the device's PC first when one is set, else (or when it fails) the public pre-release, verified. */
     private suspend fun splitterFiles() {
         val server = io.github.pedrubik2000.kumapie.data.Settings(applicationContext).server
-        if (server.isEmpty()) return
+        if (server.isNotEmpty()) {
+            runCatching { splitterFromPc(server) }
+            if (model.splitterFiles.all { it.exists() }) return
+        }
+        splitterFromRelease()
+    }
+
+    private suspend fun splitterFromPc(server: String) {
         for (f in model.splitterFiles) {
             if (f.exists()) continue
             val part = File(f.path + ".part")
             fetch("$server/api/models/${f.name}", part)
             if (!part.renameTo(f)) throw IOException(tr("couldn't move the dictionary into place"))
         }
+    }
+
+    private suspend fun splitterFromRelease() {
+        val dir = model.dic.parentFile!!
+        val stamp = File(dir, "jiten-splitter.version")
+        val json = File(dir, SplitterManifest.NAME + ".part").apply { delete() }
+        val manifest = try {
+            fetch(SplitterManifest.BASE + SplitterManifest.NAME, json, 0.05f)
+            SplitterManifest.parse(json.readText())
+        } catch (e: IOException) {
+            if (model.splitterFiles.all { it.exists() }) return else throw e
+        } finally { json.delete() }
+        if (stamp.exists() && stamp.readText() == manifest.version && model.splitterFiles.all { it.exists() }) return
+        for (entry in manifest.files) {
+            val f = File(dir, entry.name)
+            if (f.exists() && entry.matches(f)) continue
+            val part = File(f.path + ".part")
+            if (part.length() > entry.size) part.delete()
+            fetch(SplitterManifest.BASE + entry.name, part)
+            if (!entry.matches(part)) {
+                part.delete()
+                throw IOException(tr("the download is damaged, trying again"))
+            }
+            f.delete()
+            if (!part.renameTo(f)) throw IOException(tr("couldn't move the dictionary into place"))
+        }
+        stamp.writeText(manifest.version)
     }
 
     /**

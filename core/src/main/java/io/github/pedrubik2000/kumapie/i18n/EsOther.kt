@@ -15,6 +15,7 @@ internal val esOther: Map<String, String> = mapOf(
     "the word recordings list" to "la lista de grabaciones de palabras",
     "the download is not the recordings list" to "la descarga no es la lista de grabaciones",
     "couldn't move the dictionary into place" to "no se pudo colocar el diccionario en su lugar",
+    "the download is damaged, trying again" to "la descarga está dañada, se reintenta",
     "the %s model" to "el modelo de idioma (%s)",
     "the download is not a spaCy model" to "la descarga no es un modelo de spaCy",
     "couldn't move the model into place" to "no se pudo colocar el modelo en su lugar",

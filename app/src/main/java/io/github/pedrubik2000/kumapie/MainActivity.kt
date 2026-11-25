@@ -128,6 +128,7 @@ fun App(settings: Settings) {
             else -> PcScreens(settings, server, stack, onSaved = { server = settings.server; standalone = settings.standalone }, onUpdate = { update = it })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
+        io.github.pedrubik2000.kumapie.ui.TvAllowPrompt()
     }
 }
 

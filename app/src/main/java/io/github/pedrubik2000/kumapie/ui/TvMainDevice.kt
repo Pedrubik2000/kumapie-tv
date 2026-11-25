@@ -70,6 +70,7 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
     var note by remember { mutableStateOf("") }
     fun run(block: suspend () -> Unit) { job?.cancel(); job = scope.launch { block() } }
     fun pair() {
+        if (phase is Phase.Waiting) return
         val hubs = (phase as? Phase.Pick)?.hubs.orEmpty()
         val to = address.trim().ifEmpty { picked }
         if (to == null) {

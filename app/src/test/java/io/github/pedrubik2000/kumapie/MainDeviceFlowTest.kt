@@ -29,7 +29,15 @@ private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(e
     var forgot = 0
     var applied: Set<String>? = null
     private var at = 0
+    var pcs = listOf("192.168.0.10:8769")
+    var pcUp = setOf<String>()
+    var triedPc = mutableListOf<String>()
     override suspend fun discover(ms: Long) = listOf("Tab S7+" to "192.168.0.154:47823")
+    override suspend fun discoverPcs(ms: Long) = pcs
+    override suspend fun usePc(url: String): String {
+        triedPc += url
+        return if (url in pcUp) { Settings(RuntimeEnvironment.getApplication()).server = url; "" } else "No answer from $url"
+    }
     override suspend fun ask(name: String, address: String): DeviceSync.Asked { fails?.let { throw it }; asks++; asked = Hub(name, address); return DeviceSync.Asked("4829", oldHub) }
     override suspend fun allowed(): Poll { calls++; return polls[minOf(at++, polls.size - 1)] }
     fun script(p: List<Poll>) { polls = p; at = 0 }
@@ -240,6 +248,60 @@ class MainDeviceFlowTest {
         flow.pair(hub)
         assertTrue(flow.phase.value is Phase.Ready)
         assertEquals(0, pairing.forgot)
+    }
+
+    @Test fun lookFindsBothKindsAndAPcCardIsOffered() = runBlocking {
+        val flow = MainDeviceFlow(prefs, FakePairing(emptyList()))
+        flow.look()
+        val pick = flow.phase.value as Phase.Pick
+        assertEquals(listOf("192.168.0.10:8769"), pick.pcs)
+        assertEquals(hub, pick.hubs.single())
+        assertEquals(hub.address, pick.auto)
+    }
+
+    @Test fun usePcSetsTheServerAndOnboardsAndAFailureStaysOnTheStep() = runBlocking {
+        Settings(RuntimeEnvironment.getApplication()).server = ""
+        prefs.edit().remove("onboarded").commit()
+        val pairing = FakePairing(emptyList())
+        val flow = MainDeviceFlow(prefs, pairing)
+        flow.look()
+        flow.usePc("192.168.0.10:8769")
+        val pick = flow.phase.value as Phase.Pick
+        assertTrue(pick.notice.startsWith("No answer from http://192.168.0.10:8769"))
+        assertEquals(hub, pick.hubs.single())
+        assertEquals("", Settings(RuntimeEnvironment.getApplication()).server)
+        pairing.pcUp = setOf("http://192.168.0.10:8769")
+        flow.usePc("192.168.0.10:8769")
+        assertEquals(Phase.PcDone("192.168.0.10:8769"), flow.phase.value)
+        assertEquals("http://192.168.0.10:8769", Settings(RuntimeEnvironment.getApplication()).server)
+        assertTrue(io.github.pedrubik2000.kumapie.data.Startup.onboarded(prefs.all))
+    }
+
+    @Test fun aTypedPcAddressWorksWithOrWithoutAPortAndADeviceFallsThroughToPairing() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED)).apply { pcUp = setOf("http://10.0.0.5:8769", "http://10.0.0.6:9000") }
+        val a = MainDeviceFlow(prefs, pairing) {}
+        a.pair(Hub("", "10.0.0.5"))
+        assertEquals(Phase.PcDone("10.0.0.5"), a.phase.value)
+        val b = MainDeviceFlow(prefs, pairing) {}
+        b.pair(Hub("", "10.0.0.6:9000"))
+        assertEquals(Phase.PcDone("10.0.0.6:9000"), b.phase.value)
+        assertEquals(0, pairing.asks)
+        val c = MainDeviceFlow(prefs, pairing) {}
+        c.pair(Hub("", "192.168.0.7"))
+        assertEquals("http://192.168.0.7:8769", pairing.triedPc.last())
+        assertEquals("192.168.0.7:47823", pairing.asked?.address)
+        assertTrue(c.phase.value is Phase.Ready)
+    }
+
+    @Test fun aTypedAddressWithASchemeIsOnlyAPcAndKeepsItsError() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED))
+        val flow = MainDeviceFlow(prefs, pairing) {}
+        flow.look()
+        flow.pair(Hub("", "https://pc.ts.net:8445"))
+        assertEquals(0, pairing.asks)
+        val pick = flow.phase.value as Phase.Pick
+        assertTrue(pick.notice.startsWith("No answer from https://pc.ts.net:8445"))
+        assertEquals(hub, pick.hubs.single())
     }
 
     @Test fun failAndLookDoNothingOnceDone() = runBlocking {

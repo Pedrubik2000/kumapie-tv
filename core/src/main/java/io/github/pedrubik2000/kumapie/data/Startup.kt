@@ -3,7 +3,7 @@ package io.github.pedrubik2000.kumapie.data
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.update.Updater
 
-enum class Gate { FIRST_RUN, ONBOARDING, APP }
+enum class Gate { ONBOARDING, APP }
 
 enum class RdGate(val mayFinish: Boolean) { NOT_ASKED(true), OK(true), UNCHECKED(true), MISSING(false), REJECTED(false), UNREACHABLE(false) }
 
@@ -12,9 +12,8 @@ object Startup {
     const val PROOF_ADDON = "http://10.0.2.2:8795/"
     const val RD_TRIES = 3
 
-    fun gate(server: String, standalone: Boolean, onboarded: Boolean): Gate = when {
+    fun gate(server: String, onboarded: Boolean): Gate = when {
         server.isNotEmpty() -> Gate.APP
-        !standalone -> Gate.FIRST_RUN
         !onboarded -> Gate.ONBOARDING
         else -> Gate.APP
     }

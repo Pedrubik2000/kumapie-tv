@@ -160,9 +160,6 @@ internal val esTv: Map<String, String> = mapOf(
     "Connecting…" to "Conectando…",
     "Connected: %d episodes" to "Conectado: %d episodios",
     "Can't reach %1\$s (%2\$s)" to "No se puede conectar con %1\$s (%2\$s)",
-    "Welcome to kumapie" to "Bienvenido a kumapie",
-    "Type the address of the dojo server on the PC (Tailscale), e.g. https://my-pc.tailnet.ts.net:8445" to
-        "Escribe la dirección del servidor dojo de la PC (Tailscale), p. ej. https://my-pc.tailnet.ts.net:8445",
     "Server" to "Servidor",
     "Save" to "Guardar",
     "Buttons and help" to "Botones y ayuda",
@@ -260,8 +257,6 @@ internal val esTv: Map<String, String> = mapOf(
     "The PC didn't answer." to "La PC no respondió.",
     "This TV can't play this video (%s)." to "Esta tele no puede reproducir este video (%s).",
     // Without a PC server
-    "No server? kumapie also works on its own." to "¿Sin servidor? kumapie también funciona solo.",
-    "Use without a server" to "Usar sin servidor",
     "Set up from your phone (QR code)" to "Configurar desde tu celular (código QR)",
     "Hide the QR code" to "Ocultar el código QR",
     "kumapie plays what your own Stremio addons give it. Add one in Settings, or the address of a kumapie server on a PC." to

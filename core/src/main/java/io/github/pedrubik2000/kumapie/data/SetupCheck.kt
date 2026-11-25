@@ -40,7 +40,7 @@ object SetupCheck {
         // The phone keeps the token by itself; the TV only inside Torrentio's address.
         val rd = Startup.rdKey(settings.rdToken, settings.addons)
         val anilist = p.getString(Addons.ANILIST, "").orEmpty()
-        val alone = noPc && settings.standalone
+        val alone = noPc
         listOfNotNull(
             async { listOf(pc(settings)) },
             // Jimaku and Real-Debrid matter without a PC (streams) or when set; a parent with a PC needs neither.
@@ -59,8 +59,7 @@ object SetupCheck {
         settings.server.isNotEmpty() -> runCatching { Api(settings.server).info() }.fold(
             { Line(tr("The PC"), Verdict.OK, tr("Answers: %d episodes.", it.episodes)) },
             { Line(tr("The PC"), Verdict.FAIL, tr("Doesn't answer (%s). Is the PC on, and Tailscale connected on this device?", it.message ?: it.toString())) })
-        settings.standalone -> Line(tr("The PC"), Verdict.OK, tr("None: kumapie works on this device alone."))
-        else -> Line(tr("The PC"), Verdict.WARN, tr("Not set: type its address in Settings > Server, or use kumapie without one."))
+        else -> Line(tr("The PC"), Verdict.OK, tr("None: kumapie works on this device alone."))
     }
 
     private suspend fun key(s: KeyService, key: String, what: String): Line = when (val r = checkKey(s, key)) {

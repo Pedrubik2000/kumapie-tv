@@ -101,6 +101,7 @@ internal fun TvOnboarding(settings: Settings, pairing: Pairing, onDone: () -> Un
 internal class StepNav(val settings: Settings, val step: () -> String, val set: (String) -> Unit, val finish: () -> Unit) {
     private val prefs get() = settings.prefs
     val total = Onboarding.counted(true).size
+    var pc by mutableStateOf(false)
 
     fun number(s: String) = Onboarding.counted(true).indexOf(s) + 1
 
@@ -121,7 +122,7 @@ internal class StepNav(val settings: Settings, val step: () -> String, val set: 
     }
 
     @Suppress("UNUSED_PARAMETER")
-    fun items(current: String, changed: Int = 0) = Onboarding.list(Onboarding.done(prefs), Onboarding.copied(prefs), true, detail(), current)
+    fun items(current: String, changed: Int = 0) = Onboarding.list(Onboarding.done(prefs), Onboarding.copied(prefs), true, detail(), current, pc && current == Onboarding.MAIN)
 }
 
 @Composable
@@ -140,9 +141,9 @@ private fun SetupRow(item: Onboarding.Item, here: Boolean, onOpen: (String) -> U
     Row(Modifier.fillMaxWidth().then(if (here) Modifier.background(Color.White, shape) else Modifier)
         .then(if (settled && !here) Modifier.hint(HintKind.CHOOSE).tvRing(shape, source).clickable(interactionSource = source, indication = null, role = Role.Button) { onOpen(item.step) } else Modifier)
         .padding(horizontal = 12.dp, vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(if (here) "●" else if (settled) "✓" else "○", color = if (here) Color.Black else Colors.accent, fontSize = 18.sp)
+        Text(if (here) "●" else if (settled) "✓" else "○", color = if (here) Color.Black else if (item.state == Onboarding.State.PC) Colors.dim else Colors.accent, fontSize = 18.sp)
         Column {
-            Text(item.label, color = if (here) Color.Black else Colors.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(item.label, color = if (here) Color.Black else if (item.state == Onboarding.State.PC) Colors.dim else Colors.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             Text(item.sub, color = if (here) Color.Black.copy(alpha = 0.7f) else Colors.dim, fontSize = 14.sp, maxLines = 1)
         }
     }
@@ -181,7 +182,7 @@ private fun StepBody(settings: Settings, pairing: Pairing, nav: StepNav, step: S
     when {
         step == Onboarding.LANGUAGE -> LanguageStep(settings, lang, onLang) { nav.advance(step) }
         step in nav.viewOnly() -> DoneStep(settings, nav, step, step in copied)
-        step == Onboarding.MAIN -> TvMainDevice(settings.prefs, pairing, nav.total) { nav.advance(step); onLang(settings.menuLanguage) }
+        step == Onboarding.MAIN -> TvMainDevice(settings.prefs, pairing, nav.total, { nav.pc = it }, nav.finish) { nav.advance(step); onLang(settings.menuLanguage) }
         step == Onboarding.ANILIST -> AniListStep(settings, nav) { nav.advance(step) }
         step == Onboarding.VIDEOS -> VideosStep(settings, nav) { nav.advance(step) }
         else -> DownloadsStep(settings, nav) { nav.advance(step) }

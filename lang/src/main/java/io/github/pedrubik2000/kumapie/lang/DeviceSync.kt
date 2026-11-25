@@ -41,6 +41,7 @@ import javax.crypto.spec.SecretKeySpec
 object DeviceSync {
     const val PORT = 47823
     const val SERVICE = "_kumapiesync._tcp."
+    const val PC_SERVICE = "_kumapiepc._tcp."
     const val ANSWERS = "sync_answers"
     const val BACKGROUND = "sync_background"
     private const val WITH = "sync_with"
@@ -286,7 +287,7 @@ object DeviceSync {
         Answer(code, (if (code < 400) inputStream else errorStream)?.use { it.readBytes() } ?: ByteArray(0), getHeaderField("X-Sig"))
     }
 
-    suspend fun discover(context: Context, ms: Long): List<Pair<String, String>> {
+    suspend fun discover(context: Context, ms: Long, type: String = SERVICE): List<Pair<String, String>> {
         val nsd = context.getSystemService(NsdManager::class.java) ?: return emptyList()
         val out = java.util.concurrent.CopyOnWriteArrayList<Pair<String, String>>()
         val me = Progress.of(context).device
@@ -299,7 +300,7 @@ object DeviceSync {
                         @Suppress("DEPRECATION") val host = i.host?.hostAddress ?: return
                         out.removeAll { it.first == i.serviceName }
                         out += i.serviceName to "$host:${i.port}"
-                        found.value = out.toList()
+                        if (type == SERVICE) found.value = out.toList()
                     }
                     override fun onResolveFailed(i: NsdServiceInfo, e: Int) { Log.w("kumapie", "sync: resolve ${i.serviceName}: $e") }
                 })
@@ -310,7 +311,7 @@ object DeviceSync {
             override fun onStartDiscoveryFailed(type: String, e: Int) { Log.w("kumapie", "sync: discovery $e") }
             override fun onStopDiscoveryFailed(type: String, e: Int) {}
         }
-        runCatching { nsd.discoverServices(SERVICE, NsdManager.PROTOCOL_DNS_SD, listener) }.onFailure { return emptyList() }
+        runCatching { nsd.discoverServices(type, NsdManager.PROTOCOL_DNS_SD, listener) }.onFailure { return emptyList() }
         try { delay(ms) } finally { runCatching { nsd.stopServiceDiscovery(listener) } }
         return out.toList()
     }

@@ -40,7 +40,7 @@ class TvAniListTest {
 
     private fun press(k: Key) { rule.onRoot().performKeyInput { pressKey(k) }; rule.waitForIdle() }
 
-    private fun open() = rule.setContent { SettingsScreen(Settings(LocalContext.current), firstRun = false, onSaved = {}, onUpdate = {}) }
+    private fun open() = rule.setContent { SettingsScreen(Settings(LocalContext.current), onSaved = {}, onUpdate = {}) }
 
     @Test fun stateLineSaysLoggedInLoggedOutOrExpired() {
         assertEquals("Not logged in", AniListAccount.summary("", "", false))
@@ -112,7 +112,7 @@ class TvAniListTest {
         rule.setContent {
             val context = LocalContext.current
             if (inButtons.value) Button(onClick = { inButtons.value = false }) { androidx.tv.material3.Text("Back from buttons") }
-            else SettingsScreen(Settings(context), firstRun = false, onSaved = {}, onUpdate = {}, onButtons = { inButtons.value = true })
+            else SettingsScreen(Settings(context), onSaved = {}, onUpdate = {}, onButtons = { inButtons.value = true })
         }
         rule.waitUntil(5_000) { focused() == "Log in with AniList" }
         rule.onNodeWithText("Change buttons").requestFocus()

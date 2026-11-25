@@ -37,7 +37,7 @@ class SetupCheckTest {
     }
 
     @Test fun noPcAndNothingSetSaysWhatToAdd() {
-        val s = settings().apply { standalone = true }
+        val s = settings()
         assertEquals(listOf("The PC" to Verdict.OK, "Jimaku" to Verdict.WARN, "Stremio addons" to Verdict.FAIL), verdicts(s))
     }
 }

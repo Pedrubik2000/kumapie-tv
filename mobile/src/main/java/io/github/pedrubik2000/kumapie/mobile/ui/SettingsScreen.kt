@@ -69,28 +69,12 @@ internal val SECTIONS = listOf(
 /**
  * Settings: seven sections, each row with a one-line summary; a phone opens one at a time, a wide screen shows the
  * list and the open section side by side. [section] opens one directly (the Add sheet's "Open Settings").
- * The first run shows only the language, the PC's address and copying from another device.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(library: Library, firstRun: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
+fun SettingsScreen(library: Library, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
                    section: String? = null) {
     val settings = library.settings
-    if (firstRun) {
-        Scaffold(topBar = { TopAppBar(title = { Text(tr("Welcome to kumapie")) }) }) { padding ->
-            Page(Modifier.padding(padding)) {
-                MenuLanguage(settings)
-                ServerSection(library, onSaved)
-                // No PC: the app alone (kumapie_plan.md "for other people"); a server can still be added later in Settings.
-                Text(tr("No server? kumapie also works on its own."), color = Colors.dim, fontSize = 14.sp)
-                Button(onClick = { settings.standalone = true; onSaved() }) { Text(tr("Use without a server")) }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                TransferSection()
-                Version()
-            }
-        }
-        return
-    }
     var open by remember { mutableStateOf(section) }
     var colouring by remember { mutableStateOf(false) }
     if (colouring) return WordColouringScreen(library, onboarding = false, onBack = { colouring = false })

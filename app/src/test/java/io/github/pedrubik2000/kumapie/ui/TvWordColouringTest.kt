@@ -87,7 +87,7 @@ class TvWordColouringTest {
     }
 
     @Test fun backFromTheScreenReturnsToSettingsOnTheButton() {
-        rule.setContent { SettingsScreen(Settings(RuntimeEnvironment.getApplication()), firstRun = false, onSaved = {}, onUpdate = {}) }
+        rule.setContent { SettingsScreen(Settings(RuntimeEnvironment.getApplication()), onSaved = {}, onUpdate = {}) }
         rule.onNodeWithText("Word colouring: on", substring = true).requestFocus()
         press(Key.DirectionCenter)
         rule.onNodeWithText("Colour words in subtitles").assertExists()

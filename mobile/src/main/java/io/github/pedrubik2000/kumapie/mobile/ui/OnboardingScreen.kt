@@ -67,7 +67,8 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     val flow = remember { MainDeviceFlow(prefs, LivePairing(context.applicationContext)) }
     val phase by flow.phase.collectAsState()
     val pairing = ((phase as? MainDeviceFlow.Phase.Waiting)?.hub ?: (phase as? MainDeviceFlow.Phase.Ready)?.hub)?.let { it.name.ifEmpty { it.address } }.orEmpty()
-    val items = remember(rev, current, pairing) { Onboarding.list(done, copied, ja, details(settings, pairing), current) }
+    var pcSelected by remember { mutableStateOf(false) }
+    val items = remember(rev, current, pairing, pcSelected) { Onboarding.list(done, copied, ja, details(settings, pairing), current, pcSelected && current == Onboarding.MAIN) }
     val counted = Onboarding.counted(ja)
     SideEffect { stepNow = current }
     val caption = tr("Step %1\$d of %2\$d", counted.indexOf(current) + 1, counted.size) + " · " +
@@ -87,7 +88,7 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     when (current) {
                         Onboarding.LANGUAGE -> LanguagePage(settings) { complete(current) }
-                        Onboarding.MAIN -> MainDeviceStep(flow, hostScope, caption, Onboarding.MAIN !in done) { if (stepNow == Onboarding.MAIN) go(null) else rev++ }
+                        Onboarding.MAIN -> MainDeviceStep(flow, hostScope, caption, Onboarding.MAIN !in done, { pcSelected = it }, onDone) { if (stepNow == Onboarding.MAIN) go(null) else rev++ }
                         Onboarding.ANILIST -> AniListPage(settings, caption, from.takeIf { Onboarding.ANILIST in copied }) { complete(current) }
                         Onboarding.VIDEOS -> VideosPage(settings, caption, from.takeIf { Onboarding.VIDEOS in copied }) { complete(current) }
                         else -> DownloadsPage(library, caption) {
@@ -119,7 +120,7 @@ private fun SideList(items: List<Onboarding.Item>, current: String, open: (Strin
             val on = i.step == current
             val ink = if (on) Color.Black else Color.White
             Column(Modifier.fillMaxWidth().clickable { open(i.step) }.then(if (on) Modifier.background(Color.White, RoundedCornerShape(14.dp)) else Modifier).padding(12.dp)) {
-                Text((if (i.state == State.DONE || i.state == State.COPIED) "✓ " else "") + i.label, color = ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text((if (i.state == State.DONE || i.state == State.COPIED) "✓ " else "") + i.label, color = if (i.state == State.PC) Glass.dim else ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Text(i.sub, color = if (on) Color(0xFF444444) else Glass.dim, fontSize = 13.sp)
             }
         }

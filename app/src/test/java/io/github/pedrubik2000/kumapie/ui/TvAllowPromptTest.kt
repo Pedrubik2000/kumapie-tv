@@ -53,6 +53,20 @@ class TvAllowPromptTest {
         assertTrue(DeviceSync.asking.value.isEmpty())
     }
 
+    @Test fun anAskTheClientStoppedPollingNeverShowsAndOneThatGoesStaleClosesByItself() {
+        var t = 1_000_000L
+        val gone = DeviceSync.Asking("Gone", "x", "y").apply { seen = t - 30_000 }
+        val going = DeviceSync.Asking("Tablet", "s3cret", "pubkey").apply { seen = t - 19_500 }
+        DeviceSync.asking.value = listOf(gone, going)
+        rule.setContent { TvAllowPrompt(hold = false, onSettings = {}, guardMs = 0, clock = { t }) }
+        rule.waitForIdle()
+        rule.onNodeWithText("Gone wants", substring = true).assertDoesNotExist()
+        rule.onNodeWithText("Tablet wants to pair. Code ${going.code}.").assertIsDisplayed()
+        t += 1_000
+        rule.mainClock.advanceTimeBy(5_100)
+        rule.onNodeWithText("Tablet wants", substring = true).assertDoesNotExist()
+    }
+
     @Test fun backIsNotNowAndFocusReturnsToTheScreenBehind() {
         rule.setContent { Column { Button(onClick = {}) { Text("Behind") }; TvAllowPrompt(hold = false, onSettings = {}) } }
         rule.onNodeWithText("Behind").requestFocus()

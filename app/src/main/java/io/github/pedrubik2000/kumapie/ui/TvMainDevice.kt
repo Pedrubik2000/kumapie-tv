@@ -31,6 +31,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -135,7 +136,7 @@ private fun MainStatus(phase: Phase) {
         is Phase.Waiting -> if (phase.code.isEmpty()) Text(tr("Pairing…"), color = Colors.text, fontSize = 18.sp) else {
             Text(tr("Pair code: tap Allow on %1\$s when it shows %2\$s.", phase.hub.name, phase.code), color = Colors.text, fontSize = 18.sp)
             Text(tr("Waiting for you to tap Allow on %s…", phase.hub.name), color = Colors.dim, fontSize = 16.sp)
-            Text(tr("Allow shows in Settings > Sync with another device on %s", phase.hub.name), color = Colors.dim, fontSize = 14.sp)
+            if (phase.old) Text(tr("Allow shows in Settings > Sync with another device on %s", phase.hub.name), color = Colors.dim, fontSize = 14.sp)
         }
         is Phase.Done -> Unit
         is Phase.Ready -> if (phase.got == SetupBundle.Got.Pc) Text(tr("This hub uses a PC: there is nothing to copy from it. Set this device up here."), color = Colors.accent, fontSize = 18.sp)
@@ -183,7 +184,7 @@ private fun HubCard(hub: Hub, selected: Boolean, code: String?, modifier: Modifi
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(10.dp).background(Color(0xFF6CC47C), CircleShape))
         Column(Modifier.weight(1f)) {
-            Text(tr("kumapie on %s", hub.name), color = Colors.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text(tr("kumapie on %s", hub.name), color = Colors.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(tr("%1\$s · main server · found on this network", hub.address), color = Colors.dim, fontSize = 14.sp)
         }
         code?.forEach { digit ->

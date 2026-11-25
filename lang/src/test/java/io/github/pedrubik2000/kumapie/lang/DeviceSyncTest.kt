@@ -27,6 +27,21 @@ class DeviceSyncTest {
         assertFalse(DeviceSync.verify(secret, body, null))
     }
 
+    @Test fun anAddressWithoutAPortGetsTheSyncPortAndATypedPortStays() {
+        assertEquals("192.168.0.5:47823", DeviceSync.withPort("192.168.0.5"))
+        assertEquals("127.0.0.1:47823", DeviceSync.withPort(" 127.0.0.1 "))
+        assertEquals("192.168.0.5:9000", DeviceSync.withPort("192.168.0.5:9000"))
+        assertEquals("", DeviceSync.withPort(" "))
+    }
+
+    @Test fun asksNotSeenForOverTwentySecondsDropOut() {
+        val fresh = DeviceSync.Asking("A", "s", "p").apply { seen = 100_000 }
+        val old = DeviceSync.Asking("B", "s", "p").apply { seen = 79_000 }
+        assertEquals(listOf(fresh), DeviceSync.live(listOf(fresh, old), 100_000))
+        assertEquals(listOf(fresh, old), DeviceSync.live(listOf(fresh, old), 99_000))
+        assertEquals(emptyList<DeviceSync.Asking>(), DeviceSync.live(listOf(fresh), 120_001))
+    }
+
     @Test fun aPcStaysTheServerAndUnpairedRequestsAreRefused() {
         val body = "{}".toByteArray()
         val sig = DeviceSync.sign(secret, body)

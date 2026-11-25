@@ -33,9 +33,11 @@ import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.DeviceSync
 @Composable
-internal fun TvAllowPrompt(hold: Boolean, onSettings: () -> Unit, paceMs: Long = 10_000, guardMs: Long = 500) {
+internal fun TvAllowPrompt(hold: Boolean, onSettings: () -> Unit, paceMs: Long = 10_000, guardMs: Long = 500, clock: () -> Long = System::currentTimeMillis) {
     val context = LocalContext.current
-    val asking by DeviceSync.asking.collectAsState()
+    val raw = DeviceSync.asking.collectAsState().value
+    val now = rememberNow(raw.isNotEmpty(), clock = clock)
+    val asking = DeviceSync.live(raw, now)
     val conflicts by DeviceSync.conflicts.collectAsState()
     val later = rememberSaveable { mutableStateListOf<String>() }
     val pending = asking.filter { "${it.device}/${it.code}" !in later }

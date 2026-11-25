@@ -15,12 +15,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.DeviceSync
+import io.github.pedrubik2000.kumapie.ui.rememberNow
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun AllowPrompt(hold: Boolean, onSettings: () -> Unit, paceMs: Long = 10_000) {
+internal fun AllowPrompt(hold: Boolean, onSettings: () -> Unit, paceMs: Long = 10_000, clock: () -> Long = System::currentTimeMillis) {
     val context = LocalContext.current
-    val asking by DeviceSync.asking.collectAsState()
+    val raw = DeviceSync.asking.collectAsState().value
+    val now = rememberNow(raw.isNotEmpty(), clock = clock)
+    val asking = DeviceSync.live(raw, now)
     val conflicts by DeviceSync.conflicts.collectAsState()
     val later = rememberSaveable { mutableStateListOf<String>() }
     val pending = asking.filter { "${it.device}/${it.code}" !in later }

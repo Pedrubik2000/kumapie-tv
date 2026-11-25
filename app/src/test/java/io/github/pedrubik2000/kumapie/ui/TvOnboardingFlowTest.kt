@@ -55,7 +55,7 @@ class TvOnboardingFlowTest {
     private class Fake(val hubs: List<Pair<String, String>>, val allowed: DeviceSync.Poll, val got: SetupBundle.Got, val onApply: () -> Unit) : Pairing {
         private var asked: MainDeviceFlow.Hub? = null
         override suspend fun discover(ms: Long) = hubs
-        override suspend fun ask(name: String, address: String) = "4829".also { asked = MainDeviceFlow.Hub(name, address) }
+        override suspend fun ask(name: String, address: String) = DeviceSync.Asked("4829").also { asked = MainDeviceFlow.Hub(name, address) }
         override suspend fun allowed() = allowed
         override suspend fun fetch() = got
         override fun apply(got: SetupBundle.Got.Ok, ticked: Set<String>) = onApply()

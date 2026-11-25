@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface Pairing {
     suspend fun discover(ms: Long): List<Pair<String, String>>
-    suspend fun ask(name: String, address: String): String
+    suspend fun ask(name: String, address: String): DeviceSync.Asked
     suspend fun allowed(): DeviceSync.Poll
     suspend fun fetch(): SetupBundle.Got
     fun apply(got: SetupBundle.Got.Ok, ticked: Set<String>)
@@ -41,7 +41,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
     sealed interface Phase {
         data object Looking : Phase
         data class Pick(val hubs: List<Hub>, val notice: String = "") : Phase
-        data class Waiting(val hub: Hub, val code: String) : Phase
+        data class Waiting(val hub: Hub, val code: String, val old: Boolean = false) : Phase
         data class Ready(val hub: Hub, val got: SetupBundle.Got) : Phase
         data class Done(val hub: String, val copied: Set<String>) : Phase
     }
@@ -57,7 +57,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
         }
         when (val now = state.value) {
             is Phase.Ready, is Phase.Pick, is Phase.Done -> return
-            is Phase.Waiting -> if (now.code.isBlank()) look() else poll(now.hub, now.code)
+            is Phase.Waiting -> if (now.code.isBlank()) look() else poll(now.hub, now.code, now.old)
             is Phase.Looking -> if (pairing.peer() != null && !pairing.hasKey() && Onboarding.MAIN !in Onboarding.done(prefs)) look(tr("Pair again: the app was closed while waiting")) else look()
         }
     }
@@ -68,12 +68,13 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
         state.value = Phase.Pick(pairing.discover(DISCOVER_MS).map { Hub(it.first, it.second) }, notice)
     }
 
-    suspend fun pair(hub: Hub) {
+    suspend fun pair(typed: Hub) {
         if (state.value is Phase.Waiting) return
+        val hub = typed.copy(address = DeviceSync.withPort(typed.address))
         val again = pending?.takeIf { it.hub.address == hub.address && pairing.hasKey() && pairing.peer() != null }
-        if (again != null) return poll(again.hub, again.code)
+        if (again != null) return poll(again.hub, again.code, again.old)
         state.value = Phase.Waiting(hub, "")
-        val code = try {
+        val asked = try {
             pairing.ask(hub.name, hub.address)
         } catch (c: CancellationException) {
             throw c
@@ -85,11 +86,11 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
             Log.w("kumapie", "pair: ${e.javaClass.simpleName}: ${e.message}")
             return fail(tr("Couldn't reach %s", hub.name.ifEmpty { hub.address }))
         }
-        poll(hub.copy(name = hub.name.ifEmpty { pairing.peer()?.name.orEmpty() }), code)
+        poll(hub.copy(name = hub.name.ifEmpty { pairing.peer()?.name.orEmpty() }), asked.code, asked.old)
     }
 
-    private suspend fun poll(hub: Hub, code: String) {
-        pending = Phase.Waiting(hub, code).also { state.value = it }
+    private suspend fun poll(hub: Hub, code: String, old: Boolean) {
+        pending = Phase.Waiting(hub, code, old).also { state.value = it }
         var heard = clock()
         val end = heard + DEADLINE_MS
         while (clock() < end) {

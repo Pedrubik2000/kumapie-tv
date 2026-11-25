@@ -22,6 +22,7 @@ import org.robolectric.annotation.Config
 private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(emptyMap(), emptyMap())) : Pairing {
     var asked: Hub? = null
     var asks = 0
+    var oldHub = false
     var calls = 0
     var key = true
     var fails: Exception? = null
@@ -29,7 +30,7 @@ private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(e
     var applied: Set<String>? = null
     private var at = 0
     override suspend fun discover(ms: Long) = listOf("Tab S7+" to "192.168.0.154:47823")
-    override suspend fun ask(name: String, address: String): String { fails?.let { throw it }; asks++; asked = Hub(name, address); return "4829" }
+    override suspend fun ask(name: String, address: String): DeviceSync.Asked { fails?.let { throw it }; asks++; asked = Hub(name, address); return DeviceSync.Asked("4829", oldHub) }
     override suspend fun allowed(): Poll { calls++; return polls[minOf(at++, polls.size - 1)] }
     fun script(p: List<Poll>) { polls = p; at = 0 }
     override suspend fun fetch() = got
@@ -48,6 +49,25 @@ class MainDeviceFlowTest {
     private val bundle = Got.Ok(
         mapOf("anilist" to JSONObject().put("anilist_user", "pedro"), "keys" to JSONObject().put("rd_token", "x").put("jimaku_key", "y").put("addons", "a"), "colouring" to JSONObject().put("plain_words", false)),
         mapOf("anilist" to "pedro"))
+
+    @Test fun aTypedAddressWithoutAPortAsksOnTheSyncPortAndATypedPortStays() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED))
+        MainDeviceFlow(prefs, pairing) {}.pair(Hub("", "127.0.0.1"))
+        assertEquals("127.0.0.1:47823", pairing.asked?.address)
+        MainDeviceFlow(prefs, pairing) {}.pair(Hub("", "192.168.0.5:9000"))
+        assertEquals("192.168.0.5:9000", pairing.asked?.address)
+    }
+
+    @Test fun waitingKnowsWhenTheHubIsOldSoTheSettingsHintShowsOnlyThen() = runBlocking {
+        for (old in listOf(false, true)) {
+            val pairing = FakePairing(listOf(Poll.WAITING, Poll.ALLOWED)).apply { oldHub = old }
+            lateinit var flow: MainDeviceFlow
+            var during: Phase? = null
+            flow = MainDeviceFlow(prefs, pairing) { during = flow.phase.value }
+            flow.pair(hub)
+            assertEquals(Phase.Waiting(hub, "4829", old), during)
+        }
+    }
 
     @Test fun freshPathMarksMainAndAsksTheRest() {
         Onboarding.markDone(prefs, "language")

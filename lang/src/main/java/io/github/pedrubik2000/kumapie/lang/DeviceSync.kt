@@ -48,15 +48,16 @@ object DeviceSync {
     private const val LAST = "sync_last"
     private const val WORK = "device-sync"
     private const val CONFLICT_MS = 10 * 60_000L
-    private const val STALE_MS = 20_000L
+    internal const val STALE_MS = 20_000L
     private const val DEAD_MS = 120_000L
     private const val TWO = "Two devices asked with the same name: pair again."
 
     class Peer(val name: String, val address: String, val secret: String)
     class Asking(val device: String, val secret: String, val pub: String = "") {
-        @Volatile var seen = 0L
+        @Volatile var seen = System.currentTimeMillis()
         val code: String get() = code(secret, pub)
     }
+    class Asked(val code: String, val old: Boolean = false)
     class Answer(val status: Int, val body: ByteArray, val sig: String? = null)
     class Conflict(line: String) : IOException(line)
 
@@ -67,6 +68,10 @@ object DeviceSync {
     private val lock = Mutex()
 
     fun code(secret: String, pub: String = ""): String = BigInteger(1, mac(secret, "pair".toByteArray() + pub.toByteArray())).mod(BigInteger.valueOf(10_000)).toString().padStart(4, '0')
+
+    fun live(list: List<Asking>, now: Long = System.currentTimeMillis()): List<Asking> = list.filter { now - it.seen <= STALE_MS }
+
+    fun withPort(address: String): String = address.trim().let { if (it.isEmpty() || ':' in it) it else "$it:$PORT" }
 
     fun sign(secret: String, body: ByteArray): String = mac(secret, body).joinToString("") { "%02x".format(it) }
 
@@ -129,13 +134,14 @@ object DeviceSync {
 
     suspend fun pair(context: Context, address: String): String {
         if (Settings(context).server.isNotEmpty()) return tr("This device syncs with its PC.")
-        val code = ask(context, "", address)
+        val code = ask(context, "", address).code
         start(context)
         val name = with(Settings(context))?.name.orEmpty()
         return tr("On %1\$s, allow %2\$s (code %3\$s). Then it syncs.", name, Progress.of(context).device, code)
     }
 
-    suspend fun ask(context: Context, name: String, address: String): String = withContext(Dispatchers.IO) {
+    suspend fun ask(context: Context, name: String, typed: String): Asked = withContext(Dispatchers.IO) {
+        val address = withPort(typed)
         val settings = Settings(context)
         check(settings.server.isEmpty()) { tr("This device syncs with its PC.") }
         val secret = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
@@ -146,7 +152,7 @@ object DeviceSync {
         val reply = JSONObject(String(a.body))
         val who = name.ifEmpty { reply.getString("device") }
         settings.prefs.edit().putString(WITH, JSONObject().put("name", who).put("address", address).put("secret", secret).toString()).apply()
-        shown(secret, pub, reply)
+        Asked(shown(secret, pub, reply), !reply.optBoolean("setup"))
     }
 
     internal fun shown(secret: String, pub: String, reply: JSONObject): String = if (reply.optBoolean("setup")) code(secret, pub) else code(secret)

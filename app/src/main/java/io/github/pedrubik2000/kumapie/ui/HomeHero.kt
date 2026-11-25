@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -49,8 +51,17 @@ import io.github.pedrubik2000.kumapie.data.resumeLine
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.delay
 
+class Spot(val at: Int, val index: Int, val key: Any)
+
 @Stable
-class HomeFocus(first: HeroTarget?) {
+class HomeMemory {
+    var last: Spot? = null
+}
+
+@Stable
+class HomeFocus(first: HeroTarget?, val memory: HomeMemory = HomeMemory()) {
+    private val cards = HashMap<String, FocusRequester>()
+    val rows = HashMap<Int, LazyListState>()
     var target by mutableStateOf(first)
     var row by mutableIntStateOf(0)
     val tall: Boolean get() = target.let { it == null || it is ResumeTarget }
@@ -61,6 +72,34 @@ class HomeFocus(first: HeroTarget?) {
         val r = starts.getOrPut(key) { FocusRequester() }
         return Modifier.focusRequester(r).onFocusChanged { if (it.isFocused) back = r }
     }
+
+    fun card(at: Int, key: Any): Modifier {
+        val id = "$at:$key"
+        return Modifier.focusRequester(cards.getOrPut(id) { FocusRequester() })
+            .onFocusChanged { if (it.isFocused && memory.last?.let { m -> "${m.at}:${m.key}" } != id) memory.last = null }
+    }
+
+    fun leaving(at: Int, index: Int, key: Any) { memory.last = Spot(at, index, key) }
+
+    suspend fun restore(list: LazyListState): Boolean {
+        val s = memory.last ?: return false
+        repeat(RESTORE_FRAMES) {
+            if (memory.last !== s) return true
+            runCatching { list.scrollToItem(s.at) }
+            runCatching { rows[s.at]?.scrollToItem(s.index) }
+            withFrameNanos { }
+            if (cards["${s.at}:${s.key}"]?.let { runCatching { it.requestFocus() }.getOrDefault(false) } == true) {
+                if (memory.last === s) memory.last = null
+                return true
+            }
+        }
+        if (memory.last === s) memory.last = null
+        runCatching { list.scrollToItem(0) }
+        runCatching { rows[s.at]?.scrollToItem(0) }
+        return false
+    }
+
+    fun settled(): Modifier = Modifier.onFocusChanged { if (it.isFocused) memory.last = null }
 
     fun forget(): Modifier = Modifier.onFocusChanged { if (it.isFocused) back = null }
 
@@ -76,6 +115,7 @@ class HomeFocus(first: HeroTarget?) {
     }
 }
 
+private const val RESTORE_FRAMES = 30
 internal const val LOGIN_START = "login"
 
 private val HERO_HEIGHT = 390.dp
@@ -96,13 +136,13 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
         GlyphWarm(warm.first, warm.second, Modifier.matchParentSize())
         HeroBackdrop(picture, { if (focus.tall) FADE_TALL else FADE_SHORT }, Modifier.matchParentSize())
         when (val t = focus.target) {
-            is ResumeTarget -> ResumeText(t, first, below, onPlay, onShow)
+            is ResumeTarget -> ResumeText(t, focus, first, below, onPlay, onShow)
             is ContinueTarget -> InfoText(t, t.facts(), emptyList(), levels)
             is ListTarget -> InfoText(t, t.facts(), t.chips(), levels)
             is FoundTarget -> Unit
             null -> Row(Modifier.padding(start = RAIL, top = 96.dp, end = 32.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(tr("Find something to watch in Discover: what you play shows up here."), color = Colors.dim, modifier = Modifier.weight(1f, fill = false))
-                Button(onClick = onDiscover, modifier = (if (emptyHome) Modifier.focusRequester(first) else Modifier).then(focus.forget())
+                Button(onClick = onDiscover, modifier = (if (emptyHome) Modifier.focusRequester(first) else Modifier).then(focus.forget()).then(focus.settled())
                     .focusProperties { if (emptyHome) down = if (hasBelow) below else FocusRequester.Cancel }) { Text(tr("Find something to watch")) }
             }
         }
@@ -140,7 +180,7 @@ internal fun Eyebrow(text: String) =
     Text(text, color = WHITE_DIM, fontSize = 14.sp, letterSpacing = 3.sp, style = Arcade.label)
 
 @Composable
-private fun ResumeText(t: ResumeTarget, first: FocusRequester, below: FocusRequester, onPlay: (Show, Episode) -> Unit, onShow: (Show) -> Unit) {
+private fun ResumeText(t: ResumeTarget, focus: HomeFocus, first: FocusRequester, below: FocusRequester, onPlay: (Show, Episode) -> Unit, onShow: (Show) -> Unit) {
     val e = t.episode
     Column(Modifier.padding(start = RAIL, top = 72.dp, end = 24.dp).width(600.dp)) {
         Eyebrow(t.eyebrow())
@@ -149,7 +189,7 @@ private fun ResumeText(t: ResumeTarget, first: FocusRequester, below: FocusReque
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         if (e.duration > 0) ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(380.dp).padding(top = 12.dp))
         Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = { onPlay(t.show, e) }, modifier = Modifier.hint(HintKind.HERO).focusRequester(first).focusProperties { down = below }) { Text("▶  " + tr("Resume")) }
+            Button(onClick = { onPlay(t.show, e) }, modifier = Modifier.hint(HintKind.HERO).focusRequester(first).then(focus.settled()).focusProperties { down = below }) { Text("▶  " + tr("Resume")) }
             Button(onClick = { onShow(t.show) }, modifier = Modifier.hint(HintKind.HERO).focusProperties { down = below }) { Text(tr("Episodes")) }
         }
     }

@@ -1,5 +1,22 @@
 package io.github.pedrubik2000.kumapie.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import io.github.pedrubik2000.kumapie.data.Show
+import kotlinx.coroutines.runBlocking
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -102,6 +119,138 @@ class TvHomeFocusTest {
     }
 
     private fun waitForCard(title: String) = rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription(title).fetchSemanticsNodes().isNotEmpty() }
+
+    private val memory = HomeMemory()
+
+    private fun openReturning() {
+        rule.setContent {
+            val settings = Settings(LocalContext.current)
+            val t = tick
+            if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro", onShow = {}, onPlay = { _, _ -> home = false },
+                onSettings = {}, onStats = {}, onProfiles = {}, onLibrary = {}, onDiscover = {}, onDiscovered = { home = false },
+                lists = { if (t < 0) emptyList() else null }, memory = memory)
+        }
+        rule.waitUntil(5_000) { focused() == RESUME }
+    }
+
+    private fun openAndComeBack(vararg to: Long, card: String, meanwhile: () -> Unit = {}) {
+        press(*to)
+        assertEquals(card, focused())
+        press(OK)
+        assertEquals(false, home)
+        meanwhile()
+        home = true
+        rule.waitUntil(5_000) { focused() == card }
+    }
+
+    @Test fun backFromAContinueWatchingCardsTitlePageFocusesThatCard() {
+        openReturning()
+        openAndComeBack(DOWN, RIGHT, card = "Beta")
+        rule.onNodeWithText("CONTINUE WATCHING · 2 OF 2").assertExists()
+    }
+
+    @Test fun theCardStaysFocusedWhenHomeRefreshesWithEqualContentAfterTheReturn() {
+        openReturning()
+        openAndComeBack(DOWN, RIGHT, card = "Beta")
+        tick++
+        rule.waitForIdle()
+        Thread.sleep(500)
+        rule.waitForIdle()
+        assertEquals("Beta", focused())
+    }
+
+    @Test fun theShowsCardStaysFocusedWhenItsRowNowOffersTheNextEpisode() {
+        openReturning()
+        openAndComeBack(DOWN, card = "Alpha") {
+            showsBody = """{"shows":[${show("a", "Alpha", "anime", episode("a2", 300.0, 200))},${show("b", "Beta", "anime", episode("b1", 500.0, 100))}]}"""
+        }
+    }
+
+    @Test fun aCardThatIsGoneFallsBackToResumeAndForgetsIt() {
+        openReturning()
+        press(DOWN, RIGHT)
+        assertEquals("Beta", focused())
+        press(OK)
+        showsBody = """{"shows":[${show("a", "Alpha", "anime", episode("a1", 300.0, 200))}]}"""
+        home = true
+        rule.waitUntil(5_000) { focused() == RESUME }
+        assertEquals(null, memory.last)
+    }
+
+    private var body by mutableStateOf<HomeData?>(null)
+
+    private fun openBody(vararg titles: String) {
+        val api = Api("http://127.0.0.1:${server.address.port}")
+        allShows = runBlocking { api.shows() }
+        body = bodyData(*titles)
+        rule.setContent {
+            var contentFocused by remember { mutableStateOf(false) }
+            val focus = remember { HomeFocus(body?.resume) }
+            val first = remember { FocusRequester() }
+            Box(Modifier.fillMaxSize().onFocusChanged { contentFocused = it.hasFocus }.focusGroup()) {
+                body?.let { HomeBody(it, focus, api, null, first, emptyMap(), {}, { _, _ -> }, {}, {}, {}) { contentFocused } }
+            }
+        }
+        rule.waitUntil(5_000) { focused() == RESUME }
+    }
+
+    private var allShows = emptyList<Show>()
+
+    private fun bodyData(vararg t: String) = HomeData(t.map { n -> allShows.first { it.title == n }.let { it to it.episodes.first() } }, emptyList(), false, emptyList())
+
+    @Test fun aLateGoingListDoesNotPullFocusOffACardTheUserSitsOn() {
+        openBody("Alpha", "Beta")
+        press(DOWN, RIGHT)
+        assertEquals("Beta", focused())
+        body = bodyData("Alpha", "Beta", "Gamma")
+        rule.waitForIdle()
+        Thread.sleep(500)
+        rule.waitForIdle()
+        assertEquals("Beta", focused())
+    }
+
+    @Test fun aFocusedCardThatDropsOutOfARefreshLeavesFocusOnTheRemainingCardOrResume() {
+        openBody("Alpha", "Beta")
+        press(DOWN, RIGHT)
+        assertEquals("Beta", focused())
+        body = bodyData("Alpha")
+        rule.waitUntil(5_000) { focused() in setOf(RESUME, "Alpha") }
+    }
+
+    @Test fun aRestoreStopsAsSoonAsTheUserHasMovedOn() {
+        val mem = HomeMemory()
+        val moved = Spot(1, 1, "y")
+        var result: Boolean? = null
+        rule.setContent {
+            val list = rememberLazyListState()
+            LazyColumn(state = list) { items(3) { Box(Modifier.size(20.dp)) } }
+            LaunchedEffect(Unit) {
+                mem.last = Spot(0, 0, "x")
+                val job = launch { result = HomeFocus(null, mem).restore(list) }
+                withFrameNanos { }
+                mem.last = moved
+                job.join()
+            }
+        }
+        repeat(60) { if (result == null) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() } }
+        assertEquals(true, result)
+        assertEquals(moved, mem.last)
+    }
+
+    @Test fun backFromAListCardsTitlePageFocusesThatCard() {
+        logIn(mine("1", "Frieren", "CURRENT", progress = 11, episodes = 28), mine("2", "Dandadan", "PLANNING", progress = 0, episodes = 12))
+        openReturning()
+        waitForCard("Frieren")
+        openAndComeBack(DOWN, DOWN, card = "Frieren")
+    }
+
+    @Test fun backFromTheHeroResumeButtonStillFocusesResume() {
+        openReturning()
+        press(OK)
+        assertEquals(false, home)
+        home = true
+        rule.waitUntil(5_000) { focused() == RESUME }
+    }
 
     @Test fun resumeIsFocusedWhenHomeOpens() = openHome()
 

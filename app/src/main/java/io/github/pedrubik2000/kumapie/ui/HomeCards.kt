@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,10 +38,10 @@ import io.github.pedrubik2000.kumapie.data.shortTitle
 import io.github.pedrubik2000.kumapie.data.shown
 
 @Composable
-internal fun Shelf(title: String, inset: Dp = 16.dp, content: LazyListScope.() -> Unit) {
+internal fun Shelf(title: String, inset: Dp = 16.dp, state: LazyListState = rememberLazyListState(), content: LazyListScope.() -> Unit) {
     Column {
         Heading(title, Modifier.padding(start = inset))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(24.dp),
+        LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(24.dp),
             contentPadding = PaddingValues(horizontal = inset, vertical = 12.dp), content = content)
     }
 }

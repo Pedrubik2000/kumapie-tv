@@ -80,7 +80,7 @@ suspend fun liveLists(settings: Settings): List<Mine>? =
 fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String, onShow: (Show) -> Unit,
                onPlay: (Show, Episode) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit,
                onReview: (String) -> Unit = {}, onDiscover: () -> Unit = {}, onDiscovered: (Found) -> Unit = {}, onLibrary: () -> Unit = {},
-               jiten: JitenQueue? = null, lists: suspend (Settings) -> List<Mine>? = ::liveLists) {
+               jiten: JitenQueue? = null, lists: suspend (Settings) -> List<Mine>? = ::liveLists, memory: HomeMemory = remember { HomeMemory() }) {
     var attempt by remember { mutableIntStateOf(0) }
     val (shows, error) = loadShows(api, attempt)
     val langs = if (api !is Api) listOf("ja") else Lang.ALL.map { it.code }.filter { c -> shows.orEmpty().any { it.lang == c } }
@@ -92,7 +92,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
         value = lang?.let { l -> runCatching { if (api is Api) api.stats().langs[l] else aloneTotal(context, settings, l, shows.orEmpty()) }.getOrNull() }
     }
     val data = rememberHomeData(settings, lists, shows, lang, streams)
-    val focus = remember(data != null) { HomeFocus(data?.resume) }
+    val focus = remember(data != null) { HomeFocus(data?.resume, memory) }
     val railFocus = remember { mutableMapOf<String, FocusRequester>() }
     val first = remember { FocusRequester() }
     val rail = RailNav({}, onLibrary, onDiscover, { lang?.let(onReview) }, onStats, onSettings)
@@ -113,7 +113,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
                 error != null -> Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error, onRetry = { attempt++ }, onSettings = onSettings) }
                 shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
                 lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
-                data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover)
+                data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover) { contentFocused || railFocused }
             }
         }
         RailBackdrop()

@@ -169,6 +169,47 @@ class SetupBundleTest {
         assertEquals(200, DeviceSync.requested(prefs, "tab", secret, pub, "me").status)
     }
 
+    @Test fun aStaleRequestIsReplacedWithoutAConflict() {
+        fresh()
+        val prefs = Prefs()
+        DeviceSync.requested(prefs, "tab", secret, "A", "me", 1_000L)
+        assertEquals(202, DeviceSync.requested(prefs, "tab", other, "B", "me", 1_000L + 20_001L).status)
+        assertTrue(DeviceSync.conflicts.value.isEmpty())
+        assertEquals(other, DeviceSync.asking.value.single().secret)
+        fresh()
+    }
+
+    @Test fun aStaleRequestIsKeptWhenTheNewAskHasTheSameCode() {
+        fresh()
+        val prefs = Prefs()
+        DeviceSync.requested(prefs, "tab", secret, "A", "me", 1_000L)
+        val same = generateSequence(0) { it + 1 }.map { "p$it" }.first { DeviceSync.code(other, it) == DeviceSync.code(secret, "A") }
+        assertEquals(409, DeviceSync.requested(prefs, "tab", other, same, "me", 1_000L + 60_000L).status)
+        assertEquals(setOf("tab"), DeviceSync.conflicts.value)
+        fresh()
+    }
+
+    @Test fun anEntryUnseenForTwoMinutesIsDroppedOnTheNextRequest() {
+        fresh()
+        val prefs = Prefs()
+        DeviceSync.requested(prefs, "tab", secret, "A", "me", 1_000L)
+        DeviceSync.requested(prefs, "x", other, "B", "me", 1_000L + 119_000L)
+        assertEquals(2, DeviceSync.asking.value.size)
+        DeviceSync.requested(prefs, "x", other, "B", "me", 1_000L + 121_000L)
+        assertEquals(listOf("x"), DeviceSync.asking.value.map { it.device })
+        fresh()
+    }
+
+    @Test fun aRequestPolledWithin20SecondsIsLiveAndAConflictStillHappens() {
+        fresh()
+        val prefs = Prefs()
+        DeviceSync.requested(prefs, "tab", secret, "A", "me", 1_000L)
+        DeviceSync.requested(prefs, "tab", secret, "A", "me", 30_000L)
+        assertEquals(409, DeviceSync.requested(prefs, "tab", other, "B", "me", 45_000L).status)
+        assertEquals(setOf("tab"), DeviceSync.conflicts.value)
+        fresh()
+    }
+
     @Test fun aConflictStaysUntilDismissedOrTenMinutes() {
         fresh()
         val prefs = Prefs()

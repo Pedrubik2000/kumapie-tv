@@ -21,7 +21,7 @@ object Tr {
 
     // ponytail: one map per screen area, merged; add a file + a line here for a new area.
     private val es: Map<String, String> by lazy {
-        esCore + esHome + esPlayer + esSettings + esAdd + esOther + esTv + esNav + esColour + esOnboarding
+        esCore + esHome + esPlayer + esSettings + esAdd + esOther + esTv + esNav + esColour + esOnboarding + esOnbPhone
     }
 
     fun of(english: String): String = if (spanish) es[english] ?: english else english

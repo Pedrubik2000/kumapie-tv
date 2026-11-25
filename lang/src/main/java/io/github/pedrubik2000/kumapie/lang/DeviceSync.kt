@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.lang
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
@@ -46,17 +47,20 @@ object DeviceSync {
     private const val PEERS = "sync_peers"
     private const val LAST = "sync_last"
     private const val WORK = "device-sync"
+    private const val CONFLICT_MS = 10 * 60_000L
+    private const val TWO = "Two devices asked with the same name: pair again."
 
     class Peer(val name: String, val address: String, val secret: String)
-    class Asking(val device: String, val secret: String) { val code: String get() = code(secret) }
+    class Asking(val device: String, val secret: String, val pub: String = "") { val code: String get() = code(secret, pub) }
     class Answer(val status: Int, val body: ByteArray, val sig: String? = null)
 
     val asking = MutableStateFlow<List<Asking>>(emptyList())
+    val conflicts = MutableStateFlow<Set<String>>(emptySet())
     val found = MutableStateFlow<List<Pair<String, String>>>(emptyList())
     val last = MutableStateFlow("")
     private val lock = Mutex()
 
-    fun code(secret: String): String = BigInteger(1, mac(secret, "pair".toByteArray())).mod(BigInteger.valueOf(10_000)).toString().padStart(4, '0')
+    fun code(secret: String, pub: String = ""): String = BigInteger(1, mac(secret, "pair".toByteArray() + pub.toByteArray())).mod(BigInteger.valueOf(10_000)).toString().padStart(4, '0')
 
     fun sign(secret: String, body: ByteArray): String = mac(secret, body).joinToString("") { "%02x".format(it) }
 
@@ -85,7 +89,12 @@ object DeviceSync {
 
     fun forget(settings: Settings) = settings.prefs.edit().remove(WITH).apply()
 
-    private fun peers(settings: Settings) = runCatching { JSONObject(settings.prefs.getString(PEERS, "{}")!!) }.getOrDefault(JSONObject())
+    fun unpair(context: Context) {
+        forget(Settings(context))
+        WorkManager.getInstance(context).run { cancelUniqueWork(WORK); cancelUniqueWork("$WORK-now") }
+    }
+
+    private fun peers(prefs: SharedPreferences) = runCatching { JSONObject(prefs.getString(PEERS, "{}").orEmpty()) }.getOrDefault(JSONObject())
 
     private fun files(context: Context) = DeviceFiles(context, LangKit.get(context, Settings(context)).languages.all)
 
@@ -112,17 +121,47 @@ object DeviceSync {
         WorkManager.getInstance(context).enqueueUniqueWork("$WORK-now", ExistingWorkPolicy.REPLACE, OneTimeWorkRequestBuilder<DeviceSyncWorker>().build())
     }
 
-    suspend fun pair(context: Context, address: String): String = withContext(Dispatchers.IO) {
-        val settings = Settings(context)
-        if (settings.server.isNotEmpty()) return@withContext tr("This device syncs with its PC.")
-        val secret = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
-        val me = Progress.of(context).device
-        val a = post("http://$address/pair", JSONObject().put("device", me).put("secret", secret).toString().toByteArray(), emptyMap())
-        if (a.status !in 200..202) throw IOException(String(a.body))
-        val name = JSONObject(String(a.body)).getString("device")
-        settings.prefs.edit().putString(WITH, JSONObject().put("name", name).put("address", address).put("secret", secret).toString()).apply()
+    suspend fun pair(context: Context, address: String): String {
+        if (Settings(context).server.isNotEmpty()) return tr("This device syncs with its PC.")
+        val code = ask(context, "", address)
         start(context)
-        tr("On %1\$s, allow %2\$s (code %3\$s). Then it syncs.", name, me, code(secret))
+        val name = with(Settings(context))?.name.orEmpty()
+        return tr("On %1\$s, allow %2\$s (code %3\$s). Then it syncs.", name, Progress.of(context).device, code)
+    }
+
+    suspend fun ask(context: Context, name: String, address: String): String = withContext(Dispatchers.IO) {
+        val settings = Settings(context)
+        check(settings.server.isEmpty()) { tr("This device syncs with its PC.") }
+        val secret = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+        val pub = SetupBundle.begin()
+        val a = post("http://$address/pair", JSONObject().put("device", Progress.of(context).device).put("secret", secret).put("pub", pub).toString().toByteArray(), emptyMap())
+        if (a.status !in 200..202) throw IOException(String(a.body))
+        val reply = JSONObject(String(a.body))
+        val who = name.ifEmpty { reply.getString("device") }
+        settings.prefs.edit().putString(WITH, JSONObject().put("name", who).put("address", address).put("secret", secret).toString()).apply()
+        shown(secret, pub, reply)
+    }
+
+    internal fun shown(secret: String, pub: String, reply: JSONObject): String = if (reply.optBoolean("setup")) code(secret, pub) else code(secret)
+
+    enum class Poll { WAITING, ALLOWED, CONFLICT, GONE }
+
+    internal fun polled(a: Answer): Poll = when {
+        a.status == 200 -> Poll.ALLOWED
+        a.status == 409 && String(a.body) == TWO -> Poll.CONFLICT
+        else -> Poll.WAITING
+    }
+
+    fun conflictLine(name: String): String = tr("Two devices asked as %1\$s. Pair again.", name)
+
+    suspend fun allowed(context: Context): Poll = withContext(Dispatchers.IO) {
+        val settings = Settings(context)
+        val peer = with(settings) ?: return@withContext Poll.GONE
+        val pub = SetupBundle.pub() ?: return@withContext Poll.GONE
+        val body = JSONObject().put("device", Progress.of(context).device).put("secret", peer.secret).put("pub", pub).toString().toByteArray()
+        val poll = runCatching { polled(post("http://${peer.address}/pair", body, emptyMap())) }.getOrDefault(Poll.WAITING)
+        if (poll == Poll.CONFLICT) { forget(settings); SetupBundle.clearKey() }
+        poll
     }
 
     suspend fun syncNow(context: Context): String = withContext(Dispatchers.IO) {
@@ -161,18 +200,14 @@ object DeviceSync {
     internal fun answer(context: Context, path: String, device: String?, sig: String?, body: ByteArray): Answer {
         val settings = Settings(context)
         if (settings.server.isNotEmpty()) return Answer(409, tr("This device syncs with its PC.").toByteArray())
-        val me = Progress.of(context).device
+        val secret = device?.let { peers(settings.prefs).optString(it).ifEmpty { null } }
         return when (path) {
             "/pair" -> {
                 val o = JSONObject(String(body))
-                val who = o.getString("device")
-                val secret = o.getString("secret")
-                val reply = JSONObject().put("device", me).toString().toByteArray()
-                if (peers(settings).optString(who) == secret) Answer(200, reply)
-                else { asking.value = asking.value.filter { it.device != who } + Asking(who, secret); Answer(202, reply) }
+                requested(settings.prefs, o.getString("device"), o.getString("secret"), o.optString("pub"), Progress.of(context).device)
             }
+            "/setup" -> SetupBundle.serve(settings.server, secret, device, settings.prefs, body, sig, System.currentTimeMillis())
             "/sync" -> {
-                val secret = device?.let { peers(settings).optString(it).ifEmpty { null } }
                 refusal(settings.server, secret, body, sig) ?: runBlocking {
                     lock.withLock {
                         runCatching {
@@ -182,7 +217,7 @@ object DeviceSync {
                             files.apply(plan, o, files.isNew(plan.from))
                             say(settings, tr("%1\$s %2\$s synced · took: %3\$s", now(), plan.from, moved(plan.counts)))
                             val out = files.payload().apply { remove("cards"); put("moved", counts(plan)) }.toString().toByteArray()
-                            Answer(200, out, sign(secret!!, out))
+                            Answer(200, out, sign(requireNotNull(secret), out))
                         }.getOrElse { Answer(422, (it.message ?: it.toString()).toByteArray()) }
                     }
                 }
@@ -191,13 +226,38 @@ object DeviceSync {
         }
     }
 
-    fun allow(context: Context, a: Asking) {
-        val settings = Settings(context)
-        settings.prefs.edit().putString(PEERS, peers(settings).put(a.device, a.secret).toString()).apply()
+    private val conflictAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    fun dismissConflict(name: String) {
+        conflictAt.remove(name)
+        conflicts.value = conflicts.value - name
+    }
+
+    internal fun requested(prefs: SharedPreferences, who: String, asked: String, pub: String, me: String, now: Long = System.currentTimeMillis()): Answer {
+        val reply = JSONObject().put("device", me).put("setup", true).toString().toByteArray()
+        if (peers(prefs).optString(who) == asked) return Answer(200, reply)
+        if (who in conflicts.value && now - (conflictAt[who] ?: 0L) > CONFLICT_MS) dismissConflict(who)
+        if (who in conflicts.value) return Answer(409, TWO.toByteArray())
+        val old = asking.value.firstOrNull { it.device == who }
+        if (old != null && (old.secret != asked || old.pub != pub)) {
+            asking.value = asking.value.filter { it !== old }
+            conflictAt[who] = now
+            conflicts.value = conflicts.value + who
+            return Answer(409, TWO.toByteArray())
+        }
+        if (old == null) asking.value = asking.value + Asking(who, asked, pub)
+        return Answer(202, reply)
+    }
+
+    fun allow(context: Context, a: Asking) = allow(Settings(context).prefs, a, System.currentTimeMillis())
+
+    internal fun allow(prefs: SharedPreferences, a: Asking, now: Long) {
+        SetupBundle.grant(prefs, a.device, a.pub, now)
+        prefs.edit().putString(PEERS, peers(prefs).put(a.device, a.secret).toString()).apply()
         asking.value = asking.value.filter { it !== a }
     }
 
-    private fun post(url: String, body: ByteArray, headers: Map<String, String>): Answer = (URL(url).openConnection() as HttpURLConnection).run {
+    internal fun post(url: String, body: ByteArray, headers: Map<String, String>): Answer = (URL(url).openConnection() as HttpURLConnection).run {
         connectTimeout = 5_000
         readTimeout = 120_000
         requestMethod = "POST"

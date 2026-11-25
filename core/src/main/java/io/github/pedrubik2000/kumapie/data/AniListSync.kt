@@ -245,11 +245,11 @@ class AniListSync(
             return if (movie) 1 else 0
         }
 
-        fun forget(prefs: SharedPreferences) {
+        fun forget(prefs: SharedPreferences, e: SharedPreferences.Editor = prefs.edit(), save: Boolean = true) {
             resetState()
-            val e = prefs.edit().remove(QUEUE).remove(PAUSE).remove(OWN).remove("anilist_viewer")
+            e.remove(QUEUE).remove(PAUSE).remove(OWN).remove("anilist_viewer")
             prefs.all.keys.filter { it.startsWith(AniListLists.CACHE) }.forEach { e.remove(it) }
-            e.apply()
+            if (save) e.apply()
         }
 
         private fun number(n: Int, e: AniList.Entry): Int? =

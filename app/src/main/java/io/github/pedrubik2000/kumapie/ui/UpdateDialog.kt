@@ -1,7 +1,19 @@
 package io.github.pedrubik2000.kumapie.ui
 
 import io.github.pedrubik2000.kumapie.i18n.tr
+import android.view.KeyEvent
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +43,24 @@ import io.github.pedrubik2000.kumapie.BuildConfig
 import io.github.pedrubik2000.kumapie.update.Updater
 import kotlinx.coroutines.launch
 
+@Composable
+private fun ScrollingNotes(notes: String, modifier: Modifier) {
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    var focused by remember { mutableStateOf(false) }
+    Text(notes, color = Colors.text, fontSize = 15.sp,
+        modifier = modifier.onFocusChanged { focused = it.hasFocus }
+            .border(2.dp, if (focused) Colors.accent else Color.Transparent, RoundedCornerShape(8.dp))
+            .onPreviewKeyEvent {
+                val down = it.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                if (it.type != KeyEventType.KeyDown || !(down || it.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP)) return@onPreviewKeyEvent false
+                val room = if (down) scroll.canScrollForward else scroll.canScrollBackward
+                if (room) scope.launch { scroll.animateScrollBy(if (down) 120f else -120f) }
+                room
+            }
+            .focusable().verticalScroll(scroll).padding(8.dp))
+}
+
 /** "Version X is out": Update downloads it and hands it to Android's installer; Later closes. */
 @Composable
 fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
@@ -49,11 +79,11 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
     // moved behind the dialog (Chromecast, 2026-11-18).
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
     Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
-        Column(Modifier.width(640.dp).arcadePanel().padding(32.dp),
+        Column(Modifier.width(640.dp).heightIn(max = 460.dp).arcadePanel().padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Title("kumapie ${release.version} ", tr("is out"), fontSize = 26.sp)
             Text(tr("You have %s.", BuildConfig.VERSION_NAME), color = Colors.dim)
-            if (release.notes.isNotBlank()) Text(release.notes.take(600), color = Colors.text, fontSize = 15.sp)
+            if (release.notes.isNotBlank()) ScrollingNotes(release.notes, Modifier.weight(1f, fill = false))
             if (progress >= 0f) ProgressBar(progress, Modifier.fillMaxWidth())
             if (message.isNotEmpty()) Text(message, color = Colors.dim)
             Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {

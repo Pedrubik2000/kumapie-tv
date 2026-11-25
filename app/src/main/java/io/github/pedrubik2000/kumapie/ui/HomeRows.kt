@@ -21,6 +21,7 @@ import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -58,6 +59,7 @@ import io.github.pedrubik2000.kumapie.data.shown
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.launch
 
+private const val SETTLE_FRAMES = 2
 private val ROWS_TOP_TALL = 290.dp
 private val ROWS_TOP_SHORT = 250.dp
 
@@ -84,7 +86,7 @@ internal class RowCtx(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Levels?, first: FocusRequester, railFocus: Map<String, FocusRequester>,
-                      onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit, onDiscovered: (Found) -> Unit, onLogin: () -> Unit, onDiscover: () -> Unit) {
+                      onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit, onDiscovered: (Found) -> Unit, onLogin: () -> Unit, onDiscover: () -> Unit, held: () -> Boolean) {
     val list = rememberLazyListState(cacheWindow = LazyLayoutCacheWindow(ahead = 600.dp, behind = 600.dp))
     val scope = rememberCoroutineScope()
     val below = remember { FocusRequester() }
@@ -107,7 +109,10 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
     }
     LaunchedEffect(d.going) {
         val rail = takeRailLast()?.let { railFocus[it] }
-        if (rail != null) { focus.memory.last = null; rail.focusSoon() } else if (!focus.restore(list)) first.focusSoon()
+        if (rail != null) { focus.memory.last = null; rail.focusSoon() } else if (!focus.restore(list)) {
+            repeat(SETTLE_FRAMES) { withFrameNanos { } }
+            if (!held()) toTop()
+        }
     }
 }
 

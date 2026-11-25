@@ -7,6 +7,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import io.github.pedrubik2000.kumapie.data.Show
+import kotlinx.coroutines.runBlocking
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.launch
@@ -168,6 +175,46 @@ class TvHomeFocusTest {
         home = true
         rule.waitUntil(5_000) { focused() == RESUME }
         assertEquals(null, memory.last)
+    }
+
+    private var body by mutableStateOf<HomeData?>(null)
+
+    private fun openBody(vararg titles: String) {
+        val api = Api("http://127.0.0.1:${server.address.port}")
+        allShows = runBlocking { api.shows() }
+        body = bodyData(*titles)
+        rule.setContent {
+            var contentFocused by remember { mutableStateOf(false) }
+            val focus = remember { HomeFocus(body?.resume) }
+            val first = remember { FocusRequester() }
+            Box(Modifier.fillMaxSize().onFocusChanged { contentFocused = it.hasFocus }.focusGroup()) {
+                body?.let { HomeBody(it, focus, api, null, first, emptyMap(), {}, { _, _ -> }, {}, {}, {}) { contentFocused } }
+            }
+        }
+        rule.waitUntil(5_000) { focused() == RESUME }
+    }
+
+    private var allShows = emptyList<Show>()
+
+    private fun bodyData(vararg t: String) = HomeData(t.map { n -> allShows.first { it.title == n }.let { it to it.episodes.first() } }, emptyList(), false, emptyList())
+
+    @Test fun aLateGoingListDoesNotPullFocusOffACardTheUserSitsOn() {
+        openBody("Alpha", "Beta")
+        press(DOWN, RIGHT)
+        assertEquals("Beta", focused())
+        body = bodyData("Alpha", "Beta", "Gamma")
+        rule.waitForIdle()
+        Thread.sleep(500)
+        rule.waitForIdle()
+        assertEquals("Beta", focused())
+    }
+
+    @Test fun aFocusedCardThatDropsOutOfARefreshLeavesFocusOnTheRemainingCardOrResume() {
+        openBody("Alpha", "Beta")
+        press(DOWN, RIGHT)
+        assertEquals("Beta", focused())
+        body = bodyData("Alpha")
+        rule.waitUntil(5_000) { focused() in setOf(RESUME, "Alpha") }
     }
 
     @Test fun aRestoreStopsAsSoonAsTheUserHasMovedOn() {

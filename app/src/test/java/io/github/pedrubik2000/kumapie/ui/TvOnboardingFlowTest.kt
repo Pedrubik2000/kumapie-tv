@@ -60,6 +60,8 @@ class TvOnboardingFlowTest {
         override suspend fun fetch() = got
         override fun apply(got: SetupBundle.Got.Ok, ticked: Set<String>) = onApply()
         override fun peer() = asked
+        override fun hasKey() = asked != null
+        override fun me() = "TV"
         override fun forget() { asked = null }
     }
 
@@ -82,18 +84,22 @@ class TvOnboardingFlowTest {
 
     private fun press(k: Key) { rule.onRoot().performKeyInput { pressKey(k) }; rule.waitForIdle() }
 
-    @Test fun downFromTheHubWalksTheTicksThenTheFieldThenContinue() {
+    @Test fun theDpadStartsOnPairAndUpWalksTheFieldTheTicksAndTheHub() {
         open()
-        assertTrue(focused().orEmpty().startsWith("kumapie on Tab S7+"))
+        assertEquals("Pair and copy", focused())
+        press(Key.DirectionUp)
+        assertEquals("field", focused())
         val trail = mutableListOf<String?>()
-        repeat(10) { if (focused() != "Pair and copy") { press(Key.DirectionDown); trail += focused() } }
-        assertEquals("field", trail[trail.size - 2])
+        repeat(8) { if (focused().orEmpty().startsWith("kumapie on").not()) { press(Key.DirectionUp); trail += focused() } }
+        assertTrue(focused().orEmpty().startsWith("kumapie on Tab S7+"))
+        assertEquals(5, trail.size - 1)
+        repeat(8) { if (focused() != "Pair and copy") press(Key.DirectionDown) }
         assertEquals("Pair and copy", focused())
     }
 
     @Test fun fieldRightGoesToContinueAndContinueRightToStartFresh() {
         open()
-        repeat(10) { if (focused() != "field") press(Key.DirectionDown) }
+        press(Key.DirectionUp)
         assertEquals("field", focused())
         press(Key.DirectionRight)
         assertEquals("Pair and copy", focused())
@@ -108,7 +114,7 @@ class TvOnboardingFlowTest {
         rule.onNodeWithText("Set up from your main device?").assertExists()
         press(Key.Back)
         rule.onNodeWithText("Languages").assertExists()
-        assertFalse(Onboarding.done(settings.prefs).isEmpty())
+        assertFalse(Onboarding.MAIN in Onboarding.done(settings.prefs))
     }
 
     @Test fun startFreshMarksMainDoneAndAsksTheNextStepsOnly() {
@@ -126,7 +132,7 @@ class TvOnboardingFlowTest {
     }
 
     @Test fun copiedStepsAreSkippedAndPairingCopiesThem() {
-        val parts = mapOf("anilist" to JSONObject().put("anilist_token", "t"), "keys" to JSONObject().put("jimaku_key", "j").put("rd_token", "r"))
+        val parts = mapOf("anilist" to JSONObject().put("anilist_token", "t"), "keys" to JSONObject().put("jimaku_key", "j").put("rd_token", "r").put("addons", org.json.JSONArray(listOf("a"))))
         val got = SetupBundle.Got.Ok(parts, mapOf("anilist" to "Pedrubik", "keys" to "Jimaku, Real-Debrid"))
         open(api(allowed = DeviceSync.Poll.ALLOWED, fetch = got, apply = { settings.prefs.edit().putStringSet(Onboarding.COPIED, setOf("anilist", "keys")).commit() }))
         rule.onNodeWithText("Pair and copy").performSemanticsAction(SemanticsActions.OnClick)
@@ -140,7 +146,7 @@ class TvOnboardingFlowTest {
     @Test fun aTakenNameGoesBackToPickingWithTheConflictLine() {
         open(api(allowed = DeviceSync.Poll.CONFLICT))
         rule.onNodeWithText("Pair and copy").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(5_000) { rule.onAllNodes(androidx.compose.ui.test.hasText("Two devices asked as Tab S7+. Pair again.")).fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(5_000) { rule.onAllNodes(androidx.compose.ui.test.hasText("Two devices asked as TV. Pair again.")).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("Pair and copy").assertExists()
     }
 
@@ -171,5 +177,31 @@ class TvOnboardingFlowTest {
         rule.onNodeWithText("Continue ›").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(5_000) { rule.onAllNodes(androidx.compose.ui.test.hasText("Real-Debrid key missing", substring = true)).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("Videos & subtitles").assertExists()
+    }
+
+    @Test fun backAfterTheRealDebridRefusalGoesToThePreviousStepAndDoesNotQuit() {
+        Onboarding.markDone(settings.prefs, Onboarding.MAIN)
+        Onboarding.markDone(settings.prefs, Onboarding.ANILIST)
+        settings.apply { jimakuKey = "j"; rdToken = ""; addons = emptyList() }
+        lateinit var activity: androidx.activity.ComponentActivity
+        rule.setContent {
+            activity = androidx.compose.ui.platform.LocalContext.current as androidx.activity.ComponentActivity
+            TvOnboarding(settings, api(), {})
+        }
+        rule.onNodeWithText("Continue ›").performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(5_000) { rule.onAllNodes(androidx.compose.ui.test.hasText("Real-Debrid key missing", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        press(Key.Back)
+        rule.onNodeWithText("Home, Library and Discover come from your AniList anime list.").assertExists()
+        assertFalse(activity.isFinishing)
+    }
+
+    @Test fun startWatchingEndsTheOnboarding() {
+        Onboarding.markDone(settings.prefs, Onboarding.MAIN)
+        Onboarding.markCopied(settings.prefs, listOf(Onboarding.ANILIST, Onboarding.VIDEOS, Onboarding.COLOURING))
+        var done = 0
+        StepNav(settings, { Onboarding.DOWNLOADS }, {}, { done++ }).advance(Onboarding.DOWNLOADS)
+        assertEquals(1, done)
+        assertTrue(Startup.onboarded(settings.prefs.all))
+        assertTrue(Onboarding.done(settings.prefs).isEmpty())
     }
 }

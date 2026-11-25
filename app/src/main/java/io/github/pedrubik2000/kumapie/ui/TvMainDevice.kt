@@ -67,23 +67,32 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
     val field = remember { FocusRequester() }
     val pairButton = remember { FocusRequester() }
     var inside by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf("") }
     fun run(block: suspend () -> Unit) { job?.cancel(); job = scope.launch { block() } }
     fun pair() {
         val hubs = (phase as? Phase.Pick)?.hubs.orEmpty()
-        val to = address.trim().ifEmpty { picked } ?: return
+        val to = address.trim().ifEmpty { picked }
+        if (to == null) {
+            note = tr("Pick a kumapie or type its address")
+            runCatching { (if (hubs.isNotEmpty()) card else field).requestFocus() }
+            return
+        }
+        note = ""
         run { flow.pair(hubs.firstOrNull { it.address == to } ?: Hub("", to)) }
     }
     LaunchedEffect(Unit) { run { flow.start() } }
+    LaunchedEffect(phase == Phase.Looking) { if (phase == Phase.Looking && !inside) runCatching { pairButton.requestFocus() } }
     LaunchedEffect(phase is Phase.Pick) {
         val p = phase as? Phase.Pick
         if (p != null && !inside) runCatching { (if (p.hubs.isNotEmpty()) card else field).requestFocus() }
     }
     val saves = ROWS.take(3).count { it in ticked && available(phase, it) }
     Column(Modifier.fillMaxWidth().onFocusChanged { inside = it.hasFocus }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        TvStepHeader(tr("Step %1\$d of %2\$d", 1, steps) + " · " + tr("Optional · saves %d steps", saves), tr("Set up from your main device?"),
+        TvStepHeader(tr("Step %1\$d of %2\$d", 1, steps) + " · " + if (saves > 0) tr("Optional · saves %d steps", saves) else tr("Optional"),tr("Set up from your main device?"),
             tr("A kumapie on the home Wi-Fi already has your AniList, keys and known words. Pair once and copy them."))
-        MainHubs(phase, picked.takeIf { address.isBlank() }, card) { picked = it; address = "" }
+        MainHubs(phase, picked.takeIf { address.isBlank() }, card) { picked = it; address = ""; note = "" }
         MainStatus(phase)
+        if (note.isNotEmpty()) Text(note, color = Colors.accent, fontSize = 18.sp)
         TvCaption(tr("Copy from it · untick to set up here instead"), Modifier.padding(top = 6.dp))
         MainTicks(phase, ticked) { ticked = it }
         TvCaption(tr("Type the address"), Modifier.padding(top = 6.dp))
@@ -110,7 +119,7 @@ private fun MainHubs(phase: Phase, picked: String?, card: FocusRequester, onPick
         }
         is Phase.Waiting -> HubCard(phase.hub, true, phase.code.ifEmpty { null }) {}
         is Phase.Ready -> HubCard(phase.hub, true, null) {}
-        Phase.Looking -> Unit
+        Phase.Looking, is Phase.Done -> Unit
     }
 }
 
@@ -127,6 +136,7 @@ private fun MainStatus(phase: Phase) {
             Text(tr("Waiting for you to tap Allow on %s…", phase.hub.name), color = Colors.dim, fontSize = 16.sp)
             Text(tr("Allow shows in Settings > Sync with another device on %s", phase.hub.name), color = Colors.dim, fontSize = 14.sp)
         }
+        is Phase.Done -> Unit
         is Phase.Ready -> if (phase.got == SetupBundle.Got.Pc) Text(tr("This hub uses a PC: there is nothing to copy from it. Set this device up here."), color = Colors.accent, fontSize = 18.sp)
     }
 }

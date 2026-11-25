@@ -92,7 +92,7 @@ internal fun TvOnboarding(settings: Settings, pairing: Pairing, onDone: () -> Un
                     TvWordColouring(settings, true, nav::back, nav.number(step), nav.total, { nav.advance(step) }, { nav.advance(step) })
                 } else TvStepPage(Modifier.fillMaxSize()) { StepBody(settings, pairing, nav, step, lang) { lang = it } }
             }
-            if (step != Onboarding.COLOURING) HintBar()
+            if (step != Onboarding.COLOURING || step in nav.viewOnly()) HintBar()
         }
     }
     BackHandler(enabled = step != first) { nav.back() }
@@ -181,7 +181,7 @@ private fun StepBody(settings: Settings, pairing: Pairing, nav: StepNav, step: S
     when {
         step == Onboarding.LANGUAGE -> LanguageStep(settings, lang, onLang) { nav.advance(step) }
         step in nav.viewOnly() -> DoneStep(settings, nav, step, step in copied)
-        step == Onboarding.MAIN -> TvMainDevice(settings.prefs, pairing, nav.total) { nav.advance(step) }
+        step == Onboarding.MAIN -> TvMainDevice(settings.prefs, pairing, nav.total) { nav.advance(step); onLang(settings.menuLanguage) }
         step == Onboarding.ANILIST -> AniListStep(settings, nav) { nav.advance(step) }
         step == Onboarding.VIDEOS -> VideosStep(settings, nav) { nav.advance(step) }
         else -> DownloadsStep(settings, nav) { nav.advance(step) }

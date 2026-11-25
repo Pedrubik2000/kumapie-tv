@@ -58,7 +58,7 @@ internal fun Modifier.tvRing(shape: Shape, source: MutableInteractionSource): Mo
 
 @Composable
 internal fun TvCaption(text: String, modifier: Modifier = Modifier) =
-    Text(text.uppercase(), color = Colors.dim, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, modifier = modifier)
+    Text(text.uppercase(), color = Colors.dim, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, modifier = modifier)
 
 @Composable
 internal fun TvCheck(checked: Boolean, description: String, enabled: Boolean = true, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {

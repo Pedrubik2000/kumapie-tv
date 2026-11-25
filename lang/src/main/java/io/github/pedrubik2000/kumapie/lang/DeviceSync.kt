@@ -48,11 +48,16 @@ object DeviceSync {
     private const val LAST = "sync_last"
     private const val WORK = "device-sync"
     private const val CONFLICT_MS = 10 * 60_000L
+    private const val STALE_MS = 20_000L
     private const val TWO = "Two devices asked with the same name: pair again."
 
     class Peer(val name: String, val address: String, val secret: String)
-    class Asking(val device: String, val secret: String, val pub: String = "") { val code: String get() = code(secret, pub) }
+    class Asking(val device: String, val secret: String, val pub: String = "") {
+        @Volatile var seen = 0L
+        val code: String get() = code(secret, pub)
+    }
     class Answer(val status: Int, val body: ByteArray, val sig: String? = null)
+    class Conflict(line: String) : IOException(line)
 
     val asking = MutableStateFlow<List<Asking>>(emptyList())
     val conflicts = MutableStateFlow<Set<String>>(emptySet())
@@ -135,6 +140,7 @@ object DeviceSync {
         val secret = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
         val pub = SetupBundle.begin()
         val a = post("http://$address/pair", JSONObject().put("device", Progress.of(context).device).put("secret", secret).put("pub", pub).toString().toByteArray(), emptyMap())
+        if (a.status == 409 && String(a.body) == TWO) throw Conflict(conflictLine(Progress.of(context).device))
         if (a.status !in 200..202) throw IOException(String(a.body))
         val reply = JSONObject(String(a.body))
         val who = name.ifEmpty { reply.getString("device") }
@@ -240,12 +246,15 @@ object DeviceSync {
         if (who in conflicts.value) return Answer(409, TWO.toByteArray())
         val old = asking.value.firstOrNull { it.device == who }
         if (old != null && (old.secret != asked || old.pub != pub)) {
+            if (now - old.seen <= STALE_MS) {
+                asking.value = asking.value.filter { it !== old }
+                conflictAt[who] = now
+                conflicts.value = conflicts.value + who
+                return Answer(409, TWO.toByteArray())
+            }
             asking.value = asking.value.filter { it !== old }
-            conflictAt[who] = now
-            conflicts.value = conflicts.value + who
-            return Answer(409, TWO.toByteArray())
         }
-        if (old == null) asking.value = asking.value + Asking(who, asked, pub)
+        (asking.value.firstOrNull { it.device == who } ?: Asking(who, asked, pub).also { asking.value = asking.value + it }).seen = now
         return Answer(202, reply)
     }
 

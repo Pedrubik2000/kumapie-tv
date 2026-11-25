@@ -6,6 +6,7 @@ import io.github.pedrubik2000.kumapie.data.AniListSync
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.Tr
+import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -129,17 +130,17 @@ object SetupBundle {
     suspend fun fetch(context: Context): Got = withContext(Dispatchers.IO) {
         val peer = DeviceSync.with(Settings(context))
         val mine = key
-        if (peer == null || mine == null) return@withContext Got.Failed(GONE)
+        if (peer == null || mine == null) return@withContext Got.Failed(tr(GONE))
         runCatching {
             val body = "{}".toByteArray()
             val a = DeviceSync.post("http://${peer.address}/setup", body, mapOf("X-Device" to Progress.of(context).device, "X-Sig" to DeviceSync.sign(peer.secret, signed(body))))
             when (a.status) {
-                200 -> if (!DeviceSync.verify(peer.secret, signed(a.body), a.sig)) Got.Failed(FAILED) else read(JSONObject(String(open(peer.secret, mine, a.body)))).also { key = null }
+                200 -> if (!DeviceSync.verify(peer.secret, signed(a.body), a.sig)) Got.Failed(tr(FAILED)) else read(JSONObject(String(open(peer.secret, mine, a.body)))).also { key = null }
                 404 -> Got.Old
                 409 -> Got.Pc
-                else -> Got.Failed(GONE)
+                else -> Got.Failed(tr(GONE))
             }
-        }.onFailure { if (it is CancellationException) throw it }.getOrElse { Got.Failed(FAILED) }
+        }.onFailure { if (it is CancellationException) throw it }.getOrElse { Got.Failed(tr(FAILED)) }
     }
 
     internal fun read(o: JSONObject): Got.Ok {

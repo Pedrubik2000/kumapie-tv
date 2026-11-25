@@ -32,6 +32,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -117,7 +119,7 @@ private const val RESTORE_FRAMES = 30
 internal const val LOGIN_START = "login"
 
 private val HERO_HEIGHT = 390.dp
-private const val PICTURE_DEBOUNCE_MS = 700L
+private const val PICTURE_DEBOUNCE_MS = 500L
 private val FADE_TALL = Brush.verticalGradient(0.5f to Color.Transparent, 1f to Arcade.background)
 internal val FADE_SHORT = Brush.verticalGradient(0.4f to Color.Transparent, 0.85f to Arcade.background)
 internal val SCRIM_LEFT = Brush.horizontalGradient(0f to Arcade.background, 0.24f to Arcade.background.copy(alpha = 0.93f), 0.5f to Arcade.background.copy(alpha = 0.66f),
@@ -150,7 +152,7 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
 @Composable
 internal fun HeroBackdrop(picture: String, fade: () -> Brush, modifier: Modifier) {
     DisposableEffect(Unit) { glowCovered.value = true; onDispose { glowCovered.value = false } }
-    Box(modifier.drawWithContent {
+    Box(modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
         drawContent()
         drawRect(SCRIM_LEFT)
         drawRect(SCRIM_BOTTOM)

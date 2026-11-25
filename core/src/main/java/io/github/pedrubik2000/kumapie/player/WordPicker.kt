@@ -56,13 +56,13 @@ class WordPicker(
     /** The word picked inside the definition (only while [inDef]). */
     val selectedInDef: Segment? get() = if (inDef) definition?.target?.getOrNull(defSeg) else null
 
-    /** Pauses and puts the cursor on the scene's first coloured word; in a scene without a red word, on its first word. */
+    /** Pauses and puts the cursor on the scene's first coloured word (red, blue or green), else its first word. */
     fun open(): Boolean {
         val spots = spots()
         if (spots.isEmpty()) return false
         ctl.pause()
         isOpen = true
-        land(if (spots.any { status(it).isRed() }) spots.first { status(it) != "k" } else spots.first()) // from the top line down (user, 2026-10-14)
+        landFirst(spots) // from the top line down (user, 2026-10-14, 2026-11-25)
         return true
     }
 
@@ -175,8 +175,10 @@ class WordPicker(
         val spots = spots()
         val lines = spots.map { it.line }.distinct()
         val target = lines.getOrNull(lines.indexOf(line) + by) ?: return
-        land(spots.first { it.line == target })
+        landFirst(spots.filter { it.line == target })
     }
+
+    private fun landFirst(spots: List<Spot>) = land(if (ctl.plainWords) spots.first() else firstColoured(spots, ::status))
 
     private fun defSpots(): List<Int> =
         definition?.target?.mapIndexedNotNull { i, s -> if (s.word != null) i else null } ?: emptyList()
@@ -247,5 +249,8 @@ fun wordStops(cues: List<Cue>, here: WordPicker.Spot?, status: (WordPicker.Spot)
         val all = cue.segments.indices.filter { cue.segments[it].word != null }.map { WordPicker.Spot(l, it) }
         if (all.none { status(it).isRed() }) all else all.filter { status(it) != "k" || it == here }
     }
+
+fun firstColoured(spots: List<WordPicker.Spot>, status: (WordPicker.Spot) -> String?): WordPicker.Spot =
+    spots.firstOrNull { status(it) != "k" } ?: spots.first()
 
 private fun String?.isRed() = this == "u" || this == "b"

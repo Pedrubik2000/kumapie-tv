@@ -3,6 +3,7 @@ package io.github.pedrubik2000.kumapie.lang
 import io.github.pedrubik2000.kumapie.data.Cue
 import io.github.pedrubik2000.kumapie.data.Segment
 import io.github.pedrubik2000.kumapie.player.WordPicker.Spot
+import io.github.pedrubik2000.kumapie.player.firstColoured
 import io.github.pedrubik2000.kumapie.player.wordStops
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -36,6 +37,18 @@ class WordPickerTest {
         val mixed = stops(mapOf("系" to "u"))
         assertEquals(listOf(Spot(0, 2), Spot(1, 0), Spot(1, 2), Spot(1, 4)), mixed)
     }
+
+    private fun first(colours: Map<String, String>) =
+        firstColoured(stops(colours)) { s -> colours[scene[s.line].segments[s.seg].text] ?: "k" }
+
+    @Test fun firstColouredIsTheFirstBlueOrGreen() {
+        assertEquals(Spot(0, 4), first(mapOf("だ" to "m", "いない" to "d")))
+        assertEquals(Spot(1, 2), first(mapOf("なかなか" to "d")))
+    }
+
+    @Test fun noneColouredFirstWord() = assertEquals(Spot(0, 0), first(emptyMap()))
+
+    @Test fun redStillFirstColouredFromTheTop() = assertEquals(Spot(0, 2), first(mapOf("系" to "u", "日本人" to "m")))
 
     @Test fun markingTheLastUnknownKnownKeepsTheCursor() {
         val here = Spot(0, 2)

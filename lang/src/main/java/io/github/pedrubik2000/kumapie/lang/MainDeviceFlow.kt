@@ -17,6 +17,7 @@ interface Pairing {
     suspend fun allowed(): DeviceSync.Poll
     suspend fun fetch(): SetupBundle.Got
     fun apply(got: SetupBundle.Got.Ok, ticked: Set<String>)
+    fun old(): Boolean = false
     fun peer(): MainDeviceFlow.Hub?
     fun hasKey(): Boolean
     fun me(): String
@@ -29,6 +30,7 @@ class LivePairing(private val context: Context) : Pairing {
     override suspend fun allowed() = DeviceSync.allowed(context)
     override suspend fun fetch() = SetupBundle.fetch(context)
     override fun apply(got: SetupBundle.Got.Ok, ticked: Set<String>) = SetupBundle.apply(context, got, ticked)
+    override fun old() = DeviceSync.oldHub
     override fun peer() = DeviceSync.with(Settings(context))?.let { MainDeviceFlow.Hub(it.name, it.address) }
     override fun forget() { SetupBundle.clearKey(); DeviceSync.unpair(context) }
     override fun hasKey() = SetupBundle.pub() != null
@@ -41,7 +43,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
     sealed interface Phase {
         data object Looking : Phase
         data class Pick(val hubs: List<Hub>, val notice: String = "") : Phase
-        data class Waiting(val hub: Hub, val code: String) : Phase
+        data class Waiting(val hub: Hub, val code: String, val old: Boolean = false) : Phase
         data class Ready(val hub: Hub, val got: SetupBundle.Got) : Phase
         data class Done(val hub: String, val copied: Set<String>) : Phase
     }
@@ -68,8 +70,9 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
         state.value = Phase.Pick(pairing.discover(DISCOVER_MS).map { Hub(it.first, it.second) }, notice)
     }
 
-    suspend fun pair(hub: Hub) {
+    suspend fun pair(typed: Hub) {
         if (state.value is Phase.Waiting) return
+        val hub = typed.copy(address = DeviceSync.withPort(typed.address))
         val again = pending?.takeIf { it.hub.address == hub.address && pairing.hasKey() && pairing.peer() != null }
         if (again != null) return poll(again.hub, again.code)
         state.value = Phase.Waiting(hub, "")
@@ -89,7 +92,7 @@ class MainDeviceFlow(private val prefs: SharedPreferences, private val pairing: 
     }
 
     private suspend fun poll(hub: Hub, code: String) {
-        pending = Phase.Waiting(hub, code).also { state.value = it }
+        pending = Phase.Waiting(hub, code, pairing.old()).also { state.value = it }
         var heard = clock()
         val end = heard + DEADLINE_MS
         while (clock() < end) {

@@ -38,6 +38,8 @@ private class FakePairing(var polls: List<Poll>, private val got: Got = Got.Ok(e
     override fun forget() { forgot++ }
     override fun hasKey() = key
     override fun me() = "Phone"
+    var oldHub = false
+    override fun old() = oldHub
 }
 
 @RunWith(RobolectricTestRunner::class)
@@ -48,6 +50,25 @@ class MainDeviceFlowTest {
     private val bundle = Got.Ok(
         mapOf("anilist" to JSONObject().put("anilist_user", "pedro"), "keys" to JSONObject().put("rd_token", "x").put("jimaku_key", "y").put("addons", "a"), "colouring" to JSONObject().put("plain_words", false)),
         mapOf("anilist" to "pedro"))
+
+    @Test fun aTypedAddressWithoutAPortAsksOnTheSyncPortAndATypedPortStays() = runBlocking {
+        val pairing = FakePairing(listOf(Poll.ALLOWED))
+        MainDeviceFlow(prefs, pairing) {}.pair(Hub("", "127.0.0.1"))
+        assertEquals("127.0.0.1:47823", pairing.asked?.address)
+        MainDeviceFlow(prefs, pairing) {}.pair(Hub("", "192.168.0.5:9000"))
+        assertEquals("192.168.0.5:9000", pairing.asked?.address)
+    }
+
+    @Test fun waitingKnowsWhenTheHubIsOldSoTheSettingsHintShowsOnlyThen() = runBlocking {
+        for (old in listOf(false, true)) {
+            val pairing = FakePairing(listOf(Poll.WAITING, Poll.ALLOWED)).apply { oldHub = old }
+            lateinit var flow: MainDeviceFlow
+            var during: Phase? = null
+            flow = MainDeviceFlow(prefs, pairing) { during = flow.phase.value }
+            flow.pair(hub)
+            assertEquals(Phase.Waiting(hub, "4829", old), during)
+        }
+    }
 
     @Test fun freshPathMarksMainAndAsksTheRest() {
         Onboarding.markDone(prefs, "language")

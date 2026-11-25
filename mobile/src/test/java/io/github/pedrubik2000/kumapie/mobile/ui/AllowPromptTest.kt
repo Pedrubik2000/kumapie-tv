@@ -37,6 +37,19 @@ class AllowPromptTest {
         assertTrue(DeviceSync.asking.value.isEmpty())
     }
 
+    @Test fun anAskTheClientStoppedPollingNeverShowsAndOneThatGoesStaleClosesByItself() {
+        val gone = DeviceSync.Asking("Gone", "x", "y").apply { seen = System.currentTimeMillis() - 30_000 }
+        val going = DeviceSync.Asking("Tablet", "s3cret", "pubkey").apply { seen = System.currentTimeMillis() - 19_500 }
+        DeviceSync.asking.value = listOf(gone, going)
+        rule.setContent { AllowPrompt(hold = false, onSettings = {}) }
+        rule.waitForIdle()
+        rule.onNodeWithText("Gone wants", substring = true).assertDoesNotExist()
+        rule.onNodeWithText("Tablet wants to pair. Code ${going.code}.").assertIsDisplayed()
+        Thread.sleep(700)
+        rule.mainClock.advanceTimeBy(5_100)
+        rule.onNodeWithText("Tablet wants", substring = true).assertDoesNotExist()
+    }
+
     @Test fun notNowHidesThatRequestEvenWhenItIsPolledAgainAndANewDeviceShows() {
         DeviceSync.asking.value = listOf(a)
         rule.setContent { AllowPrompt(hold = false, onSettings = {}, paceMs = 0) }

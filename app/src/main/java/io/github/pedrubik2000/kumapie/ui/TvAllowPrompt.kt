@@ -35,7 +35,7 @@ import io.github.pedrubik2000.kumapie.lang.DeviceSync
 @Composable
 internal fun TvAllowPrompt(hold: Boolean, onSettings: () -> Unit, paceMs: Long = 10_000, guardMs: Long = 500) {
     val context = LocalContext.current
-    val asking by DeviceSync.asking.collectAsState()
+    val asking = DeviceSync.live(DeviceSync.asking.collectAsState().value, rememberNow())
     val conflicts by DeviceSync.conflicts.collectAsState()
     val later = rememberSaveable { mutableStateListOf<String>() }
     val pending = asking.filter { "${it.device}/${it.code}" !in later }

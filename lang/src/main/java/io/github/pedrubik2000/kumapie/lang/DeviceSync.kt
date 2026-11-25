@@ -48,13 +48,13 @@ object DeviceSync {
     private const val LAST = "sync_last"
     private const val WORK = "device-sync"
     private const val CONFLICT_MS = 10 * 60_000L
-    private const val STALE_MS = 20_000L
+    internal const val STALE_MS = 20_000L
     private const val DEAD_MS = 120_000L
     private const val TWO = "Two devices asked with the same name: pair again."
 
     class Peer(val name: String, val address: String, val secret: String)
     class Asking(val device: String, val secret: String, val pub: String = "") {
-        @Volatile var seen = 0L
+        @Volatile var seen = System.currentTimeMillis()
         val code: String get() = code(secret, pub)
     }
     class Answer(val status: Int, val body: ByteArray, val sig: String? = null)
@@ -64,9 +64,14 @@ object DeviceSync {
     val conflicts = MutableStateFlow<Set<String>>(emptySet())
     val found = MutableStateFlow<List<Pair<String, String>>>(emptyList())
     val last = MutableStateFlow("")
+    @Volatile var oldHub = false
     private val lock = Mutex()
 
     fun code(secret: String, pub: String = ""): String = BigInteger(1, mac(secret, "pair".toByteArray() + pub.toByteArray())).mod(BigInteger.valueOf(10_000)).toString().padStart(4, '0')
+
+    fun live(list: List<Asking>, now: Long = System.currentTimeMillis()): List<Asking> = list.filter { now - it.seen <= STALE_MS }
+
+    fun withPort(address: String): String = address.trim().let { if (it.isEmpty() || ':' in it) it else "$it:$PORT" }
 
     fun sign(secret: String, body: ByteArray): String = mac(secret, body).joinToString("") { "%02x".format(it) }
 
@@ -135,7 +140,8 @@ object DeviceSync {
         return tr("On %1\$s, allow %2\$s (code %3\$s). Then it syncs.", name, Progress.of(context).device, code)
     }
 
-    suspend fun ask(context: Context, name: String, address: String): String = withContext(Dispatchers.IO) {
+    suspend fun ask(context: Context, name: String, typed: String): String = withContext(Dispatchers.IO) {
+        val address = withPort(typed)
         val settings = Settings(context)
         check(settings.server.isEmpty()) { tr("This device syncs with its PC.") }
         val secret = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
@@ -144,6 +150,7 @@ object DeviceSync {
         if (a.status == 409 && String(a.body) == TWO) throw Conflict(conflictLine(Progress.of(context).device))
         if (a.status !in 200..202) throw IOException(String(a.body))
         val reply = JSONObject(String(a.body))
+        oldHub = !reply.optBoolean("setup")
         val who = name.ifEmpty { reply.getString("device") }
         settings.prefs.edit().putString(WITH, JSONObject().put("name", who).put("address", address).put("secret", secret).toString()).apply()
         shown(secret, pub, reply)

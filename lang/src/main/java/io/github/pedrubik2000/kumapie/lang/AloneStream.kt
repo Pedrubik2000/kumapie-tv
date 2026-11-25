@@ -27,6 +27,7 @@ class AloneStream(
         prefs.edit().putString(fileKey(id), file).apply()
         it.offset = prefs.getFloat(offKey(id, file), 0f).toDouble()
         it.guess = it.offset
+        it.hand = handed(prefs, id)
     }
 
     private var lastMs = 0L
@@ -64,7 +65,7 @@ class AloneStream(
 
     fun fitLanded(shift: (Double) -> Unit): Boolean {
         if (fitApplied) return true
-        val by = lateShift(built, live.offset, live.fitted) ?: return false
+        val by = lateShift(built, live.offset, live.fitted, handed(prefs, id)) ?: return false
         if (by != 0.0) shift(by)
         android.util.Log.i("kumapie", "late fit: ${live.fitted} s from ${live.refCount} lines, lines moved $by s")
         built = live.offset
@@ -85,7 +86,7 @@ class AloneStream(
     private var moved = 1
 
     fun piecesLanded(shift: (Double, Double) -> Unit) {
-        if (!fitApplied) return
+        if (!fitApplied || handed(prefs, id)) return
         moved = moves(live.pieces, moved, shift)
     }
 
@@ -135,8 +136,13 @@ class AloneStream(
 
         fun shift(ctl: io.github.pedrubik2000.kumapie.player.SceneController, prefs: SharedPreferences, by: Double) {
             ctl.shift(by)
-            prefs.edit().putFloat(keptKey(prefs, ctl.episode.id), kept(prefs, ctl.episode.id).toFloat() + by.toFloat()).apply()
+            prefs.edit().putFloat(keptKey(prefs, ctl.episode.id), kept(prefs, ctl.episode.id).toFloat() + by.toFloat())
+                .putBoolean(handKey(prefs, ctl.episode.id), true).apply()
         }
+
+        private fun handKey(prefs: SharedPreferences, id: String) = keptKey(prefs, id) + "|hand"
+
+        fun handed(prefs: SharedPreferences, id: String) = prefs.getBoolean(handKey(prefs, id), false)
 
         private fun keptKey(prefs: SharedPreferences, id: String) = offKey(id, prefs.getString(fileKey(id), "").orEmpty())
 
@@ -170,7 +176,7 @@ class AloneStream(
 
         fun place(at: Double, length: Double) = if (at > length - 120) 0.0 else at
 
-        fun lateShift(built: Double?, offset: Double, fitted: Double?): Double? =
-            if (built == null || fitted == null) null else offset - built
+        fun lateShift(built: Double?, offset: Double, fitted: Double?, hand: Boolean = false): Double? =
+            if (built == null || fitted == null || hand) null else offset - built
     }
 }

@@ -62,4 +62,20 @@ class LiveLinesPiecesTest {
         assertEquals(2, AloneStream.moves(listOf(0.0 to 2.0, 737.0 to 32.0), done) { by, from -> calls += by to from })
         assertEquals(listOf(30.0 to 707.0), calls)
     }
+
+    // Rakugo Shinjuu 1 (Pedro, 2026-11-25): 8 lines of a monologue fitted 71.3 s, the lines were then off all episode.
+    private val monologue = (0 until 8).map { 300.0 + it * 6.1 + (it % 3) * 0.7 }
+    private val file = lines(60).filter { it < 280 || it > 420 } + monologue.map { it - 71.3 }
+
+    @Test fun eightLinesDoNotFitASeventyOneSecondShift() = assertNull(LiveLines.fit(monologue, file))
+
+    @Test fun aBigShiftFitsOnceManyLinesAgree() {
+        val refs = starts.filter { it in 100.0..400.0 }.map { it + 71.3 }
+        assertEquals(71.3, requireNotNull(LiveLines.fit(refs, starts)), 0.11)
+    }
+
+    @Test fun aHandShiftIsNeverReplacedByTheFit() {
+        assertEquals(2.4, requireNotNull(AloneStream.lateShift(0.0, 2.4, 2.4)), 1e-9)
+        assertNull(AloneStream.lateShift(0.0, 2.4, 2.4, hand = true))
+    }
 }

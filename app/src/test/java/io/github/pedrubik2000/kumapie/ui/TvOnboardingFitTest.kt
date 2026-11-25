@@ -52,8 +52,9 @@ class TvOnboardingFitTest {
     @Test fun mainServerShowsItsTitleAndButtonsWithoutScrolling() {
         at("language")
         rule.onNodeWithText("Set up from your main device or PC?").assertIsDisplayed()
-        rule.onNodeWithText("Pair and copy").assertIsDisplayed()
         rule.onNodeWithText("Start fresh").assertIsDisplayed()
+        rule.onNodeWithText("this is my first device").assertIsDisplayed()
+        rule.onNodeWithText("Pair and copy").assertDoesNotExist()
     }
 
     @Test fun aniListFits() {

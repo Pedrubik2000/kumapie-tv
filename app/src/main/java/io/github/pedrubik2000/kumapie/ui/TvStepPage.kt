@@ -26,7 +26,7 @@ internal fun TvStepPage(modifier: Modifier, content: @Composable () -> Unit) {
     val header = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
     Column(modifier) {
         StepHeaderHost(header)
-        Column(Modifier.weight(1f).padding(bottom = rememberHintRoom() + 8.dp).verticalScroll(rememberScrollState()).padding(start = 48.dp, end = 48.dp, top = 12.dp, bottom = 16.dp),
+        Column(Modifier.weight(1f).padding(bottom = rememberHintRoom() + 8.dp).fadeBottom(28.dp).verticalScroll(rememberScrollState()).padding(start = 48.dp, end = 48.dp, top = 12.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             CompositionLocalProvider(LocalStepHeader provides header) { content() }
         }
@@ -44,7 +44,7 @@ internal fun TvStepHeader(caption: String?, title: String, sub: String = "") {
     val body = remember(caption, title, sub) {
         @Composable {
             if (caption != null) TvCaption(caption)
-            Text(title, color = Colors.text, fontSize = 34.sp, lineHeight = 42.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = Colors.text, fontSize = 30.sp, lineHeight = 38.sp, fontWeight = FontWeight.Bold)
             if (sub.isNotEmpty()) Text(sub, color = Colors.dim, fontSize = 16.sp)
         }
     }

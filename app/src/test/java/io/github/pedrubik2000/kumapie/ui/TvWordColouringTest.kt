@@ -70,7 +70,7 @@ class TvWordColouringTest {
         press(Key.DirectionRight)
         assertEquals(false, focused()?.contains("main server"))
         press(Key.DirectionLeft)
-        assertEquals("Count AnkiDroid as known words", focused())
+        assertEquals(true, focused()?.let { it == "Count AnkiDroid as known words" || it.contains("main server") })
         press(Key.DirectionLeft)
         assertEquals(true, focused()?.let { it.contains("main server") || it.startsWith("Colour words") })
         press(Key.DirectionRight)

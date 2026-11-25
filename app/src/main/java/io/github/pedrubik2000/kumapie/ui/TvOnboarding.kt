@@ -27,6 +27,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -272,10 +273,10 @@ internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSa
     val aniList = part == SetupPart.ANILIST
     Heading(if (aniList) tr("Log in to AniList from your phone") else tr("Set up kumapie from your phone"))
     if (url == null) return Text(if (aniList) tr("This TV isn't on a home network: connect it, then log in here.") else tr("This TV isn't on a home network: connect it, or add the keys in Settings later."), color = Colors.dim)
-    Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
         val qr = remember(url) { qr(url, 480) }
         Image(qr.asImageBitmap(), null, Modifier.size(220.dp).background(Color.White).padding(10.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(tr("Scan this with your phone's camera (on the same Wi-Fi), or open:"), color = Colors.text, fontSize = 16.sp)
             Text(url, color = Colors.accent, fontSize = 16.sp)
             Text(when (part) {
@@ -306,10 +307,11 @@ private fun TvDownloads(settings: Settings) {
     LaunchedEffect(Unit) { if (!model.isReady) model.download() }
     val modelState by remember { model.state() }.collectAsState(initial = null)
     var dicts by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) { while (true) { dicts = dictionariesState(context, settings); kotlinx.coroutines.delay(1000) } }
+    var free by remember { mutableLongStateOf(0L) }
+    val yomitan = remember { io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(context.applicationContext) }
+    LaunchedEffect(Unit) { while (true) { dicts = dictionariesState(context, settings); free = yomitan.base.usableSpace; kotlinx.coroutines.delay(1000) } }
     Text(tr("Dictionaries: %s", dicts), color = Colors.text, fontSize = 18.sp)
     Text(tr("Word splitter: %s", modelState ?: if (model.isReady) tr("✓ ready") else tr("Starting…")), color = Colors.text, fontSize = 18.sp)
-    val free = remember { io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.get(context.applicationContext).base.usableSpace }
     Text(tr("Free on this TV: %d MB", io.github.pedrubik2000.kumapie.lang.Recommended.mb(free)), color = Colors.text, fontSize = 18.sp)
 }
 

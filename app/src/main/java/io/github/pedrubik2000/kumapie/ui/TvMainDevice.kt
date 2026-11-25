@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import io.github.pedrubik2000.kumapie.data.Onboarding
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow
 import io.github.pedrubik2000.kumapie.lang.MainDeviceFlow.Hub
@@ -99,7 +100,7 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
         if (p != null && !inside) runCatching { (if (p.hubs.isNotEmpty() || p.pcs.isNotEmpty()) card else field).requestFocus() }
     }
     val found = (phase as? Phase.Pick)?.let { it.hubs.isNotEmpty() || it.pcs.isNotEmpty() } ?: (phase is Phase.Ready || phase is Phase.Waiting)
-    val saves = if (!found) 0 else if (pcPicked) ROWS.size - 1 else ROWS.take(3).count { it in ticked && available(phase, it) }
+    val saves = if (!found) 0 else if (pcPicked) Onboarding.FROM_PC.size else ROWS.take(3).count { it in ticked && available(phase, it) }
     Column(Modifier.fillMaxWidth().onFocusChanged { inside = it.hasFocus }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         TvStepHeader(tr("Step %1\$d of %2\$d", 1, steps) + " · " + if (saves > 0) tr("Optional · saves %d steps", saves) else tr("Optional"),tr("Set up from your main device or PC?"),
             tr("A kumapie or a kumapie PC on the home Wi-Fi already has your AniList, keys and known words."))
@@ -116,13 +117,17 @@ internal fun TvMainDevice(prefs: android.content.SharedPreferences, pairing: Pai
             placeholder = tr("Address of the main device (ip:port)"))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
             val ready = phase as? Phase.Ready
-            TvContinue(if (ready != null) tr("Continue") + " ›" else if (pcPicked) tr("Use this PC") + " ›" else tr("Pair and copy"), Modifier.focusRequester(pairButton)) {
-                if (pcChosen != null) run { flow.usePc(pcChosen, wan = false) }
+            val nothing = ready == null && (phase is Phase.Looking || phase is Phase.Pick) && !pcPicked && !deviceChosen && address.isBlank()
+            TvContinue(if (ready != null) tr("Continue") + " ›" else if (pcPicked) tr("Use this PC") + " ›" else if (nothing) tr("Start fresh") else tr("Pair and copy"), Modifier.focusRequester(pairButton)) {
+                if (nothing) { job?.cancel(); flow.fresh(); onAdvance() }
+                else if (pcChosen != null) run { flow.usePc(pcChosen, wan = false) }
                 else if (ready != null) { flow.finish(ready.hub, ready.got, ticked.filter { available(phase, it) }.toSet()); onAdvance() } else pair()
             }
-            Text(tr("or") + " ", color = Colors.dim, fontSize = 16.sp)
-            TvLink(tr("Start fresh")) { job?.cancel(); flow.fresh(); onAdvance() }
-            Text(": " + tr("this is my first device"), color = Colors.dim, fontSize = 16.sp)
+            if (nothing) Text(tr("this is my first device"), color = Colors.dim, fontSize = 16.sp) else {
+                Text(tr("or") + " ", color = Colors.dim, fontSize = 16.sp)
+                TvLink(tr("Start fresh")) { job?.cancel(); flow.fresh(); onAdvance() }
+                Text(": " + tr("this is my first device"), color = Colors.dim, fontSize = 16.sp)
+            }
         }
     }
 }
@@ -152,7 +157,7 @@ private fun MainStatus(phase: Phase) {
         Phase.Looking -> Text(tr("Looking for kumapie on this network…"), color = Colors.text, fontSize = 18.sp)
         is Phase.Pick -> {
             if (phase.notice.isNotEmpty()) Text(phase.notice, color = Colors.accent, fontSize = 18.sp)
-            if (phase.hubs.isEmpty() && phase.pcs.isEmpty()) Text(tr("No other kumapie found: type its address below, or start fresh."), color = Colors.text, fontSize = 18.sp)
+            if (phase.hubs.isEmpty() && phase.pcs.isEmpty()) Text(tr("No other kumapie found: type its address below, or start fresh."), color = Colors.text, fontSize = 18.sp, modifier = Modifier.padding(top = 12.dp))
         }
         is Phase.Waiting -> if (phase.code.isEmpty()) Text(tr("Pairing…"), color = Colors.text, fontSize = 18.sp) else {
             Text(tr("Pair code: tap Allow on %1\$s when it shows %2\$s.", phase.hub.name, phase.code), color = Colors.text, fontSize = 18.sp)

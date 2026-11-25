@@ -122,28 +122,40 @@ internal fun MainDeviceStep(flow: MainDeviceFlow, host: CoroutineScope, caption:
             }
         }
         val target = if (typing) typed.trim().takeIf { it.isNotEmpty() }?.let { Hub("", it) } else (shown as? Phase.Pick)?.hubs?.firstOrNull { it.address == (picked ?: shown.auto) }
+        val fresh = { if (!busy) { busy = true; host.launch { withContext(Dispatchers.IO) { flow.fresh() }; onDone() } } }
         StepBar {
-            when {
-                shown is Phase.Done -> Pill(tr("Continue"), onDone, primary = true)
-                got != null && hub != null -> Pill(tr("Continue"), {
-                    if (!busy) {
-                        busy = true
-                        host.launch {
-                            withContext(Dispatchers.IO) {
-                                if (got is Got.Pc) flow.fresh() else flow.finish(hub, got, MainDeviceFlow.ROWS.filter { it !in unticked && available(it, got) }.toSet())
+            val primary: String? = when {
+                shown is Phase.Done -> tr("Continue")
+                got != null && hub != null -> tr("Continue")
+                chosen != null -> tr("Use this PC") + " ›"
+                shown is Phase.Pick && target != null -> tr("Pair and copy")
+                else -> null
+            }
+            if (primary != null) {
+                Pill(primary, {
+                    when {
+                        shown is Phase.Done -> onDone()
+                        got != null && hub != null -> if (!busy) {
+                            busy = true
+                            host.launch {
+                                withContext(Dispatchers.IO) {
+                                    if (got is Got.Pc) flow.fresh() else flow.finish(hub, got, MainDeviceFlow.ROWS.filter { it !in unticked && available(it, got) }.toSet())
+                                }
+                                onDone()
                             }
-                            onDone()
                         }
+                        chosen != null -> if (!busy) { busy = true; scope.launch { flow.usePc(chosen, wan = true); busy = false } }
+                        target != null -> scope.launch { flow.pair(target) }
                     }
                 }, primary = true)
-                chosen != null -> Pill(tr("Use this PC") + " ›", { if (!busy) { busy = true; scope.launch { flow.usePc(chosen, wan = true); busy = false } } }, primary = true)
-                shown is Phase.Pick -> Pill(tr("Pair and copy"), { if (target != null) scope.launch { flow.pair(target) } }, Modifier.alpha(if (target != null) 1f else 0.4f), primary = true)
-            }
-            if (canFresh && shown !is Phase.Done) {
-                Text(tr("or"), color = Glass.dim, fontSize = 14.sp)
-                Text(tr("Start fresh"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { if (!busy) { busy = true; host.launch { withContext(Dispatchers.IO) { flow.fresh() }; onDone() } } }.padding(vertical = 14.dp))
-                Text(": " + tr("this is my first device"), color = Glass.dim, fontSize = 14.sp)
+                if (canFresh && shown !is Phase.Done) {
+                    Text(tr("or"), color = Glass.dim, fontSize = 14.sp)
+                    Text(tr("Start fresh"), color = Glass.dim, fontSize = 14.sp, textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.sizeIn(minHeight = 48.dp).clickable { fresh() }.padding(vertical = 14.dp))
+                }
+            } else if (canFresh) Column {
+                Pill(tr("Start fresh"), { fresh() }, primary = true)
+                Text(tr("this is my first device"), color = Glass.dim, fontSize = 13.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 6.dp, top = 2.dp))
             }
         }
     }

@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -85,10 +89,10 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
     }
     Scaffold { pad ->
         BoxWithConstraints(Modifier.padding(pad).fillMaxSize()) {
-            val wide = maxWidth >= 840.dp
+            val wide = maxWidth >= 840.dp && maxHeight >= 600.dp
             val bar = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
             val body: @Composable () -> Unit = {
-                Column(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize().imePadding()) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                   CompositionLocalProvider(LocalStepBar provides bar) {
                     when (current) {
@@ -102,10 +106,9 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
                             onDone()
                         }
                     }
-                    if (previous != null) Text(tr("Back"), color = Glass.dim, fontSize = 14.sp, modifier = Modifier.clickable { go(previous) }.padding(vertical = 14.dp))
                   }
                 }
-                BarHost(bar)
+                BarHost(bar, previous?.let { p -> { go(p) } })
                 }
             }
             val open = { step: String -> items.first { it.step == step }.state.let { if (it == State.DONE || it == State.COPIED) go(step) } }
@@ -121,8 +124,13 @@ fun OnboardingScreen(library: Library, onDone: () -> Unit) {
 }
 
 @Composable
-private fun BarHost(bar: MutableState<(@Composable () -> Unit)?>) {
-    bar.value?.let { b -> Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { b() } }
+@OptIn(ExperimentalLayoutApi::class)
+private fun BarHost(bar: MutableState<(@Composable () -> Unit)?>, back: (() -> Unit)?) {
+    if (bar.value == null && back == null) return
+    FlowRow(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp), verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (back != null) Text(tr("Back"), color = Glass.dim, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterVertically).sizeIn(minHeight = 48.dp).clickable(onClick = back).padding(vertical = 14.dp))
+        bar.value?.invoke()
+    }
 }
 
 @Composable

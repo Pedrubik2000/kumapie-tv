@@ -24,19 +24,21 @@ object Onboarding {
     fun next(done: Set<String>, copied: Set<String>, learningJa: Boolean): String? =
         STEPS.firstOrNull { it !in done && it !in copied && applies(it, learningJa) }
 
-    fun list(done: Set<String>, copied: Set<String>, learningJa: Boolean, detail: Map<String, String> = emptyMap()): List<Item> =
+    fun counted(learningJa: Boolean): List<String> = STEPS.filter { it != LANGUAGE && applies(it, learningJa) }
+
+    fun list(done: Set<String>, copied: Set<String>, learningJa: Boolean, detail: Map<String, String> = emptyMap(), current: String? = null): List<Item> =
         STEPS.filter { applies(it, learningJa) }.map { s ->
             val state = when {
                 s in copied -> State.COPIED
                 s in done -> State.DONE
-                s == COLOURING -> State.OPTIONAL
+                s == COLOURING || s == DOWNLOADS -> State.OPTIONAL
                 else -> State.NEEDED
             }
-            val sub = when (state) {
+            val sub = if (s == current && s in detail) detail.getValue(s) else when (state) {
                 State.COPIED -> tr("copied")
-                State.DONE -> detail[s].orEmpty()
+                State.DONE -> detail[s] ?: tr("Done")
                 State.OPTIONAL -> tr("Optional")
-                State.NEEDED -> if (s == DOWNLOADS) tr("Automatic") else tr("Needed")
+                State.NEEDED -> tr("Needed")
             }
             Item(s, label(s), state, sub)
         }

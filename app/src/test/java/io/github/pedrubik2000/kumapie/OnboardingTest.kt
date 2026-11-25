@@ -46,8 +46,22 @@ class OnboardingTest {
         assertEquals(State.COPIED to "copied", l.getValue("anilist").let { it.state to it.sub })
         assertEquals(State.NEEDED to "Needed", l.getValue("videos").let { it.state to it.sub })
         assertEquals(State.OPTIONAL to "Optional", l.getValue("colouring").let { it.state to it.sub })
-        assertEquals(State.NEEDED to "Automatic", l.getValue("downloads").let { it.state to it.sub })
+        assertEquals(State.OPTIONAL to "Optional", l.getValue("downloads").let { it.state to it.sub })
         assertEquals(Onboarding.STEPS, Onboarding.list(emptySet(), emptySet(), true).map { it.step })
+    }
+
+    @Test fun doneWithoutDetailSaysDoneAndCurrentShowsItsDetail() {
+        val l = Onboarding.list(setOf("language", "main"), emptySet(), true, mapOf("main" to "Tab S7+"), current = "main").associateBy { it.step }
+        assertEquals("Tab S7+", l.getValue("main").sub)
+        assertEquals("Done", l.getValue("language").sub)
+        val c = Onboarding.list(emptySet(), emptySet(), true, mapOf("main" to "Tab S7+"), current = "main").associateBy { it.step }
+        assertEquals("Tab S7+", c.getValue("main").sub)
+        assertEquals("Needed", c.getValue("anilist").sub)
+    }
+
+    @Test fun countedLeavesOutLanguageAndColouringWhenNotJapanese() {
+        assertEquals(listOf("main", "anilist", "videos", "colouring", "downloads"), Onboarding.counted(true))
+        assertEquals(listOf("main", "anilist", "videos", "downloads"), Onboarding.counted(false))
     }
 
     @Test fun copiedStepStaysInTheList() {

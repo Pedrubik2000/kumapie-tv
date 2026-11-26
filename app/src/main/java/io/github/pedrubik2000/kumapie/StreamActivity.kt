@@ -299,6 +299,7 @@ class StreamActivity : ComponentActivity() {
 
     private fun restart(settings: Settings) {
         leaving = true
+        Restart.begin()
         setContent { Box(Modifier.fillMaxSize().background(Color.Black)) }
         Restart.now(settings)
     }

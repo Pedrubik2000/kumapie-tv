@@ -104,11 +104,12 @@ internal fun VideosPage(settings: Settings, caption: String, copiedFrom: String?
     var failed by remember { mutableIntStateOf(0) }
     val checking = tr("Checking with %s…", "Real-Debrid")
     fun open(url: String) = runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-    PageHead(caption, tr("Videos & subtitles"), tr("Real-Debrid (paid) streams the files Torrentio finds; Jimaku brings the Japanese subtitles."))
+    PageHead(caption, tr("Videos & subtitles"), tr("Real-Debrid (paid) or torrents on this device stream the files Torrentio finds; Jimaku brings the Japanese subtitles."))
     if (copiedFrom != null) CopiedCard(tr("Real-Debrid + Jimaku keys"), tr("%s · copied from %s", tr("Videos"), copiedFrom))
     else {
         OutlinedButton(onClick = { open("https://real-debrid.com/apitoken") }) { Text(tr("Open real-debrid.com")) }
         KeyField(rd, { rd = it; settings.rdToken = it }, tr("Real-Debrid token"), KeyService.REAL_DEBRID)
+        TorrentsSwitch(settings)
         OutlinedButton(onClick = { open("https://jimaku.cc/login") }) { Text(tr("Open jimaku.cc")) }
         KeyField(jimaku, { jimaku = it; settings.jimakuKey = it }, tr("Jimaku API key"), KeyService.JIMAKU)
         if (said.isNotEmpty()) Text(said, color = if (said == checking) Glass.dim else Colors.unknown)

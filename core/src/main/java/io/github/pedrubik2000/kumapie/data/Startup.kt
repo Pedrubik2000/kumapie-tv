@@ -27,9 +27,9 @@ object Startup {
         addons.firstNotNullOfOrNull { Regex("realdebrid=([^/|%]+)").find(it)?.groupValues?.get(1) }.orEmpty()
     }
 
-    fun rdGate(pc: Boolean, proof: Boolean, key: String, check: String?, failed: Int): RdGate = when {
+    fun rdGate(pc: Boolean, proof: Boolean, key: String, check: String?, failed: Int, torrents: Boolean = false): RdGate = when {
         pc || proof -> RdGate.NOT_ASKED
-        key.isBlank() -> RdGate.MISSING
+        key.isBlank() -> if (torrents) RdGate.NOT_ASKED else RdGate.MISSING
         check == null -> RdGate.UNREACHABLE
         check == "ok" -> RdGate.OK
         check == "rejected" -> RdGate.REJECTED
@@ -40,13 +40,13 @@ object Startup {
     fun proof(addons: List<String>) = addons.any { it.startsWith(PROOF_ADDON) }
 
     fun rdMissing(settings: Settings): Boolean = rdGate(settings.server.isNotEmpty(), proof(settings.addons),
-        rdKey(settings.rdToken, settings.addons), null, 0) == RdGate.MISSING
+        rdKey(settings.rdToken, settings.addons), null, 0, settings.torrents) == RdGate.MISSING
 
     suspend fun rdCheck(settings: Settings, failed: Int, check: suspend (String) -> String = { checkKey(KeyService.REAL_DEBRID, it) }): RdGate {
         val pc = settings.server.isNotEmpty()
         val proof = proof(settings.addons)
         val key = rdKey(settings.rdToken, settings.addons)
-        if (pc || proof || key.isBlank()) return rdGate(pc, proof, key, null, failed)
+        if (pc || proof || key.isBlank()) return rdGate(pc, proof, key, null, failed, settings.torrents)
         return rdGate(false, false, key, check(key), failed)
     }
 

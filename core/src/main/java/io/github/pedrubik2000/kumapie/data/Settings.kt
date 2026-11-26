@@ -48,6 +48,15 @@ class Settings(context: Context) {
         get() = prefs.getString("rd_token", "").orEmpty()
         set(value) = prefs.edit().putString("rd_token", value.trim()).apply()
 
+    var torrents: Boolean
+        get() = prefs.getBoolean(TORRENTS, false)
+        set(value) = prefs.edit().putBoolean(TORRENTS, value).apply()
+
+    fun streamTorrents(on: Boolean) {
+        torrents = on
+        if (on && addons.none { "torrentio.strem.fun" in it }) addons = addons + Addons.TORRENTIO_PLAIN
+    }
+
     /** The AniList username whose lists head Discover ("" none). */
     var anilist: String
         get() = prefs.getString(Addons.ANILIST, "").orEmpty()
@@ -91,7 +100,7 @@ class Settings(context: Context) {
      */
     fun setSources(kitsu: Boolean, english: Boolean, rd: String) {
         if (rd.isNotBlank()) rdToken = rd
-        addons = Addons.sources(addons, kitsu, english, rd)
+        addons = Addons.sources(addons, kitsu, english, rd, torrents)
     }
 
     /** Pause when a scene ends (true) or play on into the next one. */
@@ -171,6 +180,7 @@ class Settings(context: Context) {
     fun setAnkiReadingField(lang: Lang, field: String) = prefs.edit().putString("anki_reading_${lang.code}", field).apply()
 
     companion object {
+        const val TORRENTS = "torrents_on"
         fun normalizeServer(value: String): String {
             val v = value.trim().trimEnd('/')
             return if (v.isEmpty() || v.startsWith("http://") || v.startsWith("https://")) v else "https://$v"

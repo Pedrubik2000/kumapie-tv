@@ -67,7 +67,7 @@ class TvOnboardingFitTest {
     @Test fun videosFits() {
         at("language", "main", "anilist")
         rule.onNodeWithText("Videos & subtitles").assertIsDisplayed()
-        rule.onNodeWithText("Real-Debrid (paid) streams", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Real-Debrid (paid) or torrents", substring = true).assertIsDisplayed()
         rule.onNodeWithText("Scan this with your phone's camera", substring = true).assertIsDisplayed()
         rule.onNodeWithText("Continue ›").assertIsDisplayed()
         rule.onNodeWithText("Skip").assertIsDisplayed()

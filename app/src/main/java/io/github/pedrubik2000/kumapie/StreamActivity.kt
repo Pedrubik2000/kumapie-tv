@@ -218,12 +218,13 @@ class StreamActivity : ComponentActivity() {
         DisposableEffect(p) {
             val listener = object : Player.Listener {
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
+                    reconnecting = false
                     if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(p, e)) note = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
                     else reconnecting = io.github.pedrubik2000.kumapie.player.DecodeRetry.reopening(e)
                 }
 
                 override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_READY) reconnecting = false
+                    if (state == Player.STATE_READY || state == Player.STATE_ENDED) reconnecting = false
                     if (state == Player.STATE_ENDED) scope.launch { playNext(settings, query(link)) { note = it } }
                 }
             }

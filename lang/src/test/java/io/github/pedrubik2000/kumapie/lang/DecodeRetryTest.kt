@@ -62,6 +62,14 @@ class DecodeRetryTest {
         repeat(5) { assertEquals(Step.GiveUp, r.step(bad, 1_000, 1_000)) }
     }
 
+    @Test fun malformedGivesUpEvenWhenEachErrorComesAFewSecondsLater() {
+        val r = DecodeRetry()
+        assertEquals(Step.Retry(1_000), r.step(bad, 1_000, 41_000))
+        assertEquals(Step.Retry(46_000), r.step(bad, 4_000, 41_000))
+        assertEquals(Step.Retry(46_000), r.step(bad, 7_000, 41_000))
+        assertEquals(Step.GiveUp, r.step(bad, 10_000, 41_000))
+    }
+
     @Test fun malformedCountStartsOverOncePlaybackPassedTheSpot() {
         val r = DecodeRetry()
         repeat(3) { r.step(bad, 1_000, 30_000) }

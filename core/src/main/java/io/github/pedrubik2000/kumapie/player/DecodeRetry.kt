@@ -26,7 +26,7 @@ class DecodeRetry {
             if (atMs > reopenPast) reopens = 0
             if (++reopens > TRIES) return Step.GiveUp
             val to = if (reopens == 1) atMs else maxOf(atMs, bufferedMs) + PAST_BUFFER_MS
-            reopenPast = to
+            reopenPast = maxOf(to, bufferedMs)
             return Step.Retry(to)
         }
         if (code !in CODES) return Step.GiveUp

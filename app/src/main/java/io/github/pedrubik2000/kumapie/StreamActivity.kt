@@ -246,7 +246,6 @@ class StreamActivity : ComponentActivity() {
                 alone = null; aloneView = null
             }
         }
-        remember(live, started, buffering) { alone = live.takeIf { started && !buffering } }
         LaunchedEffect(s) { s.keepPlace() }
         LaunchedEffect(live) { live.run() }
         LaunchedEffect(live.noLines) { if (live.noLines && note == null) note = tr("No Japanese subtitles: none in this file, none on Jimaku") }
@@ -266,6 +265,7 @@ class StreamActivity : ComponentActivity() {
         var ctl by remember { mutableStateOf<io.github.pedrubik2000.kumapie.player.SceneController?>(null) }
         LaunchedEffect(live.fitted, live.pieces, live.english, live.englishOpen, ctl, ctl?.scenes) { ctl?.let { s.fitLanded(it::shift); s.piecesLanded(it::shift); s.englishLanded(it) } }
         val ready = shown?.takeIf { started }
+        remember(live, started, buffering, ready) { alone = live.takeIf { started && !buffering && ready == null } }
         Box(Modifier.fillMaxSize()) {
             if (ready != null) {
                 remember(ready) { alone = null; note = null }

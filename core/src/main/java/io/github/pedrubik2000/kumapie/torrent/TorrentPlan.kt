@@ -3,8 +3,9 @@ package io.github.pedrubik2000.kumapie.torrent
 object TorrentPlan {
     const val HEAD_BYTES = 4L shl 20
     const val TAIL_BYTES = 2L shl 20
-    const val AHEAD_BYTES = 16L shl 20
-    const val LOW = 1
+    const val AHEAD_BYTES = 8L shl 20
+    const val URGENT_BYTES = 2L shl 20
+    const val IGNORE = 0
     const val NORMAL = 4
     const val TOP = 7
     private val VIDEO = setOf("mkv", "mp4", "m4v", "avi", "webm", "mov", "ts", "mpg", "mpeg", "wmv")
@@ -29,9 +30,11 @@ object TorrentPlan {
 
     fun ahead(piece: Int, last: Int, pieceLen: Int): IntRange = piece..minOf(last, piece + span(AHEAD_BYTES, pieceLen) - 1)
 
+    fun urgent(piece: Int, last: Int, pieceLen: Int): IntRange = piece..minOf(last, piece + span(URGENT_BYTES, pieceLen) - 1)
+
     fun priorities(numPieces: Int, first: Int, last: Int, pivot: Int, pieceLen: Int): IntArray {
         val out = IntArray(numPieces)
-        for (p in first..last) out[p] = if (p < pivot) LOW else NORMAL
+        for (p in first..last) out[p] = if (p < pivot) IGNORE else NORMAL
         for (p in head(first, last, pieceLen)) out[p] = TOP
         for (p in tail(first, last, pieceLen)) out[p] = TOP
         for (p in ahead(pivot.coerceIn(first, last), last, pieceLen)) out[p] = TOP

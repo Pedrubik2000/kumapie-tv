@@ -9,8 +9,8 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.TransferListener
 import java.io.IOException
 
-fun torrentAware(context: Context): DataSource.Factory =
-    DefaultDataSource.Factory(context, DataSource.Factory { Router(DefaultHttpDataSource.Factory().createDataSource(), TorrentDataSource(context)) })
+fun torrentAware(context: Context, owner: Any): DataSource.Factory =
+    DefaultDataSource.Factory(context, DataSource.Factory { Router(DefaultHttpDataSource.Factory().createDataSource(), TorrentDataSource(context, owner)) })
 
 private class Router(private val http: DataSource, private val torrent: DataSource) : DataSource {
     private var active: DataSource? = null

@@ -85,11 +85,12 @@ class TorrentTest {
         assertEquals(0, p[301])
         assertEquals(TorrentPlan.TOP, p[10])
         assertEquals(TorrentPlan.TOP, p[300])
-        assertEquals(TorrentPlan.LOW, p[50])
+        assertEquals(TorrentPlan.IGNORE, p[50])
         assertEquals(TorrentPlan.NORMAL, p[200])
         assertEquals(TorrentPlan.TOP, p[80])
-        assertEquals(TorrentPlan.TOP, p[80 + 63])
+        assertEquals(TorrentPlan.TOP, p[80 + 31])
         assertEquals(TorrentPlan.NORMAL, p[80 + 64])
+        assertEquals(80..87, TorrentPlan.urgent(80, 300, 262_144))
     }
 
     @Test fun readableBytesStopAtTheFirstMissingPiece() {

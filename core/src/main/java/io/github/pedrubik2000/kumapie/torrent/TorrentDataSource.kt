@@ -12,18 +12,19 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import java.io.InterruptedIOException
 import java.io.RandomAccessFile
 
-class TorrentDataSource(private val context: Context) : BaseDataSource(true) {
+class TorrentDataSource(private val context: Context, private val owner: Any) : BaseDataSource(true) {
     private var stream: TorrentStream? = null
     private var file: RandomAccessFile? = null
     private var uri: Uri? = null
     private var pos = 0L
     private var left = 0L
+    private var firstBytes = false
 
     override fun open(dataSpec: DataSpec): Long {
         uri = dataSpec.uri
         transferInitializing(dataSpec)
         val ref = TorrentRef.parse(dataSpec.uri.toString()) ?: throw TorrentException(tr("This is not a torrent link."))
-        val s = TorrentEngine.open(context, ref)
+        val s = TorrentEngine.open(context, ref, owner)
         stream = s
         if (dataSpec.position > s.size) throw DataSourceException(PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE)
         pos = dataSpec.position
@@ -55,6 +56,9 @@ class TorrentDataSource(private val context: Context) : BaseDataSource(true) {
             s.want(pos)
             val have = s.available(pos)
             if (have > 0) {
+                val waitedMs = System.currentTimeMillis() - since
+                if (waitedMs > LOG_WAIT_MS) android.util.Log.i("kumapie-torrent", "read at $pos waited $waitedMs ms")
+                if (!firstBytes) { firstBytes = true; android.util.Log.i("kumapie-torrent", "first bytes at ${pos} (${have} ready)") }
                 TorrentEngine.waiting = false
                 return minOf(have, want.toLong()).toInt()
             }
@@ -79,12 +83,13 @@ class TorrentDataSource(private val context: Context) : BaseDataSource(true) {
         uri = null
     }
 
-    class Factory(private val context: Context) : DataSource.Factory {
-        override fun createDataSource(): DataSource = TorrentDataSource(context)
+    class Factory(private val context: Context, private val owner: Any) : DataSource.Factory {
+        override fun createDataSource(): DataSource = TorrentDataSource(context, owner)
     }
 
     private companion object {
         const val POLL_MS = 50L
         const val SHOW_AFTER_MS = 400L
+        const val LOG_WAIT_MS = 1000L
     }
 }

@@ -192,7 +192,8 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
     }
 
     fun export(): Exported {
-        val o = payload().put("counted", JSONObject().apply { languages.forEach { l ->
+        val dumps = dumps()
+        val o = payload(dumps).put("cards", dumps).put("counted", JSONObject().apply { languages.forEach { l ->
             kotlinx.coroutines.runBlocking { if (!l.known.loadCards()) runCatching { l.known.readCards() } }
             put(l.lang.code, JSONArray(l.known.knownList()))
         } })
@@ -204,9 +205,11 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
         return Exported(out, n.sumOf { it.getJSONArray("cards").length() }, n.sumOf { it.getJSONArray("revlog").length() }, media.getInt("files"), media.getLong("bytes"))
     }
 
-    fun payload(): JSONObject {
-        val cards = JSONObject()
-        for (l in Lang.ALL) if (File(context.filesDir, "srs/${srs.person()}/${l.code}.db").exists()) srs.store(l)?.let { cards.put(l.code, it.dump()) }
+    private fun dumps(): JSONObject = JSONObject().apply {
+        for (l in Lang.ALL) if (File(context.filesDir, "srs/${srs.person()}/${l.code}.db").exists()) srs.store(l)?.let { put(l.code, it.dump()) }
+    }
+
+    fun payload(cards: JSONObject = dumps()): JSONObject {
         val own = cards.keys().asSequence().flatMap { DeviceFile.events(it, cards.getJSONObject(it)) }.toList()
         val media = CardMedia.dir(context).listFiles().orEmpty().filter { it.isFile }
         return JSONObject().put("format", DeviceFile.FORMAT).put("device", progress.device).put("model", android.os.Build.MODEL)
@@ -217,7 +220,6 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
             .put("streams", JSONObject().apply { streams().forEach { (k, v) -> put(k, if (v is Set<*>) JSONArray(v) else v) } })
             .put("events", DeviceFile.union(storedEvents(), own))
             .put("carded", carded()).put("fsrs", fsrs())
-            .put("cards", cards)
             .put("media", JSONObject().put("files", media.size).put("bytes", media.sumOf { it.length() }))
     }
 

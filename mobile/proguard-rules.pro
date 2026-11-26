@@ -8,6 +8,7 @@
 
 # VOICEVOX core (ずんだもん word audio) reads its objects' fields (Onnxruntime.handle) by name from native code.
 -keep class jp.hiroshiba.voicevoxcore.** { *; }
+-keepattributes Signature,RuntimeVisibleAnnotations
 
 # ML Kit (device translator) finds its components by class name at run time.
 -keep class com.google.mlkit.** { *; }

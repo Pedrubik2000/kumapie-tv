@@ -8,3 +8,5 @@ local.properties
 *.jks
 *.keystore
 __pycache__/
+# torrent sidecar binaries: tools/torrsrv/build.sh (WSL) writes them, ~23 MB each
+core/src/*/jniLibs/*/libtorrsrv.so

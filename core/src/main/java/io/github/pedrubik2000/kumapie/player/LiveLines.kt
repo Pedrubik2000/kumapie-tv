@@ -118,7 +118,7 @@ class LiveLines(
 
     override fun onCues(cueGroup: CueGroup) {
         // Either track's line starts are the video's own clock: Jimaku's file is fitted to them ([fit]).
-        if (cueGroup.cues.any { it !in shown }) refs += player.currentPosition / 1000.0
+        if (cueGroup.cues.any { it !in shown }) addRef(refs, player.currentPosition / 1000.0)
         shown = cueGroup.cues
         if (englishTrack) {
             val texts = cueGroup.cues.filterNot(::top).map { io.github.pedrubik2000.kumapie.data.Jimaku.notes(io.github.pedrubik2000.kumapie.data.Jimaku.plain(it.text?.toString().orEmpty())) }
@@ -220,6 +220,8 @@ class LiveLines(
             }
             return out to still
         }
+
+        fun addRef(refs: MutableList<Double>, at: Double): Boolean = (refs.isEmpty() || at > refs.last()).also { if (it) refs += at }
 
         private const val MIN_REFS = 8
         private const val OTHERS_AFTER = 30

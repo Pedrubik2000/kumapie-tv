@@ -15,15 +15,20 @@ object CrashReports {
     const val ISSUE_CAP = 6_000
     const val QR_CAP = 1_800
     private const val ISSUES = "https://github.com/Pedrubik2000/kumapie-tv/issues/new"
-    private val url = Regex("""(?i)\b(https?)://([^/\s"'<>?#]+)\S*""")
-    private val secret = Regex("""(?i)\b(realdebrid|api[_-]?key|access[_-]?token|token|authorization|password|secret|key)(=|:\s*|%3D)[^\s&/|"',;)]+""")
+    private val url = Regex("""(?i)\b([a-z][\w+.-]{0,20})://([^/\s"'<>?#]*)\S*""")
+    private val opaque = Regex("""(?i)\b(magnet|mailto|data|intent|blob|javascript):\S+""")
+    private val secret = Regex("""(?i)([\w-]{0,30}(?:key|token|secret|password|authorization|realdebrid))["']?\s*(=|:|%3D)\s*["']?[^\s&"',;)}]+""")
     private val bearer = Regex("""(?i)\bbearer\s+[\w.\-~+/]+=*""")
     private val printable = Regex("""[\x20-\x7e]{6,}""")
+    private val keep = Regex("""^(Abort message.*|.*\bsignal \d+.*|\s*#\d+ pc .*)$""")
 
     fun scrub(text: String): String = text
         .replace(url) { "${it.groupValues[1]}://${it.groupValues[2]}/…" }
+        .replace(opaque) { "${it.groupValues[1]}:…" }
         .replace(bearer, "Bearer ***")
         .replace(secret) { "${it.groupValues[1]}${it.groupValues[2]}***" }
+
+    fun nativeLines(text: String): String = text.lineSequence().map { it.trim().take(300) }.filter { keep.matches(it) }.joinToString("\n")
 
     fun readable(bytes: ByteArray): String {
         val text = String(bytes, Charsets.ISO_8859_1)
@@ -42,7 +47,8 @@ object CrashReports {
     }
 
     fun build(kind: String, time: Long, note: String, raw: String): CrashReport {
-        val trace = scrub(raw).take(TRACE_MAX)
+        val capped = raw.take(TRACE_MAX)
+        val trace = scrub(if (kind == "native") nativeLines(capped) else capped).take(TRACE_MAX)
         return CrashReport(kind, time, summary(kind, trace, scrub(note)), trace)
     }
 
@@ -75,6 +81,11 @@ object CrashReports {
             head /= 2
             tail /= 2
         }
-        return issue(r, e, "").let { if (it.length <= cap) it else issue(r.copy(summary = r.summary.take(40)), e, "").take(cap) }
+        var s = r.summary
+        while (true) {
+            val u = issue(r.copy(summary = s), e, "")
+            if (u.length <= cap || s.isEmpty()) return u
+            s = s.take(s.length / 2)
+        }
     }
 }

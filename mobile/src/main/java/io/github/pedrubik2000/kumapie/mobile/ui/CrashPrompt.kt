@@ -29,6 +29,7 @@ internal fun CrashPrompt(show: Boolean) {
     var report by remember { mutableStateOf<CrashReport?>(null) }
     var checked by remember { mutableStateOf(false) }
     var phase by remember { mutableStateOf("ask") }
+    var refused by remember { mutableStateOf(false) }
     LaunchedEffect(show) {
         if (show && !checked) {
             delay(2_000)
@@ -47,7 +48,7 @@ internal fun CrashPrompt(show: Boolean) {
                 "ask" -> tr("Sends the error, the device model and the app version — nothing else.")
                 "sending" -> tr("Sending…")
                 "sent" -> tr("Sent to your kumapie PC.")
-                else -> tr("Open a ready-filled GitHub issue to send the report.")
+                else -> (if (refused) tr("Your kumapie PC refused the report.") + " " else "") + tr("Open a ready-filled GitHub issue to send the report.")
             })
         },
         confirmButton = {
@@ -55,7 +56,7 @@ internal fun CrashPrompt(show: Boolean) {
                 "ask" -> TextButton(onClick = {
                     CrashCollector.mark(context)
                     phase = "sending"
-                    scope.launch { phase = CrashCollector.send(context, r, env) ?: "sent" }
+                    scope.launch { val d = CrashCollector.send(context, r, env); refused = d.refused; phase = d.issue ?: "sent" }
                 }) { Text(tr("Send")) }
                 "sending" -> Unit
                 "sent" -> TextButton(onClick = { report = null }) { Text(tr("OK")) }

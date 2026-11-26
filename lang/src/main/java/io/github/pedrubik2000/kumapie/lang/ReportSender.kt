@@ -7,6 +7,8 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 
+class Delivery(val issue: String? = null, val refused: Boolean = false)
+
 object ReportSender {
     private const val PC_MS = 3_000L
     private const val POST_MS = 8_000
@@ -19,7 +21,7 @@ object ReportSender {
         return MainDeviceFlow.pcUrl(pc.address).trimEnd('/')
     }
 
-    private fun post(base: String, path: String, body: String): Boolean {
+    private fun post(base: String, path: String, body: String): Int {
         val conn = URL(base + path).openConnection() as HttpURLConnection
         conn.connectTimeout = POST_MS
         conn.readTimeout = POST_MS
@@ -29,17 +31,17 @@ object ReportSender {
         conn.setRequestProperty("Connection", "close")
         return try {
             conn.outputStream.use { it.write(body.toByteArray()) }
-            conn.responseCode == 200
+            conn.responseCode
         } finally {
             conn.disconnect()
         }
     }
 
-    suspend fun deliver(context: Context, path: String, json: String, qrCap: Int = 0, issueUrl: (Int) -> String): String? {
-        val sent = withContext(Dispatchers.IO) {
+    suspend fun deliver(context: Context, path: String, json: String, qrCap: Int = 0, issueUrl: (Int) -> String): Delivery {
+        val code = withContext(Dispatchers.IO) {
             val base = pcUrl(context)
-            base.isNotEmpty() && runCatching { post(base, path, json) }.getOrDefault(false)
+            if (base.isEmpty()) 0 else runCatching { post(base, path, json) }.getOrDefault(0)
         }
-        return if (sent) null else issueUrl(if (qrCap > 0) qrCap else ISSUE_CAP)
+        return if (code == 200) Delivery() else Delivery(issueUrl(if (qrCap > 0) qrCap else ISSUE_CAP), code == 403)
     }
 }

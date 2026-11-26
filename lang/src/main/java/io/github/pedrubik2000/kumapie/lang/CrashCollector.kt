@@ -8,18 +8,21 @@ import io.github.pedrubik2000.kumapie.data.Settings
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.util.concurrent.atomic.AtomicBoolean
 
 object CrashCollector {
+    private val installed = AtomicBoolean(false)
     private const val LAST = "crash_offered_until"
     private const val SAME_MS = 60_000L
 
     private fun file(context: Context) = File(context.noBackupFilesDir, "last-crash.txt")
 
     fun install(context: Context) {
+        if (!installed.compareAndSet(false, true)) return
         val dir = file(context.applicationContext)
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
-            runCatching { dir.writeText("${System.currentTimeMillis()}\n" + StringWriter().also { e.printStackTrace(PrintWriter(it)) }) }
+            runCatching { dir.writeText("${System.currentTimeMillis()}\n" + StringWriter().also { e.printStackTrace(PrintWriter(it)) }.toString().take(CrashReports.TRACE_MAX)) }
             previous?.uncaughtException(t, e)
         }
     }
@@ -52,7 +55,7 @@ object CrashCollector {
         val pick = CrashReports.newest(all, Settings(ctx).prefs.getLong(LAST, 0), now) ?: return null
         val info = infos.firstOrNull { it.timestamp == pick.time && kindOf(it.reason) == pick.kind }
         val own = saved?.takeIf { pick.kind == "java" && kotlin.math.abs(it.first - pick.time) < SAME_MS }?.second
-        val raw = own ?: info?.let { runCatching { CrashReports.readable(it.traceInputStream?.use { s -> s.readBytes() } ?: ByteArray(0)) }.getOrNull() }.orEmpty()
+        val raw = own ?: info?.let { runCatching { CrashReports.readable(it.traceInputStream?.use(::readCapped) ?: ByteArray(0)) }.getOrNull() }.orEmpty()
         return CrashReports.build(pick.kind, pick.time, info?.description.orEmpty(), raw)
     }
 
@@ -61,6 +64,17 @@ object CrashCollector {
         file(context.applicationContext).delete()
     }
 
-    suspend fun send(context: Context, report: CrashReport, env: CrashEnv, qrCap: Int = 0): String? =
+    suspend fun send(context: Context, report: CrashReport, env: CrashEnv, qrCap: Int = 0): Delivery =
         ReportSender.deliver(context, "/api/crash", CrashReports.json(report, env), qrCap) { cap -> CrashReports.issueUrl(report, env, cap) }
+}
+
+private fun readCapped(s: java.io.InputStream, max: Int = 200_000): ByteArray {
+    val buf = ByteArray(max)
+    var n = 0
+    while (n < max) {
+        val r = s.read(buf, n, max - n)
+        if (r < 0) break
+        n += r
+    }
+    return buf.copyOf(n)
 }

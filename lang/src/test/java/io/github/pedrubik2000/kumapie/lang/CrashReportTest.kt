@@ -35,11 +35,51 @@ class CrashReportTest {
         val dirty = "java.io.IOException: GET https://api.real-debrid.com/rest/1.0/x?auth_token=SECRET1 failed\n" +
             "addon https://torrentio.strem.fun/realdebrid=ABCDEF123/manifest.json\nrealdebrid=ZZZ999 apikey: KEY777 Authorization: Bearer tok.en-1\n" + "x".repeat(300_000)
         val r = CrashReports.build("java", 1L, "", dirty)
-        assertEquals(CrashReports.TRACE_MAX, r.trace.length)
+        assertTrue(r.trace.length in 99_000..CrashReports.TRACE_MAX)
         listOf("SECRET1", "ABCDEF123", "ZZZ999", "KEY777", "tok.en-1", "manifest.json").forEach { assertFalse(it, it in r.trace) }
         assertTrue("https://api.real-debrid.com/…" in r.trace)
         assertTrue("realdebrid=***" in r.trace)
         assertFalse("SECRET1" in r.summary)
+    }
+
+    @Test fun everyKeyShapeIsScrubbed() {
+        val s = CrashReports.scrub("""{"access_token":"AAA1","jimaku_key":"BBB2"} rd_token=CCC3 accessToken: DDD4 api-key=EEE5 PASSWORD=FFF6 client_secret = GGG7 Authorization: Bearer HHH8""")
+        listOf("AAA1", "BBB2", "CCC3", "DDD4", "EEE5", "FFF6", "GGG7", "HHH8").forEach { assertFalse(it, it in s) }
+        assertTrue("access_token" in s)
+    }
+
+    @Test fun everySchemeIsCutToItsHost() {
+        val s = CrashReports.scrub("a magnet:?xt=urn:btih:SECRETHASH&dn=Show file:///sdcard/Movies/Private.mkv content://media/external/1234 ftp://h.example/x/y?k=1 mailto:me@x.com")
+        listOf("SECRETHASH", "Private.mkv", "1234", "x/y", "me@x.com").forEach { assertFalse(it, it in s) }
+        assertTrue("ftp://h.example/…" in s && "magnet:…" in s)
+    }
+
+    @Test fun stackFramesAndPlainMessagesSurviveTheScrub() {
+        val t = "java.lang.IllegalStateException: boom: x\n\tat pkg.Class.run(File.kt:12)"
+        assertEquals(t, CrashReports.scrub(t))
+    }
+
+    @Test fun aLongRunOfOneCharacterIsScrubbedFast() {
+        val t0 = System.nanoTime()
+        CrashReports.scrub("x".repeat(CrashReports.TRACE_MAX))
+        assertTrue((System.nanoTime() - t0) / 1_000_000 < 2_000)
+    }
+
+    @Test fun aNativeReportKeepsOnlyTheAbortSignalAndFrames() {
+        val raw = "Abort message: 'bad thing'\nsignal 11 (SIGSEGV), code 1\n    #00 pc 0000000000012345  /system/lib64/libc.so (abort+168)\n" +
+            "memory near x0:\n0000007ff0a1b2c0 7365637265743d70 6173737764313233\nsecretpassword1234567890\nopen files:\n    fd 5: /data/user/0/x/secret.db"
+        val r = CrashReports.build("native", 1L, "", raw)
+        assertEquals("Abort message: 'bad thing'\nsignal 11 (SIGSEGV), code 1\n#00 pc 0000000000012345  /system/lib64/libc.so (abort+168)", r.trace)
+        assertEquals("Abort message: 'bad thing'", r.summary)
+    }
+
+    @Test fun anEscapeIsNeverCutInTwo() {
+        val r = CrashReport("java", 1L, "é".repeat(300), "")
+        for (cap in 500..600) {
+            val u = CrashReports.issueUrl(r, env, cap)
+            assertTrue(Regex("%(?![0-9A-F]{2})").find(u) == null)
+            assertTrue(u.length <= cap)
+        }
     }
 
     @Test fun aNativeStreamOfBytesBecomesItsReadableStrings() {

@@ -35,6 +35,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.CrashCollector
 import io.github.pedrubik2000.kumapie.lang.CrashReport
 import io.github.pedrubik2000.kumapie.lang.CrashReports
+import io.github.pedrubik2000.kumapie.lang.Delivery
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -60,8 +61,9 @@ internal fun TvCrashPrompt(show: Boolean, startMs: Long = 2_000) {
 }
 
 @Composable
-internal fun TvCrashDialog(send: suspend () -> String?, mark: () -> Unit, close: () -> Unit, guardMs: Long = 500) {
+internal fun TvCrashDialog(send: suspend () -> Delivery, mark: () -> Unit, close: () -> Unit, guardMs: Long = 500) {
     var phase by remember { mutableStateOf("ask") }
+    var refused by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val focus = remember(phase) { FocusRequester() }
     val openedAt = remember { System.nanoTime() }
@@ -80,7 +82,7 @@ internal fun TvCrashDialog(send: suspend () -> String?, mark: () -> Unit, close:
                             Button(onClick = {
                                 mark()
                                 phase = "sending"
-                                scope.launch { phase = send() ?: "sent" }
+                                scope.launch { val d = send(); refused = d.refused; phase = d.issue ?: "sent" }
                             }, modifier = Modifier.focusRequester(focus)) { Text(tr("Send"), fontSize = 16.sp) }
                             Button(onClick = no) { Text(tr("Not now"), fontSize = 16.sp) }
                         }
@@ -91,6 +93,7 @@ internal fun TvCrashDialog(send: suspend () -> String?, mark: () -> Unit, close:
                         Button(onClick = close, modifier = Modifier.focusRequester(focus)) { Text(tr("OK"), fontSize = 16.sp) }
                     }
                     else -> {
+                        if (refused) Text(tr("Your kumapie PC refused the report."), color = Colors.dim, fontSize = 16.sp)
                         Text(tr("Scan with your phone to open a ready-filled GitHub issue."), color = Colors.text, fontSize = 20.sp)
                         val code = remember(p) { qr(p.toString(), 700) }
                         Image(code.asImageBitmap(), null, Modifier.size(320.dp).background(Color.White).padding(10.dp))

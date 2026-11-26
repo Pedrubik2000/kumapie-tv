@@ -18,6 +18,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.tv.material3.Text
+import io.github.pedrubik2000.kumapie.lang.Delivery
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -38,7 +39,7 @@ class TvCrashPromptTest {
     private fun focused(): String? = rule.onAllNodes(isFocused()).fetchSemanticsNodes().firstOrNull()?.config?.getOrNull(SemanticsProperties.Text)?.joinToString(" ")
     private fun press(vararg keys: Long) = keys.map(::Key).forEach { k -> rule.onAllNodes(isRoot()).onLast().performKeyInput { pressKey(k) }; rule.waitForIdle() }
     private fun show(answer: String?, guardMs: Long = 0) = rule.setContent {
-        TvCrashDialog(send = { sends++; answer }, mark = { marked++ }, close = { closed++ }, guardMs = guardMs)
+        TvCrashDialog(send = { sends++; Delivery(answer) }, mark = { marked++ }, close = { closed++ }, guardMs = guardMs)
     }
 
     @Test fun asksWithWhatIsSentAndFocusesSend() {
@@ -92,6 +93,15 @@ class TvCrashPromptTest {
         assertEquals(1, marked)
     }
 
+    @Test fun aRefusedReportSaysSoBeforeTheQr() {
+        rule.setContent { TvCrashDialog(send = { Delivery("https://github.com/x/y/issues/new?title=a", refused = true) }, mark = {}, close = {}, guardMs = 0) }
+        rule.waitForIdle()
+        press(Key.DirectionCenter.keyCode)
+        rule.waitForIdle()
+        rule.onNodeWithText("Your kumapie PC refused the report.").assertIsDisplayed()
+        rule.onNodeWithText("Scan with your phone to open a ready-filled GitHub issue.").assertIsDisplayed()
+    }
+
     @Test fun aQuickOkRightAfterItOpensDoesNothing() {
         show(null, guardMs = 60_000)
         rule.waitForIdle()
@@ -103,7 +113,7 @@ class TvCrashPromptTest {
     @Test fun focusReturnsToTheScreenBehindAfterNotNow() {
         var open by mutableStateOf(true)
         rule.setContent {
-            Column { Button(onClick = {}) { Text("Behind") }; if (open) TvCrashDialog(send = { null }, mark = {}, close = { open = false }, guardMs = 0) }
+            Column { Button(onClick = {}) { Text("Behind") }; if (open) TvCrashDialog(send = { Delivery() }, mark = {}, close = { open = false }, guardMs = 0) }
         }
         rule.onNodeWithText("Behind").requestFocus()
         rule.waitForIdle()

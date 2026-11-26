@@ -83,7 +83,7 @@ class LiveLinesPiecesTest {
         assertFalse(LiveLines.replaceable(false, 5.0, 3.0))
     }
 
-    @Test fun aBigShiftNeedsFourTimesTheRunnerUp() {
+    @Test fun aBigShiftNeedsTwoAndAHalfTimesTheRunnerUp() {
         val a = starts.take(30)
         val refs = a.map { it + 71.3 }
         assertEquals(71.3, requireNotNull(LiveLines.fit(refs, a)), 0.11)

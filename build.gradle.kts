@@ -185,11 +185,11 @@ tasks.register("slopCheck") {
 
 // APK size budget (idea from HolyArrs: measure every build, or it grows unnoticed). A release APK over its limit fails
 // the build: CI's Build, the Release workflow and build_local.ps1. Sizes 2026-11-18: TV 10.2 MB (2.4 MB until v0.34,
-// then hoshidicts for two ABIs), phone 77.4 MB. libtorrent4j (torrent streams without Real-Debrid): TV +7.8 MB (arm + arm64 libs,
-// compressed in the APK), phone +6.2 MB (arm64). Raise a limit only on purpose, with the reason in the commit.
-val apkBudgetMb = mapOf("app" to 19.0, "mobile" to 85.0)
+// then hoshidicts for two ABIs), phone 77.4 MB. The torrent sidecar (tools/torrsrv, Go, replaced libtorrent4j 2026-11-26):
+// TV 21.9 MB (arm + arm64, was 18.4 with libtorrent4j). Raise a limit only on purpose, with the reason in the commit.
+val apkBudgetMb = mapOf("app" to 23.0, "mobile" to 85.0)
 subprojects {
-    if (rootProject.hasProperty("debuggable")) return@subprojects // a heap-dump build (app/build.gradle.kts), never shipped
+    if (rootProject.hasProperty("debuggable") || rootProject.hasProperty("x86")) return@subprojects // an emulator or heap-dump build (app/build.gradle.kts), never shipped
     val budget = apkBudgetMb[name] ?: return@subprojects
     val apks = layout.buildDirectory.dir("outputs/apk/release")
     tasks.matching { it.name == "assembleRelease" }.configureEach {

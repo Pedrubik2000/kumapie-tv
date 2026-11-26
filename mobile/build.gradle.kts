@@ -143,7 +143,6 @@ dependencies {
     implementation("jakarta.annotation:jakarta.annotation-api:2.1.1")
     implementation("jakarta.validation:jakarta.validation-api:3.0.2")
     implementation(project(":core"))
-    implementation("org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-39")
     implementation(project(":lang")) // the language layer (Languages)
     implementation(files(sherpaAar))
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")

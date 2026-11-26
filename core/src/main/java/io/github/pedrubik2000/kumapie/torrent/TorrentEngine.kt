@@ -1,7 +1,6 @@
 package io.github.pedrubik2000.kumapie.torrent
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import android.os.StatFs
 import androidx.media3.common.Player
 import io.github.pedrubik2000.kumapie.data.Pending
@@ -14,34 +13,24 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.libtorrent4j.Priority
-import org.libtorrent4j.SessionHandle
-import org.libtorrent4j.SessionManager
-import org.libtorrent4j.SessionParams
-import org.libtorrent4j.SettingsPack
-import org.libtorrent4j.Sha1Hash
-import org.libtorrent4j.TorrentFlags
-import org.libtorrent4j.TorrentHandle
-import org.libtorrent4j.swig.settings_pack
+import org.json.JSONObject
 import java.io.File
 import java.io.InterruptedIOException
 import java.util.Locale
+import java.util.UUID
 
 object TorrentEngine {
     const val UPLOAD_BYTES_PER_S = 50_000
     const val MAX_CONNECTIONS = 50
     const val NARROW_CONNECTIONS = 30
-    const val REQUEST_QUEUE = 12
-    const val PEER_LIST = 200
-    const val SPARE_BYTES = 500L shl 20
     const val NO_PEERS_MS = 60_000L
     const val STALL_MS = 60_000L
     const val RETRY_AFTER_MS = 15_000L
     private const val LOG = "kumapie-torrent"
-    private const val POLL_MS = 100L
+    private const val POLL_MS = 250L
     private const val STATUS_MS = 500L
     private const val LOG_EVERY = 4
-    private const val FAKE_FREE = "debug_free_bytes"
+    private const val BINARY = "libtorrsrv.so"
 
     private val shown = MutableStateFlow<String?>(null)
     val line: StateFlow<String?> = shown
@@ -58,9 +47,8 @@ object TorrentEngine {
     private val lock = Any()
     private val owners = java.util.WeakHashMap<Player, Any>()
     private var owner: Any? = null
-    private var session: SessionManager? = null
+    private var sidecar: Sidecar? = null
     private var current: TorrentStream? = null
-    private var root: File? = null
     private val firstUse = FirstUse()
 
     fun tie(player: Player, token: Any) {
@@ -81,7 +69,7 @@ object TorrentEngine {
     }
 
     fun open(context: Context, ref: TorrentRef, token: Any): TorrentStream {
-        current?.takeIf { it.ref.hash == ref.hash && it.handle.isValid && owner === token }?.let { return it }
+        current?.takeIf { it.ref.hash == ref.hash && it.sidecar.alive && owner === token }?.let { return it }
         if (failed && owner === token && !TorrentPlan.retryable(failedAt, System.currentTimeMillis(), RETRY_AFTER_MS)) throw TorrentException(shown.value.orEmpty())
         release()
         val gen = synchronized(lock) { owner = token; ++generation }
@@ -116,48 +104,61 @@ object TorrentEngine {
         }
         if (firstUse.take()) firstUse.wipe(File(context.cacheDir, "torrent"))
         val dir = File(context.cacheDir, "torrent/$gen").apply { deleteRecursively(); mkdirs() }
-        val sm = synchronized(lock) {
-            if (gen != generation) throw InterruptedException()
-            root = dir
-            session ?: SessionManager(false).also { s -> s.start(SessionParams(pack()).apply { setPosixDiskIO() }); session = s }
+        val car = spawn(context, ref, dir)
+        synchronized(lock) {
+            if (gen != generation) { AppScope.launch { car.stop() }; throw InterruptedException() }
+            sidecar = car
         }
-        val hash = Sha1Hash.parseHex(ref.hash)
         try {
-            return stream(context, sm, hash, ref, dir, gen)
+            return stream(car, ref, gen)
         } catch (e: Throwable) {
-            abandon(sm, hash, gen)
+            synchronized(lock) { if (gen == generation) { generation++; sidecar = null } }
+            AppScope.launch { car.stop() }
             throw e
         }
     }
 
-    private fun stream(context: Context, sm: SessionManager, hash: Sha1Hash, ref: TorrentRef, dir: File, gen: Int): TorrentStream {
-        sm.download(ref.magnet(), dir, TorrentFlags.DEFAULT_DONT_DOWNLOAD)
-        val handle = sm.find(hash) ?: throw TorrentException(tr("The torrent engine did not start."))
+    private fun spawn(context: Context, ref: TorrentRef, dir: File): Sidecar {
+        val cap = TorrentPlan.cap(!narrow, StatFs(context.cacheDir.path).availableBytes)
+        val token = UUID.randomUUID().toString()
+        val bin = File(context.applicationInfo.nativeLibraryDir, BINARY).path
+        val process = ProcessBuilder(bin, "-dir", dir.path, "-cap", cap.toString(), "-hash", ref.hash, "-token", token,
+            "-upload", UPLOAD_BYTES_PER_S.toString(), "-conns", (if (narrow) NARROW_CONNECTIONS else MAX_CONNECTIONS).toString(), "-tr", ref.trackers.joinToString(","))
+            .redirectError(File(context.cacheDir, "torrsrv.log")).start()
+        val first = process.inputStream.bufferedReader().readLine().orEmpty()
+        val port = first.removePrefix("PORT ").trim().toIntOrNull()
+        if (port == null) {
+            process.destroy()
+            throw TorrentException(tr("The torrent engine did not start."))
+        }
+        android.util.Log.i(LOG, "sidecar on $port, window ${cap shr 20} MB")
+        return Sidecar(process, port, token, dir)
+    }
+
+    private fun stream(car: Sidecar, ref: TorrentRef, gen: Int): TorrentStream {
         val started = System.currentTimeMillis()
-        watch(gen, ref, handle)
+        watch(gen, ref, car)
         val deadline = started + NO_PEERS_MS
-        while (handle.torrentFile() == null) {
+        var s = car.status()
+        while (!s.optBoolean("hasInfo")) {
             alive(gen)
-            if (System.currentTimeMillis() > deadline) throw TorrentException(
-                if (handle.status().numPeers() == 0) tr("No peers found for this video. Try another source.") else tr("Found peers but they sent nothing. Try another source."),
-                if (handle.status().numPeers() == 0) TorrentFault.NO_PEERS else TorrentFault.STALLED)
+            if (!car.alive) throw TorrentException(tr("The torrent engine did not start."))
+            if (System.currentTimeMillis() > deadline) {
+                val none = s.optInt("peers") == 0
+                throw TorrentException(if (none) tr("No peers found for this video. Try another source.") else tr("Found peers but they sent nothing. Try another source."),
+                    if (none) TorrentFault.NO_PEERS else TorrentFault.STALLED)
+            }
             Thread.sleep(POLL_MS)
+            s = car.status()
         }
-        val info = requireNotNull(handle.torrentFile()) { "metadata" }
-        android.util.Log.i(LOG, "metadata after ${System.currentTimeMillis() - started} ms, ${handle.status().numPeers()} peers, ${info.numFiles()} files, piece ${info.pieceLength()}")
-        val files = info.files()
-        val count = info.numFiles()
-        val index = TorrentPlan.pick((0 until count).map { files.fileName(it) }, (0 until count).map { files.fileSize(it) }, ref.index)
+        val files = s.optJSONArray("files")
+        val count = files?.length() ?: 0
+        val names = (0 until count).map { files?.optJSONObject(it)?.optString("name").orEmpty() }
+        val sizes = (0 until count).map { files?.optJSONObject(it)?.optLong("size") ?: 0L }
+        val index = TorrentPlan.pick(names, sizes, ref.index)
         if (index < 0) throw TorrentException(tr("This torrent has no video file."))
-        val need = files.fileSize(index)
-        if (!TorrentPlan.admits(need, free(context, dir), SPARE_BYTES)) {
-            throw TorrentException(tr("Not enough free space: this video needs %s and 500 MB spare.", megabytes(need)), TorrentFault.NO_SPACE)
-        }
-        handle.prioritizeFiles(Array(count) { if (it == index) Priority.DEFAULT else Priority.IGNORE })
-        handle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD)
-        val stream = TorrentStream(ref, handle, info, index, dir)
-        stream.start()
-        android.util.Log.i(LOG, "file $index $need bytes, started after ${System.currentTimeMillis() - started} ms")
+        android.util.Log.i(LOG, "metadata after ${System.currentTimeMillis() - started} ms, ${s.optInt("peers")} peers, $count files, file $index ${sizes[index]} bytes")
+        val stream = TorrentStream(ref, car, index, sizes[index])
         synchronized(lock) {
             if (gen != generation) throw InterruptedIOException()
             current = stream
@@ -165,62 +166,38 @@ object TorrentEngine {
         return stream
     }
 
-    private fun free(context: Context, dir: File): Long {
-        val real = StatFs(dir.path).availableBytes
-        if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return real
-        return File(context.cacheDir, FAKE_FREE).takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull() ?: real
-    }
-
-    private fun abandon(sm: SessionManager, hash: Sha1Hash, gen: Int) {
-        synchronized(lock) { if (gen == generation) generation++ }
-        runCatching { sm.find(hash)?.let { sm.remove(it, SessionHandle.DELETE_FILES) } }
-        android.util.Log.i(LOG, "abandoned ${hash.toHex().take(8)}")
-    }
-
     private val narrow: Boolean get() = android.os.Build.SUPPORTED_64_BIT_ABIS.isEmpty()
-
-    private fun pack(): SettingsPack = SettingsPack()
-        .uploadRateLimit(UPLOAD_BYTES_PER_S).connectionsLimit(if (narrow) NARROW_CONNECTIONS else MAX_CONNECTIONS).activeDownloads(1).maxQueuedDiskBytes(1 shl 20)
-        .setInteger(settings_pack.int_types.max_out_request_queue.swigValue(), REQUEST_QUEUE)
-        .setInteger(settings_pack.int_types.max_peerlist_size.swigValue(), PEER_LIST)
-        .setBoolean(settings_pack.bool_types.enable_upnp.swigValue(), false)
-        .setBoolean(settings_pack.bool_types.enable_natpmp.swigValue(), false)
-        .setBoolean(settings_pack.bool_types.enable_lsd.swigValue(), false)
 
     private fun alive(gen: Int) {
         if (gen != generation || Thread.currentThread().isInterrupted) throw InterruptedException()
     }
 
-    fun check(stream: TorrentStream) {
-        if (current !== stream) throw InterruptedIOException()
-    }
-
-    private fun watch(gen: Int, ref: TorrentRef, handle: TorrentHandle) {
+    private fun watch(gen: Int, ref: TorrentRef, car: Sidecar) {
         var ticks = 0
         Thread {
             while (gen == generation) {
                 runCatching {
-                    val s = handle.status()
-                    val peers = s.numPeers()
-                    tick(progress(s.hasMetadata(), peers, s.downloadPayloadRate().toLong()), when {
+                    val s = car.status()
+                    val next = progress(s)
+                    tick(next, when {
                         !waiting -> null
-                        !s.hasMetadata() -> tr("Finding peers…") + if (peers > 0) " · " + tr("%d peers", peers) else ""
-                        else -> tr("Downloading %1\$d%% · %2\$s/s · %3\$d peers", percent(), megabytes(s.downloadPayloadRate().toLong()), peers)
+                        next.phase == TorrentPhase.PEERS -> tr("Finding peers…") + if (next.peers > 0) " · " + tr("%d peers", next.peers) else ""
+                        else -> tr("Downloading %1\$d%% · %2\$s/s · %3\$d peers", next.percent, megabytes(next.rate), next.peers)
                     })
-                    if (++ticks % LOG_EVERY == 0) android.util.Log.i(LOG, "down ${s.downloadPayloadRate() / 1000} kB/s up ${s.uploadPayloadRate() / 1000} kB/s peers $peers seeds ${s.numSeeds()} have ${percent()}%")
-                    if (current?.let { it.haveBytes() >= it.size } == true) handle.pause()
+                    if (++ticks % LOG_EVERY == 0) android.util.Log.i(LOG, "down ${next.rate / 1000} kB/s peers ${next.peers} seeds ${s.optInt("seeds")} ahead ${next.ahead shr 10} kB cache ${s.optLong("cacheSize") shr 20} MB")
                 }
                 try { Thread.sleep(STATUS_MS) } catch (e: InterruptedException) { return@Thread }
             }
         }.apply { isDaemon = true; name = "torrent-status-${ref.hash.take(6)}" }.start()
     }
 
-    private fun percent(): Int = current?.let { (it.haveBytes() * 100 / it.size.coerceAtLeast(1)).toInt() } ?: 0
-
-    private fun progress(metadata: Boolean, peers: Int, rate: Long): TorrentStatus {
+    private fun progress(s: JSONObject): TorrentStatus {
+        val peers = s.optInt("peers")
         val stream = current
-        if (!metadata || stream == null) return TorrentStatus(TorrentPhase.PEERS, peers = peers, release = releaseName)
-        return TorrentStatus(TorrentPhase.DOWNLOADING, peers = peers, rate = rate, have = stream.haveBytes(), need = TorrentStatus.startNeed(stream.size), ahead = stream.aheadBytes(), size = stream.size, release = releaseName)
+        if (!s.optBoolean("hasInfo") || stream == null) return TorrentStatus(TorrentPhase.PEERS, peers = peers, release = releaseName)
+        val need = TorrentStatus.startNeed(stream.size)
+        val ahead = s.optLong("ahead")
+        return TorrentStatus(TorrentPhase.DOWNLOADING, peers = peers, rate = s.optLong("rate"), have = minOf(ahead, need), need = need, ahead = ahead, size = stream.size, release = releaseName)
     }
 
     fun tick(next: TorrentStatus, text: String?) {
@@ -248,7 +225,7 @@ object TorrentEngine {
 
     fun local(source: String): String {
         if (!source.startsWith("${TorrentRef.SCHEME}://")) return source
-        return current?.takeIf { source.contains(it.ref.hash) }?.path?.path ?: throw TorrentException(tr("The video is no longer on this device: mine words while it plays."))
+        return current?.takeIf { source.contains(it.ref.hash) }?.url ?: throw TorrentException(tr("The video is no longer on this device: mine words while it plays."))
     }
 
     fun megabytes(bytes: Long): String =
@@ -257,17 +234,10 @@ object TorrentEngine {
     fun release() {
         synchronized(lock) {
             generation++
-            val dir = root
-            val sm = session
-            val stream = current
+            val car = sidecar
             current = null
-            session = null
-            root = null
-            if (sm != null || dir != null) teardown = Pending.track(AppScope.launch {
-                runCatching { stream?.handle?.let { sm?.remove(it, SessionHandle.DELETE_FILES) } }
-                runCatching { sm?.stop() }
-                dir?.deleteRecursively()
-            })
+            sidecar = null
+            if (car != null) teardown = Pending.track(AppScope.launch { car.stop() })
         }
         waiting = false
         failed = false

@@ -10,6 +10,6 @@ build() {
 }
 build main arm64-v8a arm64 aarch64-linux-android24-clang
 build main armeabi-v7a arm armv7a-linux-androideabi24-clang
-build debug x86 386 i686-linux-android24-clang
-build debug x86_64 amd64 x86_64-linux-android24-clang
+build main x86 386 i686-linux-android24-clang
+build main x86_64 amd64 x86_64-linux-android24-clang
 ls -l ../../core/src/*/jniLibs/*/libtorrsrv.so

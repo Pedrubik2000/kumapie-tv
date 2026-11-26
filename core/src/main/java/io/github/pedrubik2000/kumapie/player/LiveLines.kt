@@ -143,7 +143,7 @@ class LiveLines(
     suspend fun run() = kotlinx.coroutines.coroutineScope {
         // Asked at once and handed on as soon as they come: the words need only them, not the file's tracks (waiting for
         // those first was ~1.4 s of a stream's words, tablet 2026-11-18).
-        val got = runCatching { jimaku() }.getOrDefault(emptyList())
+        val got = japanese(runCatching { jimaku() }.getOrDefault(emptyList()))
         if (got.isNotEmpty()) { starts = got.map { it.first }; lines = got }
         while (source.isEmpty() && !needJimaku) delay(50)
         if (got.isEmpty()) { noLines = needJimaku; return@coroutineScope }
@@ -158,7 +158,7 @@ class LiveLines(
             if (fitted == null && !triedOthers && refs.size >= OTHERS_AFTER) {
                 triedOthers = true
                 for (i in 1..3) {
-                    val other = runCatching { others(i) }.getOrDefault(emptyList()).takeIf { it.isNotEmpty() } ?: break
+                    val other = japanese(runCatching { others(i) }.getOrDefault(emptyList())).takeIf { it.isNotEmpty() } ?: break
                     val f = fit(refs.toList(), other.map { it.first }) ?: continue
                     android.util.Log.i("LiveLines", "file ${i + 1} fitted $f s from ${refs.size} lines (the first didn't)")
                     starts = other.map { it.first }
@@ -225,6 +225,10 @@ class LiveLines(
         fun addRef(refs: MutableList<Double>, heard: MutableSet<Long>, startMs: Long, at: Double): Boolean =
             heard.add(startMs).also { if (it) refs.add(refs.binarySearch(at).let { i -> if (i < 0) -i - 1 else i }, at) }
 
+        fun japanese(lines: List<Triple<Double, Double, String>>) =
+            io.github.pedrubik2000.kumapie.data.Jimaku.japanese(lines.map { io.github.pedrubik2000.kumapie.data.Jimaku.Line(it.first, it.second, it.third) })
+                .orEmpty().map { Triple(it.start, it.end, it.text) }
+
         private const val MIN_REFS = 8
         private const val OTHERS_AFTER = 30
         private const val CHUNK = 180.0
@@ -271,7 +275,10 @@ class LiveLines(
          * another cut (fewer stretches fit than not, over [PIECES] offsets, or over [SPAN] s apart: Rakugo's TV-cut file
          * on the Blu-ray, +12 s then -352 ... -1968 s).
          * A shift over [BIG] s (Rakugo 1: 71.3 s from 8 lines of a monologue, the lines then off for the whole episode) needs
-         * 20 lines heard and 4 times any other offset's, so it waits for more lines; a real one (Eden of the East 2's 80.1 s) has them.
+         * 20 lines heard, two thirds of them hit, 4 times any other offset's hits (2.5 from 30 hits) and 3 times the hits a random offset gets
+         * (the lines heard times the odds a 0.3 s window holds a Jimaku line, by the density of the file's lines 180 s
+         * around the lines heard, not where the offset lands) + 6, so it waits for more lines; a real one (Eden of
+         * the East 2's 80.1 s, a 60 s cut: 44 hits against 13 and 5) has them.
          * ponytail: at most [PIECES] offsets [SPAN] s apart, by [PIECE] s windows; a file of another cut is "not fitted".
          */
         fun fit(refs: List<Double>, starts: List<Double>): Double? {
@@ -286,7 +293,10 @@ class LiveLines(
             val (lo, hi) = refs.min() - bin / 10.0 - 1 to refs.max() - bin / 10.0 + 1
             val possible = minOf(refs.size, starts.count { it in lo..hi })
             val big = kotlin.math.abs(bin) > BIG * 10
-            return if (n >= 6 && (!big || refs.size >= 20) && n * 2 >= possible && (if (big) n >= other * 4 else n * 2 >= other * 3)) bin / 10.0 else null
+            val (from, to) = refs.min() - 180 to refs.max() + 180
+            val chance = refs.size * (1 - kotlin.math.exp(-2 * 0.15 * starts.count { it in from..to } / (to - from)))
+            val clear = refs.size >= 20 && n * 3 >= refs.size * 2 && (if (n < 30) n >= other * 4 else n * 2 >= other * 5) && n >= chance * 3 + 6
+            return if (n >= 6 && n * 2 >= possible && (if (big) clear else n * 2 >= other * 3)) bin / 10.0 else null
         }
 
         fun pieces(refs: List<Double>, starts: List<Double>): List<Pair<Double, Double?>>? {

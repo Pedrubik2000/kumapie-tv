@@ -14,10 +14,6 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
-object Playing {
-    @Volatile var on = false
-}
-
 object TitleLevels {
     private var queue: JitenQueue? = null
     private val started = AtomicBoolean(false)

@@ -17,6 +17,8 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import io.github.pedrubik2000.kumapie.data.BodyText
+import io.github.pedrubik2000.kumapie.data.Playing
 import io.github.pedrubik2000.kumapie.i18n.tr
 import java.io.InputStream
 import java.net.InetAddress
@@ -27,7 +29,6 @@ import kotlin.concurrent.thread
 object SyncListener {
     private var socket: ServerSocket? = null
     private var registration: NsdManager.RegistrationListener? = null
-    private const val MAX_BODY = 64 shl 20
 
     val running: Boolean @Synchronized get() = socket != null
 
@@ -74,7 +75,9 @@ object SyncListener {
             headers[h.substringBefore(':').trim().lowercase()] = h.substringAfter(':').trim()
         }
         val length = headers["content-length"]?.toIntOrNull() ?: 0
-        val a = if (length > MAX_BODY) DeviceSync.Answer(413, ByteArray(0)) else {
+        Log.i("kumapie", "device sync listener: $path, $length B in")
+        val a = if (path == "/sync" && Playing.holds()) DeviceSync.Answer(409, tr("Busy playing a video: it will sync later.").toByteArray())
+        else if (length > BodyText.big) DeviceSync.Answer(413, ByteArray(0)) else {
             val body = ByteArray(length)
             var n = 0
             while (n < length) { val r = input.read(body, n, length - n); if (r < 0) break; n += r }

@@ -15,6 +15,8 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import io.github.pedrubik2000.kumapie.data.BodyText
+import io.github.pedrubik2000.kumapie.data.Playing
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.DeviceFile.objects
@@ -188,6 +190,7 @@ object DeviceSync {
     private val requests = java.util.concurrent.atomic.AtomicLong()
 
     private fun requested(context: Context) {
+        if (Playing.holds()) return Playing.later("device-sync") { requested(context) }
         wanted = context.applicationContext
         requests.incrementAndGet()
         runCatching { WorkManager.getInstance(context).enqueueUniqueWork("$WORK-now", ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<DeviceSyncWorker>().setInitialDelay(BACKSTOP_S, TimeUnit.SECONDS).build()) }
@@ -243,9 +246,9 @@ object DeviceSync {
         val secret = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
         val pub = SetupBundle.begin()
         val a = post("http://$address/pair", JSONObject().put("device", Progress.of(context).device).put("secret", secret).put("pub", pub).toString().toByteArray(), emptyMap())
-        if (a.status == 409 && String(a.body) == TWO) throw Conflict(conflictLine(Progress.of(context).device))
-        if (a.status !in 200..202) throw IOException(String(a.body))
-        val reply = JSONObject(String(a.body))
+        if (a.status == 409 && BodyText.text(a.body) == TWO) throw Conflict(conflictLine(Progress.of(context).device))
+        if (a.status !in 200..202) throw IOException(BodyText.text(a.body))
+        val reply = JSONObject(BodyText.text(a.body))
         val who = name.ifEmpty { reply.getString("device") }
         settings.prefs.edit().putString(WITH, JSONObject().put("name", who).put("address", address).put("secret", secret).toString()).apply()
         Asked(shown(secret, pub, reply), !reply.optBoolean("setup"))
@@ -257,7 +260,7 @@ object DeviceSync {
 
     internal fun polled(a: Answer): Poll = when {
         a.status == 200 -> Poll.ALLOWED
-        a.status == 409 && String(a.body) == TWO -> Poll.CONFLICT
+        a.status == 409 && BodyText.text(a.body) == TWO -> Poll.CONFLICT
         else -> Poll.WAITING
     }
 
@@ -297,9 +300,9 @@ object DeviceSync {
         val files = files(context)
         val body = files.payload().toString().toByteArray()
         val a = post("http://${peer.address}/sync", body, mapOf("X-Device" to Progress.of(context).device, "X-Sig" to sign(peer.secret, body)))
-        if (a.status != 200) error(String(a.body))
+        if (a.status != 200) error(BodyText.text(a.body))
         check(verify(peer.secret, a.body, a.sig)) { tr("Wrong signature: pair the devices again.") }
-        val o = JSONObject(String(a.body))
+        val o = JSONObject(BodyText.text(a.body))
         val plan = files.plan(o)
         files.apply(plan, o, files.isNew(plan.from))
         files.takeFsrs(o.optJSONObject("fsrs"))
@@ -313,7 +316,7 @@ object DeviceSync {
         val secret = device?.let { peers(settings.prefs).optString(it).ifEmpty { null } }
         return when (path) {
             "/pair" -> {
-                val o = JSONObject(String(body))
+                val o = JSONObject(BodyText.text(body))
                 requested(settings.prefs, o.getString("device"), o.getString("secret"), o.optString("pub"), Progress.of(context).device)
             }
             "/setup" -> SetupBundle.serve(settings.server, secret, device, settings.prefs, body, sig, System.currentTimeMillis())
@@ -322,7 +325,7 @@ object DeviceSync {
                     lock.withLock {
                         runCatching {
                             val files = files(context)
-                            val o = JSONObject(String(body))
+                            val o = JSONObject(BodyText.text(body))
                             val plan = files.plan(o)
                             files.apply(plan, o, files.isNew(plan.from))
                             say(settings, tr("%1\$s %2\$s synced · took: %3\$s", now(), plan.from, moved(plan.counts)))
@@ -380,7 +383,8 @@ object DeviceSync {
         headers.forEach { (k, v) -> setRequestProperty(k, v) }
         outputStream.use { it.write(body) }
         val code = responseCode
-        Answer(code, (if (code < 400) inputStream else errorStream)?.use { it.readBytes() } ?: ByteArray(0), getHeaderField("X-Sig"))
+        Answer(code, (if (code < 400) inputStream else errorStream)?.use { BodyText.bytes(it, BodyText.big) } ?: ByteArray(0), getHeaderField("X-Sig"))
+            .also { Log.i("kumapie", "device sync post: ${body.size} B out, ${it.body.size} B in") }
     }
 
     suspend fun discover(context: Context, ms: Long): List<Pair<String, String>> =
@@ -389,7 +393,7 @@ object DeviceSync {
 
 class DeviceSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val line = DeviceSync.syncNow(applicationContext)
+        val line = if (Playing.holds()) "" else DeviceSync.syncNow(applicationContext)
         if (line.isNotEmpty()) Log.i("kumapie", "device sync: $line")
         return Result.success()
     }

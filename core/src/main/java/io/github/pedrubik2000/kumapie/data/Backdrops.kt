@@ -47,7 +47,7 @@ object Backdrops {
 
     suspend fun get(context: Context, id: String, kitsu: suspend (String) -> String, meta: suspend () -> String): String? {
         saved(context, id)?.let { return it }
-        if (id in missing) return null
+        if (id in missing || Playing.holds()) return null
         var asked = true
         val n = kitsuNumber(id)
         if (n != null) {
@@ -65,7 +65,7 @@ object Backdrops {
         val body = (url.openConnection() as HttpURLConnection).run {
             connectTimeout = 15_000; readTimeout = 30_000
             setRequestProperty("Accept", "application/vnd.api+json")
-            inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+            inputStream.use { BodyText.text(it) }
         }
         val cover = JSONObject(body).getJSONObject("data").getJSONObject("attributes").optJSONObject("coverImage")
         cover?.optString("original").orEmpty().ifEmpty { cover?.optString("large").orEmpty() }

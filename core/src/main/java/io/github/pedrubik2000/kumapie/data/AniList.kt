@@ -225,7 +225,7 @@ object AniList {
         onOpen(this)
         connectTimeout = if (short) 5_000 else 15_000; readTimeout = if (short) 10_000 else 30_000
         setRequestProperty("Accept", "application/vnd.api+json")
-        inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+        inputStream.use { BodyText.text(it, BodyText.big) }
     }
 
     private fun post(url: String, body: String): String = post(url, body, null).second
@@ -238,7 +238,7 @@ object AniList {
         token?.takeIf { it.isNotEmpty() }?.let { setRequestProperty("Authorization", "Bearer $it") }
         outputStream.use { it.write(body.toByteArray()) }
         offsetFrom(getHeaderField("Date"), System.currentTimeMillis())?.let { serverOffset = it }
-        Triple(responseCode, ((if (responseCode < 400) inputStream else errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()),
+        Triple(responseCode, ((if (responseCode < 400) inputStream else errorStream)?.use { BodyText.text(it, BodyText.big) }.orEmpty()),
             getHeaderField("Retry-After")?.toLongOrNull() ?: 60L)
     }
 }

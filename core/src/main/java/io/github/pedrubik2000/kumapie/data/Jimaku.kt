@@ -72,21 +72,24 @@ object Jimaku {
     private suspend fun fetch(key: String, show: String, season: Int?, episode: Int?, videoName: String, skip: Int = 0, duration: suspend () -> Double? = { null }): List<Line> {
         val media = runCatching { anilist(show, season) }.getOrNull()
         fun search(q: String) = "$API/entries/search?anime=true&$q"
-        var entries = JSONArray(String(get(search(media?.let { "anilist_id=${it.first}" } ?: "query=${enc(show)}"), key)))
-        if (entries.length() == 0 && media != null) entries = JSONArray(String(get(search("query=${enc(media.second)}"), key)))
+        var entries = JSONArray(BodyText.text(get(search(media?.let { "anilist_id=${it.first}" } ?: "query=${enc(show)}"), key)))
+        if (entries.length() == 0 && media != null) entries = JSONArray(BodyText.text(get(search("query=${enc(media.second)}"), key)))
         if (entries.length() == 0) return emptyList()
-        val files = JSONArray(String(get("$API/entries/${entries.getJSONObject(0).getInt("id")}/files", key)))
+        val files = JSONArray(BodyText.text(get("$API/entries/${entries.getJSONObject(0).getInt("id")}/files", key)))
         val ranked = rank((0 until files.length()).map { files.getJSONObject(it).let { f -> f.getString("name") to f.getString("url") } }, episode, videoName, release(show))
-        if (skip > 0) return ranked.getOrNull(skip)?.let { f -> japanese(read(key, f, episode)).orEmpty().also { lastName = f.first } }.orEmpty()
+        if (skip > 0) return ranked.getOrNull(skip)?.let { f -> japanese(attempt(key, f, episode).orEmpty()).orEmpty().also { lastName = f.first } }.orEmpty()
         var best: Triple<Int, String, List<Line>>? = null
+        var failed = 0
         for (f in ranked.take(CUTS + 1)) {
-            val all = read(key, f, episode)
+            val all = attempt(key, f, episode)
+            if (all == null) { failed++; continue }
             val ja = japanese(all)?.takeIf { it.isNotEmpty() }
             if (ja == null) continue
             val score = (if (fitsLength(ja, duration())) 2 else 0) + if (ja.size == all.size) 1 else 0
             if (score == 3) { lastName = f.first; return ja }
             if (best == null || score > best.first) best = Triple(score, f.first, ja)
         }
+        if (best == null && failed > 0 && failed == minOf(ranked.size, CUTS + 1)) error(tr("Jimaku has subtitles for this episode, but none would download"))
         if (best == null && ranked.isNotEmpty()) error(tr("Jimaku has subtitles for this episode, none in Japanese"))
         lastName = best?.second.orEmpty()
         return best?.third.orEmpty()
@@ -101,11 +104,14 @@ object Jimaku {
         }
     }
 
+    private suspend fun attempt(key: String, best: Pair<String, String>, episode: Int?): List<Line>? =
+        try { read(key, best, episode) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { null }
+
     private suspend fun read(key: String, best: Pair<String, String>, episode: Int?): List<Line> {
         var name = best.first
         var data = get(best.second, key)
         if (name.lowercase().endsWith(".zip")) {
-            val inside = unzip(data).filter { (n, _) -> SUB_EXT.any(n.lowercase()::endsWith) && (episode == null || numbers(n).second == episode) }
+            val inside = unzip(data) { n -> SUB_EXT.any(n.lowercase()::endsWith) && (episode == null || numbers(n).second == episode) }
                 .minByOrNull { (n, _) -> !n.lowercase().endsWith(".srt") } ?: return emptyList()
             name = inside.first
             data = inside.second
@@ -239,9 +245,9 @@ object Jimaku {
     private fun secs(h: String, m: String, s: String, frac: String) = (h.toIntOrNull() ?: 0) * 3600 + m.toInt() * 60 + s.toInt() + frac.toInt() / Math.pow(10.0, frac.length.toDouble())
 
     private fun decode(data: ByteArray): String {
-        if (data.size >= 2 && ((data[0] == 0xFF.toByte() && data[1] == 0xFE.toByte()) || (data[0] == 0xFE.toByte() && data[1] == 0xFF.toByte()))) return String(data, Charsets.UTF_16)
-        val utf8 = String(data, Charsets.UTF_8).removePrefix("\uFEFF")
-        return if ('\uFFFD' in utf8) String(data, charset("windows-31j")) else unmangle(utf8) // Shift-JIS files exist
+        if (data.size >= 2 && ((data[0] == 0xFF.toByte() && data[1] == 0xFE.toByte()) || (data[0] == 0xFE.toByte() && data[1] == 0xFF.toByte()))) return BodyText.text(ByteArrayInputStream(data), Int.MAX_VALUE, Charsets.UTF_16)
+        val utf8 = BodyText.text(ByteArrayInputStream(data), Int.MAX_VALUE).removePrefix("\uFEFF")
+        return if ('\uFFFD' in utf8) BodyText.text(ByteArrayInputStream(data), Int.MAX_VALUE, charset("windows-31j")) else unmangle(utf8)
     }
 
     /**
@@ -267,11 +273,12 @@ object Jimaku {
     private val MANGLED by lazy { Regex("[\u00C2\u00C3\u00E2][\u0080-\u00BF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u0192\u02C6\u02DC\u2013\u2014\u2018-\u201E\u2020-\u2022\u2026\u2030\u2039\u203A\u20AC\u2122]") }
 
     /** Names in UTF-8, else Shift-JIS (Japanese Windows zips: UTF-8 throws on their names). */
-    private fun unzip(data: ByteArray): List<Pair<String, ByteArray>> =
-        try { unzip(data, Charsets.UTF_8) } catch (_: IllegalArgumentException) { unzip(data, charset("Shift_JIS")) }
+    private fun unzip(data: ByteArray, wanted: (String) -> Boolean): List<Pair<String, ByteArray>> =
+        try { unzip(data, Charsets.UTF_8, wanted) } catch (_: IllegalArgumentException) { unzip(data, charset("Shift_JIS"), wanted) }
 
-    private fun unzip(data: ByteArray, names: java.nio.charset.Charset): List<Pair<String, ByteArray>> = ZipInputStream(ByteArrayInputStream(data), names).use { z ->
-        generateSequence { z.nextEntry }.filter { !it.isDirectory }.map { it.name.substringAfterLast('/') to z.readBytes() }.toList()
+    private fun unzip(data: ByteArray, names: java.nio.charset.Charset, wanted: (String) -> Boolean): List<Pair<String, ByteArray>> = ZipInputStream(ByteArrayInputStream(data), names).use { z ->
+        generateSequence { z.nextEntry }.filter { !it.isDirectory }.map { it.name.substringAfterLast('/') }.filter(wanted)
+            .map { it to BodyText.bytes(z, BodyText.big) }.toList()
     }
 
     /** (AniList id, romaji name) of [show]; for season 2+ the entry named for that season. */
@@ -284,7 +291,7 @@ object Jimaku {
         }
         try {
             c.outputStream.use { it.write(body) }
-            val found = JSONObject(c.inputStream.bufferedReader().use { it.readText() }).getJSONObject("data").getJSONObject("Page").getJSONArray("media")
+            val found = JSONObject(c.inputStream.use { BodyText.text(it) }).getJSONObject("data").getJSONObject("Page").getJSONArray("media")
             val all = (0 until found.length()).map { found.getJSONObject(it) }
             val word = season?.takeIf { it > 1 }?.let { Regex("""\b(?:$it(?:st|nd|rd|th) Season|Season $it)\b|第${it}期""", RegexOption.IGNORE_CASE) }
             val pick = all.firstOrNull { m -> word != null && m.getJSONObject("title").let { t -> t.keys().asSequence().any { k -> word.containsMatchIn(t.optString(k)) } } }
@@ -301,7 +308,7 @@ object Jimaku {
             }
             try {
                 when (val code = c.responseCode) {
-                    in 200..299 -> return@withContext c.inputStream.use { it.readBytes() }
+                    in 200..299 -> return@withContext c.inputStream.use { BodyText.bytes(it, BodyText.big) }
                     429 -> if (attempt < 3) { delay(((c.getHeaderField("x-ratelimit-reset-after")?.toDoubleOrNull() ?: 5.0) * 1000).toLong() + 500); return@repeat }
                     401 -> error("Jimaku refused the API key: check it in Settings")
                     else -> error("jimaku.cc: HTTP $code")

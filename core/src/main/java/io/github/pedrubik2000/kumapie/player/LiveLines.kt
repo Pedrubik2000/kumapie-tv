@@ -68,6 +68,7 @@ class LiveLines(
         private set
     var englishOpen by mutableStateOf(emptySet<Int>())
         private set
+    private val heard = HashSet<Long>()
     private val refs = ArrayList<Double>() // when the file's other track showed a line (seconds of video)
     val refCount get() = refs.size
     private var shown = emptyList<androidx.media3.common.text.Cue>() // the last group: a line ending under another isn't a new one
@@ -118,7 +119,7 @@ class LiveLines(
 
     override fun onCues(cueGroup: CueGroup) {
         // Either track's line starts are the video's own clock: Jimaku's file is fitted to them ([fit]).
-        if (cueGroup.cues.any { it !in shown }) addRef(refs, player.currentPosition / 1000.0)
+        if (cueGroup.cues.any { it !in shown }) addRef(refs, heard, cueGroup.presentationTimeUs.takeIf { it != C.TIME_UNSET }?.div(1000) ?: player.currentPosition, player.currentPosition / 1000.0)
         shown = cueGroup.cues
         if (englishTrack) {
             val texts = cueGroup.cues.filterNot(::top).map { io.github.pedrubik2000.kumapie.data.Jimaku.notes(io.github.pedrubik2000.kumapie.data.Jimaku.plain(it.text?.toString().orEmpty())) }
@@ -221,7 +222,8 @@ class LiveLines(
             return out to still
         }
 
-        fun addRef(refs: MutableList<Double>, at: Double): Boolean = (refs.isEmpty() || at > refs.last()).also { if (it) refs += at }
+        fun addRef(refs: MutableList<Double>, heard: MutableSet<Long>, startMs: Long, at: Double): Boolean =
+            heard.add(startMs).also { if (it) refs.add(refs.binarySearch(at).let { i -> if (i < 0) -i - 1 else i }, at) }
 
         private const val MIN_REFS = 8
         private const val OTHERS_AFTER = 30

@@ -20,8 +20,19 @@ class NarrowStreamTest {
         assertEquals(0, Playable.weight("S 2160p x265 10bit", false))
     }
 
-    @Test fun narrowDevicePicksAvcOverSameReleaseHevc() {
-        assertEquals("[Er] S - 04 (1080p x264).mkv", nextQuery(ended, files, all, true)?.get("file"))
+    @Test fun narrowDeviceKeepsAGroupTheUserPickedAtTheSameWeight() {
+        assertEquals("[Sub] S - 04 (1080p x265).mkv", nextQuery(ended, files, all, true)?.get("file"))
+    }
+
+    @Test fun narrowDeviceDoesNotLetTheGroupCreepUp() {
+        val x264 = ended + ("file" to "[Sub] S - 03 (1080p x264).mkv")
+        assertEquals("[Sub] S - 04 (1080p x264).mkv", nextQuery(x264, files + f("[Sub] S - 04 (1080p x264).mkv"), all, true)?.get("file"))
+        assertEquals("[Er] S - 04 (1080p x264).mkv", nextQuery(x264, files, all, true)?.get("file"))
+    }
+
+    @Test fun tenBitWords() {
+        assertTrue(Playable.weight("S Hi10P", true) > 0)
+        assertEquals(2, Playable.weight("S hevc10", true))
     }
 
     @Test fun wideDeviceKeepsItsOrderAndRelease() {

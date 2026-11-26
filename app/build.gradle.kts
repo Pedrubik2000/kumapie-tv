@@ -77,9 +77,13 @@ android {
     }
 }
 
-// The torrent sidecar is built for the emulators too (tools/torrsrv/build.sh): only debug builds keep those.
+// The torrent sidecar is built for the emulators too (tools/torrsrv/build.sh). An x86 lib makes the emulator pick
+// x86 and lose the arm-only dictionary lib, so only `-Px86` debug builds (torrent tests on the emulator) keep it.
 androidComponents {
-    onVariants(selector().withBuildType("release")) { it.packaging.jniLibs.excludes.addAll("lib/x86/libtorrsrv.so", "lib/x86_64/libtorrsrv.so") }
+    onVariants(selector().all()) {
+        if (it.buildType == "debug" && project.hasProperty("x86")) return@onVariants
+        it.packaging.jniLibs.excludes.addAll("lib/x86/libtorrsrv.so", "lib/x86_64/libtorrsrv.so")
+    }
 }
 
 dependencies {

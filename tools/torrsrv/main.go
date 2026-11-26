@@ -70,7 +70,7 @@ func main() {
 	cfg.TotalHalfOpenConns = 20
 	cfg.DisableWebtorrent = true
 	cfg.LocalServiceDiscovery = nil
-	cfg.MaxUnverifiedBytes = 16 << 20
+	cfg.MaxUnverifiedBytes = *capacity / 2
 	client, err := torrent.NewClient(cfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "client:", err)
@@ -164,6 +164,7 @@ func main() {
 		start := int64(0)
 		if rg := r.Header.Get("Range"); strings.HasPrefix(rg, "bytes=") {
 			fmt.Sscanf(strings.TrimPrefix(rg, "bytes="), "%d", &start)
+			start = max(start, 0)
 		}
 		tr := &tracked{rd: rd, base: f.Offset()}
 		if player {

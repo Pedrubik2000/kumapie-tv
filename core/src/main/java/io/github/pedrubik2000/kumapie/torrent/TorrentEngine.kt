@@ -138,6 +138,8 @@ object TorrentEngine {
             return Sidecar(process, port, token, dir)
         } catch (e: Throwable) {
             process.destroy()
+            process.waitFor(PORT_WAIT_S, TimeUnit.SECONDS)
+            dir.deleteRecursively()
             throw e
         }
     }

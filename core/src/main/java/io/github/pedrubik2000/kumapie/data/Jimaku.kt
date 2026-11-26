@@ -239,9 +239,9 @@ object Jimaku {
     private fun secs(h: String, m: String, s: String, frac: String) = (h.toIntOrNull() ?: 0) * 3600 + m.toInt() * 60 + s.toInt() + frac.toInt() / Math.pow(10.0, frac.length.toDouble())
 
     private fun decode(data: ByteArray): String {
-        if (data.size >= 2 && ((data[0] == 0xFF.toByte() && data[1] == 0xFE.toByte()) || (data[0] == 0xFE.toByte() && data[1] == 0xFF.toByte()))) return String(data, Charsets.UTF_16)
-        val utf8 = String(data, Charsets.UTF_8).removePrefix("\uFEFF")
-        return if ('\uFFFD' in utf8) String(data, charset("windows-31j")) else unmangle(utf8) // Shift-JIS files exist
+        if (data.size >= 2 && ((data[0] == 0xFF.toByte() && data[1] == 0xFE.toByte()) || (data[0] == 0xFE.toByte() && data[1] == 0xFF.toByte()))) return BodyText.text(ByteArrayInputStream(data), charset = Charsets.UTF_16)
+        val utf8 = BodyText.text(ByteArrayInputStream(data)).removePrefix("\uFEFF")
+        return if ('\uFFFD' in utf8) BodyText.text(ByteArrayInputStream(data), charset = charset("windows-31j")) else unmangle(utf8)
     }
 
     /**
@@ -271,7 +271,7 @@ object Jimaku {
         try { unzip(data, Charsets.UTF_8) } catch (_: IllegalArgumentException) { unzip(data, charset("Shift_JIS")) }
 
     private fun unzip(data: ByteArray, names: java.nio.charset.Charset): List<Pair<String, ByteArray>> = ZipInputStream(ByteArrayInputStream(data), names).use { z ->
-        generateSequence { z.nextEntry }.filter { !it.isDirectory }.map { it.name.substringAfterLast('/') to z.readBytes() }.toList()
+        generateSequence { z.nextEntry }.filter { !it.isDirectory }.map { it.name.substringAfterLast('/') to BodyText.bytes(z) }.toList()
     }
 
     /** (AniList id, romaji name) of [show]; for season 2+ the entry named for that season. */
@@ -284,7 +284,7 @@ object Jimaku {
         }
         try {
             c.outputStream.use { it.write(body) }
-            val found = JSONObject(c.inputStream.bufferedReader().use { it.readText() }).getJSONObject("data").getJSONObject("Page").getJSONArray("media")
+            val found = JSONObject(c.inputStream.use { BodyText.text(it) }).getJSONObject("data").getJSONObject("Page").getJSONArray("media")
             val all = (0 until found.length()).map { found.getJSONObject(it) }
             val word = season?.takeIf { it > 1 }?.let { Regex("""\b(?:$it(?:st|nd|rd|th) Season|Season $it)\b|第${it}期""", RegexOption.IGNORE_CASE) }
             val pick = all.firstOrNull { m -> word != null && m.getJSONObject("title").let { t -> t.keys().asSequence().any { k -> word.containsMatchIn(t.optString(k)) } } }
@@ -301,7 +301,7 @@ object Jimaku {
             }
             try {
                 when (val code = c.responseCode) {
-                    in 200..299 -> return@withContext c.inputStream.use { it.readBytes() }
+                    in 200..299 -> return@withContext c.inputStream.use { BodyText.bytes(it) }
                     429 -> if (attempt < 3) { delay(((c.getHeaderField("x-ratelimit-reset-after")?.toDoubleOrNull() ?: 5.0) * 1000).toLong() + 500); return@repeat }
                     401 -> error("Jimaku refused the API key: check it in Settings")
                     else -> error("jimaku.cc: HTTP $code")

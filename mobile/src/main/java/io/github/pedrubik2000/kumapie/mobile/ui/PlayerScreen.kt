@@ -259,7 +259,9 @@ internal fun ScenePlayer(
     fun flash(text: String) { flash = text; flashAt = SystemClock.uptimeMillis() }
 
     DisposableEffect(Unit) {
+        io.github.pedrubik2000.kumapie.data.Playing.on = true
         onDispose {
+            io.github.pedrubik2000.kumapie.data.Playing.on = false
             ctl.tick()
             ctl.report()
             picker.release()

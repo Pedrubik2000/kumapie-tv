@@ -14,6 +14,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import io.github.pedrubik2000.kumapie.data.AniListLists
 import io.github.pedrubik2000.kumapie.data.Mine
+import io.github.pedrubik2000.kumapie.data.Playing
 import io.github.pedrubik2000.kumapie.data.Settings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,7 +33,7 @@ internal fun rememberLists(settings: Settings, read: LibraryRead, cacheOnly: Boo
     LaunchedEffect(user, loggedIn) {
         all.value = if (!loggedIn || user.isEmpty()) emptyList()
         else withContext(Dispatchers.IO) {
-            if (!cacheOnly && (LibraryMemory.account != user || System.currentTimeMillis() - LibraryMemory.at >= REFRESH_EVERY_MS)) {
+            if (!cacheOnly && !Playing.holds() && (LibraryMemory.account != user || System.currentTimeMillis() - LibraryMemory.at >= REFRESH_EVERY_MS)) {
                 read(settings.prefs, user, settings.anilistToken, scope) {
                     LibraryMemory.account = user
                     LibraryMemory.at = System.currentTimeMillis()

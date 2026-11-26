@@ -51,14 +51,20 @@ class DecodeRetry {
 
         private val players = WeakHashMap<Player, DecodeRetry>()
 
-        fun reopening(e: PlaybackException) = e.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
+        fun reopening(e: PlaybackException) = codeOf(e) == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
+
+        fun codeOf(e: PlaybackException): Int = codeOf(e.errorCode, e.cause)
+
+        fun codeOf(code: Int, cause: Throwable?): Int =
+            if (code == PlaybackException.ERROR_CODE_IO_UNSPECIFIED && generateSequence(cause) { it.cause }.take(10).any { it is ArrayIndexOutOfBoundsException }) PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
+            else code
 
         fun recovered(player: Player, e: PlaybackException): Boolean {
             val r = synchronized(players) { players.getOrPut(player) { DecodeRetry() } }
             if (r.seen === e) return r.recovered
             r.seen = e
             val buffered = player.bufferedPosition
-            val s = r.step(e.errorCode, player.currentPosition, buffered)
+            val s = r.step(codeOf(e), player.currentPosition, buffered)
             when (s) {
                 is Step.Retry -> player.seekTo(s.atMs)
                 is Step.Skip -> player.seekTo(s.toMs)

@@ -235,16 +235,18 @@ class Addons(urls: List<String>, private val store: SharedPreferences, val sync:
 
     private fun metas(json: String): List<Found> = JSONObject(json).optJSONArray("metas").objects().map { found(title(it, emptySet())) }
 
-    private suspend fun get(url: String, readTimeout: Int = 30_000): String = String(bytes(url, readTimeout), Charsets.UTF_8)
+    private suspend fun get(url: String, readTimeout: Int = 30_000): String = read(url, readTimeout, BodyText::text)
 
-    private suspend fun bytes(url: String, readTimeout: Int = 30_000): ByteArray = withContext(Dispatchers.IO) {
+    private suspend fun bytes(url: String, readTimeout: Int = 30_000): ByteArray = read(url, readTimeout, BodyText::bytes)
+
+    private suspend fun <T> read(url: String, readTimeout: Int, body: (java.io.InputStream) -> T): T = withContext(Dispatchers.IO) {
         (URL(url).openConnection() as HttpURLConnection).run {
             connectTimeout = 15_000
             this.readTimeout = readTimeout
             setRequestProperty("User-Agent", "kumapie")
             try {
                 if (responseCode !in 200..299) error("${URL(url).host}: HTTP $responseCode")
-                inputStream.use { it.readBytes() }
+                inputStream.use { body(it) }
             } finally { disconnect() }
         }
     }

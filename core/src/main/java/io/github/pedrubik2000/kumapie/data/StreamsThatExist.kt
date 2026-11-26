@@ -56,7 +56,7 @@ suspend fun goingThatExist(
     }
     publish(filtered(if (user.isEmpty()) emptyList() else withContext(Dispatchers.IO) { AniListLists.cached(prefs, user) }))
     val key = "anilist_lists_at_$user"
-    if (user.isEmpty() || settings.anilistToken.isEmpty() || now - prefs.getLong(key, 0L) < LISTS_EVERY_MS) return
+    if (user.isEmpty() || settings.anilistToken.isEmpty() || now - prefs.getLong(key, 0L) < LISTS_EVERY_MS || Playing.holds()) return
     prefs.edit().putLong(key, now).apply()
     try { settings.withAniList(refresh)?.let { publish(filtered(it)) } } catch (e: CancellationException) { throw e } catch (e: Exception) { return }
 }

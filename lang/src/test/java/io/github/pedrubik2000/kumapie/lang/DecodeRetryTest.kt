@@ -75,4 +75,21 @@ class DecodeRetryTest {
         repeat(3) { r.step(bad, 1_000, 30_000) }
         assertEquals(Step.Retry(40_000), r.step(bad, 40_000, 40_000))
     }
+
+    private fun io(cause: Throwable?) = DecodeRetry.codeOf(PlaybackException.ERROR_CODE_IO_UNSPECIFIED, cause)
+
+    @Test fun anIoErrorWrappingAnArrayIndexErrorIsRetriedLikeAMalformedContainer() {
+        val code = io(RuntimeException("Unexpected", ArrayIndexOutOfBoundsException("src.length=65536")))
+        assertEquals(PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED, code)
+        val r = DecodeRetry()
+        assertEquals(Step.Retry(752_753), r.step(code, 752_753, 752_753))
+        assertEquals(Step.Retry(757_753), r.step(code, 752_753, 752_753))
+        assertEquals(Step.Retry(757_753), r.step(code, 752_753, 752_753))
+        assertEquals(Step.GiveUp, r.step(code, 752_753, 752_753))
+    }
+
+    @Test fun otherIoErrorsStayAsTheyAre() {
+        assertEquals(PlaybackException.ERROR_CODE_IO_UNSPECIFIED, io(RuntimeException("x")))
+        assertEquals(PlaybackException.ERROR_CODE_IO_UNSPECIFIED, io(null))
+    }
 }

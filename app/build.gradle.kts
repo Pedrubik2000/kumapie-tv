@@ -68,6 +68,8 @@ android {
     // The TV focus tests (src/test) run the screens in Robolectric: they need the app's resources.
     testOptions.unitTests.isIncludeAndroidResources = true
 
+    packaging { jniLibs { useLegacyPackaging = true } }
+
     // No analytics/metadata blobs in the APK.
     dependenciesInfo {
         includeInApk = false
@@ -100,3 +102,4 @@ dependencies {
     testImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest") // the empty activity the test rule opens
 }
+

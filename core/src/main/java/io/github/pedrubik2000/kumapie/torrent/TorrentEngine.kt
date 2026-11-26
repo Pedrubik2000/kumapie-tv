@@ -8,9 +8,11 @@ import io.github.pedrubik2000.kumapie.data.Pending
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.player.AppScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.libtorrent4j.Priority
 import org.libtorrent4j.SessionHandle
@@ -43,6 +45,9 @@ object TorrentEngine {
 
     private val shown = MutableStateFlow<String?>(null)
     val line: StateFlow<String?> = shown
+    private val state = MutableStateFlow<TorrentStatus?>(null)
+    val status: StateFlow<TorrentStatus?> = state
+    @Volatile private var releaseName = ""
 
     @Volatile var failed = false
         private set
@@ -83,14 +88,24 @@ object TorrentEngine {
         failed = false
         waiting = true
         shown.value = tr("Finding peers…")
+        releaseName = ref.name
+        state.value = TorrentStatus(release = ref.name)
         try {
-            if (!Settings(context).torrents) throw TorrentException(tr("Torrent streaming is off: turn it on in Settings."))
+            if (!Settings(context).torrents) throw TorrentException(tr("Torrent streaming is off: turn it on in Settings."), TorrentFault.OFF)
             return begin(context.applicationContext, ref, gen)
         } catch (e: InterruptedException) {
             throw InterruptedIOException()
-        } catch (e: TorrentException) {
-            if (gen == generation) fail(e.message.orEmpty())
+        } catch (e: InterruptedIOException) {
             throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: TorrentException) {
+            if (owner === token) fail(e.message.orEmpty(), e.fault)
+            throw e
+        } catch (e: Throwable) {
+            val said = tr("The torrent engine did not start.")
+            if (owner === token) fail(said)
+            throw TorrentException(said).also { it.initCause(e) }
         }
     }
 
@@ -124,7 +139,8 @@ object TorrentEngine {
         while (handle.torrentFile() == null) {
             alive(gen)
             if (System.currentTimeMillis() > deadline) throw TorrentException(
-                if (handle.status().numPeers() == 0) tr("No peers found for this video. Try another source.") else tr("Found peers but they sent nothing. Try another source."))
+                if (handle.status().numPeers() == 0) tr("No peers found for this video. Try another source.") else tr("Found peers but they sent nothing. Try another source."),
+                if (handle.status().numPeers() == 0) TorrentFault.NO_PEERS else TorrentFault.STALLED)
             Thread.sleep(POLL_MS)
         }
         val info = requireNotNull(handle.torrentFile()) { "metadata" }
@@ -135,7 +151,7 @@ object TorrentEngine {
         if (index < 0) throw TorrentException(tr("This torrent has no video file."))
         val need = files.fileSize(index)
         if (!TorrentPlan.admits(need, free(context, dir), SPARE_BYTES)) {
-            throw TorrentException(tr("Not enough free space: this video needs %s and 500 MB spare.", megabytes(need)))
+            throw TorrentException(tr("Not enough free space: this video needs %s and 500 MB spare.", megabytes(need)), TorrentFault.NO_SPACE)
         }
         handle.prioritizeFiles(Array(count) { if (it == index) Priority.DEFAULT else Priority.IGNORE })
         handle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD)
@@ -186,11 +202,11 @@ object TorrentEngine {
                 runCatching {
                     val s = handle.status()
                     val peers = s.numPeers()
-                    if (!failed) shown.value = when {
+                    tick(progress(s.hasMetadata(), peers, s.downloadPayloadRate().toLong()), when {
                         !waiting -> null
                         !s.hasMetadata() -> tr("Finding peers…") + if (peers > 0) " · " + tr("%d peers", peers) else ""
                         else -> tr("Downloading %1\$d%% · %2\$s/s · %3\$d peers", percent(), megabytes(s.downloadPayloadRate().toLong()), peers)
-                    }
+                    })
                     if (++ticks % LOG_EVERY == 0) android.util.Log.i(LOG, "down ${s.downloadPayloadRate() / 1000} kB/s up ${s.uploadPayloadRate() / 1000} kB/s peers $peers seeds ${s.numSeeds()} have ${percent()}%")
                     if (current?.let { it.haveBytes() >= it.size } == true) handle.pause()
                 }
@@ -201,9 +217,25 @@ object TorrentEngine {
 
     private fun percent(): Int = current?.let { (it.haveBytes() * 100 / it.size.coerceAtLeast(1)).toInt() } ?: 0
 
-    fun fail(message: String) {
+    private fun progress(metadata: Boolean, peers: Int, rate: Long): TorrentStatus {
+        val stream = current
+        if (!metadata || stream == null) return TorrentStatus(TorrentPhase.PEERS, peers = peers, release = releaseName)
+        return TorrentStatus(TorrentPhase.DOWNLOADING, peers = peers, rate = rate, have = stream.haveBytes(), need = TorrentStatus.startNeed(stream.size), ahead = stream.aheadBytes(), size = stream.size, release = releaseName)
+    }
+
+    fun tick(next: TorrentStatus, text: String?) {
+        state.update { if (failed || it?.phase == TorrentPhase.FAILED) it else next }
+        shown.update { if (failed) it else text }
+    }
+
+    fun playerFailed(message: String) {
+        if (!failed) fail(message)
+    }
+
+    fun fail(message: String, fault: TorrentFault = TorrentFault.OTHER) {
         failedAt = System.currentTimeMillis()
         failed = true
+        state.value = TorrentStatus.failed(fault, message, state.value?.peers ?: 0, releaseName)
         shown.value = message
     }
 
@@ -211,6 +243,7 @@ object TorrentEngine {
         if (!failed) return
         failed = false
         shown.value = null
+        state.value = null
     }
 
     fun local(source: String): String {
@@ -239,5 +272,6 @@ object TorrentEngine {
         waiting = false
         failed = false
         shown.value = null
+        state.value = null
     }
 }

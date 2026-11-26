@@ -350,7 +350,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
         if ((settings.showHelp || rating.open) && !options && !help)
             PlayerHints(ctl, picker, rating, watchBindings, pickerBindings, Modifier.align(Alignment.BottomStart))
         if (help) HelpOverlay(settings, ctl.lang)
-        if (!picker.isOpen && !options && !help) io.github.pedrubik2000.kumapie.torrent.torrentMessage(playError?.let { tr("This TV can't play this video (%s).", it) } ?: if (reconnecting) tr("Reconnecting…") else null)?.let {
+        if (!picker.isOpen && !options && !help) (playError?.let { torrentStall() ?: tr("This TV can't play this video (%s).", it) } ?: if (reconnecting) tr("Reconnecting…") else null)?.let {
             Text(it, color = Colors.text, fontSize = 24.sp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 90.dp).background(Colors.surface, RoundedCornerShape(8.dp)).padding(24.dp))
         }
@@ -516,4 +516,8 @@ fun frameRateOf(times: List<Long>): Float? {
     val med = gaps.sorted()[gaps.size / 2]
     val kept = gaps.filter { it <= med * 3 / 2 }
     return (1e6 * kept.size / kept.sum()).toFloat()
+}
+
+private fun torrentStall(): String? = io.github.pedrubik2000.kumapie.torrent.TorrentEngine.run {
+    if (status.value?.phase == io.github.pedrubik2000.kumapie.torrent.TorrentPhase.FAILED) line.value else null
 }

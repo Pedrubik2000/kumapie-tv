@@ -69,8 +69,8 @@ class TorrentDataSource(private val context: Context, private val owner: Any) : 
             if (waited > SHOW_AFTER_MS) TorrentEngine.waiting = true
             if (waited > TorrentEngine.STALL_MS) {
                 val message = tr("The download stalled. Try another source.")
-                TorrentEngine.fail(message)
-                throw TorrentException(message)
+                TorrentEngine.fail(message, TorrentFault.STALLED)
+                throw TorrentException(message, TorrentFault.STALLED)
             }
             try { Thread.sleep(POLL_MS) } catch (e: InterruptedException) { throw InterruptedIOException() }
         }

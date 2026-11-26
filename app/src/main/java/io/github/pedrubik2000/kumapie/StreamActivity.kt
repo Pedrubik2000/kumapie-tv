@@ -210,21 +210,27 @@ class StreamActivity : ComponentActivity() {
         val scope = androidx.compose.runtime.rememberCoroutineScope()
         val p = rememberPlayer(start.url, start.resumeAt, "ja")
         remember(p) { player = p; p.playWhenReady = true }
+        val torrent = start.url.startsWith("${io.github.pedrubik2000.kumapie.torrent.TorrentRef.SCHEME}://")
+        val started = io.github.pedrubik2000.kumapie.ui.rememberStarted(p, torrent)
         var note by remember { mutableStateOf<String?>(null) }
         var reconnecting by remember { mutableStateOf(false) }
+        var buffering by remember { mutableStateOf(false) }
         val s = remember(p) {
             io.github.pedrubik2000.kumapie.lang.AloneStream(settings.prefs, io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs), p, id,
                 link.getQueryParameter("type") ?: "series", show, link.getQueryParameter("title") ?: show,
                 start.url, link.getQueryParameter("file").orEmpty()) { note = it }
         }
         val live = s.live
+        val startedNow by rememberUpdatedState(started)
         androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_PAUSE) { s.leave() }
         DisposableEffect(p) {
             val listener = object : Player.Listener {
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
                     reconnecting = false
-                    if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(p, e)) note = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
-                    else reconnecting = io.github.pedrubik2000.kumapie.player.DecodeRetry.reopening(e)
+                    if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(p, e)) {
+                        note = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
+                        if (torrent && !startedNow) io.github.pedrubik2000.kumapie.torrent.TorrentEngine.playerFailed(note.orEmpty())
+                    } else reconnecting = io.github.pedrubik2000.kumapie.player.DecodeRetry.reopening(e)
                 }
 
                 override fun onPlaybackStateChanged(state: Int) {
@@ -240,7 +246,6 @@ class StreamActivity : ComponentActivity() {
                 alone = null; aloneView = null
             }
         }
-        remember(live) { alone = live }
         LaunchedEffect(s) { s.keepPlace() }
         LaunchedEffect(live) { live.run() }
         LaunchedEffect(live.noLines) { if (live.noLines && note == null) note = tr("No Japanese subtitles: none in this file, none on Jimaku") }
@@ -259,12 +264,25 @@ class StreamActivity : ComponentActivity() {
         }
         var ctl by remember { mutableStateOf<io.github.pedrubik2000.kumapie.player.SceneController?>(null) }
         LaunchedEffect(live.fitted, live.pieces, live.english, live.englishOpen, ctl, ctl?.scenes) { ctl?.let { s.fitLanded(it::shift); s.piecesLanded(it::shift); s.englishLanded(it) } }
-        shown?.let { ep ->
-            remember(ep) { alone = null; note = null }
-            val backend = remember { io.github.pedrubik2000.kumapie.ui.TvMining.backend(context, settings, ep.lang) }
-            return androidx.compose.runtime.key(ep) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p, onController = { ctl = it }) }
+        val ready = shown?.takeIf { started }
+        remember(live, started, buffering, ready) { alone = live.takeIf { started && !buffering && ready == null } }
+        Box(Modifier.fillMaxSize()) {
+            if (ready != null) {
+                remember(ready) { alone = null; note = null }
+                val backend = remember { io.github.pedrubik2000.kumapie.ui.TvMining.backend(context, settings, ready.lang) }
+                androidx.compose.runtime.key(ready) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ready, onClose = ::finish, player = p, onController = { ctl = it }) }
+            } else AlonePlain(p, live.line, if (reconnecting) tr("Reconnecting…") else note ?: label?.takeIf { showLabel }, started, buffering)
+            if (torrent) io.github.pedrubik2000.kumapie.ui.TorrentWait(p, started, remember(link) { waitInfo(link, id, show) }, settings, shown, live.noLines, ::finish) { buffering = it }
         }
-        AlonePlain(p, live.line, if (reconnecting) tr("Reconnecting…") else note ?: label?.takeIf { showLabel })
+    }
+
+    private fun waitInfo(link: Uri, id: String, show: String): io.github.pedrubik2000.kumapie.ui.WaitInfo {
+        val settings = Settings(this)
+        val hide = io.github.pedrubik2000.kumapie.lang.WaitPick.hideTitle(settings.blurUnwatched, settings.prefs.getStringSet("alone_seen", emptySet()).orEmpty(), id)
+        return io.github.pedrubik2000.kumapie.ui.WaitInfo(
+            id, show.ifEmpty { link.getQueryParameter("title").orEmpty() }, io.github.pedrubik2000.kumapie.lang.AloneStream.episodeNumber(id),
+            if (hide) "" else link.getQueryParameter("title")?.takeIf { it != show }.orEmpty(), link.getQueryParameter("file").orEmpty(),
+            io.github.pedrubik2000.kumapie.data.Backdrops.saved(this, io.github.pedrubik2000.kumapie.data.Addons.titleOf(id)), hide)
     }
 
     private fun shiftLabel(live: LiveLines): String? = when {
@@ -273,16 +291,23 @@ class StreamActivity : ComponentActivity() {
             (io.github.pedrubik2000.kumapie.lang.AloneStream.fitNote(live) ?: if (live.offset == live.fitted) tr("fitted") else null).let { if (it == null) "" else " · $it" } + " · ▲▼"
     }
 
+    private fun gate(view: PlayerView, started: Boolean, buffering: Boolean) {
+        view.useController = started && !buffering
+        view.isFocusable = started
+        view.descendantFocusability = if (started) android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS else android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        if (started && !buffering && !view.hasFocus()) view.requestFocus()
+    }
+
     @Composable
-    private fun AlonePlain(p: Player, line: String?, top: String?) {
+    private fun AlonePlain(p: Player, line: String?, top: String?, focus: Boolean, buffering: Boolean) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
-            AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; requestFocus(); aloneView = this } },
-                Modifier.fillMaxSize(), onRelease = { it.player = null })
+            AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; aloneView = this } },
+                Modifier.fillMaxSize(), update = { gate(it, focus, buffering) }, onRelease = { it.player = null })
             line?.let {
                 Text(it, color = Color.White, fontSize = 30.sp, lineHeight = 40.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).background(Color(0x99000000)).padding(16.dp, 8.dp))
             }
-            io.github.pedrubik2000.kumapie.torrent.torrentMessage(top)?.let {
+            top?.takeIf { !buffering }?.let {
                 Text(it, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)
                     .background(Color(0x99000000)).padding(12.dp, 6.dp))
             }

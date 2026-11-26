@@ -43,6 +43,17 @@ class DecodeRetryTest {
         for (c in listOf(PlaybackException.ERROR_CODE_DECODER_INIT_FAILED, PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
             PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED)) assertEquals(Step.Retry(1_000), DecodeRetry().step(c, 1_000))
         for (c in listOf(PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED)) assertEquals(Step.GiveUp, r.step(c, 1_000))
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED)) assertEquals(Step.GiveUp, r.step(c, 1_000))
+    }
+
+    @Test fun malformedContainerReopensThreeTimesPerTwoMinutes() {
+        val r = DecodeRetry()
+        val bad = PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
+        assertEquals(Step.Retry(1_139_044), r.step(bad, 1_139_044, 0))
+        assertEquals(Step.Retry(1_139_044), r.step(bad, 1_139_044, 5_000))
+        assertEquals(Step.Retry(1_140_000), r.step(bad, 1_140_000, 60_000))
+        assertEquals(Step.GiveUp, r.step(bad, 1_140_000, 119_999))
+        assertEquals(Step.Retry(1_150_000), r.step(bad, 1_150_000, 120_000))
+        assertEquals(Step.Retry(1_150_000), r.step(bad, 1_150_000, 125_000))
     }
 }

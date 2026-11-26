@@ -169,9 +169,11 @@ class StreamActivity : ComponentActivity() {
             val ended = object : Player.Listener {
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
                     if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(p, e)) failed = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
+                    else if (io.github.pedrubik2000.kumapie.player.DecodeRetry.reopening(e)) failed = tr("Reconnecting…")
                 }
 
                 override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_READY && failed == tr("Reconnecting…")) failed = null
                     if (state != Player.STATE_ENDED) return
                     nextQuery(query(link), upcoming)?.let { startActivity(intent(this@StreamActivity, it)); finish() }
                 }
@@ -216,9 +218,11 @@ class StreamActivity : ComponentActivity() {
             val listener = object : Player.Listener {
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
                     if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(p, e)) note = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
+                    else if (io.github.pedrubik2000.kumapie.player.DecodeRetry.reopening(e)) note = tr("Reconnecting…")
                 }
 
                 override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_READY && note == tr("Reconnecting…")) note = null
                     if (state == Player.STATE_ENDED) scope.launch { playNext(settings, query(link)) { note = it } }
                 }
             }

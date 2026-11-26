@@ -204,9 +204,15 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
 
     // A video the TV can't decode (10-bit HEVC, AC-3 on the Chromecast) would otherwise be a silent black screen.
     var playError by remember { mutableStateOf<String?>(null) }
+    var reconnecting by remember { mutableStateOf(false) }
     DisposableEffect(player) {
         val l = object : androidx.media3.common.Player.Listener {
-            override fun onPlayerError(error: androidx.media3.common.PlaybackException) { if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(player, error)) playError = error.errorCodeName }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(player, error)) playError = error.errorCodeName
+                else reconnecting = io.github.pedrubik2000.kumapie.player.DecodeRetry.reopening(error)
+            }
+
+            override fun onPlaybackStateChanged(state: Int) { if (state == androidx.media3.common.Player.STATE_READY) reconnecting = false }
         }
         player.addListener(l)
         onDispose { player.removeListener(l) }
@@ -343,8 +349,8 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
         if ((settings.showHelp || rating.open) && !options && !help)
             PlayerHints(ctl, picker, rating, watchBindings, pickerBindings, Modifier.align(Alignment.BottomStart))
         if (help) HelpOverlay(settings, ctl.lang)
-        if (!picker.isOpen && !options && !help) playError?.let {
-            Text(tr("This TV can't play this video (%s).", it), color = Colors.text, fontSize = 24.sp,
+        if (!picker.isOpen && !options && !help) (playError?.let { tr("This TV can't play this video (%s).", it) } ?: if (reconnecting) tr("Reconnecting…") else null)?.let {
+            Text(it, color = Colors.text, fontSize = 24.sp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 90.dp).background(Colors.surface, RoundedCornerShape(8.dp)).padding(24.dp))
         }
     }

@@ -260,6 +260,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
             moveRated(rating) // every rated word's card, now that the stream stopped
             syncAnkiLater(context, settings, ctl) // what was mined and rated here
             view.keepScreenOn = false
+            io.github.pedrubik2000.kumapie.Restart.playerDisposed()
         }
     }
     // Home button, input switch, screensaver: pause and save where it was.

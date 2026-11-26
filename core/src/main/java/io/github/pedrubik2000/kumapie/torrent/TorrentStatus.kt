@@ -40,10 +40,12 @@ data class TorrentStatus(
 
 data class WaitText(val label: String, val headline: String, val detail: String, val stats: String, val hint: String, val failed: Boolean)
 
+fun peerCount(n: Int): String = if (n == 1) tr("1 peer") else tr("%d peers", n)
+
 fun waitText(s: TorrentStatus): WaitText = when (s.phase) {
     TorrentPhase.PEERS -> WaitText(
         tr("STARTING SOON"),
-        if (s.peers > 0) tr("%d peers found", s.peers) else tr("Finding peers…"),
+        if (s.peers == 1) tr("1 peer found") else if (s.peers > 0) tr("%d peers found", s.peers) else tr("Finding peers…"),
         if (s.peers > 0) tr("looking for more") else "",
         "",
         tr("Usually ready in 10–15 s"),
@@ -53,7 +55,7 @@ fun waitText(s: TorrentStatus): WaitText = when (s.phase) {
         tr("STARTING SOON"),
         "${s.percent}%",
         listOfNotNull(tr("of the start"), s.etaSeconds?.let { tr("about %d s", it) }).joinToString(" · "),
-        tr("%1\$s/s · %2\$d peers · %3\$s of %4\$s", TorrentEngine.megabytes(s.rate), s.peers, TorrentEngine.megabytes(s.have), TorrentEngine.megabytes(s.need)),
+        tr("%1\$s/s · %2\$s · %3\$s of %4\$s", TorrentEngine.megabytes(s.rate), peerCount(s.peers), TorrentEngine.megabytes(s.have), TorrentEngine.megabytes(s.need)),
         "",
         false,
     )
@@ -62,7 +64,7 @@ fun waitText(s: TorrentStatus): WaitText = when (s.phase) {
 
 private fun failedText(s: TorrentStatus): WaitText {
     val (headline, detail) = when (s.fault) {
-        TorrentFault.NO_PEERS -> tr("No one is sharing this file") to tr("%d peers after 60 s", s.peers)
+        TorrentFault.NO_PEERS -> tr("No one is sharing this file") to tr("%s after 60 s", peerCount(s.peers))
         TorrentFault.OFF -> tr("Torrent streaming is off") to tr("Turn it on in Settings, or pick a Real-Debrid release.")
         TorrentFault.NO_SPACE -> tr("Not enough free space") to s.message.substringAfter(": ").replaceFirstChar { it.uppercase() }
         TorrentFault.STALLED -> tr("The download stalled") to tr("Try another release.")
@@ -72,4 +74,4 @@ private fun failedText(s: TorrentStatus): WaitText {
 }
 
 fun bufferText(s: TorrentStatus): Pair<String, String> =
-    tr("Buffering %d%%", s.bufferPercent) to tr("%1\$s/s · %2\$d peers", TorrentEngine.megabytes(s.rate), s.peers)
+    tr("Buffering %d%%", s.bufferPercent) to tr("%1\$s/s · %2\$s", TorrentEngine.megabytes(s.rate), peerCount(s.peers))

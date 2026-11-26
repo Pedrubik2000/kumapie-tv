@@ -26,6 +26,13 @@ class TorrentWaitTextTest {
         assertFalse(some.failed)
     }
 
+    @Test fun oneAndOnlyOnePeerIsSingular() {
+        assertEquals("1 peer found", waitText(TorrentStatus(peers = 1)).headline)
+        assertEquals("1 peer", io.github.pedrubik2000.kumapie.torrent.peerCount(1))
+        assertEquals("2 peers", io.github.pedrubik2000.kumapie.torrent.peerCount(2))
+        assertEquals("0 peers", io.github.pedrubik2000.kumapie.torrent.peerCount(0))
+    }
+
     @Test fun downloadingShowsPercentOfTheStartRateAndBytes() {
         val s = TorrentStatus(TorrentPhase.DOWNLOADING, peers = 23, rate = 3 * mb, have = 2 * mb, need = 6 * mb)
         val t = waitText(s)

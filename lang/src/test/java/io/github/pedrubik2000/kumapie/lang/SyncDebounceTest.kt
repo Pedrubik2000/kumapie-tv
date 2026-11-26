@@ -66,4 +66,38 @@ class SyncDebounceTest {
         // Srs.take inserts the id (CONFLICT_IGNORE on the revlog id); the next share() has it in revlogIds: nothing to add.
         assertTrue(WordSync.toAdd(events, cards, setOf(7L)).isEmpty())
     }
+
+    @Test fun noRequestIsLostWhenItLandsAsASyncEnds() {
+        val last = java.util.concurrent.atomic.AtomicLong()
+        val d = SyncDebounce(CoroutineScope(Dispatchers.Default), 0) { last.set(System.nanoTime()); Thread.sleep(1) }
+        repeat(300) {
+            val asked = System.nanoTime()
+            d.request()
+            wait { last.get() > asked }
+            assertTrue("request $it never got a run after it", last.get() > asked)
+        }
+    }
+
+    @Test fun ratingsSyncOnlyOnAnUnmeteredNetworkAndNotForFifteenMinutesAfterAFailure() {
+        val now = 100_000_000L
+        assertTrue(DeviceSync.allowed(true, 0L, now))
+        assertFalse(DeviceSync.allowed(false, 0L, now))
+        assertFalse(DeviceSync.allowed(true, now - 5 * 60_000, now))
+        assertTrue(DeviceSync.allowed(true, now - 16 * 60_000, now))
+    }
+
+    @Test fun cardReloadsAreOneAtATimeAndARequestMeanwhileMakesOneMore() {
+        val runs = AtomicInteger()
+        val inside = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val reload = SyncDebounce(CoroutineScope(Dispatchers.Default), 0) { if (runs.incrementAndGet() == 1) { inside.countDown(); release.await() } }
+        reload.request()
+        inside.await()
+        repeat(4) { reload.request() }
+        assertEquals(1, runs.get())
+        release.countDown()
+        wait { runs.get() >= 2 }
+        Thread.sleep(200)
+        assertEquals(2, runs.get())
+    }
 }

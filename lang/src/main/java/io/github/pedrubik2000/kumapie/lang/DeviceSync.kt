@@ -54,6 +54,7 @@ object DeviceSync {
     private const val LAST = "sync_last"
     private const val OK = "sync_ok"
     internal const val EVERY_MS = 15 * 60_000L
+    private const val BACKSTOP_S = 15L
     private const val WORK = "device-sync"
     private const val CONFLICT_MS = 10 * 60_000L
     internal const val STALE_MS = 20_000L
@@ -153,17 +154,40 @@ object DeviceSync {
     /** A rating or an undo (Srs.rate / Srs.undo, every caller): a sync with the hub soon; nothing on the hub (no one to pull from). */
     fun rated(context: Context) {
         val settings = Settings(context)
+        if (settings.server.isEmpty() && with(settings) != null && allowed(unmetered(context), failedAt, System.currentTimeMillis())) requested(context)
+    }
+
+    /** Ratings sync only on Wi-Fi or another unmetered network, and not for [EVERY_MS] after a failed sync (the resume and the ticker still try). */
+    internal fun allowed(unmetered: Boolean, failedAt: Long, now: Long): Boolean = unmetered && now - failedAt > EVERY_MS
+
+    @Volatile private var failedAt = 0L
+
+    private fun unmetered(context: Context): Boolean = runCatching {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
+    }.getOrDefault(true)
+
+    private fun paired(context: Context) {
+        val settings = Settings(context)
         if (settings.server.isEmpty() && with(settings) != null) requested(context)
     }
 
     internal fun due(lastOk: Long, now: Long): Boolean = now - lastOk > EVERY_MS
 
     private val sync = SyncDebounce(CoroutineScope(SupervisorJob() + Dispatchers.IO)) {
-        wanted?.let { c -> syncNow(c).let { if (it.isNotEmpty()) Log.i("kumapie", "device sync: $it") } }
+        wanted?.let { c ->
+            syncNow(c).let { if (it.isNotEmpty()) Log.i("kumapie", "device sync: $it") }
+            if (failedAt == 0L) runCatching { WorkManager.getInstance(c).cancelUniqueWork("$WORK-now") } // done in-process: the backstop isn't needed
+        }
     }
     @Volatile private var wanted: Context? = null
 
-    private fun requested(context: Context) { wanted = context.applicationContext; sync.request() }
+    /** The debouncer syncs in this process; the worker is its backstop if the process is swiped away within the wait (the lock serialises them). */
+    private fun requested(context: Context) {
+        wanted = context.applicationContext
+        runCatching { WorkManager.getInstance(context).enqueueUniqueWork("$WORK-now", ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<DeviceSyncWorker>().setInitialDelay(BACKSTOP_S, TimeUnit.SECONDS).build()) }
+        sync.request()
+    }
 
     private val ticks = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var started = 0
@@ -177,7 +201,7 @@ object DeviceSync {
         watching = true
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityStarted(a: Activity) { if (synchronized(this@DeviceSync) { ++started == 1 }) foreground(app) }
-            override fun onActivityStopped(a: Activity) { if (synchronized(this@DeviceSync) { --started <= 0 }) { ticker?.cancel(); ticker = null } }
+            override fun onActivityStopped(a: Activity) { if (synchronized(this@DeviceSync) { started = maxOf(0, started - 1); started == 0 }) { ticker?.cancel(); ticker = null } }
             override fun onActivityCreated(a: Activity, b: Bundle?) {}
             override fun onActivityResumed(a: Activity) {}
             override fun onActivityPaused(a: Activity) {}
@@ -186,15 +210,15 @@ object DeviceSync {
         })
         // start() runs from an activity already started: count it when the app is in front.
         val info = android.app.ActivityManager.RunningAppProcessInfo().also { android.app.ActivityManager.getMyMemoryState(it) }
-        if (info.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) { started = 1; foreground(app) }
+        if (info.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) { if (started == 0) { started = 1; foreground(app) } }
     }
 
     @Synchronized private fun foreground(context: Context) {
         val settings = Settings(context)
         if (settings.server.isNotEmpty()) return
-        if (due(settings.prefs.getLong(OK, 0L), System.currentTimeMillis())) rated(context)
+        if (due(settings.prefs.getLong(OK, 0L), System.currentTimeMillis()) && unmetered(context)) paired(context)
         ticker?.cancel()
-        ticker = ticks.launch { while (true) { delay(EVERY_MS); rated(context) } }
+        ticker = ticks.launch { while (true) { delay(EVERY_MS); if (unmetered(context)) paired(context) } }
     }
 
     private fun enqueueNow(context: Context) {
@@ -260,8 +284,8 @@ object DeviceSync {
                     exchange(context, p)
                 }.onFailure { runCatching { files(context).share() } }.getOrThrow()
             }
-        }.onSuccess { settings.prefs.edit().putLong(OK, System.currentTimeMillis()).apply() }
-            .getOrElse { tr("%1\$s: not synced with %2\$s: %3\$s", now(), peer.name, it.message ?: it.toString()) }
+        }.onSuccess { failedAt = 0L; settings.prefs.edit().putLong(OK, System.currentTimeMillis()).apply() }
+            .getOrElse { failedAt = System.currentTimeMillis(); tr("%1\$s: not synced with %2\$s: %3\$s", now(), peer.name, it.message ?: it.toString()) }
         say(settings, line)
         line
     }

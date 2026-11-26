@@ -288,9 +288,13 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
     }
 
     /** Other devices' ratings landed in the cards: colours ask again at once (the provider's one-minute wait, the open app's cards). */
+    private fun reloader(known: KnownWords, scope: kotlinx.coroutines.CoroutineScope): SyncDebounce = synchronized(reloads) {
+        reloads.getOrPut(known) { SyncDebounce(scope, 0) { known.reloadCards() } } // one reload per KnownWords; a request meanwhile makes exactly one more
+    }
+
     private fun cardsChanged() {
         WordSync.changedAt = System.currentTimeMillis()
-        languages.filter { it.known.ready }.forEach { l -> srs.background.launch { runCatching { l.known.reloadCards() } } }
+        languages.filter { it.known.ready }.forEach { l -> reloader(l.known, srs.background).request() }
     }
 
     fun elsewhere() {
@@ -317,5 +321,6 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
 
     companion object {
         const val BACKUPS = 5
+        private val reloads = java.util.WeakHashMap<KnownWords, SyncDebounce>()
     }
 }

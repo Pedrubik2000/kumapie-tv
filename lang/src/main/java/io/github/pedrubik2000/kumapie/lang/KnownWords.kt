@@ -193,8 +193,12 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** The word cards again without parsing (a card was just mined here); kuma3's queue as it was (a new card isn't due). */
     suspend fun reloadCards() = withContext(Dispatchers.IO) {
         val pkg = pkgNow() ?: return@withContext
-        val notes = anki.notes(pkg, search)
-        cardIndex.build(notes, anki.cards(pkg, search), cardIndex.due, cardKeys(notes))
+        var tries = 0
+        do { // an update()/add() during the read (a rating) would be overwritten by its older data: read again
+            val seen = cardIndex.changes
+            val notes = anki.notes(pkg, search)
+            cardIndex.build(notes, anki.cards(pkg, search), cardIndex.due, cardKeys(notes))
+        } while (cardIndex.changes != seen && ++tries < 3)
         saveIndex()
     }
 

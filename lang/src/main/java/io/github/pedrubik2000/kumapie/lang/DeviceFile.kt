@@ -5,6 +5,7 @@ import io.github.pedrubik2000.kumapie.data.Addons
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -277,11 +278,23 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
 
     fun share() {
         val events = storedEvents()
+        var took = false
         for ((l, s) in stores()) {
             val keys = s.cards().associate { it.id to DeviceFile.wordKey(l.code, it.word, it.fields) }
-            WordSync.toAdd(events, keys, s.revlogIds()).takeIf { it.isNotEmpty() }?.let(s::take)
+            WordSync.toAdd(events, keys, s.revlogIds()).takeIf { it.isNotEmpty() }?.let { s.take(it); took = true }
         }
+        if (took) cardsChanged()
         elsewhere()
+    }
+
+    /** Other devices' ratings landed in the cards: colours ask again at once (the provider's one-minute wait, the open app's cards). */
+    private fun reloader(known: KnownWords, scope: kotlinx.coroutines.CoroutineScope): SyncDebounce = synchronized(reloads) {
+        reloads.getOrPut(known) { SyncDebounce(scope, 0) { known.reloadCards() } } // one reload per KnownWords; a request meanwhile makes exactly one more
+    }
+
+    private fun cardsChanged() {
+        WordSync.changedAt = System.currentTimeMillis()
+        languages.filter { it.known.ready }.forEach { l -> reloader(l.known, srs.background).request() }
     }
 
     fun elsewhere() {
@@ -308,5 +321,6 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
 
     companion object {
         const val BACKUPS = 5
+        private val reloads = java.util.WeakHashMap<KnownWords, SyncDebounce>()
     }
 }

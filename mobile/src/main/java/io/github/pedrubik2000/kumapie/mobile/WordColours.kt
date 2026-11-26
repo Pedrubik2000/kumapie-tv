@@ -12,6 +12,7 @@ import io.github.pedrubik2000.kumapie.data.Word
 import io.github.pedrubik2000.kumapie.lang.CardIndex
 import io.github.pedrubik2000.kumapie.lang.Japanese
 import io.github.pedrubik2000.kumapie.lang.KnownWords
+import io.github.pedrubik2000.kumapie.lang.WordSync
 import io.github.pedrubik2000.kumapie.lang.YomitanDictionaries
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +51,7 @@ class WordColours : ContentProvider() {
      */
     private fun fresh(known: KnownWords) {
         known.reloadLists()
-        if (System.currentTimeMillis() - cardsAt < 60_000) return
+        if (System.currentTimeMillis() - cardsAt < 60_000 && WordSync.changedAt <= cardsAt) return
         cardsAt = System.currentTimeMillis()
         runBlocking { known.reloadCards() }
     }

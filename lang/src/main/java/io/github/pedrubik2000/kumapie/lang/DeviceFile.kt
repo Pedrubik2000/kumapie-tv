@@ -18,6 +18,7 @@ object DeviceFile {
 
     private const val SAVED = "alone_saved"
     private const val SEEN = "alone_seen"
+    internal const val DONE = "alone_off_clean"
     private const val LAST = "alone_last_"
 
     data class Count(val what: String, val add: Int, val change: Int, val keep: Int)
@@ -126,7 +127,7 @@ object DeviceFile {
         for (k in theirs.keys()) {
             val v = theirs.get(k)
             when {
-                k.startsWith(LAST) -> Unit
+                k.startsWith(LAST) || k == DONE -> Unit
                 k == SAVED -> {
                     val had = JSONArray((mine[k] as? String) ?: "[]").objects()
                     val ids = had.map { it.optString("id") }.toSet()
@@ -262,7 +263,7 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
         return copy
     }
 
-    private fun streams(): Map<String, Any?> = settings.prefs.all.filterKeys { it.startsWith("alone_") }
+    private fun streams(): Map<String, Any?> = settings.prefs.all.filterKeys { it.startsWith("alone_") && it != DeviceFile.DONE }
 
     fun carded(): JSONObject {
         val keys = HashSet<String>()

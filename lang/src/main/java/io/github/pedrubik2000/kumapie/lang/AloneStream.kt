@@ -165,14 +165,14 @@ class AloneStream(
 
         fun isTrue(v: Any?) = v == true || v == "true"
 
-        fun flag(prefs: SharedPreferences, key: String) = runCatching { prefs.getBoolean(key, false) }.getOrElse { prefs.getString(key, null) == "true" }
+        fun flag(prefs: SharedPreferences, key: String) = isTrue(prefs.all[key])
 
         fun staleOffsets(all: Map<String, *>): List<String> = all.filter { (k, v) ->
             k.startsWith("alone_off_") && !k.endsWith("|hand") && !k.endsWith("|nudge") && v is Float && kotlin.math.abs(v) > 30f && !isTrue(all[k + "|hand"])
         }.keys.toList()
 
         fun cleanOffsets(prefs: SharedPreferences) {
-            if (flag(prefs, "alone_off_clean")) return
+            if (prefs.all["alone_off_clean"] == true) return
             prefs.edit().apply { staleOffsets(prefs.all).forEach(::remove) }.putBoolean("alone_off_clean", true).apply()
         }
 

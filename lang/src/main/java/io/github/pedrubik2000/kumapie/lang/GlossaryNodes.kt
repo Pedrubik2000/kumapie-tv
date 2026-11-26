@@ -29,11 +29,19 @@ object GlossaryNodes {
     const val MAX_CHARS = 20_000
     const val MAX_BLOCKS = 300
 
-    private val PILL = Regex("(?i)tag|-info\$|label|part-?of-?speech|^pos\$")
+    private val PILL = Regex("(?i)part-?of-?speech|^pos\$|tag")
+
+    /** What is left to draw: one per entry by default, one shared by a whole card ([MAX_CARD_CHARS], [MAX_CARD_BLOCKS]). */
+    class Budget(var chars: Int = MAX_CHARS, var blocks: Int = MAX_BLOCKS) {
+        internal var cut = false
+        internal var marked = false
+    }
+    const val MAX_CARD_CHARS = 30_000
+    const val MAX_CARD_BLOCKS = 400
 
     /** One dictionary's glossary (the raw JSON array of items) as blocks; a plain string works too. */
-    fun build(raw: String): List<Block> {
-        val b = Builder()
+    fun build(raw: String, budget: Budget = Budget()): List<Block> {
+        val b = Builder(budget)
         val a = runCatching { JSONArray(raw) }.getOrNull()
         if (a == null) b.text(raw, Style())
         else {
@@ -45,29 +53,42 @@ object GlossaryNodes {
             }
         }
         b.flush()
+        if (budget.cut && !budget.marked) { budget.marked = true; b.blocks += Block(listOf(Run("…", dim = true))) }
         return b.blocks
     }
 
     private data class Style(
         val bold: Boolean = false, val italic: Boolean = false, val size: Float = 1f,
-        val pill: Boolean = false, val link: Boolean = false, val dim: Boolean = false, val indent: Int = 0,
+        val link: Boolean = false, val dim: Boolean = false, val indent: Int = 0,
     )
 
-    private class Builder {
+    private class Builder(val budget: Budget) {
         val blocks = ArrayList<Block>()
         private var runs = ArrayList<Run>()
         private var indent = 0
-        private var chars = 0
+        private var marker: Run? = null // a list item's bullet, kept for the item's first text even when a block comes first
 
         fun flush() {
-            if (runs.any { it.text.isNotBlank() } && blocks.size < MAX_BLOCKS) blocks += Block(runs, indent)
+            if (runs.any { it.text.isNotBlank() }) {
+                if (budget.blocks > 0) { budget.blocks--; blocks += Block(runs, indent) } else budget.cut = true
+            }
             runs = ArrayList()
         }
 
-        fun text(s: String, st: Style) {
-            if (s.isEmpty() || chars > MAX_CHARS) return
-            chars += s.length
-            runs += Run(s, st.bold, st.italic, st.size, st.pill, st.link, st.dim)
+        fun text(s: String, st: Style, pill: Boolean = false) {
+            if (s.isEmpty()) return
+            if (budget.chars <= 0) { budget.cut = true; return }
+            val t = if (s.length > budget.chars) { budget.cut = true; s.take(budget.chars) } else s
+            budget.chars -= t.length
+            marker?.let { runs += it; marker = null }
+            runs += Run(t, st.bold, st.italic, st.size, pill, st.link, st.dim)
+        }
+
+        private fun plain(n: Any?, d: Int = 0): String = if (d > MAX_DEPTH) "" else when (n) {
+            is String -> n
+            is JSONArray -> (0 until n.length()).joinToString("") { plain(n.get(it), d + 1) }
+            is JSONObject -> if (n.optString("type") == "text") n.optString("text") else plain(n.opt("content"), d + 1)
+            else -> ""
         }
 
         private fun block(st: Style, body: () -> Unit) { flush(); val prev = indent; indent = st.indent; body(); flush(); indent = prev }
@@ -84,7 +105,7 @@ object GlossaryNodes {
         }
 
         private fun content(node: Any?, st: Style, depth: Int) {
-            if (depth > MAX_DEPTH || chars > MAX_CHARS) return
+            if (depth > MAX_DEPTH || budget.chars <= 0) return
             when (node) {
                 null, JSONObject.NULL -> {}
                 is String -> text(node, st)
@@ -114,12 +135,11 @@ object GlossaryNodes {
                 if (w == "bold" || (w.toIntOrNull() ?: 0) >= 600) s = s.copy(bold = true)
                 if (css.optString("fontStyle") == "italic") s = s.copy(italic = true)
                 size(css.opt("fontSize"))?.let { s = s.copy(size = (s.size * it).coerceIn(0.5f, 2f)) }
-                if (css.has("backgroundColor")) s = s.copy(pill = true)
-            }
-            node.optJSONObject("data")?.let { d ->
-                if (d.keys().asSequence().any { k -> PILL.containsMatchIn(d.optString(k)) || (k == "tag" || k == "partOfSpeech") }) s = s.copy(pill = true)
             }
             val child = node.opt("content")
+            // A tag element (part of speech...) is ONE pill of its joined text; nothing under it is pilled on its own.
+            val tagged = node.optJSONObject("data")?.let { d -> d.keys().asSequence().any { k -> PILL.containsMatchIn(k) || PILL.containsMatchIn(d.optString(k)) } } == true
+            if (tagged && tag !in setOf("ul", "ol", "li", "table", "tr")) { plain(child).trim().takeIf { it.isNotEmpty() }?.let { text(it, s, pill = true) }; return }
             when (tag) {
                 "br" -> text("\n", s)
                 "rp", "img" -> if (tag == "img") image(node, s)
@@ -142,9 +162,9 @@ object GlossaryNodes {
                 val isLi = k is JSONObject && k.optString("tag") == "li"
                 if (!isLi) { content(k, st, depth + 1); continue }
                 flush(); indent = st.indent - 1
-                text(if (ordered) "${++n}. " else "• ", st.copy(dim = true))
+                marker = Run(if (ordered) "${++n}. " else "• ", dim = true)
                 content((k as JSONObject).opt("content"), st, depth + 2)
-                flush()
+                flush(); marker = null
             }
         }
 
@@ -169,6 +189,6 @@ object GlossaryNodes {
                 else -> null
             }
             else -> null
-        }
+        }?.takeIf { it.isFinite() }
     }
 }

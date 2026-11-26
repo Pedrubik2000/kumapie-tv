@@ -15,7 +15,7 @@ class GlossaryNodesTest {
 
     @Test fun listsAndPills() {
         val raw = """[{"type":"structured-content","content":[
-            {"tag":"span","data":{"content":"part-of-speech-info"},"content":"noun"},
+            {"tag":"span","data":{"content":"partOfSpeech"},"content":"noun"},
             {"tag":"ul","data":{"content":"glossary"},"content":[{"tag":"li","content":"to eat"},{"tag":"li","content":"to live"}]}]}]"""
         val blocks = GlossaryNodes.build(raw)
         assertEquals(listOf("noun", "• to eat", "• to live"), blocks.map { it.text })
@@ -68,7 +68,35 @@ class GlossaryNodesTest {
         assertTrue(GlossaryNodes.build("[$deep]").isEmpty())
         val rows = (1..2000).joinToString(",") { """{"tag":"li","content":"row $it with some text to fill the entry up"}""" }
         val b = GlossaryNodes.build("""[{"type":"structured-content","content":{"tag":"ul","content":[$rows]}}]""")
-        assertTrue(b.size <= GlossaryNodes.MAX_BLOCKS)
+        assertTrue(b.size <= GlossaryNodes.MAX_BLOCKS + 1) // + the "…" line
         assertTrue(b.sumOf { it.text.length } <= GlossaryNodes.MAX_CHARS + 100)
+    }
+
+    @Test fun pillIsOneRunAndDoesNotSpread() {
+        val raw = """[{"type":"structured-content","content":[
+            {"tag":"span","data":{"content":"tag"},"content":[{"tag":"span","content":"vt"},{"tag":"span","content":"vi"}]},
+            {"tag":"div","data":{"content":"extra-info"},"content":{"tag":"div","content":[{"tag":"ruby","content":["例",{"tag":"rt","content":"れい"}]},"文"]}}]}]"""
+        val b = GlossaryNodes.build(raw)
+        assertEquals(1, b[0].runs.size); assertEquals("vtvi", b[0].runs[0].text); assertTrue(b[0].runs[0].pill)
+        assertEquals("例[れい]文", b[1].text)
+        assertTrue(b[1].runs.none { it.pill })
+    }
+
+    @Test fun cardBudgetStopsWithEllipsisAndTextTakesOnlyTheRoom() {
+        val budget = GlossaryNodes.Budget(chars = 25, blocks = 400)
+        val a = GlossaryNodes.build("""["${"x".repeat(100)}"]""", budget)
+        assertEquals("x".repeat(25), a.first().text.take(25)); assertEquals("…", a.last().text)
+        assertEquals(26, a.sumOf { it.text.length })
+        assertEquals(5, GlossaryNodes.build("a".repeat(5) + "[", GlossaryNodes.Budget(5, 5)).first().text.length)
+    }
+
+    @Test fun listItemStartingWithBlockKeepsItsBullet() {
+        val raw = """[{"type":"structured-content","content":{"tag":"ul","content":{"tag":"li","content":{"tag":"div","content":"text"}}}}]"""
+        assertEquals(listOf("• text"), GlossaryNodes.build(raw).map { it.text })
+    }
+
+    @Test fun nonFiniteSizesIgnored() {
+        val raw = """[{"type":"structured-content","content":{"tag":"span","style":{"fontSize":"NaNem"},"content":"t"}}]"""
+        assertEquals(1f, GlossaryNodes.build(raw).single().runs[0].size, 0f)
     }
 }

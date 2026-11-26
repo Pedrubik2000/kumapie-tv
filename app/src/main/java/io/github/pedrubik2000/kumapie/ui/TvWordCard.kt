@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
@@ -13,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -126,8 +125,10 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
         sections = if (found == null) emptyList() else withContext(Dispatchers.IO) {
             val byDict = LinkedHashMap<String, MutableList<String>>()
             for (t in found.terms) for (g in t.glossaries) byDict.getOrPut(g.dict) { ArrayList() }.let { if (g.raw !in it) it += g.raw }
+            val budget = GlossaryNodes.Budget(GlossaryNodes.MAX_CARD_CHARS, GlossaryNodes.MAX_CARD_BLOCKS) // one for the whole card
             byDict.keys.sortedBy { CardDefinition.rank(it) ?: Int.MAX_VALUE }
-                .map { d -> DictSection(dictLabel(d), byDict.getValue(d).map(GlossaryNodes::build).filter { it.isNotEmpty() }) }
+                .map { d -> DictSection(dictLabel(d), byDict.getValue(d).map { raw -> GlossaryNodes.build(raw, budget).map { Para(annotated(it), it.indent) } }.filter { it.isNotEmpty() }) }
+                .filter { it.entries.isNotEmpty() }
         }
     }
 }
@@ -158,7 +159,9 @@ private fun PitchReading(kana: String, downstep: Int?) {
     }
 }
 
-internal class DictSection(val title: String, val entries: List<List<GlossaryNodes.Block>>)
+internal class Para(val text: AnnotatedString, val indent: Int)
+
+internal class DictSection(val title: String, val entries: List<List<Para>>)
 
 /** The D-pad's scroll of the card: set while a card is on screen (PlayerScreen asks it before moving the picker). */
 private var dictionaryStep: ((Int) -> Boolean)? = null
@@ -170,10 +173,9 @@ private val CardBg = Color(0xFF14171D)
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DictionaryNative(sections: List<DictSection>, modifier: Modifier) {
-    val scroll = rememberScrollState()
+    val scroll = remember(sections) { ScrollState(0) } // a reload opens at the top
     val scope = rememberCoroutineScope()
     val tops = remember(sections) { IntArray(sections.size) }
-    var view by remember { mutableIntStateOf(0) }
     val active by remember(sections) { derivedStateOf {
         if (scroll.value >= scroll.maxValue - 2) sections.lastIndex
         else tops.indexOfLast { it <= scroll.value + 4 }.coerceAtLeast(0)
@@ -182,7 +184,7 @@ private fun DictionaryNative(sections: List<DictSection>, modifier: Modifier) {
     DisposableEffect(sections) {
         val step: (Int) -> Boolean = step@{ d ->
             if (!(if (d > 0) scroll.canScrollForward else scroll.canScrollBackward)) return@step false
-            val page = view * 0.85f
+            val page = scroll.viewportSize * 0.85f
             val y = scroll.value
             val t = if (d > 0) tops.firstOrNull { it > y + 4 } else tops.lastOrNull { it < y - 4 }
             val to = if (t != null && kotlin.math.abs(t - y) <= page) t else (y + d * page).toInt()
@@ -192,7 +194,7 @@ private fun DictionaryNative(sections: List<DictSection>, modifier: Modifier) {
         dictionaryStep = step
         onDispose { if (dictionaryStep === step) dictionaryStep = null }
     }
-    Box(modifier.onSizeChanged { view = it.height }) {
+    Box(modifier) {
         Column {
             FlowRow(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 sections.forEachIndexed { i, s ->
@@ -210,7 +212,7 @@ private fun DictionaryNative(sections: List<DictSection>, modifier: Modifier) {
                         Text(s.title, color = Color(0xFF9CC9FF), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp))
                         s.entries.forEachIndexed { k, blocks ->
                             if (k > 0) Box(Modifier.padding(vertical = 8.dp).fillMaxWidth().height(1.dp).background(Color(0x33A9A4B8)))
-                            blocks.forEach { Text(annotated(it), color = Colors.text, fontSize = 19.sp, lineHeight = 30.sp, modifier = Modifier.padding(start = (it.indent * 22).dp)) }
+                            blocks.forEach { Text(it.text, color = Colors.text, fontSize = 19.sp, lineHeight = 30.sp, modifier = Modifier.padding(start = (it.indent * 22).dp)) }
                         }
                     }
                     if (i < sections.lastIndex) Box(Modifier.padding(bottom = 12.dp).fillMaxWidth().height(1.dp).background(Color(0x26A9A4B8)))

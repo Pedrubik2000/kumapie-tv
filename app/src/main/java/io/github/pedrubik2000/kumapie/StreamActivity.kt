@@ -291,11 +291,18 @@ class StreamActivity : ComponentActivity() {
             (io.github.pedrubik2000.kumapie.lang.AloneStream.fitNote(live) ?: if (live.offset == live.fitted) tr("fitted") else null).let { if (it == null) "" else " · $it" } + " · ▲▼"
     }
 
+    private fun gate(view: PlayerView, started: Boolean, buffering: Boolean) {
+        view.useController = started && !buffering
+        view.isFocusable = started
+        view.descendantFocusability = if (started) android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS else android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        if (started && !buffering && !view.hasFocus()) view.requestFocus()
+    }
+
     @Composable
     private fun AlonePlain(p: Player, line: String?, top: String?, focus: Boolean, buffering: Boolean) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; aloneView = this } },
-                Modifier.fillMaxSize(), update = { it.useController = !buffering; if (focus && !buffering && !it.hasFocus()) it.requestFocus() }, onRelease = { it.player = null })
+                Modifier.fillMaxSize(), update = { gate(it, focus, buffering) }, onRelease = { it.player = null })
             line?.let {
                 Text(it, color = Color.White, fontSize = 30.sp, lineHeight = 40.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).background(Color(0x99000000)).padding(16.dp, 8.dp))

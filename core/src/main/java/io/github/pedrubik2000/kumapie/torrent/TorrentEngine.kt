@@ -88,18 +88,19 @@ object TorrentEngine {
         } catch (e: InterruptedException) {
             throw InterruptedIOException()
         } catch (e: TorrentException) {
-            fail(e.message.orEmpty())
+            if (gen == generation) fail(e.message.orEmpty())
             throw e
         }
     }
 
     private fun begin(context: Context, ref: TorrentRef, gen: Int): TorrentStream {
-        while (teardown?.isActive == true) {
+        while (synchronized(lock) { teardown }?.isActive == true) {
             alive(gen)
             Thread.sleep(POLL_MS)
         }
-        val dir = File(context.cacheDir, "torrent").apply { deleteRecursively(); mkdirs() }
+        val dir = File(context.cacheDir, "torrent/$gen").apply { deleteRecursively(); mkdirs() }
         val sm = synchronized(lock) {
+            if (gen != generation) throw InterruptedException()
             root = dir
             session ?: SessionManager(false).also { s -> s.start(SessionParams(pack()).apply { setPosixDiskIO() }); session = s }
         }
@@ -219,26 +220,22 @@ object TorrentEngine {
         if (bytes >= 1L shl 30) String.format(Locale.ROOT, "%.1f GB", bytes / 1073741824.0) else String.format(Locale.ROOT, "%.1f MB", bytes / 1048576.0)
 
     fun release() {
-        val dir: File?
-        val sm: SessionManager?
-        val stream: TorrentStream?
         synchronized(lock) {
             generation++
-            dir = root
-            sm = session
-            stream = current
+            val dir = root
+            val sm = session
+            val stream = current
             current = null
             session = null
             root = null
+            if (sm != null || dir != null) teardown = Pending.track(AppScope.launch {
+                runCatching { stream?.handle?.let { sm?.remove(it, SessionHandle.DELETE_FILES) } }
+                runCatching { sm?.stop() }
+                dir?.deleteRecursively()
+            })
         }
         waiting = false
         failed = false
         shown.value = null
-        if (sm == null && dir == null) return
-        teardown = Pending.track(AppScope.launch {
-            runCatching { stream?.handle?.let { sm?.remove(it, SessionHandle.DELETE_FILES) } }
-            runCatching { sm?.stop() }
-            dir?.deleteRecursively()
-        })
     }
 }

@@ -56,6 +56,7 @@ object TorrentEngine {
     private var session: SessionManager? = null
     private var current: TorrentStream? = null
     private var root: File? = null
+    private val firstUse = FirstUse()
 
     fun tie(player: Player, token: Any) {
         synchronized(owners) { owners[player] = token }
@@ -98,6 +99,7 @@ object TorrentEngine {
             alive(gen)
             Thread.sleep(POLL_MS)
         }
+        if (firstUse.take()) firstUse.wipe(File(context.cacheDir, "torrent"))
         val dir = File(context.cacheDir, "torrent/$gen").apply { deleteRecursively(); mkdirs() }
         val sm = synchronized(lock) {
             if (gen != generation) throw InterruptedException()

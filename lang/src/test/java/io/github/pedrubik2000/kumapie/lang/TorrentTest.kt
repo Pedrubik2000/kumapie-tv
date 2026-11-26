@@ -151,3 +151,20 @@ class TorrentSpaceAndNextTest {
         assertEquals("b.mkv", q["file"])
     }
 }
+
+class TorrentFirstUseTest {
+    @Test fun onlyTheFirstOpenOfAProcessWipesLeftovers() {
+        val use = io.github.pedrubik2000.kumapie.torrent.FirstUse()
+        assertTrue(use.take())
+        assertFalse(use.take())
+    }
+
+    @Test fun wipeRemovesEveryLeftoverSessionFolder() {
+        val parent = java.nio.file.Files.createTempDirectory("torrent").toFile()
+        java.io.File(parent, "3").mkdirs()
+        java.io.File(parent, "7/Show").mkdirs()
+        java.io.File(parent, "7/Show/a.mkv").writeText("x")
+        io.github.pedrubik2000.kumapie.torrent.FirstUse().wipe(parent)
+        assertFalse(parent.exists())
+    }
+}

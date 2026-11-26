@@ -562,7 +562,7 @@ class TvHomeFocusTest {
     }
 
     private fun holdOk() {
-        rule.onNode(isFocused()).performSemanticsAction(SemanticsActions.OnLongClick)
+        rule.onRoot().performKeyInput { keyDown(Key(OK)); advanceEventTime(1000); keyUp(Key(OK)) } // the menu opens on the release
         rule.waitForIdle()
     }
 
@@ -621,6 +621,15 @@ class TvHomeFocusTest {
         rule.onAllNodesWithText("Alpha removed from Continue watching").fetchSemanticsNodes().let { assertEquals(0, it.size) }
         assertEquals(1, rule.onAllNodesWithContentDescription("Beta").fetchSemanticsNodes().size)
         assertEquals("{}", Settings(RuntimeEnvironment.getApplication()).prefs.getString("continue_hidden_p", null))
+    }
+
+    @Test fun afterHoldThenBackTheFirstOkOnTheCardPlaysIt() {
+        openRemoveMenu(DOWN, card = "Alpha")
+        press(BACK)
+        rule.waitUntil(5_000) { focused() == "Alpha" }
+        assertEquals(true, home)
+        press(OK)
+        assertEquals(false, home)
     }
 
     @Test fun releasingAHeldOkOpensTheMenuWithoutPressingRemove() {

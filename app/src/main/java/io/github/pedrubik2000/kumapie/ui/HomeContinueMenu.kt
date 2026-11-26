@@ -103,3 +103,29 @@ internal fun Modifier.swallowHeldOk(): Modifier {
         }
     }
 }
+
+/**
+ * Open a menu when the held OK is RELEASED, not when the long press fires: the card's Surface keeps its "long click" flag until it sees the
+ * UP, so a menu opened mid-hold leaves the card ignoring the next OK. [arm] is the card's onLongClick; [key] goes on the card and returns
+ * false so the Surface still gets its UP.
+ */
+internal class OpenOnRelease(private val open: () -> Unit) {
+    private var armed = false
+    fun arm() { armed = true }
+
+    @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+    val key: Modifier = Modifier.onPreviewKeyEvent { e ->
+        val k = e.nativeKeyEvent
+        if (k.isEnter()) {
+            if (e.type == KeyEventType.KeyDown && k.repeatCount == 0) armed = false
+            else if (e.type == KeyEventType.KeyUp && armed) { armed = false; open() }
+        }
+        false
+    }
+}
+
+@Composable
+internal fun rememberOpenOnRelease(open: () -> Unit): OpenOnRelease {
+    val latest = androidx.compose.runtime.rememberUpdatedState(open)
+    return remember { OpenOnRelease { latest.value() } }
+}

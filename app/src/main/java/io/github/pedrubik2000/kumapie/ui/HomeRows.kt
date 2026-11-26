@@ -127,7 +127,7 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
         val r = removed
         // undo on the key's DOWN; the card under focus would still get its UP as a click (play), even if the toast has gone by then, so swallow that UP
         if (!undoKey(e)) false
-        else if (pendingUp[0]) { if (e.type == KeyEventType.KeyUp) pendingUp[0] = false; true }
+        else if (pendingUp[0] && !(e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0)) { if (e.type == KeyEventType.KeyUp) pendingUp[0] = false; true } // a fresh press means the old UP got lost
         else if (r != null && e.type == KeyEventType.KeyDown) {
             pendingUp[0] = true; removed = null; onUnhide(r.show); scope.launch { focus.bring(0, r.index, r.show.id) }; true
         } else false
@@ -210,10 +210,11 @@ private fun LazyListScope.goingRow(c: RowCtx, nav: RowNav?) = item(key = "going"
                 val target = { ContinueTarget(s, e, i, going.size, c.d.mineFor(s, e)) }
                 val at = c.d.soon[s.id]
                 val where = remember { arrayOfNulls<LayoutCoordinates>(1) }
+                val hold = rememberOpenOnRelease { c.onMenu(ContinueMenu(s, e, i, where[0]?.positionInRoot()?.x ?: 0f, where[0]?.positionInRoot()?.y ?: 0f)) }
                 val card = @Composable {
-                    ResumeCard(s, e, c.card(0, i, s.id, target).onPlaced { where[0] = it }, width = 220.dp, picture = titlePicture(s, e, c.api),
+                    ResumeCard(s, e, c.card(0, i, s.id, target).onPlaced { where[0] = it }.then(hold.key), width = 220.dp, picture = titlePicture(s, e, c.api),
                         airs = at?.let { ContinueHidden.airsText(it, c.d.now) },
-                        onLongClick = { c.onMenu(ContinueMenu(s, e, i, where[0]?.positionInRoot()?.x ?: 0f, where[0]?.positionInRoot()?.y ?: 0f)) }) { c.open(s, e, i) }
+                        onLongClick = hold::arm) { c.open(s, e, i) }
                 }
                 if (i == c.d.soonFrom) SoonDivider(card) else card()
             }

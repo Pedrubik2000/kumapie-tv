@@ -11,11 +11,11 @@ class NoiseTest {
 
     @Test fun noiseWords() {
         listOf("", " ", "ぞ", "ぺ", "ク", "ン", "っ", "ゅ", "ょ", "20", "5日", "８人", "第１", "♪", "~", "➡", "⚟", "\u200E", "-", "...",
-            "ＫＯ", "ＯＫ", "ｊ", "Haus", "OK", "１０階").forEach { assertTrue("noise: $it", noise(it)) }
+            "ＫＯ", "ＯＫ", "ｊ", "Haus", "OK", "１０階", "100円", "3匹", "3ヶ月", "3か月", "5分間", "3月3日", "20才").forEach { assertTrue("noise: $it", noise(it)) }
     }
 
     @Test fun realWords() {
-        listOf("腹", "誰", "すじ", "から", "は", "食べる", "ブッ", "Tシャツ", "二人").forEach { assertFalse("word: $it", noise(it)) }
+        listOf("腹", "誰", "すじ", "から", "は", "食べる", "ブッ", "Tシャツ", "二人", "𠮟", "々", "〆").forEach { assertFalse("word: $it", noise(it)) }
     }
 
     @Test fun otherLanguagesAreNeverNoise() {

@@ -134,6 +134,11 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** Noise ([Noise]): known for colours and stopping, but never counted. */
     private fun noise(word: String) = Noise.isNoise(word, lang)
 
+    /** Noise words of the player's episode known (white unless a card says otherwise), for paths that never repaint. */
+    fun noiseWhite(ctl: io.github.pedrubik2000.kumapie.player.SceneController) {
+        for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> if (w.status != "k" && noise(k)) ctl.words[k] = w.copy(status = "k") }
+    }
+
     /** [knownList] without noise: what stats, Home and Settings count. The PC still gets [knownList]. */
     fun knownCount(): Int = Noise.countable(knownList(), lang).size
 
@@ -174,10 +179,10 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     val ready: Boolean get() = snapshot != null
 
     /** [status] by cards ([CardIndex.byCard]); without kuma3's queue, [status] (reviewed once) as before. */
-    fun statusByCard(word: String): String? = if (noise(word)) "k" else cardIndex.byCard(word, marked, ::extraKnown, ::status)
+    fun statusByCard(word: String): String? = cardIndex.byCard(word, marked, ::extraKnown, ::status)
 
     /** The colour to draw [word] in, as the player does ([io.github.pedrubik2000.kumapie.data.Word.shown]): "k" white, "d" green, "b" blue, "u" red. */
-    fun shown(word: String): String = if (word in marked || noise(word)) "k" else when (val c = cardIndex.state(word)) {
+    fun shown(word: String): String = if (word in marked) "k" else when (val c = cardIndex.state(word)) {
         null -> status(word) ?: "u"
         "u" -> if (extraKnown(word)) "k" else "u"
         else -> c
@@ -427,7 +432,6 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     /** Word [w] (episode key [key]) with its card states from [cardIndex] now: its own, and its written forms'. */
     fun paint(key: String, w: io.github.pedrubik2000.kumapie.data.Word) =
         // No card of its own but imported / a name: no card state, so [status] ("k") draws it white.
-        if (noise(key)) w.copy(status = "k", card = null, forms = w.forms?.mapValues { "" }) else
         w.copy(card = cardIndex.state(key)?.takeUnless { it == "u" && extraKnown(key) },
             forms = w.forms?.mapValues { (form, _) -> cardIndex.state(form)?.takeUnless { it == "u" && extraKnown(key) } ?: "" })
 
@@ -446,7 +450,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             // A word marked known stays white ([Word.shown]: marked first): an episode built again (a later Jimaku fit)
             // came without the flag and the word's own card ("b") drew it blue again (Pedro, 2026-11-19).
             val n = recolour(p, pcColours, if (pcColours) null else status(k)).let { if (!it.marked && k in marked) it.copy(marked = true) else it }
-            val m = if (noise(k)) n.copy(status = "k", card = null) else n
+            val m = if (noise(k)) n.copy(status = "k") else n
             if (m != w) ctl.words[k] = m
         }
     }

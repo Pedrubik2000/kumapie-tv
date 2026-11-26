@@ -8,14 +8,18 @@ import io.github.pedrubik2000.kumapie.data.Lang
  * every count and list shown ([KnownWords.knownCount]). Japanese only; other languages are going away.
  */
 object Noise {
-    private val KANA_OR_KANJI = Regex("[぀-ヿㇰ-ㇿｦ-ﾟ\\p{IsHan}〆〇々]")
+    private val KANA_OR_KANJI = Regex("[぀-ヿㇰ-ㇿｦ-ﾟ\\p{script=Han}〆〇々]")
     private val KANA = Regex("[぀-ヿㇰ-ㇿｦ-ﾟ]")
     /** One-kana particles Pedro marks on purpose: words, not noise. */
     private const val PARTICLES = "はがをにのへでともやかて"
-    private val NUMBER = Regex("第?([0-9０-９]+[\\p{IsHan}ヶかつ]{0,3})+")
+    private val NUMBER = Regex("第?(?:[0-9０-９]++[\\p{script=Han}ヶかつ]{0,3}+)++")
 
     /** [words] without noise: what counts and lists show. */
     fun countable(words: Collection<String>, lang: Lang): List<String> = words.filterNot { isNoise(it, lang) }
+
+    /** A noise word painted known: white unless its own card says otherwise (a "u" card state is no card). */
+    fun white(w: io.github.pedrubik2000.kumapie.data.Word) =
+        w.copy(status = "k", card = w.card?.takeUnless { it == "u" }, forms = w.forms?.mapValues { (_, s) -> if (s == "u") "" else s })
 
     fun isNoise(word: String, lang: Lang): Boolean {
         if (lang != Lang.JAPANESE) return false
@@ -24,6 +28,6 @@ object Noise {
         if (w.any { Character.getType(it) == Character.FORMAT.toInt() }) return true
         if (!KANA_OR_KANJI.containsMatchIn(w)) return true
         if (w.codePointCount(0, w.length) == 1 && KANA.matches(w)) return w[0] !in PARTICLES
-        return NUMBER.matches(w)
+        return w == "々" || NUMBER.matches(w)
     }
 }

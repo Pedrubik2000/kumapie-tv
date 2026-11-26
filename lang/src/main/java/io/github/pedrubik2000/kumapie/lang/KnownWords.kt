@@ -136,7 +136,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     /** Noise words of the player's episode known (white unless a card says otherwise), for paths that never repaint. */
     fun noiseWhite(ctl: io.github.pedrubik2000.kumapie.player.SceneController) {
-        for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> if (w.status != "k" && noise(k)) ctl.words[k] = w.copy(status = "k") }
+        for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> if (noise(k)) ctl.words[k] = Noise.white(w) }
     }
 
     /** [knownList] without noise: what stats, Home and Settings count. The PC still gets [knownList]. */
@@ -450,7 +450,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             // A word marked known stays white ([Word.shown]: marked first): an episode built again (a later Jimaku fit)
             // came without the flag and the word's own card ("b") drew it blue again (Pedro, 2026-11-19).
             val n = recolour(p, pcColours, if (pcColours) null else status(k)).let { if (!it.marked && k in marked) it.copy(marked = true) else it }
-            val m = if (noise(k)) n.copy(status = "k") else n
+            val m = if (noise(k)) Noise.white(n) else n
             if (m != w) ctl.words[k] = m
         }
     }

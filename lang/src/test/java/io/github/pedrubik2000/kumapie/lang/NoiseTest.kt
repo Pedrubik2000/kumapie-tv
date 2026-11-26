@@ -11,11 +11,24 @@ class NoiseTest {
 
     @Test fun noiseWords() {
         listOf("", " ", "ぞ", "ぺ", "ク", "ン", "っ", "ゅ", "ょ", "20", "5日", "８人", "第１", "♪", "~", "➡", "⚟", "\u200E", "-", "...",
-            "ＫＯ", "ＯＫ", "ｊ", "Haus", "OK", "１０階", "100円", "3匹", "3ヶ月", "3か月", "5分間", "3月3日", "20才").forEach { assertTrue("noise: $it", noise(it)) }
+            "々", "ＫＯ", "ＯＫ", "ｊ", "Haus", "OK", "１０階", "100円", "3匹", "3ヶ月", "3か月", "5分間", "3月3日", "20才").forEach { assertTrue("noise: $it", noise(it)) }
     }
 
     @Test fun realWords() {
-        listOf("腹", "誰", "すじ", "から", "は", "食べる", "ブッ", "Tシャツ", "二人", "𠮟", "々", "〆").forEach { assertFalse("word: $it", noise(it)) }
+        listOf("腹", "誰", "すじ", "から", "は", "食べる", "ブッ", "Tシャツ", "二人", "𠮟", "〆").forEach { assertFalse("word: $it", noise(it)) }
+    }
+
+    @Test fun longDigitRunIsFast() {
+        val t = System.nanoTime()
+        assertFalse(noise("1".repeat(30) + "円です"))
+        assertTrue((System.nanoTime() - t) / 1_000_000 < 100)
+    }
+
+    @Test fun whiteKeepsARealCard() {
+        val w = io.github.pedrubik2000.kumapie.data.Word(status = "u", meaning = "")
+        assertEquals("k", Noise.white(w.copy(card = "u")).shown)
+        assertEquals("d", Noise.white(w.copy(card = "d")).shown)
+        assertEquals("b", Noise.white(w.copy(card = "b")).shown)
     }
 
     @Test fun otherLanguagesAreNeverNoise() {

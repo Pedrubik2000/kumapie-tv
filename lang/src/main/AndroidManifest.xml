@@ -8,6 +8,7 @@
     <!-- Sync with the other devices (DeviceSync): one answers the others on the home Wi-Fi, with its notification. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Reading and mining cards in kuma3 Anki (or AnkiDroid): see AnkiCards.kt. -->
     <uses-permission android:name="io.github.pedrubik2000.kuma3.permission.READ_WRITE_DATABASE" />
@@ -27,6 +28,12 @@
             android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Answers sync requests from the user's own devices on the local network" />
         </service>
+        <receiver android:name="io.github.pedrubik2000.kumapie.lang.SyncBoot" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <!-- Mined cards' clip and audio, lent to kuma3 Anki while it copies them into its media folder. -->
         <provider
             android:name="androidx.core.content.FileProvider"

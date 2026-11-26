@@ -338,7 +338,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
             trackSelectionParameters = trackSelectionParameters.buildUpon().setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true).build()
         }
     }
-    DisposableEffect(Unit) { onDispose { player.release(); io.github.pedrubik2000.kumapie.torrent.TorrentEngine.release(player) } } // after ScenePlayer's own dispose (ownsPlayer = false)
+    DisposableEffect(Unit) { io.github.pedrubik2000.kumapie.data.Playing.on = true; onDispose { io.github.pedrubik2000.kumapie.data.Playing.on = false; player.release(); io.github.pedrubik2000.kumapie.torrent.TorrentEngine.release(player) } } // after ScenePlayer's own dispose (ownsPlayer = false)
     // An addon's link (no PC, kumapie for other people): no polling; Jimaku is asked on the phone with the user's key.
     val alone = remember { StreamStart.of(query, library.settings.prefs) as? StreamStart.Alone }
     val scope = androidx.compose.runtime.rememberCoroutineScope()

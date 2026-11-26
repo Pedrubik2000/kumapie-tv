@@ -190,7 +190,7 @@ object DeviceSync {
     private val requests = java.util.concurrent.atomic.AtomicLong()
 
     private fun requested(context: Context) {
-        if (Playing.holds()) return
+        if (Playing.holds()) return Playing.later("device-sync") { requested(context) }
         wanted = context.applicationContext
         requests.incrementAndGet()
         runCatching { WorkManager.getInstance(context).enqueueUniqueWork("$WORK-now", ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<DeviceSyncWorker>().setInitialDelay(BACKSTOP_S, TimeUnit.SECONDS).build()) }
@@ -384,6 +384,7 @@ object DeviceSync {
         outputStream.use { it.write(body) }
         val code = responseCode
         Answer(code, (if (code < 400) inputStream else errorStream)?.use { BodyText.bytes(it, BodyText.big) } ?: ByteArray(0), getHeaderField("X-Sig"))
+            .also { Log.i("kumapie", "device sync post: ${body.size} B out, ${it.body.size} B in") }
     }
 
     suspend fun discover(context: Context, ms: Long): List<Pair<String, String>> =

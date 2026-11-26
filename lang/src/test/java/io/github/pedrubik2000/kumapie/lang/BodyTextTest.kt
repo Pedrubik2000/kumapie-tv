@@ -30,8 +30,7 @@ class BodyTextTest {
     }
 
     @Test fun overTheCapThrowsAClearIOException() {
-        val e = assertThrows(IOException::class.java) { BodyText.text(ByteArrayInputStream(ByteArray(101) { 'a'.code.toByte() }), max = 100) }
-        assertTrue(e.message!!.contains("100"))
+        assertThrows(BodyText.TooBig::class.java) { BodyText.text(ByteArrayInputStream(ByteArray(101) { 'a'.code.toByte() }), max = 100) }
         assertThrows(IOException::class.java) { BodyText.bytes(ByteArrayInputStream(ByteArray(101)), max = 100) }
     }
 
@@ -58,5 +57,43 @@ class BodyTextTest {
         assertTrue(Playing.holds(narrow = true, playing = true))
         assertFalse(Playing.holds(narrow = true, playing = false))
         assertFalse(Playing.holds(narrow = false, playing = true))
+    }
+
+    private fun reset() { while (Playing.on) Playing.on = false }
+
+    @Test fun anOverlappingEpisodeStillCountsAsPlaying() {
+        reset()
+        Playing.on = true
+        Playing.on = true
+        Playing.on = false
+        assertTrue(Playing.on)
+        Playing.on = false
+        assertFalse(Playing.on)
+        Playing.on = false
+        assertFalse(Playing.on)
+        Playing.on = true
+        assertTrue(Playing.on)
+        reset()
+    }
+
+    @Test fun heldWorkRunsOnceWhenTheLastVideoEnds() {
+        reset()
+        var ran = 0
+        Playing.on = true
+        Playing.on = true
+        Playing.later("test") { ran++ }
+        Playing.later("test") { ran++ }
+        Playing.on = false
+        assertEquals(0, ran)
+        Playing.on = false
+        assertEquals(1, ran)
+        Playing.on = true
+        Playing.on = false
+        assertEquals(1, ran)
+    }
+
+    @Test fun bytesAlreadyInMemoryAreNotCappedByDecode() {
+        val big = ByteArray(300) { 'a'.code.toByte() }
+        assertEquals(300, BodyText.text(ByteArrayInputStream(big), Int.MAX_VALUE).length)
     }
 }

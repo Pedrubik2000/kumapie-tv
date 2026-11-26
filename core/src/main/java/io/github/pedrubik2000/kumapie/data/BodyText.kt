@@ -1,5 +1,6 @@
 package io.github.pedrubik2000.kumapie.data
 
+import io.github.pedrubik2000.kumapie.i18n.tr
 import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -32,10 +33,12 @@ object BodyText {
             val n = stream.read(buffer)
             if (n < 0) return out.toByteArray()
             total += n
-            if (total > max) throw IOException("Answer over $max bytes")
+            if (total > max) throw TooBig()
             out.write(buffer, 0, n)
         }
     }
+
+    class TooBig : IOException(tr("The answer was too big to load"))
 
     private class CountingStream(private val inner: InputStream, private val max: Int) : InputStream() {
         private var total = 0
@@ -46,13 +49,23 @@ object BodyText {
 
         private fun count(n: Int) {
             total += n
-            if (total > max) throw IOException("Answer over $max bytes")
+            if (total > max) throw TooBig()
         }
     }
 }
 
 object Playing {
-    @Volatile var on = false
+    private val count = java.util.concurrent.atomic.AtomicInteger()
+    private val later = java.util.concurrent.ConcurrentHashMap<String, () -> Unit>()
+
+    fun later(key: String, action: () -> Unit) { later[key] = action }
+
+    var on: Boolean
+        get() = count.get() > 0
+        set(value) {
+            if (value) count.incrementAndGet()
+            else if (count.updateAndGet { maxOf(0, it - 1) } == 0) later.keys.toList().forEach { later.remove(it)?.let { run -> runCatching(run) } }
+        }
 
     fun holds(narrow: Boolean = Playable.narrow, playing: Boolean = on): Boolean = narrow && playing
 }

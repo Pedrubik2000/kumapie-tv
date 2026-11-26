@@ -264,8 +264,8 @@ class WordColours : ContentProvider() {
         }
         if (uri.lastPathSegment != "say" || text.isNullOrBlank()) throw java.io.FileNotFoundException(uri.toString())
         val f = File(File(ctx.cacheDir, "say").apply { mkdirs() }, "ja-${text.hashCode().toUInt()}.wav")
-        if (!f.exists() && !io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices(ctx.applicationContext)
-                .say(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE, text, f)) {
+        if (!f.exists() && !runCatching { io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices(ctx.applicationContext)
+                .say(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE, text, f) }.getOrDefault(false)) {
             f.delete()
             throw java.io.FileNotFoundException("ずんだもん isn't downloaded (kumapie Settings > Word audio)")
         }

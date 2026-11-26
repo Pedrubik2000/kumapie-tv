@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra("server")?.let { settings.server = it; any = true }
         intent?.getStringExtra("addon")?.let { a -> settings.addons = if (a.isBlank()) emptyList() else (settings.addons + a.trim()).distinct(); any = true }
         intent?.getStringExtra("jimaku")?.let { settings.jimakuKey = it; any = true }
+        if (BuildConfig.DEBUG) intent?.getStringExtra("narrow")?.let { settings.prefs.edit().putBoolean(Restart.FORCE, it == "1").commit(); any = true }
         return any
     }
 
@@ -164,12 +165,14 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
 private fun PcScreens(settings: Settings, server: String, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var profile by remember { mutableStateOf<Profile?>(null) }
+    var picked by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     val homeMemory = remember(server, profile) { io.github.pedrubik2000.kumapie.ui.HomeMemory() }
     val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }
     LaunchedEffect(api) { api.findLan() }
     val screen = stack.last()
     if (profile == null && screen != Screen.Settings) {
-        ProfilesScreen(api, settings.profile, onPick = {
+        ProfilesScreen(api, settings.profile, auto = picked, onPick = {
+            picked = it.id
             settings.profile = it.id
             Tr.use(it.menu)
             settings.speaks = if (it.menu == "es") "es" else "en"
@@ -185,7 +188,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
                 }
             },
             onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
-            onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.goTop(Screen.Discover()) },
+            onProfiles = { profile = null; picked = "" },onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.goTop(Screen.Discover()) },
             onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.goTop(Screen.Library) }, memory = homeMemory)
         is Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api, settings, screen.open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
             onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) }, onLibrary = { stack.goTop(Screen.Library) }, onStats = { stack.add(Screen.Stats) }, onDiscover = { stack.goTop(Screen.Discover()) })
@@ -196,7 +199,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
         Screen.Stats -> StatsScreen({ api.stats() }, onSettings = { stack.add(Screen.Settings) })
         is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
         is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,
-            onClose = { stack.removeAt(stack.lastIndex) })
+            onClose = { stack.removeAt(stack.lastIndex); if (Restart.wanted(settings)) context.startActivity(StreamActivity.restartIntent(context)) })
         Screen.Buttons -> ButtonsScreen(settings)
         Screen.Settings -> SettingsScreen(settings, onButtons = { stack.add(Screen.Buttons) },
             onSaved = onSaved, onUpdate = onUpdate)

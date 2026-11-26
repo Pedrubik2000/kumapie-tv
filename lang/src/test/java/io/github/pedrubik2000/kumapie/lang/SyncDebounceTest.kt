@@ -40,6 +40,19 @@ class SyncDebounceTest {
         assertEquals(2, runs.get())
     }
 
+    @Test fun busyFromTheRequestUntilTheSyncEnds() {
+        val release = CountDownLatch(1)
+        val d = SyncDebounce(CoroutineScope(Dispatchers.Default), 50) { release.await() }
+        assertFalse(d.busy)
+        d.request()
+        assertTrue(d.busy)
+        Thread.sleep(150)
+        assertTrue(d.busy)
+        release.countDown()
+        wait { !d.busy }
+        assertFalse(d.busy)
+    }
+
     @Test fun aFailureIsSilentAndTheNextRequestStillRuns() {
         val runs = AtomicInteger()
         val d = SyncDebounce(CoroutineScope(Dispatchers.Default), 20) { runs.incrementAndGet(); error("offline") }

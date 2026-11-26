@@ -182,6 +182,7 @@ object DeviceSync {
             if (failedAt == 0L && requests.get() == asked) runCatching { WorkManager.getInstance(c).cancelUniqueWork("$WORK-now") }
         }
     }
+    val busy: Boolean get() = sync.busy || lock.isLocked
     @Volatile private var wanted: Context? = null
     private val requests = java.util.concurrent.atomic.AtomicLong()
 

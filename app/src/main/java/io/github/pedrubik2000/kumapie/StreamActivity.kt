@@ -54,6 +54,8 @@ class StreamActivity : ComponentActivity() {
     private var watchFile = ""
     private var alone: LiveLines? = null
     private var aloneView: PlayerView? = null
+    private var chained = false
+    private var leaving = false
 
     override fun onStart() {
         super.onStart()
@@ -68,6 +70,7 @@ class StreamActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val settings = Settings(this)
+        if (intent.data?.host == RESTART && Restart.wanted(settings)) return restart(settings)
         val video = intent.data?.toString()
         val start = video?.let(Uri::parse)?.takeIf { it.scheme == "kumapie" && it.host in setOf("play", "watch") }?.let { StreamStart.of(query(it), settings.prefs) }
         if (start is StreamStart.Alone) {
@@ -175,7 +178,7 @@ class StreamActivity : ComponentActivity() {
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY && failed == tr("Reconnecting…")) failed = null
                     if (state != Player.STATE_ENDED) return
-                    nextQuery(query(link), upcoming)?.let { startActivity(intent(this@StreamActivity, it)); finish() }
+                    nextQuery(query(link), upcoming)?.let { chained = true; startActivity(intent(this@StreamActivity, it)); finish() }
                 }
             }
             p.addListener(ended)
@@ -288,11 +291,21 @@ class StreamActivity : ComponentActivity() {
     private suspend fun playNext(settings: Settings, query: Map<String, String>, say: (String) -> Unit) {
         val addons = io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)
         val next = runCatching { addons.next(query) { say(tr("Next: episode %1\$d…", it)) } }.getOrElse { return say(it.message ?: it.toString()) } ?: return
+        chained = true
         startActivity(intent(this, next))
         finish()
     }
 
+    private fun restart(settings: Settings) {
+        leaving = true
+        setContent { Box(Modifier.fillMaxSize().background(Color.Black)) }
+        Restart.now(settings)
+    }
+
     override fun finish() {
+        if (leaving) return
+        val settings = Settings(this)
+        if (!chained && player != null && callingActivity == null && Restart.wanted(settings)) return restart(settings)
         player?.let { p ->
             val pos = p.currentPosition
             val duration = p.duration.takeIf { it > 0 } ?: 0L
@@ -325,6 +338,10 @@ class StreamActivity : ComponentActivity() {
     companion object {
         fun intent(context: android.content.Context, query: Map<String, String>): Intent = Intent(context, StreamActivity::class.java)
             .setData(query.entries.fold(Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) -> b.appendQueryParameter(k, v) }.build())
+
+        private const val RESTART = "restart"
+
+        fun restartIntent(context: android.content.Context): Intent = Intent(context, StreamActivity::class.java).setData(Uri.parse("kumapie://$RESTART"))
 
         private fun query(link: Uri) = link.queryParameterNames.associateWith { link.getQueryParameter(it).orEmpty() }
         private val SPOKEN = listOf("ja", "de", "en")

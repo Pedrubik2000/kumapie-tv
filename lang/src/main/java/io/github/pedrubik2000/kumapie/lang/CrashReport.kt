@@ -14,7 +14,7 @@ object CrashReports {
     const val MAX_AGE_MS = 7L * 24 * 3_600_000
     const val ISSUE_CAP = 6_000
     const val QR_CAP = 1_800
-    private const val ISSUES = "https://github.com/Pedrubik2000/kumapie-tv/issues/new"
+    const val ISSUES = "https://github.com/Pedrubik2000/kumapie-tv/issues/new"
     private val url = Regex("""(?i)\b([a-z][\w+.-]{0,20})://(?:[^/\s@]*@)?([^/\s"'<>?#@]*)\S*""")
     private val appPath = Regex("/data/app/~~[^/]+/[^/]+")
     private val opaque = Regex("""(?i)\b(magnet|mailto|data|intent|blob|javascript):\S+""")

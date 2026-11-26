@@ -7,7 +7,6 @@ import kotlinx.coroutines.launch
 class SyncDebounce(private val scope: CoroutineScope, private val gapMs: Long = 5_000, private val run: suspend () -> Unit) {
     private var pending = false
     private var running = false
-    val busy: Boolean get() = synchronized(this) { running }
 
     fun request() {
         synchronized(this) { pending = true; if (running) return; running = true }

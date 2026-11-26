@@ -249,11 +249,11 @@ suspend fun syncAnki(context: Context, settings: Settings, ctl: SceneController,
 
 fun moveRated(rating: TvRating) {
     val flow = rating.flow ?: return
-    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { flow.leave() }
+    io.github.pedrubik2000.kumapie.data.Pending.track(kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { flow.leave() })
 }
 
 fun syncAnkiLater(context: Context, settings: Settings, ctl: SceneController) {
-    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { syncAnki(context.applicationContext, settings, ctl, wait = false) }
+    io.github.pedrubik2000.kumapie.data.Pending.track(kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { syncAnki(context.applicationContext, settings, ctl, wait = false) })
     io.github.pedrubik2000.kumapie.lang.DeviceSync.soon(context.applicationContext)
 }
 

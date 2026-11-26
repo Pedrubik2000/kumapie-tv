@@ -417,7 +417,7 @@ class SceneController(
         if (!played || (watched < 1 && reportedPos == pos)) return
         reportedPos = pos
         watchedMs = 0
-        AppScope.launch { runCatching { api.progress(episode.id, pos, watched, ranges, done) } }
+        io.github.pedrubik2000.kumapie.data.Pending.track(AppScope.launch { runCatching { api.progress(episode.id, pos, watched, ranges, done) } })
     }
 
     // ------------------------------------------------------------ helpers

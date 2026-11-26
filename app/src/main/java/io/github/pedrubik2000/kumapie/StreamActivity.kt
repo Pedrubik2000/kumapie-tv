@@ -70,7 +70,8 @@ class StreamActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val settings = Settings(this)
-        if (intent.data?.host == RESTART && Restart.wanted(settings)) return restart(settings)
+        if (savedInstanceState?.getBoolean(LEAVING) == true) return restart(settings)
+        if (intent.hasExtra(RESTART)) return if (intent.getStringExtra(RESTART) == token && Restart.wanted(settings)) restart(settings) else finish()
         val video = intent.data?.toString()
         val start = video?.let(Uri::parse)?.takeIf { it.scheme == "kumapie" && it.host in setOf("play", "watch") }?.let { StreamStart.of(query(it), settings.prefs) }
         if (start is StreamStart.Alone) {
@@ -302,6 +303,11 @@ class StreamActivity : ComponentActivity() {
         Restart.now(settings)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(LEAVING, leaving)
+    }
+
     override fun finish() {
         if (leaving) return
         val settings = Settings(this)
@@ -340,8 +346,10 @@ class StreamActivity : ComponentActivity() {
             .setData(query.entries.fold(Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) -> b.appendQueryParameter(k, v) }.build())
 
         private const val RESTART = "restart"
+        private const val LEAVING = "leaving"
+        private val token = java.util.UUID.randomUUID().toString()
 
-        fun restartIntent(context: android.content.Context): Intent = Intent(context, StreamActivity::class.java).setData(Uri.parse("kumapie://$RESTART"))
+        fun restartIntent(context: android.content.Context): Intent = Intent(context, StreamActivity::class.java).putExtra(RESTART, token)
 
         private fun query(link: Uri) = link.queryParameterNames.associateWith { link.getQueryParameter(it).orEmpty() }
         private val SPOKEN = listOf("ja", "de", "en")

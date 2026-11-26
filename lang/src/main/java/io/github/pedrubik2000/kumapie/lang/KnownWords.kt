@@ -471,7 +471,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     private fun setMarked(words: Set<String>) {
         marked = words
-        runCatching { markedFile.writeText(words.sorted().joinToString("\n")) }
+        runCatching { markedFile.replaceText(words.sorted().joinToString("\n")) }
     }
 
     /** The chosen Anki app's reviewed notes as known words ([AnkiKnown.read]); reads only, fails soft, says why in [ankiState]. */

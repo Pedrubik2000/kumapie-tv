@@ -208,6 +208,7 @@ fun mineWord(context: Context, api: io.github.pedrubik2000.kumapie.data.Backend,
 
 suspend fun paintCards(context: Context, settings: Settings, ctl: SceneController) {
     val language = TvMining.languages(context, settings).of(ctl.lang)
+    language.known.noiseWhite(ctl)
     if (!runCatching { language.known.readCards() }.onFailure { Log.w("kumapie", "cards: $it") }.getOrDefault(false)) return
     repaint(language, ctl)
     val due = ctl.words.filterValues { it.card == "d" }.keys
@@ -216,8 +217,9 @@ suspend fun paintCards(context: Context, settings: Settings, ctl: SceneControlle
 }
 
 suspend fun openCards(context: Context, settings: Settings, ctl: SceneController) {
-    if (ctl.episode.srs) return
     val language = TvMining.languages(context, settings).of(ctl.lang)
+    language.known.noiseWhite(ctl) // before the early returns: no repaint follows them
+    if (ctl.episode.srs) return
     if (settings.plainWords) {
         runCatching { language.known.readCards() }
         return

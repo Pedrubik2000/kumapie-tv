@@ -141,7 +141,7 @@ private fun rememberSummaries(library: Library): Map<String, String> {
             val learning = settings.learning()
             mapOf(
                 "words" to library.languages.all.filter { it.lang.code in learning && it.known.ready }
-                    .joinToString(" · ") { "${tr(it.lang.name)} %,d".format(it.known.knownList().size) },
+                    .joinToString(" · ") { "${tr(it.lang.name)} %,d".format(it.known.knownCount()) },
                 "storage" to tr("%.1f GB downloaded", library.downloads.bytesUsed() / 1e9) + " · " + tr("version %s", BuildConfig.VERSION_NAME),
             )
         }

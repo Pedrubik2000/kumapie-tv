@@ -79,8 +79,10 @@ object DeviceFile {
                 val had = mine.known[l] ?: (0L to emptySet())
                 val words = t.optJSONArray("words").strings().toSet()
                 val now = if (t.getLong("time") > had.first) (t.getLong("time") to words).also { known[l] = it }.second else had.second
-                knownCount = knownCount.copy(add = knownCount.add + (now - had.second).size, change = knownCount.change + (had.second - now).size,
-                    keep = knownCount.keep + (had.second intersect now).size)
+                val lang = Lang.ALL.firstOrNull { it.code == l }
+                fun n(s: Set<String>) = if (lang == null) s.size else Noise.countable(s, lang).size
+                knownCount = knownCount.copy(add = knownCount.add + n(now - had.second), change = knownCount.change + n(had.second - now),
+                    keep = knownCount.keep + n(had.second intersect now))
             }
         }
 

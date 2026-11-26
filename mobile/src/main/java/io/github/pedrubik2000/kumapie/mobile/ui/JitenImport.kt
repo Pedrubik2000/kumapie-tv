@@ -33,7 +33,7 @@ internal fun JitenImport(known: io.github.pedrubik2000.kumapie.lang.KnownWords, 
     var top by remember { mutableStateOf((last?.first ?: 10000).toString()) }
     val sets = remember { androidx.compose.runtime.mutableStateMapOf(*jiten.SETS.keys.map { it to (last?.second?.contains(it) ?: true) }.toTypedArray()) }
     var busy by remember { mutableStateOf(false) }
-    var said by remember { mutableStateOf(known.importedWords.size.takeIf { it > 0 }?.let { tr("%d words imported as known.", it) } ?: "") }
+    var said by remember { mutableStateOf(known.importedCount().takeIf { it > 0 }?.let { tr("%d words imported as known.", it) } ?: "") }
 
     Text(tr("Known words from jiten.moe"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
     OutlinedTextField(top, { top = it.filter(Char::isDigit) }, label = { Text(tr("Most frequent words")) }, singleLine = true,

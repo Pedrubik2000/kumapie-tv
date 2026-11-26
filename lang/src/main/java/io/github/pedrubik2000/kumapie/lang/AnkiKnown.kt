@@ -20,6 +20,9 @@ class AnkiNotSetUp : IllegalStateException(tr("That Anki isn't set up yet: open 
 class AnkiKnown(dir: File, private val settings: Settings, private val language: Language, private val anki: Cards, private val changed: () -> Unit = {}) {
     data class Read(val count: Int, val error: String? = null)
 
+    /** The count shown: without noise ([Noise]). */
+    private fun shown(w: Set<String>) = Noise.countable(w, language.lang).size
+
     private val file = File(dir, "anki-known.txt")
     private val keysFile = File(dir, "anki-cardkeys.json")
     private val mutex = Mutex()
@@ -27,7 +30,7 @@ class AnkiKnown(dir: File, private val settings: Settings, private val language:
     @Volatile var words: Set<String> = runCatching { file.readLines().filter { it.isNotEmpty() }.toSet() }.getOrDefault(emptySet())
         private set
 
-    private val _state = MutableStateFlow(Read(words.size))
+    private val _state = MutableStateFlow(Read(shown(words)))
     val state: StateFlow<Read> = _state
 
     private var stamp = file.lastModified()
@@ -35,7 +38,7 @@ class AnkiKnown(dir: File, private val settings: Settings, private val language:
     private fun replace(new: Set<String>) {
         val same = new == words
         words = new
-        _state.value = Read(new.size)
+        _state.value = Read(shown(new))
         if (same) return
         val saved = runCatching {
             if (new.isEmpty()) {
@@ -57,7 +60,7 @@ class AnkiKnown(dir: File, private val settings: Settings, private val language:
         val fresh = runCatching { file.readLines().filter { it.isNotEmpty() }.toSet() }.getOrDefault(emptySet())
         if (fresh == words) return
         words = fresh
-        _state.value = Read(fresh.size)
+        _state.value = Read(shown(fresh))
         changed()
     }
 
@@ -85,7 +88,7 @@ class AnkiKnown(dir: File, private val settings: Settings, private val language:
             throw e
         } catch (e: Exception) {
             Log.w("kumapie", "anki source not read: $e")
-            _state.value = Read(words.size, e.message ?: e.toString())
+            _state.value = Read(shown(words), e.message ?: e.toString())
             false
         }
     }

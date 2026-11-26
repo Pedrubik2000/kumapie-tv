@@ -287,7 +287,7 @@ class Library(context: Context, val settings: Settings) {
     }
 
     suspend fun langProgress(lang: String, shows: List<Show>) = withContext(Dispatchers.IO) {
-        Progress.homeTotal(lang, progress.merged, shows, languages.of(lang).known.knownList().size)
+        Progress.homeTotal(lang, progress.merged, shows, languages.of(lang).known.knownCount())
     }
 
     /** Every episode of [shows] with its scenes and word colours (fetched once per app run; unreachable ones skipped). */

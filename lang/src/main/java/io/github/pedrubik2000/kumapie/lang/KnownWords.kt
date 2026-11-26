@@ -112,7 +112,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         val words = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Jiten.words(top, sets) }
         setImported(ImportedSources.JITEN, words)
         jitenChoice = top to sets
-        return words.size
+        return words.count { !noise(it) }
     }
 
     /** No imported words any more (the marked ones stay). */
@@ -131,8 +131,22 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         afterLists()
     }
 
+    /** Noise ([Noise]): known for colours and stopping, but never counted. */
+    private fun noise(word: String) = Noise.isNoise(word, lang)
+
+    /** Noise words of the player's episode known (white unless a card says otherwise), for paths that never repaint. */
+    fun noiseWhite(ctl: io.github.pedrubik2000.kumapie.player.SceneController) {
+        for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> if (noise(k)) ctl.words[k] = Noise.white(w) }
+    }
+
+    /** [knownList] without noise: what stats, Home and Settings count. The PC still gets [knownList]. */
+    fun knownCount(): Int = Noise.countable(knownList(), lang).size
+
+    /** Imported words without noise, for counts. */
+    fun importedCount(): Int = imported.count { !noise(it) }
+
     /** Known without a card of its own: imported, or [Language.autoKnown]. */
-    private fun extraKnown(word: String) = word in imported || word in ankiKnown.words || language.autoKnown(word)
+    private fun extraKnown(word: String) = noise(word) || word in imported || word in ankiKnown.words || language.autoKnown(word)
 
     private val _status = MutableStateFlow(describe())
     /** One line for Settings: what the colours come from now, or what went wrong. */
@@ -157,7 +171,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
 
     /** "k" known, null unknown. Without a card of its own: known when imported or [Language.autoKnown]. */
     fun status(inflection: String): String? {
-        if (inflection in marked) return "k"
+        if (inflection in marked || noise(inflection)) return "k"
         val f = snapshot?.words?.get(inflection) ?: return if (extraKnown(inflection)) "k" else null
         return if (f.manual || f.reviewed) "k" else null
     }
@@ -440,7 +454,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             // A word marked known stays white ([Word.shown]: marked first): an episode built again (a later Jimaku fit)
             // came without the flag and the word's own card ("b") drew it blue again (Pedro, 2026-11-19).
             val n = recolour(p, pcColours, if (pcColours) null else status(k)).let { if (!it.marked && k in marked) it.copy(marked = true) else it }
-            if (n != w) ctl.words[k] = n
+            val m = if (noise(k)) Noise.white(n) else n
+            if (m != w) ctl.words[k] = m
         }
     }
 
@@ -565,12 +580,12 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         Snapshot(words, o.getLong("time"), o.getString("app"), o.getInt("notes"), o.getInt("cards"))
     }.getOrNull()
 
-    private fun fromAnki() = if (ankiKnown.words.isEmpty()) "" else " " + tr("%d known from Anki.", ankiKnown.words.size)
+    private fun fromAnki() = if (ankiKnown.words.none { !noise(it) }) "" else " " + tr("%d known from Anki.", ankiKnown.words.count { !noise(it) })
 
     private fun describe(): String {
         val snap = snapshot ?: return (if (lang == Lang.GERMAN) tr("Colours come from the PC until Anki is read here.") else tr("Anki not read yet.")) + fromAnki()
         var known = 0
-        for (w in snap.words.keys) if (status(w) == "k") known++
+        for (w in snap.words.keys) if (!noise(w) && status(w) == "k") known++
         val ago = (System.currentTimeMillis() - snap.time) / 60_000
         val whenText = when {
             ago < 1 -> tr("just now")
@@ -578,8 +593,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             else -> tr("%d h ago", ago / 60)
         }
         return tr("%1\$d known, %2\$d new (%3\$d notes, read %4\$s).", known,
-            snap.words.size - known, snap.notes, whenText) +
-            (if (imported.isEmpty()) "" else " " + tr("%d imported as known.", imported.size)) + fromAnki()
+            snap.words.count { !noise(it.key) } - known, snap.notes, whenText) +
+            (if (importedCount() == 0) "" else " " + tr("%d imported as known.", importedCount())) + fromAnki()
     }
 
     companion object {

@@ -324,7 +324,7 @@ object DeviceSync {
                             val plan = files.plan(o)
                             files.apply(plan, o, files.isNew(plan.from))
                             say(settings, tr("%1\$s %2\$s synced · took: %3\$s", now(), plan.from, moved(plan.counts)))
-                            val out = files.payload().apply { remove("cards"); put("moved", counts(plan)) }.toString().toByteArray()
+                            val out = files.payload().apply { put("moved", counts(plan)) }.toString().toByteArray()
                             Answer(200, out, sign(requireNotNull(secret), out))
                         }.getOrElse { Answer(422, (it.message ?: it.toString()).toByteArray()) }
                     }

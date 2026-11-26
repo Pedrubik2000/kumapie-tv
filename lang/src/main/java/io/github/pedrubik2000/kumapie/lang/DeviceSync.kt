@@ -162,9 +162,14 @@ object DeviceSync {
 
     @Volatile private var failedAt = 0L
 
+    /** A VPN (Tailscale) is the active network and counts as metered, so Wi-Fi or Ethernet underneath that is not metered also allows it. */
+    internal fun cheapLink(activeMetered: Boolean, links: List<Pair<Boolean, Boolean>>): Boolean = !activeMetered || links.any { (lan, notMetered) -> lan && notMetered }
+
     private fun unmetered(context: Context): Boolean = runCatching {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-        cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
+        cheapLink(cm.isActiveNetworkMetered, cm.allNetworks.mapNotNull { cm.getNetworkCapabilities(it) }.map {
+            (it.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) || it.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)) to
+                it.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) })
     }.getOrDefault(true)
 
     private fun paired(context: Context) {
@@ -176,15 +181,18 @@ object DeviceSync {
 
     private val sync = SyncDebounce(CoroutineScope(SupervisorJob() + Dispatchers.IO)) {
         wanted?.let { c ->
+            val asked = requests.get()
             syncNow(c).let { if (it.isNotEmpty()) Log.i("kumapie", "device sync: $it") }
-            if (failedAt == 0L) runCatching { WorkManager.getInstance(c).cancelUniqueWork("$WORK-now") } // done in-process: the backstop isn't needed
+            if (failedAt == 0L && requests.get() == asked) runCatching { WorkManager.getInstance(c).cancelUniqueWork("$WORK-now") } // done in-process: the backstop isn't needed
         }
     }
     @Volatile private var wanted: Context? = null
+    private val requests = java.util.concurrent.atomic.AtomicLong()
 
     /** The debouncer syncs in this process; the worker is its backstop if the process is swiped away within the wait (the lock serialises them). */
     private fun requested(context: Context) {
         wanted = context.applicationContext
+        requests.incrementAndGet()
         runCatching { WorkManager.getInstance(context).enqueueUniqueWork("$WORK-now", ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<DeviceSyncWorker>().setInitialDelay(BACKSTOP_S, TimeUnit.SECONDS).build()) }
         sync.request()
     }

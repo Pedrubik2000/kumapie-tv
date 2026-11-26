@@ -100,4 +100,11 @@ class SyncDebounceTest {
         Thread.sleep(200)
         assertEquals(2, runs.get())
     }
+
+    @Test fun aMeteredVpnOverUnmeteredWifiStillSyncsButCellularOnlyDoesNot() {
+        assertTrue(DeviceSync.cheapLink(true, listOf(false to false, true to true))) // Tailscale active (metered) + Wi-Fi
+        assertFalse(DeviceSync.cheapLink(true, listOf(false to false))) // cellular only
+        assertFalse(DeviceSync.cheapLink(true, listOf(true to false))) // metered hotspot Wi-Fi
+        assertTrue(DeviceSync.cheapLink(false, emptyList()))
+    }
 }

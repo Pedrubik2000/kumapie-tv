@@ -6,6 +6,9 @@ import io.github.pedrubik2000.kumapie.data.Pending
 import io.github.pedrubik2000.kumapie.data.Playable
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.lang.DeviceSync
+import io.github.pedrubik2000.kumapie.player.AppScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -29,7 +32,8 @@ object Restart {
 
     fun playerDisposed() {
         disposedAt = SystemClock.uptimeMillis()
-        disposed.countDown()
+        val latch = disposed
+        AppScope.launch(Dispatchers.Main) { latch.countDown() }
     }
 
     fun wanted(settings: Settings): Boolean = Playable.narrow || BuildConfig.DEBUG && settings.prefs.getBoolean(FORCE, false)

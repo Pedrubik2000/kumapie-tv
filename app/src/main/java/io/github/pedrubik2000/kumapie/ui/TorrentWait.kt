@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -41,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
+import kotlinx.coroutines.delay
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
@@ -55,6 +58,8 @@ import io.github.pedrubik2000.kumapie.torrent.waitText
 data class WaitInfo(val id: String, val show: String, val number: Int?, val episode: String, val release: String, val backdrop: String?, val noSpoilers: Boolean = false)
 
 private val PAGE = Color(0xFF0C0B11)
+internal val GLASS = Color(0xFF2A2734).copy(alpha = 0.75f)
+private const val FOCUS_DELAY_MS = 200L
 
 @Composable
 internal fun rememberStarted(player: Player, torrent: Boolean): Boolean {
@@ -87,19 +92,25 @@ private fun rememberPlayerState(player: Player): Int {
 }
 
 @Composable
-internal fun TorrentWait(player: Player, started: Boolean, info: WaitInfo, settings: Settings, episode: EpisodeDetail?, noLines: Boolean, onBack: () -> Unit) {
-    val status = TorrentEngine.status.collectAsState().value ?: TorrentStatus()
+internal fun TorrentWait(
+    player: Player, started: Boolean, info: WaitInfo, settings: Settings, episode: EpisodeDetail?, noLines: Boolean, onBack: () -> Unit,
+    onBuffering: (Boolean) -> Unit = {},
+) {
     val buffering = rememberPlayerState(player) == Player.STATE_BUFFERING
-    val words = rememberWaitWords(episode, settings, info.noSpoilers)
-    val similar = rememberSimilar(settings, info, info.noSpoilers)
-    if (status.phase == TorrentPhase.FAILED || !started) {
+    val status = (if (!started || buffering) TorrentEngine.status.collectAsState().value else null) ?: TorrentStatus()
+    val words = rememberWaitWords(episode, settings, info.noSpoilers || started)
+    val similar = rememberSimilar(settings, info, info.noSpoilers, !started)
+    val showBuffer = started && buffering
+    LaunchedEffect(showBuffer) { onBuffering(showBuffer) }
+    if (!started) {
         BackHandler(onBack = onBack)
         WaitScreen(info, status, words, similar, noLines, onBack)
-    } else if (buffering) {
-        BackHandler(onBack = onBack)
-        BufferingOverlay(player, status, info.release)
+    } else if (showBuffer) {
+        BufferingOverlay(player, status, if (info.noSpoilers) "" else info.release)
     }
 }
+
+private val OK_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
 
 @Composable
 private fun WaitScreen(info: WaitInfo, status: TorrentStatus, words: WaitWords?, similar: SimilarState, noLines: Boolean, onBack: () -> Unit) {
@@ -107,33 +118,44 @@ private fun WaitScreen(info: WaitInfo, status: TorrentStatus, words: WaitWords?,
     val focus = remember { FocusRequester() }
     LaunchedEffect(text.failed) { if (!text.failed) focus.requestFocus() }
     similar.root = focus
+    val pick = similar.current
+    val panel = !info.noSpoilers || pick != null
     val keys = Modifier.onKeyEvent {
+        val down = it.type == KeyEventType.KeyDown
         when {
-            !info.noSpoilers -> false
+            !info.noSpoilers || pick == null -> false
             it.pressedNext() -> { similar.next(); true }
-            it.type == KeyEventType.KeyDown && it.key == Key.DirectionDown && similar.canAdd -> { runCatching { similar.button.requestFocus() }.isSuccess }
+            down && it.key == Key.DirectionDown && similar.canAdd -> runCatching { similar.button.requestFocus() }.isSuccess
+            down && it.key in OK_KEYS && similar.canAdd && similar.listed(pick).isEmpty() -> { similar.add(pick); true }
             else -> false
         }
     }
-    Box(Modifier.fillMaxSize().background(PAGE).then(keys).focusRequester(focus).focusable()) {
+    Box(Modifier.fillMaxSize().background(PAGE).then(keys).focusRequester(focus).focusable(!text.failed)) {
         WaitBackdrop(info.backdrop)
-        Row(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                WaitHeader(info, text)
-                Spacer(Modifier.height(20.dp))
-                if (text.failed) WaitFailure(text, onBack) else WaitProgress(status, text)
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    KeyCap("BACK")
-                    Text(tr("Cancel"), color = Colors.dim, fontSize = 14.sp)
-                }
-                if (info.release.isNotEmpty()) Text(info.release, color = Colors.dim.copy(alpha = 0.7f), fontSize = 12.sp, maxLines = 1,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.dp))
+        Row(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp), verticalAlignment = Alignment.Top) {
+            WaitLeft(info, status, text, if (panel) Modifier.weight(1f) else Modifier.widthIn(max = 560.dp), onBack)
+            if (panel) {
+                Spacer(Modifier.width(32.dp))
+                if (info.noSpoilers) SimilarPanel(similar, info, Modifier.padding(top = 24.dp).width(440.dp).height(440.dp))
+                else WordsPanel(info.number, words, noLines, Modifier.padding(top = 24.dp).width(340.dp).heightIn(max = 460.dp))
             }
-            Spacer(Modifier.width(32.dp))
-            val slot = Modifier.width(if (info.noSpoilers) 440.dp else 340.dp).fillMaxHeight(0.88f)
-            if (info.noSpoilers) SimilarPanel(similar, info, slot) else WordsPanel(info.number, words, noLines, slot)
         }
+    }
+}
+
+@Composable
+private fun WaitLeft(info: WaitInfo, status: TorrentStatus, text: WaitText, modifier: Modifier, onBack: () -> Unit) {
+    Column(modifier.padding(top = 120.dp)) {
+        WaitHeader(info, text)
+        Spacer(Modifier.height(20.dp))
+        if (text.failed) WaitFailure(text, onBack) else WaitProgress(status, text)
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            KeyCap("BACK")
+            Text(tr("Cancel"), color = Colors.dim, fontSize = 16.sp)
+        }
+        if (info.release.isNotEmpty() && !info.noSpoilers) Text(info.release, color = Colors.dim, fontSize = 13.sp, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.dp))
     }
 }
 
@@ -152,28 +174,38 @@ private fun WaitHeader(info: WaitInfo, text: WaitText) {
     if (line.isNotEmpty()) Text(line, color = Colors.text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
 }
 
+private fun peersLine(status: TorrentStatus, text: WaitText): String = when {
+    status.peers <= 0 -> text.headline
+    status.peers == 1 -> tr("1 peer found") + " · " + tr("looking for more")
+    else -> tr("%d peers found", status.peers) + " · " + tr("looking for more")
+}
+
 @Composable
 private fun WaitProgress(status: TorrentStatus, text: WaitText) {
-    Column(Modifier.fillMaxWidth().background(Arcade.slab, RowSlab).padding(horizontal = 16.dp, vertical = 14.dp)) {
+    val finding = status.phase == TorrentPhase.PEERS
+    Column(Modifier.fillMaxWidth().background(GLASS, RowSlab).padding(horizontal = 16.dp, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val peers = status.phase == TorrentPhase.PEERS
-            Text(text.headline, color = Colors.text, fontSize = if (peers) 18.sp else 28.sp, fontWeight = FontWeight.Bold)
-            if (text.detail.isNotEmpty()) Text(text.detail, color = Colors.dim, fontSize = 14.sp, modifier = Modifier.padding(bottom = 3.dp))
+            Text(if (finding) peersLine(status, text) else text.headline, color = Colors.text, fontSize = if (finding) 20.sp else 28.sp, fontWeight = FontWeight.Bold)
+            if (!finding && text.detail.isNotEmpty()) Text(text.detail, color = Colors.dim, fontSize = 16.sp, modifier = Modifier.padding(bottom = 3.dp))
         }
-        Box(Modifier.padding(vertical = 10.dp).fillMaxWidth().height(4.dp).background(Colors.text.copy(alpha = 0.15f), RowSlab)) {
-            Box(Modifier.fillMaxWidth(if (status.phase == TorrentPhase.PEERS) 0f else status.percent / 100f).fillMaxHeight().background(Colors.accent, RowSlab))
+        if (!finding) Box(Modifier.padding(vertical = 10.dp).fillMaxWidth().height(4.dp).background(Colors.text.copy(alpha = 0.15f), RowSlab)) {
+            Box(Modifier.fillMaxWidth(status.percent / 100f).fillMaxHeight().background(Colors.accent, RowSlab))
         }
-        Text(text.stats.ifEmpty { text.hint }, color = Colors.dim, fontSize = 14.sp, maxLines = 1)
+        Text(text.stats.ifEmpty { text.hint }, color = Colors.dim, fontSize = 16.sp, maxLines = 1, modifier = Modifier.padding(top = if (finding) 8.dp else 0.dp))
     }
 }
 
 @Composable
 private fun WaitFailure(text: WaitText, onBack: () -> Unit) {
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-    Column(Modifier.fillMaxWidth().background(Arcade.slab, RowSlab).padding(horizontal = 16.dp, vertical = 14.dp)) {
+    LaunchedEffect(Unit) {
+        delay(FOCUS_DELAY_MS)
+        runCatching { focus.requestFocus() }
+    }
+    val detail = text.detail.takeIf { it.isNotEmpty() && !it.startsWith(text.headline) && it != text.headline }
+    Column(Modifier.fillMaxWidth().background(GLASS, RowSlab).padding(horizontal = 16.dp, vertical = 14.dp)) {
         Text(text.headline, color = Colors.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        if (text.detail.isNotEmpty()) Text(text.detail, color = Colors.dim, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+        if (detail != null) Text(detail, color = Colors.dim, fontSize = 16.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 4.dp))
         Button(onClick = onBack, modifier = Modifier.padding(top = 12.dp).focusRequester(focus)) { Text(tr("Other releases")) }
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,7 +63,7 @@ internal fun BufferingOverlay(player: Player, status: TorrentStatus, release: St
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stats, color = Colors.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                 Box(Modifier.weight(1f))
-                if (release.isNotEmpty()) Text(release, color = Colors.dim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(2f))
+                if (release.isNotEmpty()) Text(release, color = Colors.dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.weight(2f))
             }
             Timeline(if (duration > 0) position.toFloat() / duration else 0f, status.chunk)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -71,7 +72,7 @@ internal fun BufferingOverlay(player: Player, status: TorrentStatus, release: St
             }
             Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 KeyCap("BACK")
-                Text(tr("Cancel"), color = Colors.dim, fontSize = 14.sp)
+                Text(tr("Cancel"), color = Colors.dim, fontSize = 16.sp)
             }
         }
     }

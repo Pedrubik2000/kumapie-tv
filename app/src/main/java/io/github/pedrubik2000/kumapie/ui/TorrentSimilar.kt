@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,11 +24,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -62,11 +64,12 @@ class SimilarState(private val settings: Settings, private val scope: kotlinx.co
     val picks = mutableStateListOf<SimilarPick>()
     var index by mutableIntStateOf(0)
     var left by mutableIntStateOf(ADVANCE_S)
-    val added = mutableStateListOf<Int>()
+    val added = mutableStateMapOf<Int, String>()
     var failed by mutableStateOf(false)
     val button = FocusRequester()
     var root: FocusRequester? = null
-    val canAdd: Boolean get() = settings.anilistToken.isNotEmpty()
+    var canAdd by mutableStateOf(settings.anilistToken.isNotEmpty())
+    var buttonFocused by mutableStateOf(false)
     val current: SimilarPick? get() = picks.getOrNull(index)
 
     fun next() {
@@ -76,19 +79,23 @@ class SimilarState(private val settings: Settings, private val scope: kotlinx.co
         failed = false
     }
 
-    fun listed(p: SimilarPick): String = if (p.id in added) "PLANNING" else p.listed
+    fun listed(p: SimilarPick): String = added[p.id] ?: p.listed
 
-    fun add() {
-        val p = current ?: return
+    fun add(p: SimilarPick) {
         scope.launch {
-            failed = !runCatching { settings.withAniList { token -> SimilarPicks.addToPlanning(p.id) { id, e -> AniList.save(token, id, e) } } }.isSuccess
-            if (!failed) added += p.id
+            val status = runCatching { settings.withAniList { token -> SimilarPicks.addToPlanning(token, p.id) } }.getOrNull()
+            failed = status == null
+            canAdd = settings.anilistToken.isNotEmpty()
+            if (status != null) {
+                added[p.id] = status
+                runCatching { root?.requestFocus() }
+            }
         }
     }
 }
 
 @Composable
-internal fun rememberSimilar(settings: Settings, info: WaitInfo, enabled: Boolean): SimilarState {
+internal fun rememberSimilar(settings: Settings, info: WaitInfo, enabled: Boolean, active: Boolean): SimilarState {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val state = remember { SimilarState(settings, scope) }
@@ -98,11 +105,11 @@ internal fun rememberSimilar(settings: Settings, info: WaitInfo, enabled: Boolea
         state.picks.clear()
         state.picks.addAll(found)
     }
-    LaunchedEffect(state.index, state.picks.size) {
+    LaunchedEffect(state.index, state.picks.size, active) {
         state.left = ADVANCE_S
-        while (state.picks.size > 1) {
+        while (active && state.picks.size > 1) {
             delay(1000)
-            if (--state.left <= 0) state.next()
+            if (!state.buttonFocused && --state.left <= 0) state.next()
         }
     }
     return state
@@ -129,17 +136,14 @@ internal fun androidx.compose.ui.input.key.KeyEvent.pressedNext(): Boolean = typ
 
 @Composable
 internal fun SimilarPanel(state: SimilarState, info: WaitInfo, modifier: Modifier) {
-    val pick = state.current
-    Column(modifier.background(Arcade.slab, RoundedCornerShape(16.dp)).border(1.dp, Arcade.line, RoundedCornerShape(16.dp)).padding(horizontal = 18.dp, vertical = 16.dp)) {
-        if (pick == null) {
-            Text(tr("More like this"), color = Colors.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            return@Column
+    val pick = state.current ?: return
+    Box(modifier.background(GLASS, RoundedCornerShape(16.dp)).padding(horizontal = 18.dp, vertical = 16.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(tr("If you like %s…", info.show), color = Colors.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(tr("A pick from AniList while it loads"), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.padding(top = 3.dp, bottom = 12.dp))
+            PickBody(pick, state)
         }
-        Text(tr("If you like %s…", info.show), color = Colors.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(tr("A pick from AniList while it loads"), color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp, bottom = 12.dp))
-        PickBody(pick, state)
-        Spacer(Modifier.weight(1f))
-        PickFooter(state)
+        PickFooter(state, Modifier.align(Alignment.BottomStart))
     }
 }
 
@@ -147,17 +151,17 @@ internal fun SimilarPanel(state: SimilarState, info: WaitInfo, modifier: Modifie
 private fun PickBody(pick: SimilarPick, state: SimilarState) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         coil3.compose.AsyncImage(model = pick.cover, contentDescription = null, contentScale = ContentScale.Crop,
-            modifier = Modifier.width(104.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(10.dp)).background(Colors.surface))
+            modifier = Modifier.size(104.dp, 156.dp).clip(RoundedCornerShape(10.dp)).background(Colors.surface))
         Column(Modifier.weight(1f)) {
             Text(pick.native.ifEmpty { pick.romaji }, color = Colors.text, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (pick.native.isNotEmpty()) Text(pick.romaji, color = Colors.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(SimilarPicks.stats(pick), color = Colors.text, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
-            pick.reasons.forEach { Text("✓  $it", color = Colors.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp)) }
+            pick.reasons.forEach { Text("✓  $it", color = Colors.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp)) }
         }
     }
-    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         pick.genres.forEach {
-            Text(it, color = Colors.dim, fontSize = 12.sp, maxLines = 1, modifier = Modifier.border(1.dp, Arcade.line, RoundedCornerShape(50)).padding(horizontal = 9.dp, vertical = 2.dp))
+            Text(it, color = Colors.dim, fontSize = 13.sp, maxLines = 1, modifier = Modifier.border(1.dp, Arcade.line, RoundedCornerShape(50)).padding(horizontal = 9.dp, vertical = 2.dp))
         }
     }
     PlanButton(pick, state)
@@ -166,39 +170,41 @@ private fun PickBody(pick: SimilarPick, state: SimilarState) {
 @Composable
 private fun PlanButton(pick: SimilarPick, state: SimilarState) {
     val listed = state.listed(pick)
-    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         when {
             listed.isNotEmpty() -> Text("✓ " + tr("On your list · %s", statusLabel(listed)), color = Colors.due, fontSize = 14.sp,
                 modifier = Modifier.border(1.dp, Colors.due, RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 5.dp))
             state.canAdd -> {
-                Button(onClick = state::add, modifier = Modifier.focusRequester(state.button).onPreviewKeyEvent {
+                Button(onClick = { state.add(pick) }, modifier = Modifier.focusRequester(state.button).onFocusChanged { state.buttonFocused = it.isFocused }.onPreviewKeyEvent {
                     val up = it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp
                     if (up) runCatching { state.root?.requestFocus() }
                     up
                 }) { Text("＋ " + tr("Plan to watch")) }
                 KeyCap("OK")
-                if (state.failed) Text(tr("Couldn't add it"), color = Colors.unknown, fontSize = 13.sp)
             }
         }
+        if (state.failed) Text(tr("Couldn't add it"), color = Colors.unknown, fontSize = 14.sp)
     }
 }
 
 @Composable
-private fun PickFooter(state: SimilarState) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        state.picks.indices.forEach { i ->
-            Box(Modifier.height(6.dp).width(if (i == state.index) 22.dp else 6.dp).background(if (i == state.index) Colors.text else Colors.text.copy(alpha = 0.3f), RoundedCornerShape(50)))
+private fun PickFooter(state: SimilarState, modifier: Modifier) {
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            state.picks.indices.forEach { i ->
+                Box(Modifier.height(6.dp).width(if (i == state.index) 22.dp else 6.dp).background(if (i == state.index) Colors.text else Colors.text.copy(alpha = 0.3f), RoundedCornerShape(50)))
+            }
+            if (state.picks.size > 1 && !state.buttonFocused) Text(tr("next in %d s", state.left), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
         }
-        if (state.picks.size > 1) Text(tr("next in %d s", state.left), color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
-    }
-    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            KeyCap("▶")
-            Text(tr("next pick"), color = Colors.dim, fontSize = 13.sp)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            KeyCap("BACK")
-            Text(tr("cancels the stream"), color = Colors.dim, fontSize = 13.sp)
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                KeyCap("▶")
+                Text(tr("next pick"), color = Colors.dim, fontSize = 14.sp)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                KeyCap("BACK")
+                Text(tr("cancels the stream"), color = Colors.dim, fontSize = 14.sp)
+            }
         }
     }
 }

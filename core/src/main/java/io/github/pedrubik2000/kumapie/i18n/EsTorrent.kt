@@ -38,6 +38,8 @@ internal val esTorrent: Map<String, String> = mapOf(
     "%d new" to "%d nuevas",
     "%d due today" to "%d para hoy",
     "No new words here" to "Aquí no hay palabras nuevas",
+    "1 peer found" to "1 fuente encontrada",
+    "Words you'll meet in this video" to "Palabras que verás en este video",
     "More like this" to "Más como esto",
     "If you like %s…" to "Si te gusta %s…",
     "A pick from AniList while it loads" to "Una sugerencia de AniList mientras carga",

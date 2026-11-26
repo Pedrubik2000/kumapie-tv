@@ -74,8 +74,8 @@ internal fun rememberWaitWords(episode: EpisodeDetail?, settings: Settings, off:
 
 @Composable
 internal fun WordsPanel(number: Int?, words: WaitWords?, noLines: Boolean, modifier: Modifier) {
-    Column(modifier.background(Arcade.slab, RoundedCornerShape(16.dp)).border(1.dp, Arcade.line, RoundedCornerShape(16.dp)).padding(horizontal = 18.dp, vertical = 16.dp)) {
-        Text(if (number != null) tr("Words you'll meet in episode %d", number) else tr("Words you'll meet in this episode"),
+    Column(modifier.background(GLASS, RoundedCornerShape(16.dp)).padding(horizontal = 18.dp, vertical = 16.dp)) {
+        Text(if (number != null) tr("Words you'll meet in episode %d", number) else tr("Words you'll meet in this video"),
             color = Colors.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(io.github.pedrubik2000.kumapie.lang.waitSummary(words, noLines), color = Colors.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp, bottom = 8.dp))
         words?.rows?.forEach { WordRow(it) }

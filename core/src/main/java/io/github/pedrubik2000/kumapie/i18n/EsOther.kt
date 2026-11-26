@@ -101,6 +101,7 @@ internal val esOther: Map<String, String> = mapOf(
         "Todavía no hay un archivo listo para este episodio: elige uno en sus archivos",
     "The PC couldn't get it: %1\$s" to "El PC no pudo conseguirlo: %1\$s",
     "The video stopped: %1\$s" to "El video se detuvo: %1\$s",
+    "Reconnecting…" to "Reconectando…",
     "Other files" to "Otros archivos",
     "Mark not watched" to "Marcar como no visto",
     "Mark watched" to "Marcar como visto",

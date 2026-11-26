@@ -139,7 +139,7 @@ object DeviceFile {
                     if (all != had) out[k] = all
                 }
                 else -> {
-                    val value: Any = when (v) { is Number -> v.toFloat(); is JSONArray -> v.strings().toSet(); else -> v.toString() }
+                    val value: Any = when (v) { is Boolean -> v; is Number -> v.toFloat(); is JSONArray -> v.strings().toSet(); else -> v.toString() }
                     val place = k.startsWith("alone_pos_") || k.startsWith("alone_len_")
                     if (mine[k] == null || (place && Addons.titleOf(k.drop(10)) in titles && mine[k] != value)) out[k] = value
                 }
@@ -252,7 +252,7 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
         settings.prefs.edit().apply {
             plan.streams.forEach { (k, v) ->
                 @Suppress("UNCHECKED_CAST")
-                when (v) { is Float -> putFloat(k, v); is Set<*> -> putStringSet(k, v as Set<String>); else -> putString(k, v.toString()) }
+                when (v) { is Boolean -> putBoolean(k, v); is Float -> putFloat(k, v); is Set<*> -> putStringSet(k, v as Set<String>); else -> putString(k, v.toString()) }
             }
         }.apply()
         File(eventsFile.path + ".part").apply { writeText(plan.events.toString()) }.renameTo(eventsFile)

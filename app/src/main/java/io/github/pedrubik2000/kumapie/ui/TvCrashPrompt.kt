@@ -61,7 +61,9 @@ internal fun TvCrashPrompt(show: Boolean, startMs: Long = 2_000) {
 }
 
 @Composable
-internal fun TvCrashDialog(send: suspend () -> Delivery, mark: () -> Unit, close: () -> Unit, guardMs: Long = 500) {
+internal fun TvCrashDialog(send: suspend () -> Delivery, mark: () -> Unit, close: () -> Unit, guardMs: Long = 500,
+                           question: String = tr("kumapie closed unexpectedly last time. Send the crash report?"),
+                           detail: String = tr("Sends the error, the device model and the app version — nothing else.")) {
     var phase by remember { mutableStateOf("ask") }
     var refused by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -76,8 +78,8 @@ internal fun TvCrashDialog(send: suspend () -> Delivery, mark: () -> Unit, close
             Column(Modifier.width(720.dp).arcadePanel().padding(32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 when (val p = phase) {
                     "ask" -> {
-                        Text(tr("kumapie closed unexpectedly last time. Send the crash report?"), color = Colors.text, fontSize = 22.sp)
-                        Text(tr("Sends the error, the device model and the app version — nothing else."), color = Colors.dim, fontSize = 16.sp)
+                        Text(question, color = Colors.text, fontSize = 22.sp)
+                        Text(detail, color = Colors.dim, fontSize = 16.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             Button(onClick = {
                                 mark()
@@ -95,8 +97,9 @@ internal fun TvCrashDialog(send: suspend () -> Delivery, mark: () -> Unit, close
                     else -> {
                         if (refused) Text(tr("Your kumapie PC refused the report."), color = Colors.dim, fontSize = 16.sp)
                         Text(tr("Scan with your phone to open a ready-filled GitHub issue."), color = Colors.text, fontSize = 20.sp)
-                        val code = remember(p) { qr(p.toString(), 700) }
-                        Image(code.asImageBitmap(), null, Modifier.size(320.dp).background(Color.White).padding(10.dp))
+                        val code = remember(p) { runCatching { qr(p.toString(), 700) }.getOrNull() }
+                        if (code != null) Image(code.asImageBitmap(), null, Modifier.size(320.dp).background(Color.White).padding(10.dp))
+                        else Text(tr("Could not draw the code. Close this and try again."), color = Colors.dim, fontSize = 16.sp)
                         Button(onClick = close, modifier = Modifier.focusRequester(focus)) { Text(tr("Close"), fontSize = 16.sp) }
                     }
                 }

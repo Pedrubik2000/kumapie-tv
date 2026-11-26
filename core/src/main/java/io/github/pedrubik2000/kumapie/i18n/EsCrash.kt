@@ -9,5 +9,9 @@ internal val esCrash: Map<String, String> = mapOf(
     "Sent to your kumapie PC." to "Enviado a tu PC con kumapie.",
     "Scan with your phone to open a ready-filled GitHub issue." to "Escanea con el celular para abrir una incidencia de GitHub ya rellenada.",
     "Open the GitHub issue" to "Abrir la incidencia de GitHub",
+    "Report subtitle timing" to "Avisar de la sincronía de subtítulos",
+    "Report the subtitle timing of this episode to your PC?" to "¿Avisar a tu PC de la sincronía de subtítulos de este episodio?",
+    "Sends the title, episode, subtitle file, the shifts and the lines on screen, nothing else." to "Envía el título, el episodio, el archivo de subtítulos, los desfases y las líneas en pantalla, nada más.",
+    "Could not draw the code. Close this and try again." to "No se pudo dibujar el código. Cierra e inténtalo de nuevo.",
     "Open a ready-filled GitHub issue to send the report." to "Abre una incidencia de GitHub ya rellenada para enviar el informe.",
 )

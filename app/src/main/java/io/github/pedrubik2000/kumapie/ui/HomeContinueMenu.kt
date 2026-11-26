@@ -53,7 +53,7 @@ internal fun ContinueMenuView(m: ContinueMenu, onRemove: () -> Unit, onOpen: () 
     val screen = LocalConfiguration.current.screenWidthDp.dp
     val left = with(density) { m.x.toDp() }.coerceIn(8.dp, (screen - MENU_WIDTH - 8.dp).coerceAtLeast(8.dp))
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
-    Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
+    Box(Modifier.fillMaxSize().swallowHeldOk().onPreviewKeyEvent { e ->
         if (e.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_BACK) false
         else { if (e.type == KeyEventType.KeyUp) onCancel(); true }
     }) {
@@ -63,7 +63,7 @@ internal fun ContinueMenuView(m: ContinueMenu, onRemove: () -> Unit, onOpen: () 
             Button(onClick = onRemove, modifier = Modifier.focusRequester(first).width(MENU_WIDTH - 16.dp)) {
                 Text("✕  " + tr("Remove from Continue watching"), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Button(onClick = onOpen, modifier = Modifier.width(MENU_WIDTH - 16.dp)) { Text("▶  " + tr("Open"), maxLines = 1) }
+            Button(onClick = onOpen, modifier = Modifier.width(MENU_WIDTH - 16.dp)) { Text("▶  " + tr("Open title page"), maxLines = 1) }
             Button(onClick = onCancel, modifier = Modifier.width(MENU_WIDTH - 16.dp)) { Text(tr("Cancel"), maxLines = 1) }
         }
     }
@@ -83,3 +83,23 @@ internal fun BoxScope.RemovedToast(r: Removed, onExpire: () -> Unit) {
 
 internal fun undoKey(e: androidx.compose.ui.input.key.KeyEvent): Boolean =
     e.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || e.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_ENTER
+
+private fun KeyEvent.isEnter() = keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+
+/**
+ * For a menu opened by holding OK: the key is still down when the menu takes focus, and its repeats and release would press the focused
+ * button (tv-material fires the long press on the first repeat). Swallow OK/Enter until a fresh press (repeatCount 0).
+ */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@Composable
+internal fun Modifier.swallowHeldOk(): Modifier {
+    val fresh = remember { BooleanArray(1) }
+    return onPreviewKeyEvent { e ->
+        val k = e.nativeKeyEvent
+        if (!k.isEnter()) false
+        else {
+            if (e.type == KeyEventType.KeyDown && k.repeatCount == 0) fresh[0] = true
+            !fresh[0]
+        }
+    }
+}

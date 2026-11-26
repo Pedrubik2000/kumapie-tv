@@ -81,9 +81,12 @@ internal class RowCtx(
     val toTop: () -> Unit, val scrollTo: (Int) -> Unit, val onShow: (Show) -> Unit, val onPlay: (Show, Episode) -> Unit, val onDiscovered: (Found) -> Unit, val onLogin: () -> Unit,
     val onMenu: (ContinueMenu) -> Unit,
 ) {
-    fun open(s: Show, e: Episode, index: Int) {
+    fun open(s: Show, e: Episode, index: Int) = if (s.id !in d.soon) { focus.leaving(0, index, s.id); onPlay(s, e) } else title(s, e, index)
+
+    /** The title page: a stream's Discover page (only streams can be unaired), else the show's. */
+    fun title(s: Show, e: Episode, index: Int) {
         focus.leaving(0, index, s.id)
-        if (s.id !in d.soon) onPlay(s, e) else if (s.kind == "stream") onDiscovered(streamFound(s, e)) else onShow(s)
+        if (s.kind == "stream") onDiscovered(streamFound(s, e)) else onShow(s)
     }
 
     fun card(row: Int, index: Int, key: Any, target: () -> HeroTarget?): Modifier {
@@ -115,20 +118,19 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
     SideEffect { focus.toTop = toTop }
     var menu by remember { mutableStateOf<ContinueMenu?>(null) }
     var removed by remember { mutableStateOf<Removed?>(null) }
-    val undone = remember { BooleanArray(1) }
+    val pendingUp = remember { BooleanArray(1) }
     val ctx = remember(d, levels) { RowCtx(d, focus, api, levels, first, below, toTop, { i -> scope.launch { runCatching { list.animateScrollToItem(i) } }; Unit }, onShow, onPlay, onDiscovered, onLogin) { menu = it } }
     LaunchedEffect(d.resume) { if (focus.target == null || focus.target is ResumeTarget) focus.target = d.resume }
     KnowIds(levels, d.all)
     AskLevels(levels, d.askRows, focus)
     Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
         val r = removed
-        if (r == null || !undoKey(e)) false
-        else {
-            // the card under focus would still get this key's KeyUp as a click (play): swallow both, drop the toast on KeyUp
-            if (e.type == KeyEventType.KeyDown && !undone[0]) { undone[0] = true; onUnhide(r.show); scope.launch { focus.bring(0, r.index, r.show.id) } }
-            if (e.type == KeyEventType.KeyUp) { undone[0] = false; removed = null }
-            true
-        }
+        // undo on the key's DOWN; the card under focus would still get its UP as a click (play), even if the toast has gone by then, so swallow that UP
+        if (!undoKey(e)) false
+        else if (pendingUp[0]) { if (e.type == KeyEventType.KeyUp) pendingUp[0] = false; true }
+        else if (r != null && e.type == KeyEventType.KeyDown) {
+            pendingUp[0] = true; removed = null; onUnhide(r.show); scope.launch { focus.bring(0, r.index, r.show.id) }; true
+        } else false
     }) {
         HomeHero(focus, d.warm, api, levels, first, below, d.names.isEmpty(), !d.loggedIn || d.library.any { it.second.isNotEmpty() }, onPlay, onShow, onDiscover)
         CompositionLocalProvider(LocalBringIntoViewSpec provides HeadingFirst) {
@@ -141,7 +143,7 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
                 menu = null
                 removed = Removed(m.show, m.episode, m.index)
                 onHide(m.show, m.episode)
-            }, onOpen = { menu = null; ctx.open(m.show, m.episode, m.index) }, onCancel = {
+            }, onOpen = { menu = null; ctx.title(m.show, m.episode, m.index) }, onCancel = {
                 menu = null
                 scope.launch { withFrameNanos { }; focus.refocus(0, m.show.id) }
             })

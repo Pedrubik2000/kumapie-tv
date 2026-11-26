@@ -22,17 +22,17 @@ class ContinueHiddenPrefsTest {
     private val show = Show("kitsu:7", "A", "anime", "", listOf(e), "ja")
 
     @Test fun hideThenUndoIsKeptOnTheDevice() {
-        assertEquals(mapOf("kitsu:7" to 50L), ContinueHidden.hide(prefs, show, e))
-        assertEquals(mapOf("kitsu:7" to 50L), ContinueHidden.read(prefs))
-        assertEquals(emptyMap<String, Long>(), ContinueHidden.unhide(prefs, "kitsu:7"))
-        assertEquals(emptyMap<String, Long>(), ContinueHidden.read(prefs))
+        assertEquals(mapOf("kitsu:7" to 50L), ContinueHidden.hide(prefs, "p", show, e))
+        assertEquals(mapOf("kitsu:7" to 50L), ContinueHidden.read(prefs, "p"))
+        assertEquals(emptyMap<String, Long>(), ContinueHidden.unhide(prefs, "p", "kitsu:7"))
+        assertEquals(emptyMap<String, Long>(), ContinueHidden.read(prefs, "p"))
     }
 
     @Test fun playingTheShowAgainBringsItBack() {
-        ContinueHidden.hide(prefs, show, e)
+        ContinueHidden.hide(prefs, "p", show, e)
         val played = e.copy(resumedAt = 60)
-        assertEquals(listOf(played), ContinueHidden.shown(listOf(show to played), ContinueHidden.read(prefs)).map { it.second })
-        assertEquals(emptyList<Episode>(), ContinueHidden.shown(listOf(show to e), ContinueHidden.read(prefs)).map { it.second })
+        assertEquals(listOf(played), ContinueHidden.shown(listOf(show to played), ContinueHidden.read(prefs, "p")).map { it.second })
+        assertEquals(emptyList<Episode>(), ContinueHidden.shown(listOf(show to e), ContinueHidden.read(prefs, "p")).map { it.second })
     }
 
     @Test fun theNextAiringEpisodeSurvivesTheListsCache() {

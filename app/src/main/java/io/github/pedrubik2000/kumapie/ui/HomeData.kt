@@ -30,7 +30,7 @@ class HomeData(
     }
 
     val byKitsu: Map<String, Mine> = all.associateBy { it.kitsuId }
-    val soon: Map<String, Long> = going.mapNotNull { (s, e) -> ContinueHidden.airsAt(ContinueHidden.mineOf(byKitsu, s), e, now)?.let { s.id to it } }.toMap()
+    val soon: Map<String, Long> = going.mapNotNull { (s, e) -> ContinueHidden.airsAt(ContinueHidden.mineOf(byKitsu, s), s, e, now)?.let { s.id to it } }.toMap()
     val soonFrom: Int = going.indexOfFirst { it.first.id in soon }
     val watching: List<Mine> = if (loggedIn) all.filter { it.watching } else emptyList()
     val planning: List<Mine> = if (loggedIn) planningOrder(all) else emptyList()

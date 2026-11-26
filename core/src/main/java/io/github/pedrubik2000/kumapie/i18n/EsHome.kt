@@ -25,6 +25,7 @@ internal val esHome: Map<String, String> = mapOf(
     "Remove from Continue watching" to "Quitar de Seguir viendo",
     "%s removed from Continue watching" to "%s quitado de Seguir viendo",
     "Coming soon" to "Próximamente",
+    "Open title page" to "Abrir la ficha",
     "All" to "Todo",
     "Anime" to "Anime",
     "Shows" to "Series",

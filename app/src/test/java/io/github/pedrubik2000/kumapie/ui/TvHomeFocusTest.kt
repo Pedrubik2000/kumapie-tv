@@ -129,7 +129,7 @@ class TvHomeFocusTest {
         rule.setContent {
             val settings = Settings(LocalContext.current)
             val t = tick
-            if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro", onShow = {}, onPlay = { _, _ -> home = false },
+            if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro", onShow = { opened = "show:" + it.id }, onPlay = { _, _ -> home = false },
                 onSettings = {}, onStats = {}, onProfiles = {}, onLibrary = {}, onDiscover = {}, onDiscovered = { home = false },
                 lists = { if (t < 0) emptyList() else null }, memory = memory)
         }
@@ -579,7 +579,7 @@ class TvHomeFocusTest {
     @Test fun holdingOkOnAContinueCardOpensTheMenuWithRemoveFocused() {
         openRemoveMenu(DOWN, RIGHT, card = "Beta")
         rule.onNodeWithText("Cancel").assertExists()
-        rule.onNodeWithText("▶  Open").assertExists()
+        rule.onNodeWithText("▶  Open title page").assertExists()
     }
 
     @Test fun backInTheMenuCancelsAndFocusStaysOnTheCard() {
@@ -587,7 +587,7 @@ class TvHomeFocusTest {
         press(BACK)
         rule.waitUntil(5_000) { focused() == "Beta" }
         rule.onAllNodesWithText("Cancel").fetchSemanticsNodes().let { assertEquals(0, it.size) }
-        assertEquals(false, Settings(RuntimeEnvironment.getApplication()).prefs.contains("continue_hidden"))
+        assertEquals(false, Settings(RuntimeEnvironment.getApplication()).prefs.contains("continue_hidden_p"))
     }
 
     @Test fun cancelInTheMenuLeavesTheCardInTheRow() {
@@ -603,7 +603,7 @@ class TvHomeFocusTest {
         rule.waitUntil(5_000) { focused() == "Beta" }
         rule.onAllNodesWithContentDescription("Alpha").fetchSemanticsNodes().let { assertEquals(0, it.size) }
         rule.onNodeWithText("Alpha removed from Continue watching").assertExists()
-        assertEquals(true, Settings(RuntimeEnvironment.getApplication()).prefs.contains("continue_hidden"))
+        assertEquals(true, Settings(RuntimeEnvironment.getApplication()).prefs.contains("continue_hidden_p"))
     }
 
     @Test fun removingTheLastCardFocusesThePreviousOne() {
@@ -620,7 +620,33 @@ class TvHomeFocusTest {
         rule.waitUntil(5_000) { focused() == "Alpha" }
         rule.onAllNodesWithText("Alpha removed from Continue watching").fetchSemanticsNodes().let { assertEquals(0, it.size) }
         assertEquals(1, rule.onAllNodesWithContentDescription("Beta").fetchSemanticsNodes().size)
-        assertEquals("{}", Settings(RuntimeEnvironment.getApplication()).prefs.getString("continue_hidden", null))
+        assertEquals("{}", Settings(RuntimeEnvironment.getApplication()).prefs.getString("continue_hidden_p", null))
+    }
+
+    @Test fun releasingAHeldOkOpensTheMenuWithoutPressingRemove() {
+        openReturning()
+        press(DOWN)
+        assertEquals("Alpha", focused())
+        rule.onRoot().performKeyInput { keyDown(Key(OK)); advanceEventTime(1000); keyUp(Key(OK)) }
+        rule.waitForIdle()
+        rule.waitUntil(5_000) { focusedIsRemove() }
+        assertEquals(false, Settings(RuntimeEnvironment.getApplication()).prefs.contains("continue_hidden_p"))
+    }
+
+    @Test fun theUndoKeysReleaseDoesNotPlayTheCardEvenWithTheToastGone() {
+        openRemoveMenu(DOWN, card = "Alpha")
+        press(OK)
+        rule.waitUntil(5_000) { focused() == "Beta" }
+        rule.onRoot().performKeyInput { keyDown(Key(OK)); advanceEventTime(6_000); keyUp(Key(OK)) }
+        rule.waitForIdle()
+        assertEquals(true, home)
+        rule.waitUntil(5_000) { focused() == "Alpha" }
+    }
+
+    @Test fun openInTheMenuGoesToTheTitlePage() {
+        openRemoveMenu(DOWN, card = "Alpha")
+        press(DOWN, OK)
+        assertEquals("show:a", opened)
     }
 
     @Test fun aRemovedShowComesBackWhenItIsPlayedAgain() {
@@ -638,10 +664,10 @@ class TvHomeFocusTest {
 
     @Test fun aNotAiredYetCardSitsAfterThePlayableOnesAndOpensItsTitlePage() {
         logIn(mine("1", "Alpha", "CURRENT", progress = 0, episodes = 12, next = 1, nextAt = System.currentTimeMillis() / 1000 + 3 * 86400))
-        showsBody = """{"shows":[${show("kitsu:1", "Alpha", "anime", episode("a1", 300.0, 200))},${show("b", "Beta", "anime", episode("b1", 500.0, 100))}]}"""
+        showsBody = """{"shows":[${show("kitsu:1", "Alpha", "stream", episode("a1", 300.0, 200))},${show("b", "Beta", "anime", episode("b1", 500.0, 100))}]}"""
         rule.setContent {
             HomeScreen(Api("http://127.0.0.1:${server.address.port}"), Settings(LocalContext.current), "p", "Pedro", onShow = { opened = "show:" + it.id },
-                onPlay = { s, _ -> opened = "play:" + s.id }, onSettings = {}, onStats = {}, onProfiles = {}, lists = { null })
+                onPlay = { s, _ -> opened = "play:" + s.id }, onDiscovered = { opened = "found:" + it.id }, onSettings = {}, onStats = {}, onProfiles = {}, lists = { null })
         }
         rule.waitUntil(5_000) { focused() == RESUME }
         rule.onNodeWithText("COMING SOON").assertExists()
@@ -650,7 +676,7 @@ class TvHomeFocusTest {
         press(RIGHT)
         assertEquals("Alpha", focused())
         press(OK)
-        assertEquals("show:kitsu:1", opened)
+        assertEquals("found:kitsu:1", opened)
     }
 
     private companion object {

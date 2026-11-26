@@ -80,8 +80,8 @@ data class FoundTarget(val found: Found) : HeroTarget {
 }
 
 fun HeroTarget.airsAt(now: Long): Long? = when (this) {
-    is ResumeTarget -> ContinueHidden.airsAt(mine, episode, now)
-    is ContinueTarget -> ContinueHidden.airsAt(mine, episode, now)
+    is ResumeTarget -> ContinueHidden.airsAt(mine, show, episode, now)
+    is ContinueTarget -> ContinueHidden.airsAt(mine, show, episode, now)
     else -> null
 }
 

@@ -92,7 +92,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
     val totals by produceState<LangTotal?>(null, lang) {
         value = lang?.let { l -> runCatching { if (api is Api) api.stats().langs[l] else aloneTotal(context, settings, l, shows.orEmpty()) }.getOrNull() }
     }
-    var hidden by remember(settings) { mutableStateOf(ContinueHidden.read(settings.prefs)) }
+    var hidden by remember(settings, profile) { mutableStateOf(ContinueHidden.read(settings.prefs, profile)) }
     val data = rememberHomeData(settings, lists, shows, lang, streams, hidden)
     val focus = remember(data != null) { HomeFocus(data?.resume, memory) }
     val railFocus = remember { mutableMapOf<String, FocusRequester>() }
@@ -116,7 +116,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
                 shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
                 lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
                 data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover,
-                    onHide = { s, e -> hidden = ContinueHidden.hide(settings.prefs, s, e) }, onUnhide = { hidden = ContinueHidden.unhide(settings.prefs, it.id) }) { contentFocused || railFocused }
+                    onHide = { s, e -> hidden = ContinueHidden.hide(settings.prefs, profile, s, e) }, onUnhide = { hidden = ContinueHidden.unhide(settings.prefs, profile, it.id) }) { contentFocused || railFocused }
             }
         }
         RailBackdrop()

@@ -102,7 +102,7 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
 private fun MarkMenu(ep: Episode, count: Int, onClose: () -> Unit, onMark: (whole: Boolean, watched: Boolean) -> Unit) {
     val focus = remember { FocusRequester() }
     val season = ep.season?.let { tr("Season %d", it) } ?: tr("All episodes")
-    Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(Color(0xCC000000)).swallowHeldOk().onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
         Column(Modifier.width(560.dp).arcadePanel().padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Title(ep.title, fontSize = 24.sp)

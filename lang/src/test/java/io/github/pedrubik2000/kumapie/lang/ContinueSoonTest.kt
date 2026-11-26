@@ -35,13 +35,20 @@ class ContinueSoonTest {
     }
 
     @Test fun anEpisodeBeforeTheNextToAirIsPlayable() {
-        assertEquals(null, ContinueHidden.airsAt(mine("1", 4, now + 60), card("1", 3).second, now))
-        assertEquals(now + 60, ContinueHidden.airsAt(mine("1", 4, now + 60), card("1", 4).second, now))
+        assertEquals(null, airs(mine("1", 4, now + 60), card("1", 3)))
+        assertEquals(now + 60, airs(mine("1", 4, now + 60), card("1", 4)))
+    }
+
+    private fun airs(m: Mine?, c: Pair<Show, Episode>) = ContinueHidden.airsAt(m, c.first, c.second, now)
+
+    @Test fun aFileOnTheServerHasAlwaysAired() {
+        val file = card("1", 4).let { (s, e) -> s.copy(kind = "anime") to e }
+        assertEquals(null, airs(mine("1", 4, now + 60), file))
     }
 
     @Test fun noAiringInfoKeepsToday() {
-        assertEquals(null, ContinueHidden.airsAt(mine("1", 0, 0), card("1", 4).second, now))
-        assertEquals(null, ContinueHidden.airsAt(null, card("1", 4).second, now))
+        assertEquals(null, airs(mine("1", 0, 0), card("1", 4)))
+        assertEquals(null, airs(null, card("1", 4)))
     }
 
     @Test fun theAiringTimeSaysTheDayWithinAWeekAndTheDateAfter() {

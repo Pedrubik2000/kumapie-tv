@@ -63,5 +63,13 @@ object Playable {
     /** What [name] needs that [has] lacks, for the file list ("HEVC 10 bit"); empty = plays here, as far as the name says. */
     fun missing(name: String, has: Set<String> = device): List<String> = (needs(name) - has).map { LABELS.getValue(it) }
 
+    val narrow: Boolean by lazy { android.os.Build.SUPPORTED_64_BIT_ABIS?.isEmpty() == true }
+
+    fun weight(name: String, narrow: Boolean = Playable.narrow): Int {
+        if (!narrow) return 0
+        val n = name.lowercase()
+        return (if (HEVC.containsMatchIn(n) || AV1.containsMatchIn(n)) 1 else 0) + (if (UHD.containsMatchIn(n)) 2 else 0) + (if (TEN_BIT.containsMatchIn(n)) 1 else 0)
+    }
+
     private val LABELS = mapOf("hevc10" to "HEVC 10 bit", "av1" to "AV1", "avc10" to "H.264 10 bit", "4k" to "4K")
 }

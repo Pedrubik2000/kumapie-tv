@@ -80,7 +80,7 @@ class TitlePage(
         files = null
         val (id, _) = picking ?: return
         runCatching { d.discoverStreams(title.type, id).objects() }
-            .onSuccess { l -> files = l.sortedBy { missing(it).isNotEmpty() } }
+            .onSuccess { l -> files = l.sortedWith(compareBy({ missing(it).isNotEmpty() }, { Playable.weight(it.optString("label") + " " + it.optString("about") + " " + it.optString("file")) })) }
             .onFailure { error = it.message ?: it.toString() }
     }
 

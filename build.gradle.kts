@@ -189,13 +189,20 @@ tasks.register("slopCheck") {
 // TV 22.0 MB (arm + arm64, was 18.4 with libtorrent4j), phone 86.0 MB (arm64, was 84.8). Raise a limit only on purpose,
 // with the reason in the commit.
 val apkBudgetMb = mapOf("app" to 23.0, "mobile" to 87.0)
+// A release APK without the torrent sidecar (gitignored, made by tools/torrsrv/build.sh) fails too.
+val sidecarAbis = mapOf("app" to listOf("arm64-v8a", "armeabi-v7a"), "mobile" to listOf("arm64-v8a"))
 subprojects {
-    if (rootProject.hasProperty("debuggable") || rootProject.hasProperty("x86")) return@subprojects // an emulator or heap-dump build (app/build.gradle.kts), never shipped
     val budget = apkBudgetMb[name] ?: return@subprojects
+    val abis = sidecarAbis.getValue(name)
+    val sized = !rootProject.hasProperty("debuggable") // a heap-dump build (app/build.gradle.kts), never shipped
     val apks = layout.buildDirectory.dir("outputs/apk/release")
     tasks.matching { it.name == "assembleRelease" }.configureEach {
         doLast {
             apks.get().asFile.listFiles { f -> f.extension == "apk" }.orEmpty().forEach { apk ->
+                val libs = java.util.zip.ZipFile(apk).use { z -> z.entries().asSequence().map { it.name }.toSet() }
+                val missing = abis.filter { "lib/$it/libtorrsrv.so" !in libs }
+                check(missing.isEmpty()) { "${apk.name} has no torrent sidecar for $missing: run tools/torrsrv/build.sh first" }
+                if (!sized) return@forEach
                 val mb = apk.length() / 1e6
                 check(mb <= budget) { "${apk.name} is %.1f MB, over its %.1f MB budget (build.gradle.kts, apkBudgetMb)".format(mb, budget) }
                 println("APK size: ${apk.name} %.1f MB of %.1f MB".format(mb, budget))

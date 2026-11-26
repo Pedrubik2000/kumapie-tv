@@ -68,14 +68,18 @@ android {
     // The TV focus tests (src/test) run the screens in Robolectric: they need the app's resources.
     testOptions.unitTests.isIncludeAndroidResources = true
 
-    // The torrent sidecar is built for the emulators too (tools/torrsrv/build.sh): -Px86 keeps it in a release build.
-    packaging { jniLibs { useLegacyPackaging = true; if (!project.hasProperty("x86")) excludes += listOf("lib/x86/libtorrsrv.so", "lib/x86_64/libtorrsrv.so") } }
+    packaging { jniLibs { useLegacyPackaging = true } }
 
     // No analytics/metadata blobs in the APK.
     dependenciesInfo {
         includeInApk = false
         includeInBundle = false
     }
+}
+
+// The torrent sidecar is built for the emulators too (tools/torrsrv/build.sh): only debug builds keep those.
+androidComponents {
+    onVariants(selector().withBuildType("release")) { it.packaging.jniLibs.excludes.addAll("lib/x86/libtorrsrv.so", "lib/x86_64/libtorrsrv.so") }
 }
 
 dependencies {

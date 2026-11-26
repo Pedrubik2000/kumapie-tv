@@ -2,7 +2,8 @@
 set -e
 cd "$(dirname "$0")"
 export PATH=$HOME/gotool/go/bin:$PATH
-ndk=$(ls -d $HOME/Android/Sdk/ndk/* | tail -1)/toolchains/llvm/prebuilt/linux-x86_64/bin
+ndkroot=${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$(ls -d $HOME/Android/Sdk/ndk/* | tail -1)}}
+ndk=$ndkroot/toolchains/llvm/prebuilt/linux-x86_64/bin
 build() {
   mkdir -p ../../core/src/$1/jniLibs/$2
   CGO_ENABLED=1 GOOS=android GOARCH=$3 GOARM=7 CC=$ndk/$4 CXX=$ndk/$4++ \

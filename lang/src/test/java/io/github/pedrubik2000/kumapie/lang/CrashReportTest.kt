@@ -42,6 +42,17 @@ class CrashReportTest {
         assertFalse("SECRET1" in r.summary)
     }
 
+    @Test fun escapedJsonAndCookiesAreScrubbed() {
+        val s = CrashReports.scrub("""body={\"token\":\"ESC1\",\"session\":\"ESC2\"} Cookie: ESC3 auth=ESC4 sessionId=ESC5""")
+        listOf("ESC1", "ESC2", "ESC3", "ESC4", "ESC5").forEach { assertFalse(it, it in s) }
+    }
+
+    @Test fun userinfoInAUrlIsDropped() {
+        val s = CrashReports.scrub("GET https://user:p4ss@host.example:8443/a/b and ftp://tok3n@files.example/x")
+        listOf("user", "p4ss", "tok3n", "/a/b").forEach { assertFalse(it, it in s) }
+        assertTrue("https://host.example:8443/…" in s && "ftp://files.example/…" in s)
+    }
+
     @Test fun everyKeyShapeIsScrubbed() {
         val s = CrashReports.scrub("""{"access_token":"AAA1","jimaku_key":"BBB2"} rd_token=CCC3 accessToken: DDD4 api-key=EEE5 PASSWORD=FFF6 client_secret = GGG7 Authorization: Bearer HHH8""")
         listOf("AAA1", "BBB2", "CCC3", "DDD4", "EEE5", "FFF6", "GGG7", "HHH8").forEach { assertFalse(it, it in s) }

@@ -10,6 +10,8 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.util.concurrent.atomic.AtomicBoolean
 
+private const val TOMB_MAX = 1_000_000
+
 object CrashCollector {
     private val installed = AtomicBoolean(false)
     private const val LAST = "crash_offered_until"
@@ -55,8 +57,10 @@ object CrashCollector {
         val pick = CrashReports.newest(all, Settings(ctx).prefs.getLong(LAST, 0), now) ?: return null
         val info = infos.firstOrNull { it.timestamp == pick.time && kindOf(it.reason) == pick.kind }
         val own = saved?.takeIf { pick.kind == "java" && kotlin.math.abs(it.first - pick.time) < SAME_MS }?.second
-        val raw = own ?: info?.let { runCatching { CrashReports.readable(it.traceInputStream?.use(::readCapped) ?: ByteArray(0)) }.getOrNull() }.orEmpty()
-        return CrashReports.build(pick.kind, pick.time, info?.description.orEmpty(), raw)
+        val note = info?.description.orEmpty()
+        if (own != null) return CrashReports.build(pick.kind, pick.time, note, own)
+        val bytes = info?.let { runCatching { it.traceInputStream?.use { s -> readCapped(s, if (pick.kind == "native") TOMB_MAX else 200_000) } }.getOrNull() }
+        return CrashReports.fromBytes(pick.kind, pick.time, note, bytes ?: ByteArray(0))
     }
 
     fun mark(context: Context) {

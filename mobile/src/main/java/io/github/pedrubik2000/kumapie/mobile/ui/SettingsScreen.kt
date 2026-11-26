@@ -459,6 +459,7 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
     }
     KeyField(key, { key = it; library.settings.sonioxKey = it }, tr("Soniox API key"), KeyService.SONIOX)
     KeyField(rd, { rd = it; library.settings.rdToken = it }, tr("Real-Debrid token (real-debrid.com/apitoken)"), KeyService.REAL_DEBRID)
+    TorrentsSwitch(library.settings)
     if ("ja" in learning) KeyField(jimaku, { jimaku = it; library.settings.jimakuKey = it }, tr("Jimaku API key (jimaku.cc > Account), Japanese subtitles"), KeyService.JIMAKU)
     if (library.settings.server.isEmpty()) AddonsField(library.settings)
     // Japanese YouTube without Japanese subtitles: transcribed on the device.

@@ -86,7 +86,7 @@ fun nextQuery(query: Map<String, String>, files: List<JSONObject>, has: Set<Stri
     val plays = files.filter { Playable.missing(it.optString("label") + " " + it.optString("about") + " " + it.optString("file"), has).isEmpty() }
     val group = Regex("""^\[[^\]]+\]""").find(query["file"].orEmpty())?.value
     fun weight(f: JSONObject) = Playable.weight(f.optString("label") + " " + f.optString("about") + " " + f.optString("file"), narrow)
-    val light = plays.sortedBy(::weight)
+    val light = plays.sortedWith(compareBy<JSONObject>({ weight(it) }, { f -> if (f.optBoolean("torrent") && f.optInt("seeders") == 0) 1 else 0 }))
     val chosen = Playable.weight(query["file"].orEmpty(), narrow)
     val f = light.firstOrNull { group != null && it.optString("file").startsWith(group, ignoreCase = true) && weight(it) <= chosen } ?: light.firstOrNull() ?: files.firstOrNull() ?: return null
     return nextQuery(query, next)?.plus(listOf("url" to f.optString("url"), "file" to f.optString("file")))

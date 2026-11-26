@@ -26,7 +26,9 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
  * Dandadan 10 filled 86 MB of it in seconds and, with Jiten's ~60 MB lexicon, the Chromecast's 256 MB heap ran out
  * (crash, 2026-11-19; heap dump in work\kumapie\oom).
  */
-fun videoPlayer(context: Context, lang: String?): ExoPlayer = ExoPlayer.Builder(context, object : DefaultRenderersFactory(context) {
+fun videoPlayer(context: Context, lang: String?): ExoPlayer {
+    val owner = Any()
+    return ExoPlayer.Builder(context, object : DefaultRenderersFactory(context) {
     override fun buildAudioRenderers(
         context: Context, extensionRendererMode: Int, mediaCodecSelector: MediaCodecSelector, enableDecoderFallback: Boolean,
         audioSink: AudioSink, eventHandler: Handler, eventListener: AudioRendererEventListener, out: ArrayList<Renderer>,
@@ -37,12 +39,16 @@ fun videoPlayer(context: Context, lang: String?): ExoPlayer = ExoPlayer.Builder(
                     .let { if (format.sampleMimeType == MimeTypes.AUDIO_FLAC) maxOf(it, 1 shl 20) else it }
         }
     }
-}.setEnableDecoderFallback(true)).setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder()
+}.setEnableDecoderFallback(true)).setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+    io.github.pedrubik2000.kumapie.torrent.torrentAware(context, owner))).setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder()
     .setTargetBufferBytes(BUFFER_BYTES).setPrioritizeTimeOverSizeThresholds(false).build()
 ).build().apply {
-    if (lang != null) {
-        trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(lang).build()
-        addListener(SpokenAudio(this, lang, context))
+        io.github.pedrubik2000.kumapie.torrent.TorrentEngine.tie(this, owner)
+        if (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) addAnalyticsListener(androidx.media3.exoplayer.util.EventLogger())
+        if (lang != null) {
+            trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage(lang).build()
+            addListener(SpokenAudio(this, lang, context))
+        }
     }
 }
 

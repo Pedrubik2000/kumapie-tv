@@ -75,6 +75,7 @@ sealed interface Screen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        io.github.pedrubik2000.kumapie.torrent.TorrentEngine.sweep(this)
         // kumapie-vX.Y.Z-mobile.apk (sorts after kumapie-tv-*, see release.yml)
         io.github.pedrubik2000.kumapie.lang.CrashCollector.install(this)
         io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-v")

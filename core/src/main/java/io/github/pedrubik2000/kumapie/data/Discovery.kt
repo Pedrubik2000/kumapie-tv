@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import io.github.pedrubik2000.kumapie.i18n.tr
+import io.github.pedrubik2000.kumapie.torrent.TorrentRef
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -106,11 +107,14 @@ class Addons(urls: List<String>, private val store: SharedPreferences, val sync:
     override suspend fun discoverStreams(type: String, id: String): JSONArray {
         val out = JSONArray()
         var torrents = 0
+        val ours = ArrayList<JSONObject>()
+        val streaming = store.getBoolean(Settings.TORRENTS, false)
         for ((b, m) in manifests()) {
             if (!gives(m, "stream", type, id)) continue
             val streams = runCatching { JSONObject(get("$b/stream/$type/${enc(id)}.json", 90_000)).optJSONArray("streams") }.getOrNull()
-            for (s in streams.objects()) files(s)?.let(out::put) ?: torrents++
+            for (s in streams.objects()) files(s)?.let(out::put) ?: (if (streaming) torrentFile(s)?.let(ours::add) else null) ?: torrents++
         }
+        ours.forEach(out::put)
         if (out.length() == 0 && torrents > 0) error(tr("Your addon gives torrents, not links: set it up with your debrid key and paste its new address in Settings"))
         return out
     }
@@ -250,6 +254,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences, val sync:
         const val ANILIST = "anilist_user"
         const val KITSU = "https://anime-kitsu.strem.fun/manifest.json"
         const val OPENSUBTITLES = "https://opensubtitles-v3.strem.io/manifest.json"
+        const val TORRENTIO_PLAIN = "https://torrentio.strem.fun/manifest.json"
         fun torrentio(rdToken: String) = "https://torrentio.strem.fun/realdebrid=${rdToken.trim()}/manifest.json"
         fun fitEnglish(files: List<List<Jimaku.Line>>, japanese: List<Double>, duration: Double? = null): List<Jimaku.Line> = files.filter { Jimaku.fitsLength(it, duration) }.mapNotNull { lines ->
             if (lines.size * 2 < japanese.size) return@mapNotNull null
@@ -257,9 +262,10 @@ class Addons(urls: List<String>, private val store: SharedPreferences, val sync:
             lines.mapIndexed { i, l -> Jimaku.Line(at[i], at[i] + l.end - l.start, l.text) }
         }.maxByOrNull { ls -> ls.count { l -> japanese.any { kotlin.math.abs(it - l.start) <= 0.3 } } }.orEmpty()
 
-        fun sources(current: List<String>, kitsu: Boolean, english: Boolean, rd: String): List<String> {
+        fun sources(current: List<String>, kitsu: Boolean, english: Boolean, rd: String, torrents: Boolean = false): List<String> {
             val kept = current.filterNot { it == KITSU || it == OPENSUBTITLES || (rd.isNotBlank() && "torrentio.strem.fun" in it) }
-            return (kept + listOfNotNull(KITSU.takeIf { kitsu }, OPENSUBTITLES.takeIf { english }, rd.takeIf { it.isNotBlank() }?.let(::torrentio))).distinct()
+            val plain = TORRENTIO_PLAIN.takeIf { torrents && rd.isBlank() && current.none { "torrentio.strem.fun" in it } }
+            return (kept + listOfNotNull(KITSU.takeIf { kitsu }, OPENSUBTITLES.takeIf { english }, rd.takeIf { it.isNotBlank() }?.let(::torrentio), plain)).distinct()
         }
         private const val MAX_ROWS = 8
         private const val MAX_ENGLISH = 5
@@ -326,6 +332,15 @@ class Addons(urls: List<String>, private val store: SharedPreferences, val sync:
                             .put("thumb", v.optString("thumbnail")).put("ready", false).put("watched", v.optString("id") in seen))
                     }
                 })
+        }
+
+        fun torrentFile(s: JSONObject): JSONObject? {
+            val ref = TorrentRef.of(s) ?: return null
+            val name = s.optString("name").replace(Regex("""\s*\n\s*"""), " ").trim()
+            val about = s.optString("title", s.optString("description")).trim()
+            val file = ref.name.ifEmpty { about.lineSequence().firstOrNull().orEmpty() }
+            return JSONObject().put("label", name.ifEmpty { file }).put("about", about).put("short", name).put("url", ref.copy(name = file).uri())
+                .put("file", file).put("torrent", true).put("seeders", TorrentRef.seeders(about))
         }
 
         fun files(s: JSONObject): JSONObject? {

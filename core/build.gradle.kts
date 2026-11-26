@@ -31,4 +31,5 @@ dependencies {
     api("androidx.compose.ui:ui-text-google-fonts") // Japanese subtitle fonts (JapaneseFonts.kt)
     api("androidx.media3:media3-common:1.11.1")
     implementation("androidx.media3:media3-exoplayer:1.11.1") // player/Players.kt: the apps already have it
+    implementation("org.libtorrent4j:libtorrent4j:2.1.0-39") // torrent/: streams without Real-Debrid
 }

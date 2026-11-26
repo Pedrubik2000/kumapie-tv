@@ -382,7 +382,7 @@ class Miner(
     @OptIn(UnstableApi::class)
     suspend fun audioClip(source: String, startMs: Long, endMs: Long, out: File, lang: String? = null, bitrate: Int = 32_000) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
-            val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
+            val uri = io.github.pedrubik2000.kumapie.torrent.TorrentEngine.local(source).let { if (it.startsWith("/")) Uri.fromFile(File(it)) else Uri.parse(it) }
             val item = MediaItem.Builder().setUri(uri).setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build(),
             ).build()
@@ -424,10 +424,10 @@ class Miner(
         val out = File(dir, "shot.webp").apply { delete() }
         android.media.MediaMetadataRetriever().use { r ->
             // A streamed episode: setDataSource(context, uri) takes only file and content URIs (no frame, no Image).
-            when {
-                source.startsWith("/") -> r.setDataSource(source)
-                source.startsWith("http") -> r.setDataSource(source, HashMap())
-                else -> r.setDataSource(context, Uri.parse(source))
+            val local = io.github.pedrubik2000.kumapie.torrent.TorrentEngine.local(source); when {
+                local.startsWith("/") -> r.setDataSource(local)
+                local.startsWith("http") -> r.setDataSource(local, HashMap())
+                else -> r.setDataSource(context, Uri.parse(local))
             }
             val sync = android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC
             val frame = (if (android.os.Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(ms * 1000, sync, 854, 480)
@@ -447,7 +447,7 @@ class Miner(
     @OptIn(UnstableApi::class)
     suspend fun clip(source: String, startMs: Long, endMs: Long, out: File, lang: String? = null) = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
-            val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
+            val uri = io.github.pedrubik2000.kumapie.torrent.TorrentEngine.local(source).let { if (it.startsWith("/")) Uri.fromFile(File(it)) else Uri.parse(it) }
             val item = MediaItem.Builder().setUri(uri).setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build(),
             ).build()

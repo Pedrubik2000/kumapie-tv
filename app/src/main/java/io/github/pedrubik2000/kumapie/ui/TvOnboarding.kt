@@ -230,7 +230,7 @@ private fun VideosStep(settings: Settings, nav: StepNav, onContinue: () -> Unit)
     var said by remember { mutableStateOf("") }
     var failed by remember { mutableIntStateOf(0) }
     val checking = tr("Checking with %s…", "Real-Debrid")
-    TvStepHeader(caption(nav, Onboarding.VIDEOS), tr("Videos & subtitles"), tr("Real-Debrid (paid) streams the files Torrentio finds; Jimaku brings the Japanese subtitles."))
+    TvStepHeader(caption(nav, Onboarding.VIDEOS), tr("Videos & subtitles"), tr("Real-Debrid (paid) or torrents on this device stream the files Torrentio finds; Jimaku brings the Japanese subtitles."))
     PhonePage(settings, SetupPart.KEYS, onSaved = { if (settings.jimakuKey.isNotBlank()) needKey = false }, heading = false)
     if (needKey) Text(tr("Add your Jimaku key from your phone first: without it, streams get no Japanese lines."), color = Colors.accent, fontSize = 18.sp)
     if (said.isNotEmpty()) Text(said, color = Colors.accent, fontSize = 18.sp)
@@ -289,7 +289,7 @@ internal fun PhonePage(settings: Settings, part: SetupPart = SetupPart.ALL, onSa
             @Composable fun row(ok: Boolean, what: String) = Text((if (ok) "✓ " else "· ") + what, color = if (ok) Colors.text else Colors.dim, fontSize = 16.sp)
             if (!aniList) {
                 row(settings.jimakuKey.isNotEmpty(), tr("Japanese subtitles (Jimaku)"))
-                row(settings.addons.any { "torrentio.strem.fun" in it } && io.github.pedrubik2000.kumapie.data.Startup.rdKey(settings.rdToken, settings.addons).isNotEmpty(), tr("Videos (Torrentio with Real-Debrid)"))
+                row(settings.addons.any { "torrentio.strem.fun" in it } && (settings.torrents || io.github.pedrubik2000.kumapie.data.Startup.rdKey(settings.rdToken, settings.addons).isNotEmpty()), tr("Videos (Torrentio)"))
                 row(Addons.KITSU in settings.addons, "Kitsu")
                 row(Addons.OPENSUBTITLES in settings.addons, tr("English subtitles (OpenSubtitles)"))
             }

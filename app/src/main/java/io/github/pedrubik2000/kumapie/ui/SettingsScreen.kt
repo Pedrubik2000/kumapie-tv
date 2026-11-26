@@ -153,6 +153,12 @@ private fun AloneSources(settings: Settings) {
         TvTextField(adding, { adding = it }, onDone = ::add, modifier = Modifier.width(640.dp))
         Button(onClick = ::add) { Text(tr("Add")) }
     }
+    Heading(tr("Torrents"), Modifier.padding(top = 24.dp))
+    Text(tr("Downloads the video on this device and shares pieces with others while it plays. Your IP address is visible to them: a VPN is wise."), color = Colors.dim)
+    var torrents by remember(fromPhone) { mutableStateOf(settings.torrents) }
+    Button(onClick = { torrents = !torrents; settings.streamTorrents(torrents); addons = settings.addons }) {
+        Text(tr("Stream torrents without Real-Debrid: %s", if (torrents) tr("on") else tr("off")))
+    }
     Heading(tr("Jimaku"), Modifier.padding(top = 24.dp))
     Text(tr("Japanese subtitles for a stream that has none of its own: your free API key from jimaku.cc."), color = Colors.dim)
     var key by remember(fromPhone) { mutableStateOf(settings.jimakuKey) }

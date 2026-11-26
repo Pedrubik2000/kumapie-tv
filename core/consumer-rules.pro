@@ -1,1 +1,2 @@
-# Nothing to keep: JSON is parsed by hand (org.json).
+# libtorrent4j: its native code calls these classes by name.
+-keep class org.libtorrent4j.** { *; }

@@ -49,8 +49,8 @@ internal val esOnboarding: Map<String, String> = mapOf(
     "Home, Library and Discover come from your AniList anime list." to "Inicio, Biblioteca y Descubrir salen de tu lista de anime de AniList.",
     "%s · copied from %s" to "%1\$s · copiado de %2\$s",
     "Videos & subtitles" to "Videos y subtítulos",
-    "Real-Debrid (paid) streams the files Torrentio finds; Jimaku brings the Japanese subtitles." to
-        "Real-Debrid (de pago) reproduce los archivos que encuentra Torrentio; Jimaku trae los subtítulos en japonés.",
+    "Real-Debrid (paid) or torrents on this device stream the files Torrentio finds; Jimaku brings the Japanese subtitles." to
+        "Real-Debrid (de pago) o los torrents en este dispositivo reproducen los archivos que encuentra Torrentio; Jimaku trae los subtítulos en japonés.",
     "Received from your phone" to "Recibido desde tu teléfono",
     "Waiting for your phone" to "Esperando tu teléfono",
     "Paste both keys on your phone" to "Pega las dos claves en tu teléfono",

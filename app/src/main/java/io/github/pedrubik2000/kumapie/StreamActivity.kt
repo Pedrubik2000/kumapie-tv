@@ -282,7 +282,7 @@ class StreamActivity : ComponentActivity() {
                 Text(it, color = Color.White, fontSize = 30.sp, lineHeight = 40.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).background(Color(0x99000000)).padding(16.dp, 8.dp))
             }
-            top?.let {
+            io.github.pedrubik2000.kumapie.torrent.torrentMessage(top)?.let {
                 Text(it, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)
                     .background(Color(0x99000000)).padding(12.dp, 6.dp))
             }

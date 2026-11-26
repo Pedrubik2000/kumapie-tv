@@ -338,7 +338,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
             trackSelectionParameters = trackSelectionParameters.buildUpon().setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true).build()
         }
     }
-    DisposableEffect(Unit) { onDispose { player.release() } } // after ScenePlayer's own dispose (ownsPlayer = false)
+    DisposableEffect(Unit) { onDispose { player.release(); io.github.pedrubik2000.kumapie.torrent.TorrentEngine.release(player) } } // after ScenePlayer's own dispose (ownsPlayer = false)
     // An addon's link (no PC, kumapie for other people): no polling; Jimaku is asked on the phone with the user's key.
     val alone = remember { StreamStart.of(query, library.settings.prefs) as? StreamStart.Alone }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -438,7 +438,7 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
                 player.duration.takeIf { it > 0 }?.let { Timeline(position, it / 1000.0, { s -> player.seekTo((s * 1000).toLong()) }, Modifier.align(Alignment.BottomCenter)) }
             }
             LiveLine(library, live, Modifier.align(Alignment.BottomCenter))
-            Text(error ?: tr("Words coming: %1\$s", step), color = Color.White, fontSize = 13.sp,
+            Text(io.github.pedrubik2000.kumapie.torrent.torrentMessage(error) ?: tr("Words coming: %1\$s", step), color = Color.White, fontSize = 13.sp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).background(Color(0x99000000), RoundedCornerShape(18.dp)).border(1.dp, Glass.line, RoundedCornerShape(18.dp)).padding(14.dp, 6.dp))
         }
     }

@@ -100,6 +100,7 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
     private suspend fun save(f: Map<String, String>): Throwable? {
         if (part != SetupPart.ANILIST) {
             f["jimaku"]?.takeIf { it.isNotEmpty() }?.let { settings.jimakuKey = it }
+            settings.streamTorrents(f["torrents"] == "on")
             settings.setSources(kitsu = f["kitsu"] == "on", english = f["english"] == "on", rd = f["rd"].orEmpty())
         }
         f["anilist"]?.let { settings.anilist = it }
@@ -117,9 +118,10 @@ class SetupPage(private val settings: Settings, private val context: Context, pr
             <a href="https://jimaku.cc/login" target="_blank">jimaku.cc</a></p>
             <input name="jimaku" placeholder="${tr("Jimaku API key")}" autocomplete="off">
             <h2>${tr("What to watch")}${set(settings.addons.any { "torrentio.strem.fun" in it })}</h2>
-            <p>${tr("Videos: Torrentio finds an episode's files and Real-Debrid streams them (a paid account). Copy your token from real-debrid.com/apitoken.")}
+            <p>${tr("Videos: Torrentio finds an episode's files. Real-Debrid (a paid account) streams them: copy your token from real-debrid.com/apitoken, or leave it empty and tick the box below.")}
             <a href="https://real-debrid.com/apitoken" target="_blank">real-debrid.com/apitoken</a></p>
             <input name="rd" placeholder="${tr("Real-Debrid token")}" autocomplete="off">
+            <label><input type="checkbox" name="torrents"${if (settings.torrents) " checked" else ""}> ${tr("Stream torrents without Real-Debrid: it downloads the video on this device and shares pieces with others while it plays. Your IP address is visible to them: a VPN is wise.")}</label>
             <label><input type="checkbox" name="kitsu"${tick(Addons.KITSU)}> ${tr("Kitsu: anime titles, posters and episodes to pick from")}</label>
             <label><input type="checkbox" name="english"${tick(Addons.OPENSUBTITLES)}> ${tr("English under the lines: OpenSubtitles (free, no account)")}</label>"""
         val username = if (part != SetupPart.ALL) "" else """

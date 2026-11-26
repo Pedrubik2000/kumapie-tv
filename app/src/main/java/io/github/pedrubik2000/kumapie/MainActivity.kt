@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        io.github.pedrubik2000.kumapie.torrent.TorrentEngine.sweep(this)
         if (android.os.Build.VERSION.SDK_INT >= 31) splashScreen.setOnExitAnimationListener { it.remove() }
         io.github.pedrubik2000.kumapie.data.Backdrops.lastHero(this)?.let { image ->
             val m = resources.displayMetrics

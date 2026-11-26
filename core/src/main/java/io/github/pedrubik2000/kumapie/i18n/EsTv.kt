@@ -64,8 +64,8 @@ internal val esTv: Map<String, String> = mapOf(
     "Open jimaku.cc" to "Abrir jimaku.cc",
     "Jimaku API key" to "Clave API de Jimaku",
     "What to watch" to "Qué ver",
-    "Videos: Torrentio finds an episode's files and Real-Debrid streams them (a paid account). Copy your token from real-debrid.com/apitoken." to
-        "Videos: Torrentio encuentra los archivos de un episodio y Real-Debrid los transmite (una cuenta de pago). Copia tu token desde real-debrid.com/apitoken.",
+    "Videos: Torrentio finds an episode's files. Real-Debrid (a paid account) streams them: copy your token from real-debrid.com/apitoken, or leave it empty and tick the box below." to
+        "Videos: Torrentio encuentra los archivos de un episodio. Real-Debrid (una cuenta de pago) los transmite: copia tu token desde real-debrid.com/apitoken, o déjalo vacío y marca la casilla de abajo.",
     "Open real-debrid.com" to "Abrir real-debrid.com",
     "Real-Debrid token" to "Token de Real-Debrid",
     "Kitsu: anime titles, posters and episodes to pick from" to "Kitsu: títulos, pósters y episodios de anime para elegir",
@@ -116,7 +116,7 @@ internal val esTv: Map<String, String> = mapOf(
     "Add your Jimaku key from your phone first: without it, streams get no Japanese lines." to "Primero agrega tu clave de Jimaku desde el teléfono: sin ella, los videos no tienen las líneas en japonés.",
     "Needed: without it, streams get no Japanese lines." to "Necesaria: sin ella, los videos no tienen las líneas en japonés.",
     "This episode's video isn't on this device any more, and there's no PC to play it from." to "El video de este episodio ya no está en este dispositivo y no hay una PC desde donde reproducirlo.",
-    "Videos (Torrentio with Real-Debrid)" to "Videos (Torrentio con Real-Debrid)",
+    "Videos (Torrentio)" to "Videos (Torrentio)",
     "Saved" to "Guardado",
     "Ideas and bugs" to "Ideas y errores",
     "Report a bug or share an idea" to "Reportar un error o compartir una idea",

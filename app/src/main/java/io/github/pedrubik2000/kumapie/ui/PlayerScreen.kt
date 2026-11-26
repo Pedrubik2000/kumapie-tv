@@ -106,7 +106,7 @@ fun rememberPlayer(video: String, resume: Double?, lang: String? = null): ExoPla
             prepare()
         }
     }
-    DisposableEffect(Unit) { io.github.pedrubik2000.kumapie.data.Playing.on = true; onDispose { io.github.pedrubik2000.kumapie.data.Playing.on = false; player.release() } }
+    DisposableEffect(Unit) { io.github.pedrubik2000.kumapie.data.Playing.on = true; onDispose { io.github.pedrubik2000.kumapie.data.Playing.on = false; player.release(); io.github.pedrubik2000.kumapie.torrent.TorrentEngine.release(player) } }
     return player
 }
 
@@ -350,7 +350,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
         if ((settings.showHelp || rating.open) && !options && !help)
             PlayerHints(ctl, picker, rating, watchBindings, pickerBindings, Modifier.align(Alignment.BottomStart))
         if (help) HelpOverlay(settings, ctl.lang)
-        if (!picker.isOpen && !options && !help) (playError?.let { tr("This TV can't play this video (%s).", it) } ?: if (reconnecting) tr("Reconnecting…") else null)?.let {
+        if (!picker.isOpen && !options && !help) io.github.pedrubik2000.kumapie.torrent.torrentMessage(playError?.let { tr("This TV can't play this video (%s).", it) } ?: if (reconnecting) tr("Reconnecting…") else null)?.let {
             Text(it, color = Colors.text, fontSize = 24.sp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 90.dp).background(Colors.surface, RoundedCornerShape(8.dp)).padding(24.dp))
         }

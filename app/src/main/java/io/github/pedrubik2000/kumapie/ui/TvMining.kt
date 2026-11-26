@@ -7,7 +7,6 @@ import android.os.Build
 import android.view.PixelCopy
 import android.view.SurfaceView
 import android.util.Log
-import android.webkit.WebView
 import android.widget.Toast
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -50,7 +49,6 @@ internal object TvMining {
     @Volatile var unsupported: String? = null
     internal var installer: suspend (Lang, (String) -> Unit) -> List<String> = { lang, progress -> yomitan.installRecommended(lang, progress) }
     @Volatile var reading = false
-    @android.annotation.SuppressLint("StaticFieldLeak") var web: WebView? = null
 
     fun recording(context: Context, settings: Settings, surface: String, lang: String): String? {
         languages(context, settings)

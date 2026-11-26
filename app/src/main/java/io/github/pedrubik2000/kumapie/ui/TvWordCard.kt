@@ -1,11 +1,28 @@
 package io.github.pedrubik2000.kumapie.ui
 
-import android.net.Uri
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import io.github.pedrubik2000.kumapie.lang.GlossaryNodes
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,13 +44,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Lang
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.CardDefinition
-import io.github.pedrubik2000.kumapie.lang.GlossaryHtml
 import io.github.pedrubik2000.kumapie.lang.Headword
 import io.github.pedrubik2000.kumapie.lang.JapaneseLookup
 import io.github.pedrubik2000.kumapie.player.SceneController
@@ -41,7 +56,6 @@ import io.github.pedrubik2000.kumapie.player.WordPicker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayInputStream
 
 internal object TvReading {
     var at by mutableStateOf<Pair<Int, Int>?>(null)
@@ -70,7 +84,7 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
     val key = segment.word ?: return
     val word = ctl.words[key] ?: io.github.pedrubik2000.kumapie.data.Word("u", "")
     var hw by remember(picker.line, picker.seg) { mutableStateOf<Headword?>(null) }
-    var html by remember(picker.line, picker.seg) { mutableStateOf<String?>(null) }
+    var sections by remember(picker.line, picker.seg) { mutableStateOf<List<DictSection>?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     Row(Modifier.width(860.dp).height(height.dp)) {
         Column(Modifier.width(230.dp).fillMaxHeight().padding(end = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -92,9 +106,9 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
             Text(if (shown == "d") looked.trimStart(' ', '·') else state + looked, color = color, fontSize = 15.sp)
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(Colors.dim.copy(alpha = 0.2f)))
-        val message = status ?: when (html) { null -> tr("Looking it up…"); "" -> tr("Not in your %s dictionaries.", ctl.lang.displayName); else -> null }
+        val message = status ?: when { sections == null -> tr("Looking it up…"); sections!!.isEmpty() -> tr("Not in your %s dictionaries.", ctl.lang.displayName); else -> null }
         if (message != null) Text(message, color = Colors.dim, fontSize = 17.sp, modifier = Modifier.padding(start = 20.dp, top = 4.dp))
-        else html?.let { DictionaryWeb(it, Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp)) }
+        else sections?.let { DictionaryNative(it, Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp)) }
     }
     LaunchedEffect(picker.line, picker.seg, TvReading.version) {
         TvMining.languages(context, settings)
@@ -109,16 +123,11 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
         val found = withContext(Dispatchers.IO) { io.github.pedrubik2000.kumapie.lang.WordCard.japaneseHeadwords(TvMining.languages.japanese, cue.text, offset, segment.text, lemma ?: key, word?.reading.orEmpty()).firstOrNull() }
         hw = found
         TvReading.show(found, picker.line to picker.seg)
-        html = if (found == null) "" else withContext(Dispatchers.IO) {
+        sections = if (found == null) emptyList() else withContext(Dispatchers.IO) {
             val byDict = LinkedHashMap<String, MutableList<String>>()
             for (t in found.terms) for (g in t.glossaries) byDict.getOrPut(g.dict) { ArrayList() }.let { if (g.raw !in it) it += g.raw }
-            val dicts = byDict.keys.sortedBy { CardDefinition.rank(it) ?: Int.MAX_VALUE }
-            val css = GlossaryHtml.styles(y.styles(Lang.JAPANESE).filterKeys { it in byDict })
-            val tabs = dicts.joinToString("") { "<span>${GlossaryHtml.esc(dictLabel(it))}</span>" }
-            "<style>$css</style><nav id=\"tabs\">$tabs</nav>" + dicts.joinToString("") { d ->
-                "<section data-dictionary=\"${GlossaryHtml.esc(d).replace("\"", "&quot;")}\"><h3>${GlossaryHtml.esc(dictLabel(d))}</h3>" +
-                    byDict.getValue(d).joinToString("<hr>") { GlossaryHtml.glossary(it, d) } + "</section>"
-            }
+            byDict.keys.sortedBy { CardDefinition.rank(it) ?: Int.MAX_VALUE }
+                .map { d -> DictSection(dictLabel(d), byDict.getValue(d).map(GlossaryNodes::build).filter { it.isNotEmpty() }) }
         }
     }
 }
@@ -149,74 +158,80 @@ private fun PitchReading(kana: String, downstep: Int?) {
     }
 }
 
+internal class DictSection(val title: String, val entries: List<List<GlossaryNodes.Block>>)
+
+/** The D-pad's scroll of the card: set while a card is on screen (PlayerScreen asks it before moving the picker). */
+private var dictionaryStep: ((Int) -> Boolean)? = null
+
+fun scrollTvDictionaries(dir: Int): Boolean = dictionaryStep?.invoke(dir) ?: false
+
+private val CardBg = Color(0xFF14171D)
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DictionaryWeb(html: String, modifier: Modifier) {
-    AndroidView(modifier = modifier,
-        factory = { ctx -> WebView(ctx).apply {
-            setBackgroundColor(0)
-            isFocusable = false
-            settings.javaScriptEnabled = true
-            webViewClient = object : WebViewClient() {
-                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                    val u = request.url
-                    if (u.scheme != "kumapie-media") return null
-                    val parts = u.encodedPath.orEmpty().removePrefix("/").split('/', limit = 2)
-                    if (parts.size < 2) return null
-                    val bytes = TvMining.yomitan.media(Lang.JAPANESE, Uri.decode(parts[0]), Uri.decode(parts[1])) ?: return null
-                    val type = if (parts[1].endsWith(".svg", true)) "image/svg+xml" else "image/*"
-                    return WebResourceResponse(type, null, ByteArrayInputStream(bytes))
+private fun DictionaryNative(sections: List<DictSection>, modifier: Modifier) {
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val tops = remember(sections) { IntArray(sections.size) }
+    var view by remember { mutableIntStateOf(0) }
+    val active by remember(sections) { derivedStateOf {
+        if (scroll.value >= scroll.maxValue - 2) sections.lastIndex
+        else tops.indexOfLast { it <= scroll.value + 4 }.coerceAtLeast(0)
+    } }
+    // ↓: the next dictionary's heading to the top when it is on screen, else a page; ↑ the same way back.
+    DisposableEffect(sections) {
+        val step: (Int) -> Boolean = step@{ d ->
+            if (!(if (d > 0) scroll.canScrollForward else scroll.canScrollBackward)) return@step false
+            val page = view * 0.85f
+            val y = scroll.value
+            val t = if (d > 0) tops.firstOrNull { it > y + 4 } else tops.lastOrNull { it < y - 4 }
+            val to = if (t != null && kotlin.math.abs(t - y) <= page) t else (y + d * page).toInt()
+            scope.launch { scroll.animateScrollTo(to.coerceAtLeast(0)) }
+            true
+        }
+        dictionaryStep = step
+        onDispose { if (dictionaryStep === step) dictionaryStep = null }
+    }
+    Box(modifier.onSizeChanged { view = it.height }) {
+        Column {
+            FlowRow(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                sections.forEachIndexed { i, s ->
+                    val on = i == active
+                    Text(s.title, color = if (on) Color.Black else Color(0xFFA8A8A8), fontSize = 13.sp,
+                        fontWeight = if (on) FontWeight.SemiBold else null,
+                        modifier = Modifier.background(if (on) Color.White else Color.White.copy(alpha = 0.12f), androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+                            .padding(horizontal = 12.dp, vertical = 2.dp))
                 }
             }
-            TvMining.web = this
-        } },
-        onRelease = { if (TvMining.web === it) TvMining.web = null },
-        update = { w ->
-            if (w.tag != html) { w.tag = html; w.loadDataWithBaseURL("https://kumapie.local/", PAGE.replace("<!--BODY-->", html), "text/html", "utf-8", null) }
-        })
+            Column(Modifier.weight(1f).verticalScroll(scroll)) {
+                sections.forEachIndexed { i, s ->
+                    Column(Modifier.fillMaxWidth().onGloballyPositioned { tops[i] = it.positionInParent().y.toInt() }
+                        .padding(top = 2.dp, bottom = if (i == sections.lastIndex) 40.dp else 14.dp)) {
+                        Text(s.title, color = Color(0xFF9CC9FF), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp))
+                        s.entries.forEachIndexed { k, blocks ->
+                            if (k > 0) Box(Modifier.padding(vertical = 8.dp).fillMaxWidth().height(1.dp).background(Color(0x33A9A4B8)))
+                            blocks.forEach { Text(annotated(it), color = Colors.text, fontSize = 19.sp, lineHeight = 30.sp, modifier = Modifier.padding(start = (it.indent * 22).dp)) }
+                        }
+                    }
+                    if (i < sections.lastIndex) Box(Modifier.padding(bottom = 12.dp).fillMaxWidth().height(1.dp).background(Color(0x26A9A4B8)))
+                }
+            }
+        }
+        if (scroll.canScrollForward) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(36.dp)
+            .background(Brush.verticalGradient(listOf(CardBg.copy(alpha = 0f), CardBg))))
+    }
 }
 
-fun scrollTvDictionaries(dir: Int): Boolean {
-    val w = TvMining.web ?: return false
-    if (!w.isAttachedToWindow || !w.canScrollVertically(dir)) return false
-    w.evaluateJavascript("step($dir)", null)
-    return true
+private fun annotated(b: GlossaryNodes.Block): AnnotatedString = buildAnnotatedString {
+    for (r in b.runs) {
+        val style = SpanStyle(
+            fontWeight = if (r.bold) FontWeight.Bold else null,
+            fontStyle = if (r.italic) FontStyle.Italic else null,
+            fontSize = (19f * (if (r.pill) minOf(r.size, 0.75f) else r.size)).sp,
+            color = when { r.link -> Color(0xFF8AB4F8); r.dim -> Color(0xFFA8A8A8); else -> Color.Unspecified },
+            background = if (r.pill) Color.White.copy(alpha = 0.12f) else Color.Unspecified,
+        )
+        withStyle(style) { append(if (r.pill) "\u00A0${r.text.trim()}\u00A0" else r.text) }
+        if (r.pill) append(' ')
+    }
 }
-
-private const val PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<style>
-body { margin: 0; background: transparent; color: #F2F0F7; font: 19px/1.6 sans-serif; }
-#tabs { position: sticky; top: 0; z-index: 1; background: #14171D; padding: 2px 4px 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-#tabs span { font-size: 13px; color: #A8A8A8; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); padding: 2px 12px; border-radius: 18px; }
-#tabs span.on { color: #000; font-weight: 600; background: #fff; border-color: #fff; }
-section { padding: 2px 0 14px; margin-bottom: 12px; border-bottom: 1px solid rgba(169,164,184,0.15); }
-section:last-of-type { border-bottom: 0; padding-bottom: 40px; }
-h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #9CC9FF; }
-ol, ul { margin: 2px 0; padding-left: 1.4em; }
-hr { border: 0; border-top: 1px dashed rgba(169,164,184,0.2); margin: 8px 0; }
-img { max-width: 100%; }
-a { color: #8ab4f8; text-decoration: none; }
-table { border-collapse: collapse; } td, th { border: 1px solid rgba(169,164,184,0.25); padding: 2px 6px; }
-#fade { position: fixed; left: 0; right: 0; bottom: 0; height: 36px; pointer-events: none;
-  background: linear-gradient(rgba(20,23,29,0), #14171D); transition: opacity .2s; }
-</style></head><body><!--BODY--><div id="fade"></div>
-<script>
-const secs = [...document.querySelectorAll('section')], tabs = [...document.querySelectorAll('#tabs span')];
-const bar = () => document.getElementById('tabs').offsetHeight;
-const atEnd = () => innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
-// The tab of the dictionary at the top of the view (the last one at the end); the fade only while more is below.
-function mark() {
-  let i = 0; secs.forEach((s, k) => { if (s.offsetTop - bar() <= scrollY + 4) i = k; });
-  if (atEnd()) i = secs.length - 1;
-  tabs.forEach((t, k) => t.classList.toggle('on', k === i));
-  document.getElementById('fade').style.opacity = atEnd() ? 0 : 1;
-}
-// ↓: the next dictionary's heading to the top when it is on screen, else a page; ↑ the same way back.
-function step(d) {
-  const page = (innerHeight - bar()) * 0.85, y = scrollY;
-  const tops = secs.map(s => s.offsetTop - bar());
-  const t = d > 0 ? tops.find(v => v > y + 4) : tops.filter(v => v < y - 4).pop();
-  const to = t !== undefined && Math.abs(t - y) <= page ? t : y + d * page;
-  scrollTo({ top: Math.max(0, to), behavior: 'smooth' });
-}
-addEventListener('scroll', mark); mark();
-</script></body></html>"""

@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // kumapie-vX.Y.Z-mobile.apk (sorts after kumapie-tv-*, see release.yml)
+        io.github.pedrubik2000.kumapie.lang.CrashCollector.install(this)
         io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-v")
         val settings = Settings(this)
         io.github.pedrubik2000.kumapie.data.AniListSync(settings.prefs).retry()
@@ -221,6 +222,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
 
     Row(Modifier.fillMaxSize().pageBackdrop()) {
     io.github.pedrubik2000.kumapie.mobile.ui.AllowPrompt(hold = stack.last().let { it is Screen.Player || it is Screen.Watch || it == Screen.Feed }, onSettings = { stack += Screen.Settings("device") })
+    io.github.pedrubik2000.kumapie.mobile.ui.CrashPrompt(show = gate == io.github.pedrubik2000.kumapie.data.Gate.APP && stack.last() == Screen.Home)
     if (wide() && tab != "-") Box(Modifier.fillMaxHeight().width(98.dp), contentAlignment = Alignment.CenterStart) {
         GlassMenu(main, tab, { top(null) }, { more = true })
     }

@@ -1,0 +1,89 @@
+package io.github.pedrubik2000.kumapie.lang
+
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.net.URLDecoder
+
+class CrashReportTest {
+    private val env = CrashEnv("Pixel 8a-abc123", "Google Pixel 8a", "35 (15)", "arm64-v8a", "mobile", "1.2.3")
+    private val javaTrace = "java.lang.IllegalStateException: boom\n" + (1..200).joinToString("\n") { "\tat pkg.Class$it.run(File.kt:$it)" }
+
+    @Test fun theJsonHasEveryFieldTheServerExpects() {
+        val r = CrashReports.build("java", 1234L, "", javaTrace)
+        val j = JSONObject(CrashReports.json(r, env))
+        assertEquals(setOf("device", "model", "android", "abi", "app", "version", "kind", "time", "summary", "trace"), j.keys().asSequence().toSet())
+        assertEquals("Pixel 8a-abc123", j.getString("device"))
+        assertEquals("Google Pixel 8a", j.getString("model"))
+        assertEquals("mobile", j.getString("app"))
+        assertEquals("java", j.getString("kind"))
+        assertEquals(1234L, j.getLong("time"))
+        assertEquals("java.lang.IllegalStateException: boom", j.getString("summary"))
+    }
+
+    @Test fun summariesByKind() {
+        assertEquals("Abort message: 'bad'", CrashReports.summary("native", "backtrace:\nAbort message: 'bad'\nsignal 6", ""))
+        assertEquals("signal 11 (SIGSEGV)", CrashReports.summary("native", "x\nsignal 11 (SIGSEGV)", ""))
+        assertEquals("Input dispatching timed out", CrashReports.summary("anr", "----- pid 1 -----", "Input dispatching timed out"))
+        assertEquals("anr", CrashReports.summary("anr", "", ""))
+    }
+
+    @Test fun theTraceIsCappedAndKeysAndUrlsAreScrubbed() {
+        val dirty = "java.io.IOException: GET https://api.real-debrid.com/rest/1.0/x?auth_token=SECRET1 failed\n" +
+            "addon https://torrentio.strem.fun/realdebrid=ABCDEF123/manifest.json\nrealdebrid=ZZZ999 apikey: KEY777 Authorization: Bearer tok.en-1\n" + "x".repeat(300_000)
+        val r = CrashReports.build("java", 1L, "", dirty)
+        assertEquals(CrashReports.TRACE_MAX, r.trace.length)
+        listOf("SECRET1", "ABCDEF123", "ZZZ999", "KEY777", "tok.en-1", "manifest.json").forEach { assertFalse(it, it in r.trace) }
+        assertTrue("https://api.real-debrid.com/…" in r.trace)
+        assertTrue("realdebrid=***" in r.trace)
+        assertFalse("SECRET1" in r.summary)
+    }
+
+    @Test fun aNativeStreamOfBytesBecomesItsReadableStrings() {
+        val bytes = byteArrayOf(0, 1, 2, 8) + "Abort message: 'oops'".toByteArray() + byteArrayOf(0, 3) + "libfoo.so".toByteArray() + byteArrayOf(0, 0, 5)
+        val text = CrashReports.readable(bytes)
+        assertTrue("Abort message: 'oops'" in text)
+        assertTrue("libfoo.so" in text)
+        assertEquals("plain text\nmore", CrashReports.readable("plain text\nmore".toByteArray()))
+    }
+
+    @Test fun theIssueUrlStaysUnderTheCapAndKeepsHeadAndTail() {
+        val r = CrashReports.build("java", 1L, "", javaTrace)
+        val u = CrashReports.issueUrl(r, env)
+        assertTrue(u.length <= CrashReports.ISSUE_CAP)
+        assertTrue(u.startsWith("https://github.com/Pedrubik2000/kumapie-tv/issues/new?title="))
+        val body = URLDecoder.decode(u.substringAfter("&body="), "UTF-8")
+        assertTrue("Class1.run" in body)
+        assertTrue("Class200.run" in body)
+        assertFalse("Class100.run" in body)
+        assertTrue("Google Pixel 8a" in body && "1.2.3" in body)
+    }
+
+    @Test fun aSmallerCapTrimsHarderAndEncodesSpecialCharacters() {
+        val r = CrashReports.build("java", 1L, "", "java.lang.Error: a b&c=d #1 é\n" + javaTrace)
+        val u = CrashReports.issueUrl(r, env, CrashReports.QR_CAP)
+        assertTrue(u.length <= CrashReports.QR_CAP)
+        assertEquals(1, u.count { it == '?' })
+        assertFalse(" " in u || "&c=d" in u || "é" in u || "#" in u)
+        assertEquals("Crash: java.lang.Error: a b&c=d #1 é", URLDecoder.decode(u.substringAfter("title=").substringBefore("&body="), "UTF-8"))
+    }
+
+    @Test fun aHugeSummaryStillFits() {
+        val r = CrashReport("native", 1L, "é".repeat(300), "")
+        assertTrue(CrashReports.issueUrl(r, env, CrashReports.QR_CAP).length <= CrashReports.QR_CAP)
+    }
+
+    @Test fun eachCrashIsOfferedOnceAndOnlyTheNewestRecent() {
+        val now = 10_000_000_000L
+        val a = CrashExit(now - 5_000, "java")
+        val b = CrashExit(now - 1_000, "native")
+        assertEquals(b, CrashReports.newest(listOf(a, b), 0, now))
+        assertEquals(b, CrashReports.newest(listOf(a, b), now - 5_000, now))
+        assertNull("offered already", CrashReports.newest(listOf(a, b), now - 1_000, now))
+        assertNull("none", CrashReports.newest(emptyList(), 0, now))
+        assertNull("a week old", CrashReports.newest(listOf(CrashExit(now - CrashReports.MAX_AGE_MS - 1, "anr")), 0, now))
+    }
+}

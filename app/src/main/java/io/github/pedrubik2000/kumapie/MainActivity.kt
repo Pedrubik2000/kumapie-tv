@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
             coil3.SingletonImageLoader.get(this).enqueue(coil3.request.ImageRequest.Builder(this).data(image)
                 .size(m.widthPixels, m.heightPixels).scale(coil3.size.Scale.FILL).build())
         }
+        io.github.pedrubik2000.kumapie.lang.CrashCollector.install(this)
         io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-tv-")
         val settings = Settings(this)
         io.github.pedrubik2000.kumapie.data.AniListSync(settings.prefs).retry()
@@ -127,6 +128,7 @@ fun App(settings: Settings) {
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
         io.github.pedrubik2000.kumapie.ui.TvAllowPrompt(hold = stack.lastOrNull() is Screen.Player, onSettings = { stack.add(Screen.Settings) })
+        io.github.pedrubik2000.kumapie.ui.TvCrashPrompt(show = gate == Gate.APP && stack.lastOrNull() == Screen.Home)
     }
 }
 

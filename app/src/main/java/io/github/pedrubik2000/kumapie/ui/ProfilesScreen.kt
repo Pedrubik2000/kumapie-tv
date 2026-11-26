@@ -29,8 +29,9 @@ import io.github.pedrubik2000.kumapie.data.Profile
 
 /** "Who's watching?" (Netflix-like): one square per person; the last one chosen has the focus. */
 @Composable
-fun ProfilesScreen(api: Api, last: String, onPick: (Profile) -> Unit, onSettings: () -> Unit) {
+fun ProfilesScreen(api: Api, last: String, onPick: (Profile) -> Unit, onSettings: () -> Unit, auto: String = "") {
     var people by remember { mutableStateOf<List<Profile>?>(null) }
+    LaunchedEffect(people) { people?.firstOrNull { it.id == auto }?.let(onPick) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(attempt) {

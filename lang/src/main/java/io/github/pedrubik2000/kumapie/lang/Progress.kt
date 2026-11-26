@@ -103,7 +103,7 @@ class Progress internal constructor(dir: File, private val settings: Settings?) 
         val d = JSONObject(data.toString())
         edit(d)
         data = d
-        mine.writeText(d.toString())
+        mine.replaceText(d.toString())
         merged = merge()
     }
 
@@ -164,7 +164,7 @@ class Progress internal constructor(dir: File, private val settings: Settings?) 
 
     internal fun useOthers(o: JSONObject) = synchronized(this) {
         others = o
-        othersFile.writeText(o.toString())
+        othersFile.replaceText(o.toString())
         merged = merge()
     }
 

@@ -70,6 +70,7 @@ class MainActivity : ComponentActivity() {
         io.github.pedrubik2000.kumapie.lang.CrashCollector.install(this)
         io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-tv-")
         val settings = Settings(this)
+        val restarted = Restart.consume(settings)
         io.github.pedrubik2000.kumapie.data.AniListSync(settings.prefs).retry()
         io.github.pedrubik2000.kumapie.data.TitleLevels.start(applicationContext)
         fromAdb(intent, settings)
@@ -81,7 +82,7 @@ class MainActivity : ComponentActivity() {
             io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).goingNow()) }.apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start() }, 8000)
         io.github.pedrubik2000.kumapie.data.Jimaku.cache = cacheDir
         @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-        setContent { KumapieTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides io.github.pedrubik2000.kumapie.ui.TvScroll) { App(settings) } } }
+        setContent { KumapieTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides io.github.pedrubik2000.kumapie.ui.TvScroll) { App(settings, restarted) } } }
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
@@ -94,6 +95,7 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra("server")?.let { settings.server = it; any = true }
         intent?.getStringExtra("addon")?.let { a -> settings.addons = if (a.isBlank()) emptyList() else (settings.addons + a.trim()).distinct(); any = true }
         intent?.getStringExtra("jimaku")?.let { settings.jimakuKey = it; any = true }
+        if (BuildConfig.DEBUG) intent?.getStringExtra("narrow")?.let { settings.prefs.edit().putBoolean(Restart.FORCE, it == "1").commit(); any = true }
         return any
     }
 
@@ -104,7 +106,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun App(settings: Settings) {
+fun App(settings: Settings, restarted: Boolean = false) {
     remember { io.github.pedrubik2000.kumapie.ui.SettingsFocus.returning = false }
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
@@ -124,7 +126,7 @@ fun App(settings: Settings) {
         when {
             gate == Gate.ONBOARDING -> io.github.pedrubik2000.kumapie.ui.TvOnboarding(settings, onDone = { server = settings.server; onboarded = true })
             server.isEmpty() -> AloneScreens(settings, stack, onSaved = { server = settings.server }, onUpdate = { update = it })
-            else -> PcScreens(settings, server, stack, onSaved = { server = settings.server }, onUpdate = { update = it })
+            else -> PcScreens(settings, server, stack, restarted, onSaved = { server = settings.server }, onUpdate = { update = it })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
         io.github.pedrubik2000.kumapie.ui.TvAllowPrompt(hold = stack.lastOrNull() is Screen.Player, onSettings = { stack.add(Screen.Settings) })
@@ -161,15 +163,16 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
 }
 
 @Composable
-private fun PcScreens(settings: Settings, server: String, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
+private fun PcScreens(settings: Settings, server: String, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, restarted: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var profile by remember { mutableStateOf<Profile?>(null) }
+    var auto by remember { mutableStateOf(restarted) }
     val homeMemory = remember(server, profile) { io.github.pedrubik2000.kumapie.ui.HomeMemory() }
     val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }
     LaunchedEffect(api) { api.findLan() }
     val screen = stack.last()
     if (profile == null && screen != Screen.Settings) {
-        ProfilesScreen(api, settings.profile, onPick = {
+        ProfilesScreen(api, settings.profile, auto = if (auto) settings.profile else "", onPick = {
             settings.profile = it.id
             Tr.use(it.menu)
             settings.speaks = if (it.menu == "es") "es" else "en"
@@ -185,7 +188,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
                 }
             },
             onSettings = { stack.add(Screen.Settings) }, onStats = { stack.add(Screen.Stats) },
-            onProfiles = { profile = null }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.goTop(Screen.Discover()) },
+            onProfiles = { profile = null; auto = false }, onReview = { stack.add(Screen.Review(it)) }, onDiscover = { stack.goTop(Screen.Discover()) },
             onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.goTop(Screen.Library) }, memory = homeMemory)
         is Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api, settings, screen.open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
             onReview = { stack.add(Screen.Review("ja")) }, onSettings = { stack.add(Screen.Settings) }, onLibrary = { stack.goTop(Screen.Library) }, onStats = { stack.add(Screen.Stats) }, onDiscover = { stack.goTop(Screen.Discover()) })
@@ -196,7 +199,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
         Screen.Stats -> StatsScreen({ api.stats() }, onSettings = { stack.add(Screen.Settings) })
         is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
         is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,
-            onClose = { stack.removeAt(stack.lastIndex) })
+            onClose = { stack.removeAt(stack.lastIndex); if (Restart.wanted(settings)) context.startActivity(StreamActivity.restartIntent(context)) })
         Screen.Buttons -> ButtonsScreen(settings)
         Screen.Settings -> SettingsScreen(settings, onButtons = { stack.add(Screen.Buttons) },
             onSaved = onSaved, onUpdate = onUpdate)

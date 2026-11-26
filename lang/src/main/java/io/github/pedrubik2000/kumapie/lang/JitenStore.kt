@@ -74,7 +74,7 @@ class JitenStore(private val file: File, private val clock: () -> Long = System:
             t.put(k.toString(), o)
         }
         file.parentFile?.mkdirs()
-        file.writeText(JSONObject().put("ids", JSONObject(anilist as Map<*, *>)).put("t", t).toString())
+        file.replaceText(JSONObject().put("ids", JSONObject(anilist as Map<*, *>)).put("t", t).toString())
     }
 
     companion object {

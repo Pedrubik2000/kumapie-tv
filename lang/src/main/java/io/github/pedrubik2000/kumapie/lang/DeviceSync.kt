@@ -1,7 +1,10 @@
 package io.github.pedrubik2000.kumapie.lang
 
+import android.app.Activity
+import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Bundle
 import android.util.Log
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -15,7 +18,12 @@ import androidx.work.WorkerParameters
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.DeviceFile.objects
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -44,6 +52,8 @@ object DeviceSync {
     private const val WITH = "sync_with"
     private const val PEERS = "sync_peers"
     private const val LAST = "sync_last"
+    private const val OK = "sync_ok"
+    internal const val EVERY_MS = 15 * 60_000L
     private const val WORK = "device-sync"
     private const val CONFLICT_MS = 10 * 60_000L
     internal const val STALE_MS = 20_000L
@@ -129,11 +139,65 @@ object DeviceSync {
         if (settings.server.isNotEmpty()) return
         if (with(settings) != null) WorkManager.getInstance(context).enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<DeviceSyncWorker>(1, TimeUnit.HOURS).setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build()).build())
-        soon(context)
+        enqueueNow(context)
+        watch(context)
     }
 
+    /** Mining, leaving the player, a start: through the debouncer when paired to a hub; the hub itself only applies what it holds (share). */
     fun soon(context: Context) {
-        if (Settings(context).server.isNotEmpty()) return
+        val settings = Settings(context)
+        if (settings.server.isNotEmpty()) return
+        if (with(settings) != null) requested(context) else enqueueNow(context)
+    }
+
+    /** A rating or an undo (Srs.rate / Srs.undo, every caller): a sync with the hub soon; nothing on the hub (no one to pull from). */
+    fun rated(context: Context) {
+        val settings = Settings(context)
+        if (settings.server.isEmpty() && with(settings) != null) requested(context)
+    }
+
+    internal fun due(lastOk: Long, now: Long): Boolean = now - lastOk > EVERY_MS
+
+    private val sync = SyncDebounce(CoroutineScope(SupervisorJob() + Dispatchers.IO)) {
+        wanted?.let { c -> syncNow(c).let { if (it.isNotEmpty()) Log.i("kumapie", "device sync: $it") } }
+    }
+    @Volatile private var wanted: Context? = null
+
+    private fun requested(context: Context) { wanted = context.applicationContext; sync.request() }
+
+    private val ticks = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var started = 0
+    private var ticker: Job? = null
+    private var watching = false
+
+    /** In the foreground (an activity started): a sync now if the last good one is over 15 minutes old, then one every 15 minutes; none in the background. */
+    @Synchronized private fun watch(context: Context) {
+        if (watching) return
+        val app = context.applicationContext as? Application ?: return
+        watching = true
+        app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityStarted(a: Activity) { if (synchronized(this@DeviceSync) { ++started == 1 }) foreground(app) }
+            override fun onActivityStopped(a: Activity) { if (synchronized(this@DeviceSync) { --started <= 0 }) { ticker?.cancel(); ticker = null } }
+            override fun onActivityCreated(a: Activity, b: Bundle?) {}
+            override fun onActivityResumed(a: Activity) {}
+            override fun onActivityPaused(a: Activity) {}
+            override fun onActivitySaveInstanceState(a: Activity, b: Bundle) {}
+            override fun onActivityDestroyed(a: Activity) {}
+        })
+        // start() runs from an activity already started: count it when the app is in front.
+        val info = android.app.ActivityManager.RunningAppProcessInfo().also { android.app.ActivityManager.getMyMemoryState(it) }
+        if (info.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) { started = 1; foreground(app) }
+    }
+
+    @Synchronized private fun foreground(context: Context) {
+        val settings = Settings(context)
+        if (settings.server.isNotEmpty()) return
+        if (due(settings.prefs.getLong(OK, 0L), System.currentTimeMillis())) rated(context)
+        ticker?.cancel()
+        ticker = ticks.launch { while (true) { delay(EVERY_MS); rated(context) } }
+    }
+
+    private fun enqueueNow(context: Context) {
         WorkManager.getInstance(context).enqueueUniqueWork("$WORK-now", ExistingWorkPolicy.REPLACE, OneTimeWorkRequestBuilder<DeviceSyncWorker>().build())
     }
 
@@ -196,7 +260,8 @@ object DeviceSync {
                     exchange(context, p)
                 }.onFailure { runCatching { files(context).share() } }.getOrThrow()
             }
-        }.getOrElse { tr("%1\$s: not synced with %2\$s: %3\$s", now(), peer.name, it.message ?: it.toString()) }
+        }.onSuccess { settings.prefs.edit().putLong(OK, System.currentTimeMillis()).apply() }
+            .getOrElse { tr("%1\$s: not synced with %2\$s: %3\$s", now(), peer.name, it.message ?: it.toString()) }
         say(settings, line)
         line
     }

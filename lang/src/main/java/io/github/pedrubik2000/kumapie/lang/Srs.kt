@@ -31,6 +31,8 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
         .let { SQLiteDatabase.openOrCreateDatabase(File(it, "${lang.code}.db"), null) }
         .apply { if (version < 1) { beginTransaction(); try { SCHEMA.forEach(::execSQL); version = 1; setTransactionSuccessful() } finally { endTransaction() } } }
 
+    private val app: Context = context.applicationContext
+
     init { if (lang == Lang.JAPANESE) moveWords() }
 
     data class Card(
@@ -107,6 +109,7 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
             cache(cardId, after, now)
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
+        runCatching { DeviceSync.rated(app) } // every rating, from any screen or the provider: the LAN sync follows
         return after
     }
 
@@ -126,6 +129,7 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
             if (back == null) cache(cardId, null, null) else cache(cardId, back.state, back.lastReview)
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
+        runCatching { DeviceSync.rated(app) }
         return back?.state
     }
 

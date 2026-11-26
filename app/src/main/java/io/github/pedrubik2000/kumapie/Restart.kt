@@ -4,6 +4,7 @@ import android.os.Process
 import android.os.SystemClock
 import io.github.pedrubik2000.kumapie.data.Pending
 import io.github.pedrubik2000.kumapie.data.Playable
+import io.github.pedrubik2000.kumapie.data.Playing
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.lang.DeviceSync
 import io.github.pedrubik2000.kumapie.player.AppScope
@@ -24,10 +25,13 @@ object Restart {
 
     @Volatile private var disposed = CountDownLatch(1)
     @Volatile private var disposedAt = 0L
+    @Volatile private var syncAtBegin = false
 
     fun begin() {
         disposedAt = 0L
         disposed = CountDownLatch(1)
+        syncAtBegin = DeviceSync.syncing
+        Playing.drop()
     }
 
     fun playerDisposed() {
@@ -51,7 +55,7 @@ object Restart {
         val disposedIn = disposedAt.takeIf { it != 0L }?.minus(start) ?: -1L
         fun waiting(): Boolean {
             val at = SystemClock.uptimeMillis() - start
-            return DeviceSync.syncing && at < SYNC_MAX_MS || Pending.busy && at < JOBS_MAX_MS
+            return syncAtBegin && DeviceSync.syncing && at < SYNC_MAX_MS || Pending.busy && at < JOBS_MAX_MS
         }
         while (waiting()) Thread.sleep(POLL_MS)
         settings.prefs.edit().putLong(RESTARTED, System.currentTimeMillis()).commit()

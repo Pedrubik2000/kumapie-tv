@@ -60,6 +60,8 @@ object Playing {
 
     fun later(key: String, action: () -> Unit) { later[key] = action }
 
+    fun drop() = later.clear()
+
     var on: Boolean
         get() = count.get() > 0
         set(value) {

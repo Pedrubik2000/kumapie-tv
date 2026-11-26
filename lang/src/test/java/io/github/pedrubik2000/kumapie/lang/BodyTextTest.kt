@@ -92,6 +92,16 @@ class BodyTextTest {
         assertEquals(1, ran)
     }
 
+    @Test fun aRestartDropsTheHeldWork() {
+        reset()
+        var ran = 0
+        Playing.on = true
+        Playing.later("restart") { ran++ }
+        Playing.drop()
+        Playing.on = false
+        assertEquals(0, ran)
+    }
+
     @Test fun bytesAlreadyInMemoryAreNotCappedByDecode() {
         val big = ByteArray(300) { 'a'.code.toByte() }
         assertEquals(300, BodyText.text(ByteArrayInputStream(big), Int.MAX_VALUE).length)

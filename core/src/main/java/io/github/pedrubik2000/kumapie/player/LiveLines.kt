@@ -275,8 +275,9 @@ class LiveLines(
          * another cut (fewer stretches fit than not, over [PIECES] offsets, or over [SPAN] s apart: Rakugo's TV-cut file
          * on the Blu-ray, +12 s then -352 ... -1968 s).
          * A shift over [BIG] s (Rakugo 1: 71.3 s from 8 lines of a monologue, the lines then off for the whole episode) needs
-         * 20 lines heard, 2.5 times any other offset's hits and 3 times the hits a random offset gets (the lines heard times
-         * the odds a 0.3 s window holds a Jimaku line, by their density) + 6, so it waits for more lines; a real one (Eden of
+         * 20 lines heard, two thirds of them hit, 2.5 times any other offset's hits and 3 times the hits a random offset gets
+         * (the lines heard times the odds a 0.3 s window holds a Jimaku line, by the density of the file's lines 180 s
+         * around the lines heard, not where the offset lands) + 6, so it waits for more lines; a real one (Eden of
          * the East 2's 80.1 s, a 60 s cut: 44 hits against 13 and 5) has them.
          * ponytail: at most [PIECES] offsets [SPAN] s apart, by [PIECE] s windows; a file of another cut is "not fitted".
          */
@@ -290,12 +291,12 @@ class LiveLines(
             val (bin, n) = scored.firstOrNull() ?: return null
             val other = scored.filter { kotlin.math.abs(it.first - bin) > 3 }.maxOfOrNull { it.second } ?: 0
             val (lo, hi) = refs.min() - bin / 10.0 - 1 to refs.max() - bin / 10.0 + 1
-            val inside = starts.count { it in lo..hi }
-            val possible = minOf(refs.size, inside)
+            val possible = minOf(refs.size, starts.count { it in lo..hi })
             val big = kotlin.math.abs(bin) > BIG * 10
-            val chance = refs.size * (1 - kotlin.math.exp(-2 * 0.15 * inside / (hi - lo)))
-            val clear = n * 2 >= other * 5 && n >= chance * 3 + 6
-            return if (n >= 6 && (!big || refs.size >= 20) && n * 2 >= possible && (if (big) clear else n * 2 >= other * 3)) bin / 10.0 else null
+            val (from, to) = refs.min() - 180 to refs.max() + 180
+            val chance = refs.size * (1 - kotlin.math.exp(-2 * 0.15 * starts.count { it in from..to } / (to - from)))
+            val clear = refs.size >= 20 && n * 3 >= refs.size * 2 && n * 2 >= other * 5 && n >= chance * 3 + 6
+            return if (n >= 6 && n * 2 >= possible && (if (big) clear else n * 2 >= other * 3)) bin / 10.0 else null
         }
 
         fun pieces(refs: List<Double>, starts: List<Double>): List<Pair<Double, Double?>>? {

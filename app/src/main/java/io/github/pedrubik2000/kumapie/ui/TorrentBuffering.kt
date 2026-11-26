@@ -44,7 +44,9 @@ private const val MIN_SWEEP = 14f
 
 @Composable
 internal fun BufferingOverlay(player: Player, status: TorrentStatus, release: String) {
-    val (title, stats) = bufferText(status)
+    val failed = status.phase == io.github.pedrubik2000.kumapie.torrent.TorrentPhase.FAILED
+    val (buffering, stats) = bufferText(status)
+    val title = if (failed) io.github.pedrubik2000.kumapie.torrent.waitText(status).headline else buffering
     var position by remember { mutableLongStateOf(player.currentPosition) }
     var duration by remember { mutableLongStateOf(player.duration) }
     LaunchedEffect(player) {
@@ -56,7 +58,7 @@ internal fun BufferingOverlay(player: Player, status: TorrentStatus, release: St
     }
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Black.copy(alpha = 0.75f), Color.Black)))) {
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Ring(status.bufferPercent / 100f)
+            if (!failed) Ring(status.bufferPercent / 100f)
             Text(title, color = Colors.text, fontSize = 18.sp, fontWeight = FontWeight.Medium)
         }
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 48.dp, vertical = 28.dp)) {

@@ -180,7 +180,7 @@ private fun PlanButton(pick: SimilarPick, state: SimilarState) {
                     if (up) runCatching { state.root?.requestFocus() }
                     up
                 }) { Text("＋ " + tr("Plan to watch")) }
-                KeyCap("OK")
+                if (state.buttonFocused) KeyCap("OK")
             }
         }
         if (state.failed) Text(tr("Couldn't add it"), color = Colors.unknown, fontSize = 14.sp)

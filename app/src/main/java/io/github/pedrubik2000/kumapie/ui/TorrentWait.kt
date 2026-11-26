@@ -110,8 +110,6 @@ internal fun TorrentWait(
     }
 }
 
-private val OK_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
-
 @Composable
 private fun WaitScreen(info: WaitInfo, status: TorrentStatus, words: WaitWords?, similar: SimilarState, noLines: Boolean, onBack: () -> Unit) {
     val text = waitText(status)
@@ -126,7 +124,6 @@ private fun WaitScreen(info: WaitInfo, status: TorrentStatus, words: WaitWords?,
             !info.noSpoilers || pick == null -> false
             it.pressedNext() -> { similar.next(); true }
             down && it.key == Key.DirectionDown && similar.canAdd -> runCatching { similar.button.requestFocus() }.isSuccess
-            down && it.key in OK_KEYS && similar.canAdd && similar.listed(pick).isEmpty() -> { similar.add(pick); true }
             else -> false
         }
     }

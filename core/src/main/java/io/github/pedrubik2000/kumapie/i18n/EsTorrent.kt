@@ -11,6 +11,8 @@ internal val esTorrent: Map<String, String> = mapOf(
     "Not enough free space: this video needs %s and 500 MB spare." to "No hay espacio libre suficiente: este video necesita %s y 500 MB de reserva.",
     "This is not a torrent link." to "Este no es un enlace de torrent.",
     "The download stalled. Try another source." to "La descarga se detuvo. Prueba otro origen.",
+    "Torrent streaming is off: turn it on in Settings." to "Los torrents están desactivados: actívalos en Ajustes.",
+    "The video is no longer on this device: mine words while it plays." to "El video ya no está en este dispositivo: guarda las palabras mientras se reproduce.",
     "Torrents" to "Torrents",
     "Downloads the video on this device and shares pieces with others while it plays. Your IP address is visible to them: a VPN is wise." to
         "Descarga el video en este dispositivo y comparte partes con otros mientras se reproduce. Ellos pueden ver tu dirección IP: conviene usar una VPN.",

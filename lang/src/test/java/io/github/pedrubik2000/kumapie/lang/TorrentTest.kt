@@ -131,3 +131,23 @@ class TorrentTest {
         assertEquals(listOf(own), Addons.sources(listOf(own), false, false, "", torrents = true))
     }
 }
+
+class TorrentSpaceAndNextTest {
+    @Test fun spaceIsRefusedUnderTheFileAndTheSpare() {
+        val spare = 500L shl 20
+        assertFalse(TorrentPlan.admits(2_000L shl 20, 2_400L shl 20, spare))
+        assertTrue(TorrentPlan.admits(2_000L shl 20, 2_500L shl 20, spare))
+    }
+
+    @Test fun aFailureIsRetriedOnlyAfterTheWindow() {
+        assertFalse(TorrentPlan.retryable(1_000, 5_000, 15_000))
+        assertTrue(TorrentPlan.retryable(1_000, 17_000, 15_000))
+    }
+
+    @Test fun nextEpisodePrefersATorrentWithSeeders() {
+        fun t(seeders: Int, file: String) = JSONObject().put("label", file).put("about", "").put("file", file).put("url", "torrent://x").put("torrent", true).put("seeders", seeders)
+        val files = listOf(t(0, "a.mkv"), t(5, "b.mkv"))
+        val q = io.github.pedrubik2000.kumapie.data.nextQuery(mapOf("type" to "series", "id" to "tt1:1:1", "show" to "S"), files, setOf("avc"), false)!!
+        assertEquals("b.mkv", q["file"])
+    }
+}

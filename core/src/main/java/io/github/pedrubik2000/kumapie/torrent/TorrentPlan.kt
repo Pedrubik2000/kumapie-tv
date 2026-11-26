@@ -52,5 +52,9 @@ object TorrentPlan {
         return minOf((p + 1).toLong() * pieceLen, offset + size) - (offset + pos)
     }
 
+    fun admits(need: Long, free: Long, spare: Long): Boolean = free >= need + spare
+
+    fun retryable(failedAt: Long, now: Long, window: Long): Boolean = now - failedAt > window
+
     fun jumped(lastEnd: Long, pos: Long): Boolean = pos < lastEnd - AHEAD_BYTES / 4 || pos > lastEnd + AHEAD_BYTES / 2
 }

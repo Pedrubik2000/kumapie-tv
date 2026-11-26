@@ -19,6 +19,7 @@ class TorrentDataSource(private val context: Context, private val owner: Any) : 
     private var pos = 0L
     private var left = 0L
     private var firstBytes = false
+    private var opened = false
 
     override fun open(dataSpec: DataSpec): Long {
         uri = dataSpec.uri
@@ -31,6 +32,7 @@ class TorrentDataSource(private val context: Context, private val owner: Any) : 
         left = if (dataSpec.length == C.LENGTH_UNSET.toLong()) s.size - pos else minOf(dataSpec.length, s.size - pos)
         s.want(pos)
         transferStarted(dataSpec)
+        opened = true
         return left
     }
 
@@ -60,6 +62,7 @@ class TorrentDataSource(private val context: Context, private val owner: Any) : 
                 if (waitedMs > LOG_WAIT_MS) android.util.Log.i("kumapie-torrent", "read at $pos waited $waitedMs ms")
                 if (!firstBytes) { firstBytes = true; android.util.Log.i("kumapie-torrent", "first bytes at ${pos} (${have} ready)") }
                 TorrentEngine.waiting = false
+                TorrentEngine.recovered()
                 return minOf(have, want.toLong()).toInt()
             }
             val waited = System.currentTimeMillis() - since
@@ -78,7 +81,8 @@ class TorrentDataSource(private val context: Context, private val owner: Any) : 
     override fun close() {
         runCatching { file?.close() }
         file = null
-        if (stream != null) transferEnded()
+        if (opened) transferEnded()
+        opened = false
         stream = null
         uri = null
     }

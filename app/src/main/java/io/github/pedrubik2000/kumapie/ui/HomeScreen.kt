@@ -195,7 +195,7 @@ internal val TAB = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
 
 private suspend fun aloneTotal(context: android.content.Context, settings: Settings, lang: String, shows: List<Show>) = withContext(Dispatchers.IO) {
     val p = io.github.pedrubik2000.kumapie.lang.Progress
-    p.homeTotal(lang, p.of(context).merged, shows, tvLanguages(context, settings).of(lang).known.knownList().size).takeIf { it.total > 0 }
+    p.homeTotal(lang, p.of(context).merged, shows, tvLanguages(context, settings).of(lang).known.knownCount()).takeIf { it.total > 0 }
 }
 
 @Composable

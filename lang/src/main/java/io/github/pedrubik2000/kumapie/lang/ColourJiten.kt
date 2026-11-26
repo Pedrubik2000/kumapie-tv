@@ -20,7 +20,7 @@ class ColourJiten(private val known: KnownWords, private val scope: CoroutineSco
     val sets = mutableStateMapOf<String, Boolean>().apply { Jiten.SETS.keys.forEach { put(it, last?.second?.contains(it) ?: true) } }
     var busy by mutableStateOf(false)
         private set
-    var imported by mutableIntStateOf(known.importedWords.size)
+    var imported by mutableIntStateOf(known.importedCount())
         private set
     var problem by mutableStateOf("")
         private set
@@ -63,7 +63,7 @@ class ColourJiten(private val known: KnownWords, private val scope: CoroutineSco
         scope.launch {
             runCatching { known.importJiten(top, sets.filterValues { it }.keys.toSet()) }
                 .onSuccess {
-                    imported = known.importedWords.size
+                    imported = known.importedCount()
                     on = true
                     onImported()
                 }

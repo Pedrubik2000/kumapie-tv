@@ -65,7 +65,7 @@ private fun LanguageWordsSection(language: io.github.pedrubik2000.kumapie.lang.L
 
     Text(tr("${language.lang.name} words"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
     // The total Home shows first; the card count under it says where part of it comes from.
-    val total = remember(status) { known.knownList().size }
+    val total = remember(status) { known.knownCount() }
     if (known.ready) Text(tr("%d words known (as on Home: cards, words marked known and imported lists).", total), fontSize = 15.sp)
     Text(tr("From your cards: %s", status), fontSize = 14.sp, color = Colors.dim)
     when {

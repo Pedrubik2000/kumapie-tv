@@ -126,8 +126,10 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
     Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
         val r = removed
         // undo on the key's DOWN; the card under focus would still get its UP as a click (play), even if the toast has gone by then, so swallow that UP
+        val fresh = e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0
+        if (undoKey(e) && fresh) pendingUp[0] = false // a fresh press means the old UP got lost: stop waiting for it
         if (!undoKey(e)) false
-        else if (pendingUp[0] && !(e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0)) { if (e.type == KeyEventType.KeyUp) pendingUp[0] = false; true } // a fresh press means the old UP got lost
+        else if (pendingUp[0]) { if (e.type == KeyEventType.KeyUp) pendingUp[0] = false; true }
         else if (r != null && e.type == KeyEventType.KeyDown) {
             pendingUp[0] = true; removed = null; onUnhide(r.show); scope.launch { focus.bring(0, r.index, r.show.id) }; true
         } else false

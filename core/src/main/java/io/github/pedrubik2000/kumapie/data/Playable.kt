@@ -32,6 +32,7 @@ object Playable {
     private val AV1 by lazy { Regex("""\bav1\b""") }
     private val HEVC by lazy { Regex("""\bx265\b|\bhevc\b|\bh\.?265\b""") }
     private val EIGHT_BIT by lazy { Regex("""\b8[ ._-]?bits?\b""") }
+    private val TEN_WORD by lazy { Regex("""hi10p?|hevc10""") }
     private val HI10 by lazy { Regex("""\bhi10p?\b""") }
     private val AVC by lazy { Regex("""\bx264\b|\bavc\b|\bh\.?264\b""") }
     private val UHD by lazy { Regex("""\b2160p\b|\b4k\b|\buhd\b""") }
@@ -62,6 +63,14 @@ object Playable {
 
     /** What [name] needs that [has] lacks, for the file list ("HEVC 10 bit"); empty = plays here, as far as the name says. */
     fun missing(name: String, has: Set<String> = device): List<String> = (needs(name) - has).map { LABELS.getValue(it) }
+
+    val narrow: Boolean by lazy { android.os.Build.SUPPORTED_64_BIT_ABIS?.isEmpty() == true }
+
+    fun weight(name: String, narrow: Boolean = Playable.narrow): Int {
+        if (!narrow) return 0
+        val n = name.lowercase()
+        return (if (HEVC.containsMatchIn(n) || AV1.containsMatchIn(n) || "hevc10" in n) 1 else 0) + (if (UHD.containsMatchIn(n)) 2 else 0) + (if (TEN_BIT.containsMatchIn(n) || TEN_WORD.containsMatchIn(n)) 1 else 0)
+    }
 
     private val LABELS = mapOf("hevc10" to "HEVC 10 bit", "av1" to "AV1", "avc10" to "H.264 10 bit", "4k" to "4K")
 }

@@ -81,10 +81,13 @@ fun nextQuery(query: Map<String, String>, next: String): Map<String, String>? {
         "title" to "$show ${next.substringAfterLast(':')}")
 }
 
-fun nextQuery(query: Map<String, String>, files: List<JSONObject>, has: Set<String> = Playable.device): Map<String, String>? {
+fun nextQuery(query: Map<String, String>, files: List<JSONObject>, has: Set<String> = Playable.device, narrow: Boolean = Playable.narrow): Map<String, String>? {
     val next = Addons.nextId(query["type"] ?: "series", query["id"].orEmpty()) ?: return null
     val plays = files.filter { Playable.missing(it.optString("label") + " " + it.optString("about") + " " + it.optString("file"), has).isEmpty() }
     val group = Regex("""^\[[^\]]+\]""").find(query["file"].orEmpty())?.value
-    val f = plays.firstOrNull { group != null && it.optString("file").startsWith(group, ignoreCase = true) } ?: plays.firstOrNull() ?: files.firstOrNull() ?: return null
+    fun weight(f: JSONObject) = Playable.weight(f.optString("label") + " " + f.optString("about") + " " + f.optString("file"), narrow)
+    val light = plays.sortedBy(::weight)
+    val chosen = Playable.weight(query["file"].orEmpty(), narrow)
+    val f = light.firstOrNull { group != null && it.optString("file").startsWith(group, ignoreCase = true) && weight(it) <= chosen } ?: light.firstOrNull() ?: files.firstOrNull() ?: return null
     return nextQuery(query, next)?.plus(listOf("url" to f.optString("url"), "file" to f.optString("file")))
 }

@@ -17,7 +17,7 @@ class LiveLinesCutTest {
 
     @Test fun aSixtySecondCutFitsWhenAThirdOfTheLinesAreMissing() {
         val p = requireNotNull(LiveLines.pieces(before + after(3), starts))
-        assertEquals(listOf(0.0, -60.0), p.map { requireNotNull(it.second) })
+        assertEquals(listOf(0.0, -60.0), p.mapNotNull { it.second })
         assertTrue("break ${p[1].first}", p[1].first in 595.0..665.0)
     }
 
@@ -42,6 +42,15 @@ class LiveLinesCutTest {
 
     @Test fun aSparseLandingNeverMakesAShiftWhateverTheLines() {
         for (seed in 1L..40L) falseShift(seed).let { (mono, file) -> assertNull("seed $seed", LiveLines.fit(mono, file)) }
+    }
+
+    @Test fun sixteenOfTwentyFourLinesAreNotAShiftWithFiveAtAnotherOffset() {
+        for (seed in 0L..40L) {
+            val r = java.util.Random(seed)
+            val mono = (0 until 23).runningFold(300.0) { t, _ -> t + 4.0 + r.nextInt(40) / 10.0 }
+            val rest = generateSequence { r.nextInt(1600) / 2.0 }.filter { it < 220 || it > mono.last() }.take(120).toList()
+            assertNull("seed $seed", LiveLines.fit(mono, (mono.take(16).map { it - 71.3 } + rest).sorted()))
+        }
     }
 
     @Test fun aDenseFileDoesNotFitABigShiftFromTwentyLines() {

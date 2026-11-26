@@ -7,7 +7,7 @@ import java.io.File
 import java.io.IOException
 import java.util.BitSet
 
-class TorrentException(message: String) : IOException(message)
+class TorrentException(message: String, val fault: TorrentFault = TorrentFault.OTHER) : IOException(message)
 
 class TorrentStream(val ref: TorrentRef, val handle: TorrentHandle, info: TorrentInfo, val index: Int, root: File) {
     private val pieceLen = info.pieceLength()
@@ -60,6 +60,8 @@ class TorrentStream(val ref: TorrentRef, val handle: TorrentHandle, info: Torren
             rank++
         }
     }
+
+    @Synchronized fun aheadBytes(): Long = available(lastEnd)
 
     fun haveBytes(): Long = handle.fileProgress(TorrentHandle.PIECE_GRANULARITY).getOrNull(index) ?: 0L
 

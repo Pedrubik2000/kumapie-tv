@@ -210,6 +210,8 @@ class StreamActivity : ComponentActivity() {
         val scope = androidx.compose.runtime.rememberCoroutineScope()
         val p = rememberPlayer(start.url, start.resumeAt, "ja")
         remember(p) { player = p; p.playWhenReady = true }
+        val torrent = start.url.startsWith("${io.github.pedrubik2000.kumapie.torrent.TorrentRef.SCHEME}://")
+        val started = io.github.pedrubik2000.kumapie.ui.rememberStarted(p, torrent)
         var note by remember { mutableStateOf<String?>(null) }
         var reconnecting by remember { mutableStateOf(false) }
         val s = remember(p) {
@@ -259,12 +261,24 @@ class StreamActivity : ComponentActivity() {
         }
         var ctl by remember { mutableStateOf<io.github.pedrubik2000.kumapie.player.SceneController?>(null) }
         LaunchedEffect(live.fitted, live.pieces, live.english, live.englishOpen, ctl, ctl?.scenes) { ctl?.let { s.fitLanded(it::shift); s.piecesLanded(it::shift); s.englishLanded(it) } }
-        shown?.let { ep ->
-            remember(ep) { alone = null; note = null }
-            val backend = remember { io.github.pedrubik2000.kumapie.ui.TvMining.backend(context, settings, ep.lang) }
-            return androidx.compose.runtime.key(ep) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p, onController = { ctl = it }) }
+        val ready = shown?.takeIf { started }
+        Box(Modifier.fillMaxSize()) {
+            if (ready != null) {
+                remember(ready) { alone = null; note = null }
+                val backend = remember { io.github.pedrubik2000.kumapie.ui.TvMining.backend(context, settings, ready.lang) }
+                androidx.compose.runtime.key(ready) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ready, onClose = ::finish, player = p, onController = { ctl = it }) }
+            } else AlonePlain(p, live.line, if (reconnecting) tr("Reconnecting…") else note ?: label?.takeIf { showLabel })
+            if (torrent) io.github.pedrubik2000.kumapie.ui.TorrentWait(p, started, remember(link) { waitInfo(link, id, show) }, settings, shown, live.noLines, ::finish)
         }
-        AlonePlain(p, live.line, if (reconnecting) tr("Reconnecting…") else note ?: label?.takeIf { showLabel })
+    }
+
+    private fun waitInfo(link: Uri, id: String, show: String): io.github.pedrubik2000.kumapie.ui.WaitInfo {
+        val settings = Settings(this)
+        val hide = io.github.pedrubik2000.kumapie.lang.WaitPick.hideTitle(settings.blurUnwatched, settings.prefs.getStringSet("alone_seen", emptySet()).orEmpty(), id)
+        return io.github.pedrubik2000.kumapie.ui.WaitInfo(
+            id, show.ifEmpty { link.getQueryParameter("title").orEmpty() }, io.github.pedrubik2000.kumapie.lang.AloneStream.episodeNumber(id),
+            if (hide) "" else link.getQueryParameter("title")?.takeIf { it != show }.orEmpty(), link.getQueryParameter("file").orEmpty(),
+            io.github.pedrubik2000.kumapie.data.Backdrops.saved(this, io.github.pedrubik2000.kumapie.data.Addons.titleOf(id)), hide)
     }
 
     private fun shiftLabel(live: LiveLines): String? = when {
@@ -282,7 +296,7 @@ class StreamActivity : ComponentActivity() {
                 Text(it, color = Color.White, fontSize = 30.sp, lineHeight = 40.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).background(Color(0x99000000)).padding(16.dp, 8.dp))
             }
-            io.github.pedrubik2000.kumapie.torrent.torrentMessage(top)?.let {
+            top?.let {
                 Text(it, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)
                     .background(Color(0x99000000)).padding(12.dp, 6.dp))
             }

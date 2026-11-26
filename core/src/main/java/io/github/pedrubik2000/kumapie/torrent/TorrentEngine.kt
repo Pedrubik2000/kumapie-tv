@@ -43,6 +43,9 @@ object TorrentEngine {
 
     private val shown = MutableStateFlow<String?>(null)
     val line: StateFlow<String?> = shown
+    private val state = MutableStateFlow<TorrentStatus?>(null)
+    val status: StateFlow<TorrentStatus?> = state
+    @Volatile private var releaseName = ""
 
     @Volatile var failed = false
         private set
@@ -83,13 +86,15 @@ object TorrentEngine {
         failed = false
         waiting = true
         shown.value = tr("Finding peers…")
+        releaseName = ref.name
+        state.value = TorrentStatus(release = ref.name)
         try {
-            if (!Settings(context).torrents) throw TorrentException(tr("Torrent streaming is off: turn it on in Settings."))
+            if (!Settings(context).torrents) throw TorrentException(tr("Torrent streaming is off: turn it on in Settings."), TorrentFault.OFF)
             return begin(context.applicationContext, ref, gen)
         } catch (e: InterruptedException) {
             throw InterruptedIOException()
         } catch (e: TorrentException) {
-            if (gen == generation) fail(e.message.orEmpty())
+            if (owner === token) fail(e.message.orEmpty(), e.fault)
             throw e
         }
     }
@@ -124,7 +129,8 @@ object TorrentEngine {
         while (handle.torrentFile() == null) {
             alive(gen)
             if (System.currentTimeMillis() > deadline) throw TorrentException(
-                if (handle.status().numPeers() == 0) tr("No peers found for this video. Try another source.") else tr("Found peers but they sent nothing. Try another source."))
+                if (handle.status().numPeers() == 0) tr("No peers found for this video. Try another source.") else tr("Found peers but they sent nothing. Try another source."),
+                if (handle.status().numPeers() == 0) TorrentFault.NO_PEERS else TorrentFault.STALLED)
             Thread.sleep(POLL_MS)
         }
         val info = requireNotNull(handle.torrentFile()) { "metadata" }
@@ -135,7 +141,7 @@ object TorrentEngine {
         if (index < 0) throw TorrentException(tr("This torrent has no video file."))
         val need = files.fileSize(index)
         if (!TorrentPlan.admits(need, free(context, dir), SPARE_BYTES)) {
-            throw TorrentException(tr("Not enough free space: this video needs %s and 500 MB spare.", megabytes(need)))
+            throw TorrentException(tr("Not enough free space: this video needs %s and 500 MB spare.", megabytes(need)), TorrentFault.NO_SPACE)
         }
         handle.prioritizeFiles(Array(count) { if (it == index) Priority.DEFAULT else Priority.IGNORE })
         handle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD)
@@ -186,6 +192,7 @@ object TorrentEngine {
                 runCatching {
                     val s = handle.status()
                     val peers = s.numPeers()
+                    if (!failed) state.value = progress(s.hasMetadata(), peers, s.downloadPayloadRate().toLong())
                     if (!failed) shown.value = when {
                         !waiting -> null
                         !s.hasMetadata() -> tr("Finding peers…") + if (peers > 0) " · " + tr("%d peers", peers) else ""
@@ -201,7 +208,14 @@ object TorrentEngine {
 
     private fun percent(): Int = current?.let { (it.haveBytes() * 100 / it.size.coerceAtLeast(1)).toInt() } ?: 0
 
-    fun fail(message: String) {
+    private fun progress(metadata: Boolean, peers: Int, rate: Long): TorrentStatus {
+        val stream = current
+        if (!metadata || stream == null) return TorrentStatus(TorrentPhase.PEERS, peers = peers, release = releaseName)
+        return TorrentStatus(TorrentPhase.DOWNLOADING, peers = peers, rate = rate, have = stream.haveBytes(), need = TorrentStatus.startNeed(stream.size), ahead = stream.aheadBytes(), size = stream.size, release = releaseName)
+    }
+
+    fun fail(message: String, fault: TorrentFault = TorrentFault.OTHER) {
+        state.value = TorrentStatus.failed(fault, message, state.value?.peers ?: 0, releaseName)
         failedAt = System.currentTimeMillis()
         failed = true
         shown.value = message
@@ -211,6 +225,7 @@ object TorrentEngine {
         if (!failed) return
         failed = false
         shown.value = null
+        state.value = null
     }
 
     fun local(source: String): String {
@@ -239,5 +254,6 @@ object TorrentEngine {
         waiting = false
         failed = false
         shown.value = null
+        state.value = null
     }
 }

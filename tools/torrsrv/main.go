@@ -56,8 +56,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "cache:", err)
 		os.Exit(1)
 	}
-	cache.SetCapacity(*capacity + *capacity/4)
-	window := func() (int64, bool) { return *capacity, true }
+	cache.SetCapacity(*capacity)
+	window := func() (int64, bool) { return *capacity * 3 / 4, true }
 	cfg := torrent.NewDefaultClientConfig()
 	cfg.DataDir = *dir
 	cfg.DefaultStorage = storage.NewResourcePiecesOpts(cache.AsResourceProvider(), storage.ResourcePiecesOpts{Capacity: &window})
@@ -154,7 +154,7 @@ func main() {
 		rd := f.NewReader()
 		defer rd.Close()
 		rd.SetResponsive()
-		rd.SetReadahead(*capacity * 3 / 4)
+		rd.SetReadahead(*capacity / 2)
 		rd.SetContext(r.Context())
 		start := int64(0)
 		if rg := r.Header.Get("Range"); strings.HasPrefix(rg, "bytes=") {

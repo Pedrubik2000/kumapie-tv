@@ -16,6 +16,7 @@ object CrashReports {
     const val QR_CAP = 1_800
     private const val ISSUES = "https://github.com/Pedrubik2000/kumapie-tv/issues/new"
     private val url = Regex("""(?i)\b([a-z][\w+.-]{0,20})://(?:[^/\s@]*@)?([^/\s"'<>?#@]*)\S*""")
+    private val appPath = Regex("/data/app/~~[^/]+/[^/]+")
     private val opaque = Regex("""(?i)\b(magnet|mailto|data|intent|blob|javascript):\S+""")
     private val secret = Regex("""(?i)([\w-]{0,30}(?:key|token|secret|password|authorization|realdebrid|cookie|session|auth)[\w-]{0,8})\\?["']?\s*(=|:|%3D)\s*\\?["']?[^\s&"',;)}\\]+""")
     private val bearer = Regex("""(?i)\bbearer\s+[\w.\-~+/]+=*""")
@@ -24,6 +25,7 @@ object CrashReports {
 
     fun scrub(text: String): String = text
         .replace(url) { "${it.groupValues[1]}://${it.groupValues[2]}/…" }
+        .replace(appPath, "/data/app/…")
         .replace(opaque) { "${it.groupValues[1]}:…" }
         .replace(bearer, "Bearer ***")
         .replace(secret) { "${it.groupValues[1]}${it.groupValues[2]}***" }

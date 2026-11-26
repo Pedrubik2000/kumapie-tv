@@ -29,7 +29,8 @@ object Tombstone {
                 5 -> { check(p + 4 <= to); p += 4 }
                 2 -> {
                     val len = varint()
-                    val end = minOf(p + len, to.toLong()).toInt()
+                    check(len >= 0)
+                    val end = p + minOf(len, (to - p).toLong()).toInt()
                     each(num, wire, 0, p, end)
                     p = end
                 }

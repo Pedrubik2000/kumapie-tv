@@ -61,6 +61,20 @@ class TombstoneTest {
         assertTrue("signal 6 (SIGABRT)" in t.all)
     }
 
+    @Test(timeout = 5_000) fun aNegativeOrHugeLengthEndsTheWalkInsteadOfLoopingForever() {
+        val minusOne = ByteArray(9) { 0xff.toByte() } + byteArrayOf(0x01)
+        val huge = byteArrayOf(0xff.toByte(), 0xff.toByte(), 0xff.toByte(), 0xff.toByte(), 0xff.toByte(), 0xff.toByte(), 0xff.toByte(), 0xff.toByte(), 0x7f)
+        val t = requireNotNull(Tombstone.parse(real + byteArrayOf(0x7a) + minusOne))
+        assertTrue("signal 6 (SIGABRT)" in t.all)
+        assertTrue("tid 2766 0.kumapie.debug" in Tombstone.parse(real + byteArrayOf(0x7a) + huge + byteArrayOf(1, 2, 3))?.all.orEmpty())
+        assertNull(Tombstone.parse(byteArrayOf(0x7a) + minusOne))
+    }
+
+    @Test fun anInstallPathInAFrameLosesItsRandomParts() {
+        val s = CrashReports.scrub("#03 pc 0000000000012345  /data/app/~~Ab12Cd34==/io.github.pedrubik2000.kumapie-Xy9Z==/base.apk (offset 0x1000)")
+        assertEquals("#03 pc 0000000000012345  /data/app/…/base.apk (offset 0x1000)", s)
+    }
+
     @Test fun textThatIsNotAProtobufIsLeftToTheTextPath() {
         assertNull(Tombstone.parse("java.lang.Error: x\n\tat a.b(C.kt:1)".toByteArray()))
         assertEquals("native", CrashReports.fromBytes("native", 1L, "", "java.lang.Error: x".toByteArray()).summary)

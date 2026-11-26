@@ -70,9 +70,9 @@ internal fun DifficultyTag(level: TitleDifficulty, modifier: Modifier) =
 private val CARD_FADE = Brush.verticalGradient(0.5f to Color.Transparent, 1f to Arcade.background.copy(alpha = 0.85f))
 
 @Composable
-internal fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, picture: String? = null, onClick: () -> Unit) {
+internal fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, picture: String? = null, airs: String? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     Column(Modifier.width(width)) {
-        Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.COVER).fillMaxWidth().aspectRatio(16f / 9f)) {
+        Card(onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.CONTINUE).fillMaxWidth().aspectRatio(16f / 9f)) {
             Box(Modifier.fillMaxSize()) {
                 Cover(picture ?: s.poster, s.title, Modifier.fillMaxSize(), showTitle = false, alignment = Alignment.TopCenter)
                 Box(Modifier.fillMaxSize().background(CARD_FADE))
@@ -81,7 +81,7 @@ internal fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, pict
         }
         Text(shortTitle(s.shown), color = Colors.text, style = MaterialTheme.typography.titleMedium.merge(Arcade.label), maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 18.dp))
-        Text("${e.title} · ${resumeLine(e)}", color = Colors.dim, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text("${e.title} · ${airs ?: resumeLine(e)}", color = if (airs == null) Colors.dim else Colors.dim.copy(alpha = 0.6f), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

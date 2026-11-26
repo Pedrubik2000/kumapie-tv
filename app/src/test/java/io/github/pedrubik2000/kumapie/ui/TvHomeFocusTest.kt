@@ -34,6 +34,9 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.printToString
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import com.sun.net.httpserver.HttpServer
@@ -126,7 +129,7 @@ class TvHomeFocusTest {
         rule.setContent {
             val settings = Settings(LocalContext.current)
             val t = tick
-            if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro", onShow = {}, onPlay = { _, _ -> home = false },
+            if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro", onShow = { opened = "show:" + it.id }, onPlay = { _, _ -> home = false },
                 onSettings = {}, onStats = {}, onProfiles = {}, onLibrary = {}, onDiscover = {}, onDiscovered = { home = false },
                 lists = { if (t < 0) emptyList() else null }, memory = memory)
         }
@@ -475,7 +478,7 @@ class TvHomeFocusTest {
         openHome()
         assertEquals("OK Choose · ▼ Rows", Hints.line())
         press(DOWN)
-        assertEquals("OK Open", Hints.line())
+        assertEquals("OK Open · Hold OK More", Hints.line())
     }
 
     private fun openEmptyHome() {
@@ -558,16 +561,143 @@ class TvHomeFocusTest {
         assertEquals("Stats", focused())
     }
 
+    private fun holdOk() {
+        rule.onRoot().performKeyInput { keyDown(Key(OK)); advanceEventTime(1000); keyUp(Key(OK)) } // the menu opens on the release
+        rule.waitForIdle()
+    }
+
+    private fun focusedIsRemove() = focused()?.contains("Remove from Continue watching") == true
+
+    private fun openRemoveMenu(vararg to: Long, card: String) {
+        openReturning()
+        press(*to)
+        assertEquals(card, focused())
+        holdOk()
+        rule.waitUntil(5_000) { focusedIsRemove() }
+    }
+
+    @Test fun holdingOkOnAContinueCardOpensTheMenuWithRemoveFocused() {
+        openRemoveMenu(DOWN, RIGHT, card = "Beta")
+        rule.onNodeWithText("Cancel").assertExists()
+        rule.onNodeWithText("▶  Open title page").assertExists()
+    }
+
+    @Test fun backInTheMenuCancelsAndFocusStaysOnTheCard() {
+        openRemoveMenu(DOWN, RIGHT, card = "Beta")
+        press(BACK)
+        rule.waitUntil(5_000) { focused() == "Beta" }
+        rule.onAllNodesWithText("Cancel").fetchSemanticsNodes().let { assertEquals(0, it.size) }
+        assertEquals(false, Settings(RuntimeEnvironment.getApplication()).prefs.contains("continue_hidden_p"))
+    }
+
+    @Test fun cancelInTheMenuLeavesTheCardInTheRow() {
+        openRemoveMenu(DOWN, card = "Alpha")
+        press(DOWN, DOWN, OK)
+        rule.waitUntil(5_000) { focused() == "Alpha" }
+        rule.onAllNodesWithContentDescription("Beta").fetchSemanticsNodes().let { assertEquals(1, it.size) }
+    }
+
+    @Test fun removeTakesTheCardOutAndFocusGoesToTheNextOne() {
+        openRemoveMenu(DOWN, card = "Alpha")
+        press(OK)
+        rule.waitUntil(5_000) { focused() == "Beta" }
+        rule.onAllNodesWithContentDescription("Alpha").fetchSemanticsNodes().let { assertEquals(0, it.size) }
+        rule.onNodeWithText("Alpha removed from Continue watching").assertExists()
+        assertEquals(true, Settings(RuntimeEnvironment.getApplication()).prefs.contains("continue_hidden_p"))
+    }
+
+    @Test fun removingTheLastCardFocusesThePreviousOne() {
+        openRemoveMenu(DOWN, RIGHT, card = "Beta")
+        press(OK)
+        rule.waitUntil(5_000) { focused() == "Alpha" }
+    }
+
+    @Test fun okWhileTheToastShowsUndoesAndFocusesTheCardAgain() {
+        openRemoveMenu(DOWN, card = "Alpha")
+        press(OK)
+        rule.waitUntil(5_000) { focused() == "Beta" }
+        press(OK)
+        rule.waitUntil(5_000) { focused() == "Alpha" }
+        rule.onAllNodesWithText("Alpha removed from Continue watching").fetchSemanticsNodes().let { assertEquals(0, it.size) }
+        assertEquals(1, rule.onAllNodesWithContentDescription("Beta").fetchSemanticsNodes().size)
+        assertEquals("{}", Settings(RuntimeEnvironment.getApplication()).prefs.getString("continue_hidden_p", null))
+    }
+
+    @Test fun afterHoldThenBackTheFirstOkOnTheCardPlaysIt() {
+        openRemoveMenu(DOWN, card = "Alpha")
+        press(BACK)
+        rule.waitUntil(5_000) { focused() == "Alpha" }
+        assertEquals(true, home)
+        press(OK)
+        assertEquals(false, home)
+    }
+
+    @Test fun releasingAHeldOkOpensTheMenuWithoutPressingRemove() {
+        openReturning()
+        press(DOWN)
+        assertEquals("Alpha", focused())
+        rule.onRoot().performKeyInput { keyDown(Key(OK)); advanceEventTime(1000); keyUp(Key(OK)) }
+        rule.waitForIdle()
+        rule.waitUntil(5_000) { focusedIsRemove() }
+        assertEquals(false, Settings(RuntimeEnvironment.getApplication()).prefs.contains("continue_hidden_p"))
+    }
+
+    @Test fun theUndoKeysReleaseDoesNotPlayTheCardEvenWithTheToastGone() {
+        openRemoveMenu(DOWN, card = "Alpha")
+        press(OK)
+        rule.waitUntil(5_000) { focused() == "Beta" }
+        rule.onRoot().performKeyInput { keyDown(Key(OK)); advanceEventTime(6_000); keyUp(Key(OK)) }
+        rule.waitForIdle()
+        assertEquals(true, home)
+        rule.waitUntil(5_000) { focused() == "Alpha" }
+    }
+
+    @Test fun openInTheMenuGoesToTheTitlePage() {
+        openRemoveMenu(DOWN, card = "Alpha")
+        press(DOWN, OK)
+        assertEquals("show:a", opened)
+    }
+
+    @Test fun aRemovedShowComesBackWhenItIsPlayedAgain() {
+        openRemoveMenu(DOWN, card = "Alpha")
+        press(OK)
+        rule.waitUntil(5_000) { focused() == "Beta" }
+        showsBody = """{"shows":[${show("a", "Alpha", "anime", episode("a1", 300.0, 900))},${show("b", "Beta", "anime", episode("b1", 500.0, 100))}]}"""
+        home = false
+        rule.waitForIdle()
+        home = true
+        rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("Alpha").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private var opened: String? = null
+
+    @Test fun aNotAiredYetCardSitsAfterThePlayableOnesAndOpensItsTitlePage() {
+        logIn(mine("1", "Alpha", "CURRENT", progress = 0, episodes = 12, next = 1, nextAt = System.currentTimeMillis() / 1000 + 3 * 86400))
+        showsBody = """{"shows":[${show("kitsu:1", "Alpha", "stream", episode("a1", 300.0, 200))},${show("b", "Beta", "anime", episode("b1", 500.0, 100))}]}"""
+        rule.setContent {
+            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), Settings(LocalContext.current), "p", "Pedro", onShow = { opened = "show:" + it.id },
+                onPlay = { s, _ -> opened = "play:" + s.id }, onDiscovered = { opened = "found:" + it.id }, onSettings = {}, onStats = {}, onProfiles = {}, lists = { null })
+        }
+        rule.waitUntil(5_000) { focused() == RESUME }
+        rule.onNodeWithText("COMING SOON").assertExists()
+        press(DOWN)
+        assertEquals("Beta", focused())
+        press(RIGHT)
+        assertEquals("Alpha", focused())
+        press(OK)
+        assertEquals("found:kitsu:1", opened)
+    }
+
     private companion object {
         const val RESUME = "▶  Resume"
         val RAIL_LABELS = setOf("Home", "Library", "Review", "Stats", "Pedro", "Settings")
         val DOWN = Key.DirectionDown.keyCode; val UP = Key.DirectionUp.keyCode; val RIGHT = Key.DirectionRight.keyCode
         val BACK = Key.Back.keyCode; val OK = Key.DirectionCenter.keyCode
 
-        fun mine(id: String, name: String, status: String, progress: Int, episodes: Int, average: Int = 0) = JSONObject()
+        fun mine(id: String, name: String, status: String, progress: Int, episodes: Int, average: Int = 0, next: Int = 0, nextAt: Long = 0) = JSONObject()
             .put("id", id.toInt()).put("kitsu", id).put("native", name).put("romaji", name).put("cover", "/c/$id.jpg").put("banner", "")
             .put("format", "TV").put("episodes", episodes).put("status", status).put("progress", progress).put("score", 0.0)
-            .put("average", average).put("genres", JSONArray(listOf("Adventure"))).put("year", 2023)
+            .put("average", average).put("genres", JSONArray(listOf("Adventure"))).put("year", 2023).put("next", next).put("nextAt", nextAt)
 
         fun episode(id: String, resume: Double?, at: Long) =
             """{"id":"$id","title":"Episode 1","season":1,"episode":1,"duration":1400,"thumb":"/t/$id.jpg","scenes":10,

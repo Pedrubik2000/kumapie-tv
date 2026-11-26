@@ -74,7 +74,22 @@ class TvShowFocusTest {
         }}]}]}"""
         val api = Api("http://127.0.0.1:${server.address.port}")
         val show = runBlocking { api.shows() }.single()
-        rule.setContent { ShowScreen(api, Settings(LocalContext.current), show) { _, _ -> } }
+        rule.setContent { ShowScreen(api, Settings(LocalContext.current), show) { _, _ -> played++ } }
+    }
+
+    private var played = 0
+
+    @Test fun holdingOkOpensTheMarkMenuOnReleaseAndAfterBackTheNextOkPlays() {
+        open()
+        rule.waitUntil(5_000) { rule.focusedTitle() == "Episode 1" }
+        rule.onRoot().performKeyInput { keyDown(Key.DirectionCenter); advanceEventTime(1000); keyUp(Key.DirectionCenter) }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Mark as watched").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(0, played)
+        rule.press(Key.Back)
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Mark as watched").fetchSemanticsNodes().isEmpty() }
+        rule.waitUntil(5_000) { rule.focusedTitle() == "Episode 1" }
+        rule.press(Key.DirectionCenter)
+        assertEquals(1, played)
     }
 
     @Test fun opensOnTheFirstEpisodeWhenNoneWasPlayed() {

@@ -77,8 +77,9 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
         LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(20.dp),
             contentPadding = PaddingValues(horizontal = 40.dp, vertical = 16.dp)) { // room for the focused card's 10%
             itemsIndexed(episodes, key = { _, e -> e.id }) { i, ep ->
+                val hold = rememberOpenOnRelease { menu = ep }
                 EpisodeCard(ep, blur = settings.blurUnwatched && !ep.watched, onClick = { onEpisode(show, ep) },
-                    onLongClick = { menu = ep }, modifier = if (i == start) Modifier.focusRequester(focus) else Modifier)
+                    onLongClick = hold::arm, modifier = (if (i == start) Modifier.focusRequester(focus) else Modifier).then(hold.key))
             }
         }
     }
@@ -102,7 +103,7 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
 private fun MarkMenu(ep: Episode, count: Int, onClose: () -> Unit, onMark: (whole: Boolean, watched: Boolean) -> Unit) {
     val focus = remember { FocusRequester() }
     val season = ep.season?.let { tr("Season %d", it) } ?: tr("All episodes")
-    Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(Color(0xCC000000)).swallowHeldOk().onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
         Column(Modifier.width(560.dp).arcadePanel().padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Title(ep.title, fontSize = 24.sp)

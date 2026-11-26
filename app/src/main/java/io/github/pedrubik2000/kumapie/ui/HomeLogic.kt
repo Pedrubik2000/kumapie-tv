@@ -1,6 +1,7 @@
 package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.ui.graphics.Color
+import io.github.pedrubik2000.kumapie.data.ContinueHidden
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.LangTotal
@@ -77,6 +78,15 @@ data class ListTarget(val mine: Mine) : HeroTarget {
 data class FoundTarget(val found: Found) : HeroTarget {
     override val key get() = found.id
 }
+
+fun HeroTarget.airsAt(now: Long): Long? = when (this) {
+    is ResumeTarget -> ContinueHidden.airsAt(mine, show, episode, now)
+    is ContinueTarget -> ContinueHidden.airsAt(mine, show, episode, now)
+    else -> null
+}
+
+fun soonPill(e: Episode, at: Long, now: Long): String =
+    "▶  " + (e.number?.let { tr("Ep %d", it) } ?: e.title) + " · " + ContinueHidden.airsText(at, now)
 
 fun HeroTarget.kitsu(): String? = when (this) {
     is ResumeTarget -> show.kitsuId()

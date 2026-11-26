@@ -466,7 +466,7 @@ internal fun ScenePlayer(
                 { options = false; reporting = true })
         }
     }
-    if (reporting) SubReportDialog(ctl, settings.prefs) { reporting = false }
+    if (reporting) SubReportDialog(ctl, settings.prefs, onShift?.let { library.local.shifted(episode.id) }) { reporting = false }
     if (backlog) {
         ModalBottomSheet(properties = DarkSheet, onDismissRequest = { backlog = false }) {
             Backlog(ctl, onPick = { i -> backlog = false; picker.close(); auto = false; ctl.playScene(i) })

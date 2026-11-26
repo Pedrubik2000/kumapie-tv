@@ -22,12 +22,12 @@ import kotlinx.coroutines.launch
 
 /** "Report subtitle timing": CrashPrompt's dialog (PC first, else a ready-filled GitHub issue) for the subtitle lines on screen. */
 @Composable
-internal fun SubReportDialog(ctl: SceneController, prefs: SharedPreferences, close: () -> Unit) {
+internal fun SubReportDialog(ctl: SceneController, prefs: SharedPreferences, shift: Double?, close: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var phase by remember { mutableStateOf("ask") }
     var refused by remember { mutableStateOf(false) }
-    val report = remember { SubReports.of(ctl, prefs) }
+    val report = remember { SubReports.of(ctl, prefs, shift) }
     val env = remember { CrashCollector.env(context, "mobile", BuildConfig.VERSION_NAME) }
     AlertDialog(onDismissRequest = { if (phase != "sending") close() },
         title = { Text(tr("Report the subtitle timing of this episode to your PC?")) },

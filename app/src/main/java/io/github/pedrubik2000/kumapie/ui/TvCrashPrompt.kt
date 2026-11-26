@@ -97,8 +97,9 @@ internal fun TvCrashDialog(send: suspend () -> Delivery, mark: () -> Unit, close
                     else -> {
                         if (refused) Text(tr("Your kumapie PC refused the report."), color = Colors.dim, fontSize = 16.sp)
                         Text(tr("Scan with your phone to open a ready-filled GitHub issue."), color = Colors.text, fontSize = 20.sp)
-                        val code = remember(p) { qr(p.toString(), 700) }
-                        Image(code.asImageBitmap(), null, Modifier.size(320.dp).background(Color.White).padding(10.dp))
+                        val code = remember(p) { runCatching { qr(p.toString(), 700) }.getOrNull() }
+                        if (code != null) Image(code.asImageBitmap(), null, Modifier.size(320.dp).background(Color.White).padding(10.dp))
+                        else Text(tr("Could not draw the code. Close this and try again."), color = Colors.dim, fontSize = 16.sp)
                         Button(onClick = close, modifier = Modifier.focusRequester(focus)) { Text(tr("Close"), fontSize = 16.sp) }
                     }
                 }

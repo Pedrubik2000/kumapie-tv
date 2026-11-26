@@ -24,7 +24,7 @@ object SimilarPicks {
     private const val QUERY_GENRES = 2
     private val SEEN = setOf("COMPLETED", "CURRENT", "REPEATING", "PAUSED", "DROPPED")
 
-    fun query(me: Mine): AniListBrowse.Query = AniListBrowse.Query(sort = listOf("SCORE_DESC"), genreIn = me.genres.take(QUERY_GENRES).toSet())
+    fun query(me: Mine): AniListBrowse.Query = AniListBrowse.Query(sort = listOf("SCORE_DESC"), genreIn = me.genres.take(QUERY_GENRES).toSet(), onList = false)
 
     private fun shared(me: Mine, c: Mine): Int = c.genres.count { it in me.genres } + c.tags.count { it in me.tags }
 
@@ -59,8 +59,11 @@ object SimilarPicks {
         p.episodes?.let { tr("%d eps", it) },
     ).joinToString(" · ")
 
-    suspend fun addToPlanning(id: Int, save: suspend (Int, AniList.Entry) -> Unit): String {
+    suspend fun addToPlanning(id: Int, live: suspend (Int) -> AniList.Entry, save: suspend (Int, AniList.Entry) -> Unit): String {
+        live(id).status?.let { return it }
         save(id, AniList.Entry(status = "PLANNING"))
         return "PLANNING"
     }
+
+    suspend fun addToPlanning(token: String, id: Int): String = addToPlanning(id, { AniList.entry(token, it) }) { m, e -> AniList.save(token, m, e) }
 }

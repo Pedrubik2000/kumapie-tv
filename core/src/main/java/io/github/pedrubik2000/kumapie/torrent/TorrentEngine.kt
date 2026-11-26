@@ -8,9 +8,11 @@ import io.github.pedrubik2000.kumapie.data.Pending
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.player.AppScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.libtorrent4j.Priority
 import org.libtorrent4j.SessionHandle
@@ -93,9 +95,17 @@ object TorrentEngine {
             return begin(context.applicationContext, ref, gen)
         } catch (e: InterruptedException) {
             throw InterruptedIOException()
+        } catch (e: InterruptedIOException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: TorrentException) {
             if (owner === token) fail(e.message.orEmpty(), e.fault)
             throw e
+        } catch (e: Throwable) {
+            val said = tr("The torrent engine did not start.")
+            if (owner === token) fail(said)
+            throw TorrentException(said).also { it.initCause(e) }
         }
     }
 
@@ -192,12 +202,11 @@ object TorrentEngine {
                 runCatching {
                     val s = handle.status()
                     val peers = s.numPeers()
-                    if (!failed) state.value = progress(s.hasMetadata(), peers, s.downloadPayloadRate().toLong())
-                    if (!failed) shown.value = when {
+                    tick(progress(s.hasMetadata(), peers, s.downloadPayloadRate().toLong()), when {
                         !waiting -> null
                         !s.hasMetadata() -> tr("Finding peers…") + if (peers > 0) " · " + tr("%d peers", peers) else ""
                         else -> tr("Downloading %1\$d%% · %2\$s/s · %3\$d peers", percent(), megabytes(s.downloadPayloadRate().toLong()), peers)
-                    }
+                    })
                     if (++ticks % LOG_EVERY == 0) android.util.Log.i(LOG, "down ${s.downloadPayloadRate() / 1000} kB/s up ${s.uploadPayloadRate() / 1000} kB/s peers $peers seeds ${s.numSeeds()} have ${percent()}%")
                     if (current?.let { it.haveBytes() >= it.size } == true) handle.pause()
                 }
@@ -214,10 +223,19 @@ object TorrentEngine {
         return TorrentStatus(TorrentPhase.DOWNLOADING, peers = peers, rate = rate, have = stream.haveBytes(), need = TorrentStatus.startNeed(stream.size), ahead = stream.aheadBytes(), size = stream.size, release = releaseName)
     }
 
+    fun tick(next: TorrentStatus, text: String?) {
+        state.update { if (failed || it?.phase == TorrentPhase.FAILED) it else next }
+        shown.update { if (failed) it else text }
+    }
+
+    fun playerFailed(message: String) {
+        if (!failed) fail(message)
+    }
+
     fun fail(message: String, fault: TorrentFault = TorrentFault.OTHER) {
-        state.value = TorrentStatus.failed(fault, message, state.value?.peers ?: 0, releaseName)
         failedAt = System.currentTimeMillis()
         failed = true
+        state.value = TorrentStatus.failed(fault, message, state.value?.peers ?: 0, releaseName)
         shown.value = message
     }
 

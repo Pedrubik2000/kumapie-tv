@@ -62,9 +62,20 @@ class SimilarPicksTest {
         assertEquals(listOf("SCORE_DESC"), SimilarPicks.query(me).sort)
     }
 
-    @Test fun planToWatchWritesPlanningThroughTheGivenClientOnly() = runBlocking {
+    @Test fun planToWatchWritesPlanningOnlyWhenTheLiveEntryIsEmpty() = runBlocking {
         val sent = ArrayList<Pair<Int, AniList.Entry>>()
-        assertEquals("PLANNING", SimilarPicks.addToPlanning(42) { id, e -> sent += id to e })
+        assertEquals("PLANNING", SimilarPicks.addToPlanning(42, { AniList.Entry() }) { id, e -> sent += id to e })
         assertEquals(listOf(42 to AniList.Entry(status = "PLANNING")), sent)
+    }
+
+    @Test fun anExistingEntryIsNeverWrittenOver() = runBlocking {
+        val sent = ArrayList<Pair<Int, AniList.Entry>>()
+        val done = AniList.Entry(status = "COMPLETED", progress = 12, score = 9.0)
+        assertEquals("COMPLETED", SimilarPicks.addToPlanning(42, { done }) { id, e -> sent += id to e })
+        assertEquals(emptyList<Pair<Int, AniList.Entry>>(), sent)
+    }
+
+    @Test fun theBrowseQueryLeavesOutShowsOnTheList() {
+        assertEquals(false, SimilarPicks.query(me).onList)
     }
 }

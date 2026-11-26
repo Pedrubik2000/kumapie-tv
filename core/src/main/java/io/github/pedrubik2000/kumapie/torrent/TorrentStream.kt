@@ -12,8 +12,8 @@ class TorrentException(message: String, val fault: TorrentFault = TorrentFault.O
 class Sidecar(private val process: Process, private val port: Int, private val token: String, private val dir: File) {
     val alive: Boolean get() = process.isAlive
 
-    fun status(): JSONObject {
-        val c = URL("http://127.0.0.1:$port/status").openConnection() as HttpURLConnection
+    fun status(files: Boolean = false): JSONObject {
+        val c = URL("http://127.0.0.1:$port/status" + if (files) "?files=1" else "").openConnection() as HttpURLConnection
         c.setRequestProperty("X-Token", token)
         c.connectTimeout = TIMEOUT_MS
         c.readTimeout = TIMEOUT_MS
@@ -28,7 +28,10 @@ class Sidecar(private val process: Process, private val port: Int, private val t
 
     fun stop() {
         runCatching { process.outputStream.close() }
-        if (!process.waitFor(STOP_S, TimeUnit.SECONDS)) process.destroy()
+        if (!process.waitFor(STOP_S, TimeUnit.SECONDS)) {
+            process.destroy()
+            process.waitFor(STOP_S, TimeUnit.SECONDS)
+        }
         dir.deleteRecursively()
     }
 

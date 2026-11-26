@@ -4,7 +4,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 
 enum class TorrentPhase { PEERS, DOWNLOADING, FAILED }
 
-enum class TorrentFault { NONE, OFF, NO_PEERS, NO_SPACE, STALLED, OTHER }
+enum class TorrentFault { NONE, OFF, NO_PEERS, STALLED, OTHER }
 
 data class TorrentStatus(
     val phase: TorrentPhase = TorrentPhase.PEERS,
@@ -31,7 +31,7 @@ data class TorrentStatus(
         private const val MIN_RATE = 50_000L
         private const val MAX_ETA = 99
 
-        fun startNeed(size: Long): Long = minOf(size, TorrentPlan.HEAD_BYTES + TorrentPlan.TAIL_BYTES)
+        fun startNeed(size: Long): Long = minOf(size, TorrentPlan.HEAD_BYTES)
 
         fun failed(fault: TorrentFault, message: String, peers: Int, release: String) =
             TorrentStatus(TorrentPhase.FAILED, fault, peers = peers, release = release, message = message)
@@ -66,7 +66,6 @@ private fun failedText(s: TorrentStatus): WaitText {
     val (headline, detail) = when (s.fault) {
         TorrentFault.NO_PEERS -> tr("No one is sharing this file") to tr("%s after 60 s", peerCount(s.peers))
         TorrentFault.OFF -> tr("Torrent streaming is off") to tr("Turn it on in Settings, or pick a Real-Debrid release.")
-        TorrentFault.NO_SPACE -> tr("Not enough free space") to s.message.substringAfter(": ").replaceFirstChar { it.uppercase() }
         TorrentFault.STALLED -> tr("The download stalled") to tr("Try another release.")
         else -> s.message to ""
     }

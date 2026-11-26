@@ -52,7 +52,7 @@ class TorrentWaitTextTest {
     }
 
     @Test fun theStartNeedIsHeadAndTailButNeverMoreThanTheFile() {
-        assertEquals(6 * mb, TorrentStatus.startNeed(1000 * mb))
+        assertEquals(4 * mb, TorrentStatus.startNeed(1000 * mb))
         assertEquals(3 * mb, TorrentStatus.startNeed(3 * mb))
     }
 
@@ -62,8 +62,6 @@ class TorrentWaitTextTest {
         assertEquals("No one is sharing this file", text(TorrentFault.NO_PEERS).headline)
         assertEquals("0 peers after 60 s", text(TorrentFault.NO_PEERS).detail)
         assertEquals("Torrent streaming is off", text(TorrentFault.OFF).headline)
-        assertEquals("Not enough free space", text(TorrentFault.NO_SPACE).headline)
-        assertEquals("This video needs 1.4 GB and 500 MB spare.", text(TorrentFault.NO_SPACE, "Not enough free space: this video needs 1.4 GB and 500 MB spare.").detail)
         assertEquals("The download stalled", text(TorrentFault.STALLED).headline)
         assertEquals("something else", text(TorrentFault.OTHER, "something else").headline)
         assertTrue(text(TorrentFault.OTHER).failed)

@@ -18,6 +18,8 @@ import java.io.File
 import java.io.InterruptedIOException
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
 
 object TorrentEngine {
     const val UPLOAD_BYTES_PER_S = 50_000
@@ -31,6 +33,8 @@ object TorrentEngine {
     private const val STATUS_MS = 500L
     private const val LOG_EVERY = 4
     private const val BINARY = "libtorrsrv.so"
+    private const val PORT_WAIT_S = 10L
+    private const val MINER_READAHEAD = 2L shl 20
 
     private val shown = MutableStateFlow<String?>(null)
     val line: StateFlow<String?> = shown
@@ -125,14 +129,17 @@ object TorrentEngine {
         val process = ProcessBuilder(bin, "-dir", dir.path, "-cap", cap.toString(), "-hash", ref.hash, "-token", token,
             "-upload", UPLOAD_BYTES_PER_S.toString(), "-conns", (if (narrow) NARROW_CONNECTIONS else MAX_CONNECTIONS).toString(), "-tr", ref.trackers.joinToString(","))
             .redirectError(File(context.cacheDir, "torrsrv.log")).start()
-        val first = process.inputStream.bufferedReader().readLine().orEmpty()
-        val port = first.removePrefix("PORT ").trim().toIntOrNull()
-        if (port == null) {
+        try {
+            val first = FutureTask { process.inputStream.bufferedReader().readLine().orEmpty() }
+            Thread(first, "torrsrv-port").apply { isDaemon = true }.start()
+            val port = first.get(PORT_WAIT_S, TimeUnit.SECONDS).removePrefix("PORT ").trim().toIntOrNull()
+                ?: throw TorrentException(tr("The torrent engine did not start."))
+            android.util.Log.i(LOG, "sidecar on $port, window ${cap shr 20} MB")
+            return Sidecar(process, port, token, dir)
+        } catch (e: Throwable) {
             process.destroy()
-            throw TorrentException(tr("The torrent engine did not start."))
+            throw e
         }
-        android.util.Log.i(LOG, "sidecar on $port, window ${cap shr 20} MB")
-        return Sidecar(process, port, token, dir)
     }
 
     private fun stream(car: Sidecar, ref: TorrentRef, gen: Int): TorrentStream {
@@ -151,7 +158,7 @@ object TorrentEngine {
             Thread.sleep(POLL_MS)
             s = car.status()
         }
-        val files = s.optJSONArray("files")
+        val files = car.status(files = true).optJSONArray("files")
         val count = files?.length() ?: 0
         val names = (0 until count).map { files?.optJSONObject(it)?.optString("name").orEmpty() }
         val sizes = (0 until count).map { files?.optJSONObject(it)?.optLong("size") ?: 0L }
@@ -225,7 +232,7 @@ object TorrentEngine {
 
     fun local(source: String): String {
         if (!source.startsWith("${TorrentRef.SCHEME}://")) return source
-        return current?.takeIf { source.contains(it.ref.hash) }?.url ?: throw TorrentException(tr("The video is no longer on this device: mine words while it plays."))
+        return current?.takeIf { source.contains(it.ref.hash) }?.let { it.url + "&ra=$MINER_READAHEAD" } ?: throw TorrentException(tr("The video is no longer on this device: mine words while it plays."))
     }
 
     fun megabytes(bytes: Long): String =

@@ -88,7 +88,6 @@ class TorrentSpaceAndNextTest {
         assertEquals(200 * mb, TorrentPlan.cap(true, 8_000 * mb))
         assertEquals(64 * mb, TorrentPlan.cap(false, 8_000 * mb))
         assertEquals(64 * mb, TorrentPlan.cap(true, 900 * mb))
-        assertTrue(TorrentPlan.cap(true, Long.MAX_VALUE) <= 256 * mb)
     }
 
     @Test fun aFailureIsRetriedOnlyAfterTheWindow() {

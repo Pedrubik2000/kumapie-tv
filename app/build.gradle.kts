@@ -77,6 +77,15 @@ android {
     }
 }
 
+// The torrent sidecar is built for the emulators too (tools/torrsrv/build.sh). An x86 lib makes the emulator pick
+// x86 and lose the arm-only dictionary lib, so only `-Px86` debug builds (torrent tests on the emulator) keep it.
+androidComponents {
+    onVariants(selector().all()) {
+        if (it.buildType == "debug" && project.hasProperty("x86")) return@onVariants
+        it.packaging.jniLibs.excludes.addAll("lib/x86/libtorrsrv.so", "lib/x86_64/libtorrsrv.so")
+    }
+}
+
 dependencies {
     implementation(project(":core"))
     implementation(project(":lang")) // mining a word into kuma3 Anki on the TV (Miner)
@@ -92,8 +101,6 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("com.google.zxing:core:3.5.3") // the onboarding's QR code (the phone opens the TV's setup page)
-    implementation("org.libtorrent4j:libtorrent4j-android-arm:2.1.0-39")
-    implementation("org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-39")
 
     // TV focus tests: the remote's keys on the real screens, on the PC (TvHomeFocusTest).
     testImplementation("junit:junit:4.13.2")

@@ -66,56 +66,6 @@ class TorrentTest {
         assertEquals(-1, TorrentPlan.pick(emptyList(), emptyList(), -1))
     }
 
-    @Test fun pieceMath() {
-        val pl = 262_144
-        val offset = 1_000_000L
-        val size = 100L * pl
-        assertEquals(3, TorrentPlan.firstPiece(offset, pl))
-        assertEquals(103, TorrentPlan.lastPiece(offset, size, pl))
-        assertEquals(3, TorrentPlan.pieceAt(offset, 0, pl))
-        assertEquals(4, TorrentPlan.pieceAt(offset, pl.toLong(), pl))
-        assertEquals(3..18, TorrentPlan.head(3, 103, pl))
-        assertEquals(96..103, TorrentPlan.tail(3, 103, pl))
-        assertEquals(3..5, TorrentPlan.head(3, 5, pl).let { it.first..minOf(it.last, 5) })
-    }
-
-    @Test fun priorities() {
-        val p = TorrentPlan.priorities(400, 10, 300, 80, 262_144)
-        assertEquals(0, p[9])
-        assertEquals(0, p[301])
-        assertEquals(TorrentPlan.TOP, p[10])
-        assertEquals(TorrentPlan.TOP, p[300])
-        assertEquals(TorrentPlan.IGNORE, p[50])
-        assertEquals(TorrentPlan.NORMAL, p[200])
-        assertEquals(TorrentPlan.TOP, p[80])
-        assertEquals(TorrentPlan.TOP, p[80 + 31])
-        assertEquals(TorrentPlan.NORMAL, p[80 + 64])
-        assertEquals(80..87, TorrentPlan.urgent(80, 300, 262_144))
-    }
-
-    @Test fun readableBytesStopAtTheFirstMissingPiece() {
-        val pl = 1000
-        val have = setOf(2, 3, 4, 6)
-        assertEquals(2500L, TorrentPlan.available(2500, 10_000, 0, pl) { it in have })
-        assertEquals(1000L, TorrentPlan.available(2500, 10_000, 1500, pl) { it in have })
-        assertEquals(0L, TorrentPlan.available(2500, 10_000, 2500, pl) { it in have })
-        assertEquals(1000L, TorrentPlan.available(2500, 10_000, 3500, pl) { it in have })
-        assertEquals(10_000L, TorrentPlan.available(0, 10_000, 0, pl) { true })
-        assertEquals(0L, TorrentPlan.available(0, 10_000, 10_000, pl) { true })
-    }
-
-    @Test fun lastPieceIsCutAtTheFileEnd() {
-        assertEquals(500L, TorrentPlan.available(0, 4500, 4000, 1000) { true })
-    }
-
-    @Test fun aSeekIsAJump() {
-        val mb = 1L shl 20
-        assertFalse(TorrentPlan.jumped(10 * mb, 10 * mb))
-        assertFalse(TorrentPlan.jumped(10 * mb, 12 * mb))
-        assertTrue(TorrentPlan.jumped(10 * mb, 40 * mb))
-        assertTrue(TorrentPlan.jumped(100 * mb, 20 * mb))
-    }
-
     @Test fun torrentsOnNeedNoDebridKey() {
         assertEquals(RdGate.MISSING, Startup.rdGate(false, false, "", null, 0))
         assertEquals(RdGate.NOT_ASKED, Startup.rdGate(false, false, "", null, 0, torrents = true))
@@ -133,10 +83,11 @@ class TorrentTest {
 }
 
 class TorrentSpaceAndNextTest {
-    @Test fun spaceIsRefusedUnderTheFileAndTheSpare() {
-        val spare = 500L shl 20
-        assertFalse(TorrentPlan.admits(2_000L shl 20, 2_400L shl 20, spare))
-        assertTrue(TorrentPlan.admits(2_000L shl 20, 2_500L shl 20, spare))
+    @Test fun theCacheWindowIsSmallOn32BitOrLowSpace() {
+        val mb = 1L shl 20
+        assertEquals(200 * mb, TorrentPlan.cap(true, 8_000 * mb))
+        assertEquals(64 * mb, TorrentPlan.cap(false, 8_000 * mb))
+        assertEquals(64 * mb, TorrentPlan.cap(true, 900 * mb))
     }
 
     @Test fun aFailureIsRetriedOnlyAfterTheWindow() {

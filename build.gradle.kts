@@ -185,16 +185,24 @@ tasks.register("slopCheck") {
 
 // APK size budget (idea from HolyArrs: measure every build, or it grows unnoticed). A release APK over its limit fails
 // the build: CI's Build, the Release workflow and build_local.ps1. Sizes 2026-11-18: TV 10.2 MB (2.4 MB until v0.34,
-// then hoshidicts for two ABIs), phone 77.4 MB. libtorrent4j (torrent streams without Real-Debrid): TV +7.8 MB (arm + arm64 libs,
-// compressed in the APK), phone +6.2 MB (arm64). Raise a limit only on purpose, with the reason in the commit.
-val apkBudgetMb = mapOf("app" to 19.0, "mobile" to 85.0)
+// then hoshidicts for two ABIs), phone 77.4 MB. The torrent sidecar (tools/torrsrv, Go, replaced libtorrent4j 2026-11-26):
+// TV 22.0 MB (arm + arm64, was 18.4 with libtorrent4j), phone 86.0 MB (arm64, was 84.8). Raise a limit only on purpose,
+// with the reason in the commit.
+val apkBudgetMb = mapOf("app" to 23.0, "mobile" to 87.0)
+// A release APK without the torrent sidecar (gitignored, made by tools/torrsrv/build.sh) fails too.
+val sidecarAbis = mapOf("app" to listOf("arm64-v8a", "armeabi-v7a"), "mobile" to listOf("arm64-v8a"))
 subprojects {
-    if (rootProject.hasProperty("debuggable")) return@subprojects // a heap-dump build (app/build.gradle.kts), never shipped
     val budget = apkBudgetMb[name] ?: return@subprojects
+    val abis = sidecarAbis.getValue(name)
+    val sized = !rootProject.hasProperty("debuggable") // a heap-dump build (app/build.gradle.kts), never shipped
     val apks = layout.buildDirectory.dir("outputs/apk/release")
     tasks.matching { it.name == "assembleRelease" }.configureEach {
         doLast {
             apks.get().asFile.listFiles { f -> f.extension == "apk" }.orEmpty().forEach { apk ->
+                val libs = java.util.zip.ZipFile(apk).use { z -> z.entries().asSequence().map { it.name }.toSet() }
+                val missing = abis.filter { "lib/$it/libtorrsrv.so" !in libs }
+                check(missing.isEmpty()) { "${apk.name} has no torrent sidecar for $missing: run tools/torrsrv/build.sh first" }
+                if (!sized) return@forEach
                 val mb = apk.length() / 1e6
                 check(mb <= budget) { "${apk.name} is %.1f MB, over its %.1f MB budget (build.gradle.kts, apkBudgetMb)".format(mb, budget) }
                 println("APK size: ${apk.name} %.1f MB of %.1f MB".format(mb, budget))

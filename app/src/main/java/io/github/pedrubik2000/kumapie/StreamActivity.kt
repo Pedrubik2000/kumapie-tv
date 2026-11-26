@@ -207,6 +207,7 @@ class StreamActivity : ComponentActivity() {
         val p = rememberPlayer(start.url, start.resumeAt, "ja")
         remember(p) { player = p; p.playWhenReady = true }
         var note by remember { mutableStateOf<String?>(null) }
+        var reconnecting by remember { mutableStateOf(false) }
         val s = remember(p) {
             io.github.pedrubik2000.kumapie.lang.AloneStream(settings.prefs, io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs), p, id,
                 link.getQueryParameter("type") ?: "series", show, link.getQueryParameter("title") ?: show,
@@ -218,11 +219,11 @@ class StreamActivity : ComponentActivity() {
             val listener = object : Player.Listener {
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
                     if (!io.github.pedrubik2000.kumapie.player.DecodeRetry.recovered(p, e)) note = tr("The video stopped: %1\$s", e.cause?.message ?: e.message ?: e.errorCodeName)
-                    else if (io.github.pedrubik2000.kumapie.player.DecodeRetry.reopening(e)) note = tr("Reconnecting…")
+                    else reconnecting = io.github.pedrubik2000.kumapie.player.DecodeRetry.reopening(e)
                 }
 
                 override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_READY && note == tr("Reconnecting…")) note = null
+                    if (state == Player.STATE_READY) reconnecting = false
                     if (state == Player.STATE_ENDED) scope.launch { playNext(settings, query(link)) { note = it } }
                 }
             }
@@ -258,7 +259,7 @@ class StreamActivity : ComponentActivity() {
             val backend = remember { io.github.pedrubik2000.kumapie.ui.TvMining.backend(context, settings, ep.lang) }
             return androidx.compose.runtime.key(ep) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ep, onClose = ::finish, player = p, onController = { ctl = it }) }
         }
-        AlonePlain(p, live.line, note ?: label?.takeIf { showLabel })
+        AlonePlain(p, live.line, if (reconnecting) tr("Reconnecting…") else note ?: label?.takeIf { showLabel })
     }
 
     private fun shiftLabel(live: LiveLines): String? = when {

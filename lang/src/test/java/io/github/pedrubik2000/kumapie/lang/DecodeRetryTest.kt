@@ -46,14 +46,25 @@ class DecodeRetryTest {
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED)) assertEquals(Step.GiveUp, r.step(c, 1_000))
     }
 
-    @Test fun malformedContainerReopensThreeTimesPerTwoMinutes() {
+    private val bad = PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
+
+    @Test fun malformedRetriesHereThenPastTheBufferThenGivesUp() {
         val r = DecodeRetry()
-        val bad = PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
-        assertEquals(Step.Retry(1_139_044), r.step(bad, 1_139_044, 0))
-        assertEquals(Step.Retry(1_139_044), r.step(bad, 1_139_044, 5_000))
-        assertEquals(Step.Retry(1_140_000), r.step(bad, 1_140_000, 60_000))
-        assertEquals(Step.GiveUp, r.step(bad, 1_140_000, 119_999))
-        assertEquals(Step.Retry(1_150_000), r.step(bad, 1_150_000, 120_000))
-        assertEquals(Step.Retry(1_150_000), r.step(bad, 1_150_000, 125_000))
+        assertEquals(Step.Retry(1_139_044), r.step(bad, 1_139_044, 1_179_000))
+        assertEquals(Step.Retry(1_184_000), r.step(bad, 1_139_044, 1_179_000))
+        assertEquals(Step.Retry(1_189_000), r.step(bad, 1_139_044, 1_184_000))
+        assertEquals(Step.GiveUp, r.step(bad, 1_139_044, 1_189_000))
+    }
+
+    @Test fun malformedNeverLoopsOnAndOnAtTheSameSpot() {
+        val r = DecodeRetry()
+        repeat(3) { r.step(bad, 1_000, 1_000) }
+        repeat(5) { assertEquals(Step.GiveUp, r.step(bad, 1_000, 1_000)) }
+    }
+
+    @Test fun malformedCountStartsOverOncePlaybackPassedTheSpot() {
+        val r = DecodeRetry()
+        repeat(3) { r.step(bad, 1_000, 30_000) }
+        assertEquals(Step.Retry(40_000), r.step(bad, 40_000, 40_000))
     }
 }

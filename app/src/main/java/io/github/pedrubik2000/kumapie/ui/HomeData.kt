@@ -2,6 +2,7 @@ package io.github.pedrubik2000.kumapie.ui
 
 import androidx.compose.runtime.Stable
 import io.github.pedrubik2000.kumapie.data.BestForYou
+import io.github.pedrubik2000.kumapie.data.ContinueHidden
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.data.Show
@@ -22,12 +23,15 @@ fun planningOrder(all: List<Mine>): List<Mine> {
 class HomeData(
     val going: List<Pair<Show, Episode>>, val all: List<Mine>, val loggedIn: Boolean,
     val library: List<Pair<String, List<Show>>>, private val metaIds: Map<String, Set<String>> = emptyMap(),
+    val now: Long = System.currentTimeMillis() / 1000,
 ) {
     fun mineFor(s: Show, e: Episode): Mine? = byKitsu[s.kitsuId()]?.let { m ->
         if ((e.number ?: 0) > (m.episodes ?: Int.MAX_VALUE)) m.copy(episodes = metaIds[s.id]?.size?.takeIf { it >= (e.number ?: 0) }) else m
     }
 
     val byKitsu: Map<String, Mine> = all.associateBy { it.kitsuId }
+    val soon: Map<String, Long> = going.mapNotNull { (s, e) -> ContinueHidden.airsAt(ContinueHidden.mineOf(byKitsu, s), e, now)?.let { s.id to it } }.toMap()
+    val soonFrom: Int = going.indexOfFirst { it.first.id in soon }
     val watching: List<Mine> = if (loggedIn) all.filter { it.watching } else emptyList()
     val planning: List<Mine> = if (loggedIn) planningOrder(all) else emptyList()
     val names: List<String> = listOfNotNull(

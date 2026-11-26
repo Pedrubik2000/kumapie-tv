@@ -12,6 +12,7 @@ data class Mine(
     val anilistId: Int, val kitsuId: String, val native: String, val romaji: String, val cover: String, val banner: String,
     val format: String, val episodes: Int?, val status: String, val progress: Int, val score: Double, val average: Int,
     val genres: List<String>, val year: Int, val tags: List<String> = emptyList(), val airing: String = "", val season: String = "",
+    val nextEp: Int = 0, val nextAt: Long = 0,
 ) {
     val watching get() = status == "CURRENT" || status == "REPEATING"
 }
@@ -20,7 +21,7 @@ object AniListLists {
     const val CACHE = "anilist_mine"
     private const val QUERY = "query(\$u:String,\$c:Int){MediaListCollection(userName:\$u,type:ANIME,chunk:\$c,perChunk:500," +
         "status_in:[CURRENT,PLANNING,COMPLETED,PAUSED,DROPPED,REPEATING]){hasNextChunk lists{entries{status progress score media{id format episodes " +
-        "averageScore genres tags{name rank isMediaSpoiler isGeneralSpoiler} status season title{romaji native} coverImage{extraLarge} bannerImage startDate{year}}}}}}"
+        "averageScore genres tags{name rank isMediaSpoiler isGeneralSpoiler} status season nextAiringEpisode{episode airingAt} title{romaji native} coverImage{extraLarge} bannerImage startDate{year}}}}}}"
 
     private fun key(user: String) = CACHE + "_" + user.trim().lowercase()
 
@@ -64,16 +65,17 @@ object AniListLists {
         Mine(m.getInt("id"), k, text(t, "native"), text(t, "romaji"), text(m.optJSONObject("coverImage"), "extraLarge"), text(m, "bannerImage"),
             text(m, "format"), m.optInt("episodes").takeIf { it > 0 }, e.optString("status"), e.optInt("progress"), e.optDouble("score", 0.0),
             m.optInt("averageScore"), m.optJSONArray("genres")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
-            m.optJSONObject("startDate")?.optInt("year") ?: 0, tags(m.optJSONArray("tags")), text(m, "status"), text(m, "season"))
+            m.optJSONObject("startDate")?.optInt("year") ?: 0, tags(m.optJSONArray("tags")), text(m, "status"), text(m, "season"),
+            m.optJSONObject("nextAiringEpisode")?.optInt("episode") ?: 0, m.optJSONObject("nextAiringEpisode")?.optLong("airingAt") ?: 0L)
     }
 
     private fun json(m: Mine) = JSONObject().put("id", m.anilistId).put("kitsu", m.kitsuId).put("native", m.native).put("romaji", m.romaji)
         .put("cover", m.cover).put("banner", m.banner).put("format", m.format).put("episodes", m.episodes ?: 0).put("status", m.status)
         .put("progress", m.progress).put("score", m.score).put("average", m.average).put("genres", JSONArray(m.genres)).put("year", m.year)
-        .put("tags", JSONArray(m.tags)).put("airing", m.airing).put("season", m.season)
+        .put("tags", JSONArray(m.tags)).put("airing", m.airing).put("season", m.season).put("next", m.nextEp).put("nextAt", m.nextAt)
 
     private fun mine(j: JSONObject) = Mine(j.getInt("id"), j.getString("kitsu"), j.getString("native"), j.getString("romaji"), j.getString("cover"),
         j.getString("banner"), j.getString("format"), j.getInt("episodes").takeIf { it > 0 }, j.getString("status"), j.getInt("progress"),
         j.getDouble("score"), j.getInt("average"), j.getJSONArray("genres").let { a -> (0 until a.length()).map { a.getString(it) } },
-        j.getInt("year"), j.optJSONArray("tags")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(), j.optString("airing"), j.optString("season"))
+        j.getInt("year"), j.optJSONArray("tags")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(), j.optString("airing"), j.optString("season"), j.optInt("next"), j.optLong("nextAt"))
 }

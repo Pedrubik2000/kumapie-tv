@@ -59,6 +59,7 @@ import io.github.pedrubik2000.kumapie.data.streamsThatExist
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.TitleLevels
+import io.github.pedrubik2000.kumapie.data.ContinueHidden
 import io.github.pedrubik2000.kumapie.data.continueRow
 import io.github.pedrubik2000.kumapie.data.libraryRows
 import io.github.pedrubik2000.kumapie.i18n.tr
@@ -91,7 +92,8 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
     val totals by produceState<LangTotal?>(null, lang) {
         value = lang?.let { l -> runCatching { if (api is Api) api.stats().langs[l] else aloneTotal(context, settings, l, shows.orEmpty()) }.getOrNull() }
     }
-    val data = rememberHomeData(settings, lists, shows, lang, streams)
+    var hidden by remember(settings) { mutableStateOf(ContinueHidden.read(settings.prefs)) }
+    val data = rememberHomeData(settings, lists, shows, lang, streams, hidden)
     val focus = remember(data != null) { HomeFocus(data?.resume, memory) }
     val railFocus = remember { mutableMapOf<String, FocusRequester>() }
     val first = remember { FocusRequester() }
@@ -113,7 +115,8 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
                 error != null -> Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error, onRetry = { attempt++ }, onSettings = onSettings) }
                 shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
                 lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
-                data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover) { contentFocused || railFocused }
+                data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover,
+                    onHide = { s, e -> hidden = ContinueHidden.hide(settings.prefs, s, e) }, onUnhide = { hidden = ContinueHidden.unhide(settings.prefs, it.id) }) { contentFocused || railFocused }
             }
         }
         RailBackdrop()
@@ -227,7 +230,7 @@ private fun loadStreams(api: Discovery, lang: String?, shows: List<Show>?): List
 }
 
 @Composable
-private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> List<Mine>?, shows: List<Show>?, lang: String?, streams: List<Pair<Show, Episode>>?): HomeData? {
+private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> List<Mine>?, shows: List<Show>?, lang: String?, streams: List<Pair<Show, Episode>>?, hidden: Map<String, Long>): HomeData? {
     val user = settings.anilist
     val loggedIn = settings.anilistToken.isNotEmpty()
     val noLists = !loggedIn || user.isEmpty()
@@ -246,10 +249,12 @@ private fun rememberHomeData(settings: Settings, lists: suspend (Settings) -> Li
     val everyone = all
     val known = facts?.takeIf { it.of === streams } ?: facts
     if (shows == null || streams == null || lang == null || everyone == null || known == null) return null
-    return remember(shows, streams, lang, everyone, loggedIn, known) {
+    return remember(shows, streams, lang, everyone, loggedIn, known, hidden) {
         val mine = shows.filter { it.lang == lang }
-        HomeData(continueRow(mine, streamsThatExist(streams, everyone, known.metaIds, known.lastPlayed)), everyone, loggedIn,
-            libraryRows(mine).map { (l, list) -> tr(l) to list }, known.metaIds)
+        val row = ContinueHidden.shown(continueRow(mine, streamsThatExist(streams, everyone, known.metaIds, known.lastPlayed)), hidden)
+        val now = System.currentTimeMillis() / 1000
+        HomeData(ContinueHidden.soonLast(row, everyone.associateBy { it.kitsuId }, now), everyone, loggedIn,
+            libraryRows(mine).map { (l, list) -> tr(l) to list }, known.metaIds, now)
     }
 }
 

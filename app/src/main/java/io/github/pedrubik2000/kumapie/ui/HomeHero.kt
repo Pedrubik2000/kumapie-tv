@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Backdrops
+import io.github.pedrubik2000.kumapie.data.ContinueHidden
 import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Show
@@ -81,6 +82,16 @@ class HomeFocus(first: HeroTarget?, val memory: HomeMemory = HomeMemory()) {
 
     fun leaving(at: Int, index: Int, key: Any) { memory.last = Spot(at, index, key) }
 
+    fun refocus(at: Int, key: Any): Boolean = cards["$at:$key"]?.let { runCatching { it.requestFocus() }.getOrDefault(false) } == true
+
+    suspend fun bring(at: Int, index: Int, key: Any) {
+        repeat(RESTORE_FRAMES) {
+            runCatching { rows[at]?.scrollToItem(index) }
+            withFrameNanos { }
+            if (refocus(at, key)) return
+        }
+    }
+
     suspend fun restore(list: LazyListState): Boolean {
         val s = memory.last ?: return false
         repeat(RESTORE_FRAMES) {
@@ -88,7 +99,7 @@ class HomeFocus(first: HeroTarget?, val memory: HomeMemory = HomeMemory()) {
             runCatching { list.scrollToItem(s.at) }
             runCatching { rows[s.at]?.scrollToItem(s.index) }
             withFrameNanos { }
-            if (cards["${s.at}:${s.key}"]?.let { runCatching { it.requestFocus() }.getOrDefault(false) } == true) {
+            if (refocus(s.at, s.key)) {
                 if (memory.last === s) memory.last = null
                 return true
             }
@@ -137,7 +148,10 @@ internal fun HomeHero(focus: HomeFocus, warm: Pair<String, String>, api: Discove
         HeroBackdrop(picture, { if (focus.tall) FADE_TALL else FADE_SHORT }, Modifier.matchParentSize())
         when (val t = focus.target) {
             is ResumeTarget -> ResumeText(t, focus, first, below, onPlay, onShow)
-            is ContinueTarget -> InfoText(t, t.facts(), emptyList(), levels)
+            is ContinueTarget -> {
+                val now = System.currentTimeMillis() / 1000
+                InfoText(t, t.facts(), listOfNotNull(t.airsAt(now)?.let { soonPill(t.episode, it, now) }), levels)
+            }
             is ListTarget -> InfoText(t, t.facts(), t.chips(), levels)
             is FoundTarget -> Unit
             null -> Row(Modifier.padding(start = RAIL, top = 96.dp, end = 32.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -186,15 +200,19 @@ internal fun Eyebrow(text: String) =
 @Composable
 private fun ResumeText(t: ResumeTarget, focus: HomeFocus, first: FocusRequester, below: FocusRequester, onPlay: (Show, Episode) -> Unit, onShow: (Show) -> Unit) {
     val e = t.episode
+    val now = System.currentTimeMillis() / 1000
+    val soon = t.airsAt(now)
     Column(Modifier.padding(start = RAIL, top = 72.dp, end = 24.dp).width(600.dp)) {
         Eyebrow(t.eyebrow())
         FitTitle(t.title(), 52, 1)
-        Text(factLine(e.title, resumeLine(e), episodesText(t.mine?.episodes ?: t.show.episodes.size)), color = WHITE_DIM, fontSize = 18.sp,
+        Text(factLine(e.title, soon?.let { ContinueHidden.airsText(it, now) } ?: resumeLine(e), episodesText(t.mine?.episodes ?: t.show.episodes.size)), color = WHITE_DIM, fontSize = 18.sp,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         if (e.duration > 0) ProgressBar(((e.resume ?: 0.0) / e.duration).toFloat(), Modifier.width(380.dp).padding(top = 12.dp))
         Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = { onPlay(t.show, e) }, modifier = Modifier.hint(HintKind.HERO).focusRequester(first).then(focus.settled()).focusProperties { down = below }) { Text("▶  " + tr("Resume")) }
-            Button(onClick = { onShow(t.show) }, modifier = Modifier.hint(HintKind.HERO).focusProperties { down = below }) { Text(tr("Episodes")) }
+            if (soon == null) Button(onClick = { onPlay(t.show, e) }, modifier = Modifier.hint(HintKind.HERO).focusRequester(first).then(focus.settled()).focusProperties { down = below }) { Text("▶  " + tr("Resume")) }
+            else Text(soonPill(e, soon, now), color = Colors.dim, maxLines = 1,
+                modifier = Modifier.border(1.dp, Arcade.line, RoundedCornerShape(50)).padding(horizontal = 20.dp, vertical = 12.dp))
+            Button(onClick = { onShow(t.show) }, modifier = (if (soon == null) Modifier else Modifier.focusRequester(first).then(focus.settled())).hint(HintKind.HERO).focusProperties { down = below }) { Text(tr("Episodes")) }
         }
     }
 }

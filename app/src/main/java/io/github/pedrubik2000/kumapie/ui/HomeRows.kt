@@ -2,12 +2,17 @@ package io.github.pedrubik2000.kumapie.ui
 
 import android.view.KeyEvent
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -41,14 +46,17 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import io.github.pedrubik2000.kumapie.data.ContinueHidden
 import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Found
@@ -56,6 +64,7 @@ import io.github.pedrubik2000.kumapie.data.Show
 import io.github.pedrubik2000.kumapie.data.levelLine
 import io.github.pedrubik2000.kumapie.data.shortTitle
 import io.github.pedrubik2000.kumapie.data.shown
+import io.github.pedrubik2000.kumapie.data.streamFound
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.launch
 
@@ -70,7 +79,13 @@ private val ROW_PADDING = PaddingValues(start = RAIL, end = 32.dp, top = 12.dp, 
 internal class RowCtx(
     val d: HomeData, val focus: HomeFocus, val api: Discovery, val levels: Levels?, val first: FocusRequester, val below: FocusRequester,
     val toTop: () -> Unit, val scrollTo: (Int) -> Unit, val onShow: (Show) -> Unit, val onPlay: (Show, Episode) -> Unit, val onDiscovered: (Found) -> Unit, val onLogin: () -> Unit,
+    val onMenu: (ContinueMenu) -> Unit,
 ) {
+    fun open(s: Show, e: Episode, index: Int) {
+        focus.leaving(0, index, s.id)
+        if (s.id !in d.soon) onPlay(s, e) else if (s.kind == "stream") onDiscovered(streamFound(s, e)) else onShow(s)
+    }
+
     fun card(row: Int, index: Int, key: Any, target: () -> HeroTarget?): Modifier {
         var m: Modifier = Modifier.onFocusChanged { if (it.isFocused) { target()?.let { t -> focus.target = t }; val moved = focus.row != row; focus.row = row; if (moved) scrollTo(row) } }
         m = m.then(focus.card(row, key))
@@ -86,7 +101,8 @@ internal class RowCtx(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Levels?, first: FocusRequester, railFocus: Map<String, FocusRequester>,
-                      onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit, onDiscovered: (Found) -> Unit, onLogin: () -> Unit, onDiscover: () -> Unit, held: () -> Boolean) {
+                      onShow: (Show) -> Unit, onPlay: (Show, Episode) -> Unit, onDiscovered: (Found) -> Unit, onLogin: () -> Unit, onDiscover: () -> Unit,
+                      onHide: (Show, Episode) -> Unit = { _, _ -> }, onUnhide: (Show) -> Unit = {}, held: () -> Boolean) {
     val list = rememberLazyListState(cacheWindow = LazyLayoutCacheWindow(ahead = 200.dp, behind = 200.dp))
     val scope = rememberCoroutineScope()
     val below = remember { FocusRequester() }
@@ -97,15 +113,40 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
         Unit
     }
     SideEffect { focus.toTop = toTop }
-    val ctx = remember(d, levels) { RowCtx(d, focus, api, levels, first, below, toTop, { i -> scope.launch { runCatching { list.animateScrollToItem(i) } }; Unit }, onShow, onPlay, onDiscovered, onLogin) }
+    var menu by remember { mutableStateOf<ContinueMenu?>(null) }
+    var removed by remember { mutableStateOf<Removed?>(null) }
+    val undone = remember { BooleanArray(1) }
+    val ctx = remember(d, levels) { RowCtx(d, focus, api, levels, first, below, toTop, { i -> scope.launch { runCatching { list.animateScrollToItem(i) } }; Unit }, onShow, onPlay, onDiscovered, onLogin) { menu = it } }
     LaunchedEffect(d.resume) { if (focus.target == null || focus.target is ResumeTarget) focus.target = d.resume }
     KnowIds(levels, d.all)
     AskLevels(levels, d.askRows, focus)
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
+        val r = removed
+        if (r == null || !undoKey(e)) false
+        else {
+            // the card under focus would still get this key's KeyUp as a click (play): swallow both, drop the toast on KeyUp
+            if (e.type == KeyEventType.KeyDown && !undone[0]) { undone[0] = true; onUnhide(r.show); scope.launch { focus.bring(0, r.index, r.show.id) } }
+            if (e.type == KeyEventType.KeyUp) { undone[0] = false; removed = null }
+            true
+        }
+    }) {
         HomeHero(focus, d.warm, api, levels, first, below, d.names.isEmpty(), !d.loggedIn || d.library.any { it.second.isNotEmpty() }, onPlay, onShow, onDiscover)
         CompositionLocalProvider(LocalBringIntoViewSpec provides HeadingFirst) {
             LazyColumn(Modifier.fillMaxSize().rowsBelowHero(focus).backToTop(ctx, list, toTop), state = list, contentPadding = PaddingValues(bottom = 240.dp)) { homeRows(ctx) }
         }
+        menu?.let { m ->
+            ContinueMenuView(m, onRemove = {
+                val next = if (m.index + 1 < d.going.size) m.index + 1 else m.index - 1
+                focus.memory.last = d.going.getOrNull(next)?.let { Spot(0, next.coerceAtMost(m.index), it.first.id) }
+                menu = null
+                removed = Removed(m.show, m.episode, m.index)
+                onHide(m.show, m.episode)
+            }, onOpen = { menu = null; ctx.open(m.show, m.episode, m.index) }, onCancel = {
+                menu = null
+                scope.launch { withFrameNanos { }; focus.refocus(0, m.show.id) }
+            })
+        }
+        removed?.let { RemovedToast(it) { removed = null } }
     }
     LaunchedEffect(d.going) {
         val rail = takeRailLast()?.let { railFocus[it] }
@@ -165,10 +206,27 @@ private fun LazyListScope.goingRow(c: RowCtx, nav: RowNav?) = item(key = "going"
         LazyRow(state = remember(going) { LazyListState().also { c.focus.rows[0] = it } }, horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = ROW_PADDING) {
             itemsIndexed(going, key = { _, p -> p.second.id }) { i, (s, e) ->
                 val target = { ContinueTarget(s, e, i, going.size, c.d.mineFor(s, e)) }
-                ResumeCard(s, e, c.card(0, i, s.id, target), width = 220.dp, picture = titlePicture(s, e, c.api)) { c.focus.leaving(0, i, s.id); c.onPlay(s, e) }
+                val at = c.d.soon[s.id]
+                val where = remember { arrayOfNulls<LayoutCoordinates>(1) }
+                val card = @Composable {
+                    ResumeCard(s, e, c.card(0, i, s.id, target).onPlaced { where[0] = it }, width = 220.dp, picture = titlePicture(s, e, c.api),
+                        airs = at?.let { ContinueHidden.airsText(it, c.d.now) },
+                        onLongClick = { c.onMenu(ContinueMenu(s, e, i, where[0]?.positionInRoot()?.x ?: 0f, where[0]?.positionInRoot()?.y ?: 0f)) }) { c.open(s, e, i) }
+                }
+                if (i == c.d.soonFrom) SoonDivider(card) else card()
             }
         }
     } }
+}
+
+@Composable
+private fun SoonDivider(card: @Composable () -> Unit) = Box {
+    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        Spacer(Modifier.width(2.dp).height(124.dp).background(Arcade.line))
+        card()
+    }
+    Text(tr("Coming soon").uppercase(), color = Colors.dim, fontSize = 12.sp, style = Arcade.label, letterSpacing = 3.sp, maxLines = 1, softWrap = false,
+        modifier = Modifier.align(Alignment.TopStart).offset(x = 26.dp, y = (-16).dp))
 }
 
 private fun LazyListScope.minesRow(c: RowCtx, key: String, label: String, row: Int, mines: List<io.github.pedrubik2000.kumapie.data.Mine>, watching: Boolean) = item(key = key) {

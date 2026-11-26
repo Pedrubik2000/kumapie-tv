@@ -131,7 +131,8 @@ object DeviceSync {
         val settings = Settings(context)
         last.value = settings.prefs.getString(LAST, "").orEmpty()
         if (settings.server.isNotEmpty()) return
-        if (settings.prefs.getBoolean(ANSWERS, false)) SyncListener.start(context)
+        if (!settings.prefs.getBoolean(ANSWERS, false)) return
+        SyncListener.start(context)
         if (settings.prefs.getBoolean(BACKGROUND, false)) SyncService.start(context)
     }
 

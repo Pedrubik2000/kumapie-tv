@@ -26,3 +26,47 @@ class AloneStreamTest {
         assertNull(AloneStream.episodeNumber("tt0245429"))
     }
 }
+
+class PoisonedPrefsTest {
+    private val log = mutableListOf<String>()
+
+    private fun prefs(map: Map<String, Any?>) = java.lang.reflect.Proxy.newProxyInstance(javaClass.classLoader, arrayOf(android.content.SharedPreferences::class.java)) { _, m, _ ->
+        when (m.name) {
+            "getAll" -> map
+            "edit" -> java.lang.reflect.Proxy.newProxyInstance(javaClass.classLoader, arrayOf(android.content.SharedPreferences.Editor::class.java)) { e, em, a ->
+                log += em.name + ":" + a?.firstOrNull()
+                if (em.name == "apply") null else e
+            }
+            else -> error(m.name)
+        }
+    } as android.content.SharedPreferences
+
+    @Test fun importKeepsTypesAndOldPeersStillWork() {
+        val theirs = org.json.JSONObject().put("alone_off_clean", true).put("alone_off_x|hand", false).put("alone_pos_a:1", 1.5)
+            .put("alone_big", 123456789012L).put("alone_seen", org.json.JSONArray(listOf("a")))
+        val out = DeviceFile.streams(emptyMap(), theirs)
+        assertEquals(null, out["alone_off_clean"])
+        assertEquals(false, out["alone_off_x|hand"])
+        assertEquals(1.5f, out["alone_pos_a:1"])
+        assertEquals(setOf("a"), out["alone_seen"])
+        assertEquals(123456789012L.toFloat(), out["alone_big"])
+    }
+
+    @Test fun readsHealPoisonedStrings() {
+        assertEquals(true, AloneStream.flag(prefs(mapOf("k" to true)), "k"))
+        assertEquals(true, AloneStream.flag(prefs(mapOf("k" to "true")), "k"))
+        assertEquals(false, AloneStream.flag(prefs(mapOf("k" to "false")), "k"))
+        assertEquals(false, AloneStream.flag(prefs(mapOf("k" to 1.5f)), "k"))
+        assertEquals(false, AloneStream.flag(prefs(emptyMap()), "k"))
+        val all = mapOf("alone_off_x" to 40f, "alone_off_x|hand" to "true", "alone_off_y" to 40f)
+        assertEquals(listOf("alone_off_y"), AloneStream.staleOffsets(all))
+    }
+
+    @Test fun aPoisonedCleanMarkerRunsTheCleanupAgain() {
+        AloneStream.cleanOffsets(prefs(mapOf("alone_off_clean" to "true", "alone_off_y" to 40f)))
+        assertEquals(listOf("remove:alone_off_y", "putBoolean:alone_off_clean", "apply:null"), log)
+        log.clear()
+        AloneStream.cleanOffsets(prefs(mapOf("alone_off_clean" to true, "alone_off_y" to 40f)))
+        assertEquals(emptyList<String>(), log)
+    }
+}

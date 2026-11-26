@@ -163,12 +163,16 @@ class AloneStream(
 
         fun isHand(total: Double) = kotlin.math.abs(total) > 1.0
 
+        fun isTrue(v: Any?) = v == true || v == "true"
+
+        fun flag(prefs: SharedPreferences, key: String) = isTrue(prefs.all[key])
+
         fun staleOffsets(all: Map<String, *>): List<String> = all.filter { (k, v) ->
-            k.startsWith("alone_off_") && !k.endsWith("|hand") && !k.endsWith("|nudge") && v is Float && kotlin.math.abs(v) > 30f && all[k + "|hand"] != true
+            k.startsWith("alone_off_") && !k.endsWith("|hand") && !k.endsWith("|nudge") && v is Float && kotlin.math.abs(v) > 30f && !isTrue(all[k + "|hand"])
         }.keys.toList()
 
         fun cleanOffsets(prefs: SharedPreferences) {
-            if (prefs.getBoolean("alone_off_clean", false)) return
+            if (prefs.all["alone_off_clean"] == true) return
             prefs.edit().apply { staleOffsets(prefs.all).forEach(::remove) }.putBoolean("alone_off_clean", true).apply()
         }
 
@@ -176,7 +180,7 @@ class AloneStream(
 
         private fun nudgeKey(prefs: SharedPreferences, id: String) = keptKey(prefs, id) + "|nudge"
 
-        fun handed(prefs: SharedPreferences, id: String) = prefs.getBoolean(handKey(prefs, id), false)
+        fun handed(prefs: SharedPreferences, id: String) = flag(prefs, handKey(prefs, id))
 
         private fun keptKey(prefs: SharedPreferences, id: String) = offKey(id, prefs.getString(fileKey(id), "").orEmpty())
 

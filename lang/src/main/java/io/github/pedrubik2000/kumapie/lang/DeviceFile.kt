@@ -18,6 +18,7 @@ object DeviceFile {
 
     private const val SAVED = "alone_saved"
     private const val SEEN = "alone_seen"
+    internal const val DONE = "alone_off_clean"
     private const val LAST = "alone_last_"
 
     data class Count(val what: String, val add: Int, val change: Int, val keep: Int)
@@ -126,7 +127,7 @@ object DeviceFile {
         for (k in theirs.keys()) {
             val v = theirs.get(k)
             when {
-                k.startsWith(LAST) -> Unit
+                k.startsWith(LAST) || k == DONE -> Unit
                 k == SAVED -> {
                     val had = JSONArray((mine[k] as? String) ?: "[]").objects()
                     val ids = had.map { it.optString("id") }.toSet()
@@ -139,7 +140,7 @@ object DeviceFile {
                     if (all != had) out[k] = all
                 }
                 else -> {
-                    val value: Any = when (v) { is Number -> v.toFloat(); is JSONArray -> v.strings().toSet(); else -> v.toString() }
+                    val value: Any = when (v) { is Boolean -> v; is Number -> v.toFloat(); is JSONArray -> v.strings().toSet(); else -> v.toString() }
                     val place = k.startsWith("alone_pos_") || k.startsWith("alone_len_")
                     if (mine[k] == null || (place && Addons.titleOf(k.drop(10)) in titles && mine[k] != value)) out[k] = value
                 }
@@ -252,7 +253,7 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
         settings.prefs.edit().apply {
             plan.streams.forEach { (k, v) ->
                 @Suppress("UNCHECKED_CAST")
-                when (v) { is Float -> putFloat(k, v); is Set<*> -> putStringSet(k, v as Set<String>); else -> putString(k, v.toString()) }
+                when (v) { is Boolean -> putBoolean(k, v); is Float -> putFloat(k, v); is Set<*> -> putStringSet(k, v as Set<String>); else -> putString(k, v.toString()) }
             }
         }.apply()
         File(eventsFile.path + ".part").apply { writeText(plan.events.toString()) }.renameTo(eventsFile)
@@ -262,7 +263,7 @@ class DeviceFiles(private val context: Context, private val languages: List<Lang
         return copy
     }
 
-    private fun streams(): Map<String, Any?> = settings.prefs.all.filterKeys { it.startsWith("alone_") }
+    private fun streams(): Map<String, Any?> = settings.prefs.all.filterKeys { it.startsWith("alone_") && it != DeviceFile.DONE }
 
     fun carded(): JSONObject {
         val keys = HashSet<String>()

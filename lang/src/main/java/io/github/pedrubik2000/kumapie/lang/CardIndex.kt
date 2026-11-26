@@ -24,7 +24,6 @@ class CardIndex(private val lang: String = "") {
         this.due = due ?: this.due
     }
 
-    /** Counts [add] and [update]: a reload that started before one of them must read again ([KnownWords.reloadCards]). */
     @Volatile var changes = 0
         private set
 

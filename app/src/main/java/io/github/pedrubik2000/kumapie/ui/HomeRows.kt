@@ -83,7 +83,6 @@ internal class RowCtx(
 ) {
     fun open(s: Show, e: Episode, index: Int) = if (s.id !in d.soon) { focus.leaving(0, index, s.id); onPlay(s, e) } else title(s, e, index)
 
-    /** The title page: a stream's Discover page (only streams can be unaired), else the show's. */
     fun title(s: Show, e: Episode, index: Int) {
         focus.leaving(0, index, s.id)
         if (s.kind == "stream") onDiscovered(streamFound(s, e)) else onShow(s)
@@ -125,9 +124,8 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
     AskLevels(levels, d.askRows, focus)
     Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
         val r = removed
-        // undo on the key's DOWN; the card under focus would still get its UP as a click (play), even if the toast has gone by then, so swallow that UP
         val fresh = e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0
-        if (undoKey(e) && fresh) pendingUp[0] = false // a fresh press means the old UP got lost: stop waiting for it
+        if (undoKey(e) && fresh) pendingUp[0] = false
         if (!undoKey(e)) false
         else if (pendingUp[0]) { if (e.type == KeyEventType.KeyUp) pendingUp[0] = false; true }
         else if (r != null && e.type == KeyEventType.KeyDown) {

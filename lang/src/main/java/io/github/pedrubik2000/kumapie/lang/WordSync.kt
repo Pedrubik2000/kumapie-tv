@@ -12,7 +12,6 @@ object WordSync {
         set(v) { field = v; loaded = true }
     @Volatile private var loaded = false
     @Volatile var insist = false
-    /** When other devices' ratings last landed in this device's cards ([DeviceFiles.share]): colour readers older than this reload. */
     @Volatile var changedAt = 0L
     private val warned = HashSet<String>()
 

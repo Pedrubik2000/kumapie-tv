@@ -3,12 +3,6 @@ package io.github.pedrubik2000.kumapie.lang
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * Yomitan structured content as plain blocks of styled text, for the TV's native word card (no WebView: the TV's
- * 32-bit address space can't afford one). Pure and JVM-testable. What it keeps: text, bold/italic/size, ruby as
- * `base[reading]`, ol/ul/li, tables as rows, tag pills (part of speech and the like), links as coloured text,
- * images as their title/alt. What it drops: the dictionary's own CSS, colours, images without a title, layout.
- */
 object GlossaryNodes {
     data class Run(
         val text: String,
@@ -20,7 +14,6 @@ object GlossaryNodes {
         val dim: Boolean = false,
     )
 
-    /** One paragraph: [indent] list levels deep; a list item's marker is its first run. */
     data class Block(val runs: List<Run>, val indent: Int = 0) {
         val text get() = runs.joinToString("") { it.text }
     }
@@ -31,7 +24,6 @@ object GlossaryNodes {
 
     private val PILL = Regex("(?i)part-?of-?speech|^pos\$|tag")
 
-    /** What is left to draw: one per entry by default, one shared by a whole card ([MAX_CARD_CHARS], [MAX_CARD_BLOCKS]). */
     class Budget(var chars: Int = MAX_CHARS, var blocks: Int = MAX_BLOCKS) {
         internal var cut = false
         internal var marked = false
@@ -39,7 +31,6 @@ object GlossaryNodes {
     const val MAX_CARD_CHARS = 30_000
     const val MAX_CARD_BLOCKS = 400
 
-    /** One dictionary's glossary (the raw JSON array of items) as blocks; a plain string works too. */
     fun build(raw: String, budget: Budget = Budget()): List<Block> {
         val b = Builder(budget)
         val a = runCatching { JSONArray(raw) }.getOrNull()
@@ -66,7 +57,7 @@ object GlossaryNodes {
         val blocks = ArrayList<Block>()
         private var runs = ArrayList<Run>()
         private var indent = 0
-        private var marker: Run? = null // a list item's bullet, kept for the item's first text even when a block comes first
+        private var marker: Run? = null
 
         fun flush() {
             if (runs.any { it.text.isNotBlank() }) {
@@ -94,7 +85,6 @@ object GlossaryNodes {
         private fun block(st: Style, body: () -> Unit) { flush(); val prev = indent; indent = st.indent; body(); flush(); indent = prev }
 
         fun item(node: Any?, st: Style, depth: Int) {
-            // A form-of item: [dictionary form, [inflection rules]].
             if (node is JSONArray && node.length() == 2 && node.opt(0) is String && node.opt(1) is JSONArray) {
                 val rules = node.getJSONArray(1)
                 text((0 until rules.length()).joinToString(", ") { rules.optString(it) } + " of ", st)
@@ -137,7 +127,6 @@ object GlossaryNodes {
                 size(css.opt("fontSize"))?.let { s = s.copy(size = (s.size * it).coerceIn(0.5f, 2f)) }
             }
             val child = node.opt("content")
-            // A tag element (part of speech...) is ONE pill of its joined text; nothing under it is pilled on its own.
             val tagged = node.optJSONObject("data")?.let { d -> d.keys().asSequence().any { k -> PILL.containsMatchIn(k) || PILL.containsMatchIn(d.optString(k)) } } == true
             if (tagged && tag !in setOf("ul", "ol", "li", "table", "tr")) { plain(child).trim().takeIf { it.isNotEmpty() }?.let { text(it, s, pill = true) }; return }
             when (tag) {
@@ -151,7 +140,7 @@ object GlossaryNodes {
                 "li", "div", "summary", "details", "table", "thead", "tbody", "tfoot" ->
                     block(s.copy(bold = s.bold || tag == "summary")) { content(child, s.copy(bold = s.bold || tag == "summary"), depth + 1) }
                 "tr" -> block(s) { cells(child, s, depth) }
-                else -> content(child, s, depth + 1) // span and anything unknown: its children
+                else -> content(child, s, depth + 1)
             }
         }
 
@@ -178,7 +167,6 @@ object GlossaryNodes {
             }
         }
 
-        /** "0.8em" -> 0.8, "80%" -> 0.8, 1 -> 1 (a number is em), "small" -> 0.85; else null. */
         private fun size(v: Any?): Float? = when (v) {
             is Number -> v.toFloat()
             is String -> when {

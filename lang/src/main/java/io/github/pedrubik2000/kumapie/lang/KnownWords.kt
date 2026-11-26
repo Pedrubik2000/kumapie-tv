@@ -131,18 +131,14 @@ class KnownWords(val context: Context, private val settings: Settings, private v
         afterLists()
     }
 
-    /** Noise ([Noise]): known for colours and stopping, but never counted. */
     private fun noise(word: String) = Noise.isNoise(word, lang)
 
-    /** Noise words of the player's episode known (white unless a card says otherwise), for paths that never repaint. */
     fun noiseWhite(ctl: io.github.pedrubik2000.kumapie.player.SceneController) {
         for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w -> if (noise(k)) ctl.words[k] = Noise.white(w) }
     }
 
-    /** [knownList] without noise: what stats, Home and Settings count. The PC still gets [knownList]. */
     fun knownCount(): Int = Noise.countable(knownList(), lang).size
 
-    /** Imported words without noise, for counts. */
     fun importedCount(): Int = imported.count { !noise(it) }
 
     /** Known without a card of its own: imported, or [Language.autoKnown]. */
@@ -208,7 +204,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     suspend fun reloadCards() = withContext(Dispatchers.IO) {
         val pkg = pkgNow() ?: return@withContext
         var tries = 0
-        do { // an update()/add() during the read (a rating) would be overwritten by its older data: read again
+        do {
             val seen = cardIndex.changes
             val notes = anki.notes(pkg, search)
             cardIndex.build(notes, anki.cards(pkg, search), cardIndex.due, cardKeys(notes))

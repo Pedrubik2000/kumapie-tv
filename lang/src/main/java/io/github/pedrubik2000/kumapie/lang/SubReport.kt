@@ -6,10 +6,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
 
-/** One subtitle line as shown: start and end in seconds, as the player has them now (after every shift). */
 data class ReportCue(val start: Double, val end: Double, val text: String)
 
-/** "Report subtitle timing": what Pedro needs to see why the lines are off, nothing about the account. */
 data class SubReport(
     val title: String, val titleId: String, val anilist: Int?, val episode: Int?, val source: String, val videoFile: String,
     val shift: Double, val nudge: Double, val savedKey: String, val position: Double,
@@ -23,20 +21,16 @@ object SubReports {
 
     private val extension = Regex(""".+[.][A-Za-z0-9]{2,5}""")
 
-    /** The file's name only: a URL (it may carry a token) or a path (a user dir) is cut to its last piece. */
     fun fileName(s: String): String = clean(s.substringBefore('?').substringBefore('#').trimEnd('/').substringAfterLast('/').substringAfterLast('\\'))
 
-    /** The last piece of a media URL when it looks like a file name (has an extension), else "": a stream's path may be a token. */
     fun mediaName(url: String): String = fileName(url).takeIf { extension.matches(it) }.orEmpty()
 
-    /** The line on screen at [at] (the last one that started) and the [n] after it, by start. */
     fun cues(ctl: SceneController, at: Double, n: Int = 2): Pair<ReportCue?, List<ReportCue>> {
         val all = ctl.scenes.flatMap { it.cues }.sortedBy { it.start }.map { ReportCue(it.start, it.end, clean(it.text)) }
         val i = all.indexOfLast { it.start <= at }
         return all.getOrNull(i) to all.drop(i + 1).take(n)
     }
 
-    /** [shift]: the shift in use when it is not the saved one (a PC episode's, kept by the library). */
     fun of(ctl: SceneController, prefs: SharedPreferences, shift: Double? = null): SubReport {
         val id = ctl.episode.id
         val file = prefs.getString(AloneStream.fileKey(id), "").orEmpty()
@@ -64,7 +58,6 @@ object SubReports {
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
-    /** The issue's link, at most [cap] long: the lines go first, then the long names and the key shrink (Japanese titles encode ~9x). */
     fun issueUrl(r: SubReport, e: CrashEnv, cap: Int = CrashReports.ISSUE_CAP): String {
         fun c(x: ReportCue) = "${f(x.start)}-${f(x.end)} ${x.text.take(40)}"
         fun url(cues: Boolean, n: Int, extra: Boolean): String {

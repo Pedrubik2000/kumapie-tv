@@ -109,7 +109,7 @@ class Srs(context: Context, person: String, val lang: Lang, private val device: 
             cache(cardId, after, now)
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
-        runCatching { DeviceSync.rated(app) } // every rating, from any screen or the provider: the LAN sync follows
+        runCatching { DeviceSync.rated(app) }
         return after
     }
 

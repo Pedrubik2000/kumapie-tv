@@ -216,7 +216,7 @@ suspend fun paintCards(context: Context, settings: Settings, ctl: SceneControlle
 
 suspend fun openCards(context: Context, settings: Settings, ctl: SceneController) {
     val language = TvMining.languages(context, settings).of(ctl.lang)
-    language.known.noiseWhite(ctl) // before the early returns: no repaint follows them
+    language.known.noiseWhite(ctl)
     if (ctl.episode.srs) return
     if (settings.plainWords) {
         runCatching { language.known.readCards() }

@@ -144,25 +144,21 @@ object DeviceSync {
         watch(context)
     }
 
-    /** Mining, leaving the player, a start: through the debouncer when paired to a hub; the hub itself only applies what it holds (share). */
     fun soon(context: Context) {
         val settings = Settings(context)
         if (settings.server.isNotEmpty()) return
         if (with(settings) != null) requested(context) else enqueueNow(context)
     }
 
-    /** A rating or an undo (Srs.rate / Srs.undo, every caller): a sync with the hub soon; nothing on the hub (no one to pull from). */
     fun rated(context: Context) {
         val settings = Settings(context)
         if (settings.server.isEmpty() && with(settings) != null && allowed(unmetered(context), failedAt, System.currentTimeMillis())) requested(context)
     }
 
-    /** Ratings sync only on Wi-Fi or another unmetered network, and not for [EVERY_MS] after a failed sync (the resume and the ticker still try). */
     internal fun allowed(unmetered: Boolean, failedAt: Long, now: Long): Boolean = unmetered && now - failedAt > EVERY_MS
 
     @Volatile private var failedAt = 0L
 
-    /** A VPN (Tailscale) is the active network and counts as metered, so Wi-Fi or Ethernet underneath that is not metered also allows it. */
     internal fun cheapLink(activeMetered: Boolean, links: List<Pair<Boolean, Boolean>>): Boolean = !activeMetered || links.any { (lan, notMetered) -> lan && notMetered }
 
     private fun unmetered(context: Context): Boolean = runCatching {
@@ -183,13 +179,12 @@ object DeviceSync {
         wanted?.let { c ->
             val asked = requests.get()
             syncNow(c).let { if (it.isNotEmpty()) Log.i("kumapie", "device sync: $it") }
-            if (failedAt == 0L && requests.get() == asked) runCatching { WorkManager.getInstance(c).cancelUniqueWork("$WORK-now") } // done in-process: the backstop isn't needed
+            if (failedAt == 0L && requests.get() == asked) runCatching { WorkManager.getInstance(c).cancelUniqueWork("$WORK-now") }
         }
     }
     @Volatile private var wanted: Context? = null
     private val requests = java.util.concurrent.atomic.AtomicLong()
 
-    /** The debouncer syncs in this process; the worker is its backstop if the process is swiped away within the wait (the lock serialises them). */
     private fun requested(context: Context) {
         wanted = context.applicationContext
         requests.incrementAndGet()
@@ -202,7 +197,6 @@ object DeviceSync {
     private var ticker: Job? = null
     private var watching = false
 
-    /** In the foreground (an activity started): a sync now if the last good one is over 15 minutes old, then one every 15 minutes; none in the background. */
     @Synchronized private fun watch(context: Context) {
         if (watching) return
         val app = context.applicationContext as? Application ?: return
@@ -216,7 +210,6 @@ object DeviceSync {
             override fun onActivitySaveInstanceState(a: Activity, b: Bundle) {}
             override fun onActivityDestroyed(a: Activity) {}
         })
-        // start() runs from an activity already started: count it when the app is in front.
         val info = android.app.ActivityManager.RunningAppProcessInfo().also { android.app.ActivityManager.getMyMemoryState(it) }
         if (info.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) { if (started == 0) { started = 1; foreground(app) } }
     }

@@ -105,7 +105,7 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
             Text(if (shown == "d") looked.trimStart(' ', '·') else state + looked, color = color, fontSize = 15.sp)
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(Colors.dim.copy(alpha = 0.2f)))
-        val message = status ?: when { sections == null -> tr("Looking it up…"); sections!!.isEmpty() -> tr("Not in your %s dictionaries.", ctl.lang.displayName); else -> null }
+        val message = status ?: when { sections == null -> tr("Looking it up…"); sections?.isEmpty() == true -> tr("Not in your %s dictionaries.", ctl.lang.displayName); else -> null }
         if (message != null) Text(message, color = Colors.dim, fontSize = 17.sp, modifier = Modifier.padding(start = 20.dp, top = 4.dp))
         else sections?.let { DictionaryNative(it, Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp)) }
     }
@@ -125,7 +125,7 @@ fun TvJapaneseCard(settings: Settings, ctl: SceneController, picker: WordPicker,
         sections = if (found == null) emptyList() else withContext(Dispatchers.IO) {
             val byDict = LinkedHashMap<String, MutableList<String>>()
             for (t in found.terms) for (g in t.glossaries) byDict.getOrPut(g.dict) { ArrayList() }.let { if (g.raw !in it) it += g.raw }
-            val budget = GlossaryNodes.Budget(GlossaryNodes.MAX_CARD_CHARS, GlossaryNodes.MAX_CARD_BLOCKS) // one for the whole card
+            val budget = GlossaryNodes.Budget(GlossaryNodes.MAX_CARD_CHARS, GlossaryNodes.MAX_CARD_BLOCKS)
             byDict.keys.sortedBy { CardDefinition.rank(it) ?: Int.MAX_VALUE }
                 .map { d -> DictSection(dictLabel(d), byDict.getValue(d).map { raw -> GlossaryNodes.build(raw, budget).map { Para(annotated(it), it.indent) } }.filter { it.isNotEmpty() }) }
                 .filter { it.entries.isNotEmpty() }
@@ -163,7 +163,6 @@ internal class Para(val text: AnnotatedString, val indent: Int)
 
 internal class DictSection(val title: String, val entries: List<List<Para>>)
 
-/** The D-pad's scroll of the card: set while a card is on screen (PlayerScreen asks it before moving the picker). */
 private var dictionaryStep: ((Int) -> Boolean)? = null
 
 fun scrollTvDictionaries(dir: Int): Boolean = dictionaryStep?.invoke(dir) ?: false
@@ -173,14 +172,13 @@ private val CardBg = Color(0xFF14171D)
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DictionaryNative(sections: List<DictSection>, modifier: Modifier) {
-    val scroll = remember(sections) { ScrollState(0) } // a reload opens at the top
+    val scroll = remember(sections) { ScrollState(0) }
     val scope = rememberCoroutineScope()
     val tops = remember(sections) { IntArray(sections.size) }
     val active by remember(sections) { derivedStateOf {
         if (scroll.value >= scroll.maxValue - 2) sections.lastIndex
         else tops.indexOfLast { it <= scroll.value + 4 }.coerceAtLeast(0)
     } }
-    // ↓: the next dictionary's heading to the top when it is on screen, else a page; ↑ the same way back.
     DisposableEffect(sections) {
         val step: (Int) -> Boolean = step@{ d ->
             if (!(if (d > 0) scroll.canScrollForward else scroll.canScrollBackward)) return@step false

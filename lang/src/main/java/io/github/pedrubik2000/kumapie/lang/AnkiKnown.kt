@@ -20,7 +20,6 @@ class AnkiNotSetUp : IllegalStateException(tr("That Anki isn't set up yet: open 
 class AnkiKnown(dir: File, private val settings: Settings, private val language: Language, private val anki: Cards, private val changed: () -> Unit = {}) {
     data class Read(val count: Int, val error: String? = null)
 
-    /** The count shown: without noise ([Noise]). */
     private fun shown(w: Set<String>) = Noise.countable(w, language.lang).size
 
     private val file = File(dir, "anki-known.txt")

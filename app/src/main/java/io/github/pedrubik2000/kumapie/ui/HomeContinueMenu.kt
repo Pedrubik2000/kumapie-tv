@@ -86,10 +86,6 @@ internal fun undoKey(e: androidx.compose.ui.input.key.KeyEvent): Boolean =
 
 private fun KeyEvent.isEnter() = keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
 
-/**
- * For a menu opened by holding OK: the key is still down when the menu takes focus, and its repeats and release would press the focused
- * button (tv-material fires the long press on the first repeat). Swallow OK/Enter until a fresh press (repeatCount 0).
- */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun Modifier.swallowHeldOk(): Modifier {
@@ -104,11 +100,6 @@ internal fun Modifier.swallowHeldOk(): Modifier {
     }
 }
 
-/**
- * Open a menu when the held OK is RELEASED, not when the long press fires: the card's Surface keeps its "long click" flag until it sees the
- * UP, so a menu opened mid-hold leaves the card ignoring the next OK. [arm] is the card's onLongClick; [key] goes on the card and returns
- * false so the Surface still gets its UP.
- */
 internal class OpenOnRelease(private val open: () -> Unit) {
     private var armed = false
     fun arm() { armed = true }

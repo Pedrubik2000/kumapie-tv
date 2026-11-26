@@ -28,7 +28,6 @@ object ContinueHidden {
         return map
     }
 
-    /** Only a stream can be unaired: a file on the server has aired. */
     fun airsAt(mine: Mine?, s: Show, e: Episode, now: Long): Long? =
         if (s.kind != "stream") null else
         mine?.takeIf { it.nextEp > 0 && it.nextAt > now && (e.number ?: 0) >= it.nextEp }?.nextAt

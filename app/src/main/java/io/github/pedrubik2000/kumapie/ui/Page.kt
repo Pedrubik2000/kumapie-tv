@@ -38,14 +38,9 @@ import io.github.pedrubik2000.kumapie.R
 import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.i18n.tr
 
-/** Where every top-level page's header sits: the title's top, and where the page's body starts below it. */
 internal val PAGE_TOP = 40.dp
 internal val PAGE_BODY = PAGE_TOP + 32.dp
 
-/**
- * The one page header (Library, Discover, Review, Stats, Settings): a caps overline with the page's name at Home's content edge, [meta] on the
- * right of the same line, and [title] under it when the page has one (Stats: the week).
- */
 @Composable
 internal fun PageHeader(overline: String, title: String? = null, meta: String? = null, modifier: Modifier = Modifier) =
     Column(modifier.fillMaxWidth().padding(end = 32.dp, top = PAGE_TOP)) {
@@ -56,7 +51,6 @@ internal fun PageHeader(overline: String, title: String? = null, meta: String? =
         title?.let { Title(it, fontSize = 34.sp, modifier = Modifier.padding(top = 8.dp)) }
     }
 
-/** The one empty state: a circle icon, a title, one line, and at most one outlined pill. */
 @Composable
 internal fun EmptyState(icon: ImageVector, title: String, line: String? = null, button: String? = null, onButton: () -> Unit = {}, buttonModifier: Modifier = Modifier,
                         modifier: Modifier = Modifier) =
@@ -76,11 +70,6 @@ internal fun RailAt.label(): String = when (this) {
     RailAt.REVIEW -> tr("Review"); RailAt.STATS -> tr("Stats"); RailAt.SETTINGS -> tr("Settings")
 }
 
-/**
- * A top-level page that is not Library/Discover/Home: the side rail, the page header, and the body at Home's content edge.
- * Back in the body goes to the rail (on the rail, Back leaves for Home as everywhere); Left at the body's edge reaches it too ([railGate]).
- * [toContent]: where Right from the rail goes (the body's first item).
- */
 @Composable
 internal fun TvPage(api: Discovery, at: RailAt, nav: RailNav, title: String? = null, meta: String? = null, lang: String? = "ja",
                     toContent: FocusRequester? = null, content: @Composable () -> Unit) {
@@ -88,7 +77,7 @@ internal fun TvPage(api: Discovery, at: RailAt, nav: RailNav, title: String? = n
     Box(Modifier.fillMaxSize().railGate()) {
         Column(Modifier.fillMaxSize().padding(start = RAIL).onBackKey { if (runCatching { rail[at.label()]?.requestFocus() }.getOrNull() != true) nav.onHome() }) {
             PageHeader(at.label(), title, meta)
-            Spacer(Modifier.height(16.dp)) // a clear gap between the header and the body
+            Spacer(Modifier.height(16.dp))
             PageBody(Modifier.weight(1f), content)
         }
         RailBackdrop()
@@ -102,7 +91,6 @@ private val FADE = 24.dp
 private val SIDE = 24.dp
 private val CLEAR = 72.dp
 
-/** Keeps the focused item at least [margin] px inside the body's top and bottom, so it is clear of the fades and the preview line under it shows. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 private class PageScroll(val margin: Float) : androidx.compose.foundation.gestures.BringIntoViewSpec {
     override val scrollAnimationSpec = TvScroll.scrollAnimationSpec
@@ -118,10 +106,6 @@ private class PageScroll(val margin: Float) : androidx.compose.foundation.gestur
     }
 }
 
-/**
- * The page body under the header. The hint bar never covers it; its top and bottom fade into the ground rather than cut hard, its sides have
- * room for a grown button's outline, and focus scrolling keeps items clear of both fades.
- */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun PageBody(modifier: Modifier, content: @Composable () -> Unit) {
@@ -139,7 +123,6 @@ private fun PageBody(modifier: Modifier, content: @Composable () -> Unit) {
     }
 }
 
-/** Whether the body is scrolled away from its top, and whether there is more below: the fades show only then (never over content at rest). */
 internal class PageFade {
     var top by androidx.compose.runtime.mutableStateOf(false)
     var bottom by androidx.compose.runtime.mutableStateOf(false)
@@ -147,7 +130,6 @@ internal class PageFade {
 
 internal val LocalPageFade = androidx.compose.runtime.staticCompositionLocalOf { PageFade() }
 
-/** A scrolling body reports its position to the page's fades. */
 @Composable
 internal fun ReportsScroll(canBack: Boolean, canForward: Boolean) {
     val info = LocalPageFade.current

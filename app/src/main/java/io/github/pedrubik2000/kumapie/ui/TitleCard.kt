@@ -131,13 +131,12 @@ internal fun <T : Any> CommitSoon(stepper: Stepper<T>) {
 
 private fun openKey(e: KeyEvent, onOpen: () -> Unit): Boolean {
     if (e.key != Key.DirectionCenter && e.key != Key.Enter && e.key != Key.NumPadEnter) return false
-    if (e.type == KeyEventType.KeyUp) onOpen() // on key-up like a Button: the page it opens takes focus before the key is let go, and the key-up would hit its first switch
+    if (e.type == KeyEventType.KeyUp) onOpen()
     return true
 }
 
 private fun stepKey(e: KeyEvent, stepOnOk: Boolean, onStep: (Int) -> Unit): Boolean {
     val by = when (e.key) { Key.DirectionLeft -> -1; Key.DirectionRight -> 1; Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> if (stepOnOk) 1 else return false; else -> return false }
-    // A held key repeats: only the first press steps (an accidental Left flips a setting once, not back and forth).
     if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) onStep(by)
     return true
 }

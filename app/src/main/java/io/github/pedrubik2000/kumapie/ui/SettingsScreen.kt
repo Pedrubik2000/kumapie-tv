@@ -53,7 +53,7 @@ internal fun SettingsScreen(settings: Settings, api: io.github.pedrubik2000.kuma
         fromColouring = true
     })
     TvPage(api, RailAt.SETTINGS, nav, toContent = focus) {
-        val scrolled by remember { androidx.compose.runtime.derivedStateOf { scroll.value > 0 } } // not scroll.value: that recomposes all of Settings every scroll frame
+        val scrolled by remember { androidx.compose.runtime.derivedStateOf { scroll.value > 0 } }
         ReportsScroll(scrolled, scroll.canScrollForward)
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(end = 32.dp, top = 8.dp, bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             TvAniList(settings, focus)
@@ -212,7 +212,7 @@ private fun TvAbout(settings: Settings, onUpdate: (Updater.Release) -> Unit) {
     var onUsb by remember { mutableStateOf(settings.prefs.getBoolean(io.github.pedrubik2000.kumapie.lang.CardMedia.USB, false)) }
     if (!usbHere) Text(tr("Kept on this TV (no USB drive plugged in)."), color = Colors.dim)
     else Choice(tr("Kept on"), if (onUsb) tr("USB drive") else tr("This TV")) { onUsb = !onUsb }
-    if (usbHere) Debounced(onUsb) { on -> kotlin.concurrent.thread { io.github.pedrubik2000.kumapie.lang.CardMedia.setUsb(context, on) } } // copies files: one job at a time (CardMedia), after the last step
+    if (usbHere) Debounced(onUsb) { on -> kotlin.concurrent.thread { io.github.pedrubik2000.kumapie.lang.CardMedia.setUsb(context, on) } }
     Heading(tr("Updates"), Modifier.padding(top = 24.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Button(onClick = {
@@ -275,18 +275,15 @@ private fun TvExport() {
     if (status.isNotEmpty()) Text(status, color = Colors.dim)
 }
 
-/** An option choice: Discover's ‹ value › stepper (two values flip, more cycle). */
-/** An option row: the stepper (OK steps forward too), or with [onOpen] a row that opens a sub-screen on OK. */
 @Composable
 internal fun Choice(label: String, value: String, modifier: Modifier = Modifier, onOpen: (() -> Unit)? = null, onStep: (Int) -> Unit = {}) =
     StepRow(label, value, modifier.width(640.dp), onStep, {}, onOpen = onOpen, valueMax = 240.dp, stepOnOk = true, wrap = true)
 
 internal fun onOff(on: Boolean) = if (on) tr("on") else tr("off")
 
-/** Applies a heavy setting ~1.5 s after its last step, only when it differs from what was last applied (also when the page is left first). */
 @Composable
-internal fun <T> Debounced(value: T, source: Any? = null, apply: (T) -> Unit) { // [source]: where the value comes from; when it changes from outside, that new value counts as applied
-    val applied = remember { arrayOf<Any?>(value, source) } // one holder for the coroutine and onDispose: [0] last applied, [1] the source it was read from
+internal fun <T> Debounced(value: T, source: Any? = null, apply: (T) -> Unit) {
+    val applied = remember { arrayOf<Any?>(value, source) }
     if (applied[1] != source) { applied[1] = source; applied[0] = value }
     val latest by androidx.compose.runtime.rememberUpdatedState(value)
     val act by androidx.compose.runtime.rememberUpdatedState(apply)

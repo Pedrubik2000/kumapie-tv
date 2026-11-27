@@ -75,7 +75,6 @@ internal fun StatsScreen(load: suspend () -> Stats, onSettings: () -> Unit, api:
 private fun StatsContent(s: Stats, first: FocusRequester) {
     val today = io.github.pedrubik2000.kumapie.lang.Progress.today() // the study day, as the server counts it
     Column(Modifier.fillMaxSize()) {
-    // The first row is outside the lazy list so it is always there for the rail's Right and the first focus.
     Row(Modifier.padding(top = 8.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Tile(tr("Today"), hoursMinutes(s.today), Modifier.focusRequester(first))
                     Tile(tr("Last 7 days"), hoursMinutes(s.week))
@@ -83,7 +82,7 @@ private fun StatsContent(s: Stats, first: FocusRequester) {
                     Tile(tr("Streak"), if (s.streak == 1) tr("1 day") else tr("%d days", s.streak))
     }
     val list = androidx.compose.foundation.lazy.rememberLazyListState()
-    ReportsScroll(false, list.canScrollForward) // no top fade: it would dim the tile row, which never scrolls (ponytail: the list's top edge stays a hard cut; give the LazyColumn its own fade if it shows)
+    ReportsScroll(false, list.canScrollForward)
     LazyColumn(Modifier.weight(1f), state = list, contentPadding = PaddingValues(end = 48.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
@@ -145,12 +144,10 @@ private fun StatsContent(s: Stats, first: FocusRequester) {
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
 }
 
-/** A block of the page. Without tiles it takes focus itself (no visible ring), so the D-pad can scroll the page. */
 @Composable
 private fun Section(modifier: Modifier = Modifier, scroll: Boolean = true, content: @Composable () -> Unit) =
     Column(modifier.fillMaxWidth().let { if (scroll) it.focusable() else it }) { content() }
 
-/** A plain container tile; Home's card outline when focused. */
 @Composable
 private fun Tile(label: String, value: String, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }

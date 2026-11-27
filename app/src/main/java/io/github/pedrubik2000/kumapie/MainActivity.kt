@@ -120,7 +120,7 @@ fun App(settings: Settings, restarted: Boolean = false) {
     BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
     val gate = io.github.pedrubik2000.kumapie.data.Startup.gate(server, onboarded)
 
-    Box(Modifier.fillMaxSize().background(Colors.background) // one flat ground on every screen (the old navy glow showed on Library, Review, Stats)
+    Box(Modifier.fillMaxSize().background(Colors.background)
         .onBackKey(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }) {
         when {
             gate == Gate.ONBOARDING -> io.github.pedrubik2000.kumapie.ui.TvOnboarding(settings, onDone = { server = settings.server; onboarded = true })

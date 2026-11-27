@@ -50,7 +50,6 @@ import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
 import io.github.pedrubik2000.kumapie.data.Settings
-import io.github.pedrubik2000.kumapie.lang.GermanModel
 import io.github.pedrubik2000.kumapie.lang.JapaneseModel
 import io.github.pedrubik2000.kumapie.lang.JitenSplitter
 import kotlinx.coroutines.Dispatchers
@@ -100,7 +99,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     private val local = LocalEpisodes(context)
     private val settings = Settings(context)
     private var height = 720
-    private var lang = Lang.GERMAN
+    private var lang = Lang.JAPANESE
     /** This job's choices, picked in Add an episode ("soniox" / "parakeet"; "soniox" / "gemma" / "device" / "none"). */
     private var transcriber = "soniox"
     private var english = "device"
@@ -185,8 +184,6 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val gemma = Gemma(applicationContext)
         fun needGemma() { if (!gemma.isReady) error(tr("Download the translation model (Gemma) in Settings first.")) }
         if (english == "gemma" && !youtube) needGemma()
-        val model = GermanModel(applicationContext, if (japanese) Lang.GERMAN else lang)
-        if (!japanese && !model.isReady) error(tr("Download the %s model in Settings first.", lang.displayName))
         val dir = local.dir(id).apply { mkdirs() }
         val dl = File(dir, "download").apply { mkdirs() }
         val embedded = File(dir, "embedded").apply { mkdirs() }

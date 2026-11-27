@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 internal fun KnownWordsSection(library: Library, learning: Set<String>) {
-    val known = library.languages.german.known // the permission is the same for every language
+    val known = library.languages.japanese.known // the permission is the same for every language
     val app = remember { known.ankiApp() }
     var allowed by remember { mutableStateOf(app != null && known.hasPermission(app)) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->

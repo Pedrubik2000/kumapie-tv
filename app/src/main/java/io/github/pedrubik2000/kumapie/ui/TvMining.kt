@@ -50,14 +50,9 @@ internal object TvMining {
     internal var installer: suspend (Lang, (String) -> Unit) -> List<String> = { lang, progress -> yomitan.installRecommended(lang, progress) }
     @Volatile var reading = false
 
-    fun recording(context: Context, settings: Settings, surface: String, lang: String): String? {
-        languages(context, settings)
-        return ready.dictionary.recording(surface, lang)
-    }
-
     fun backend(context: Context, settings: Settings, lang: String) = io.github.pedrubik2000.kumapie.lang.NoPcBackend(
         io.github.pedrubik2000.kumapie.lang.Progress.of(context), lang, { languages(context, settings).of(lang) },
-        { surface, l -> recording(context, settings, surface, l) ?: "tts:$surface" }, { languages(context, settings).of(lang).voice.speak(it) })
+        { surface, _ -> "tts:$surface" }, { languages(context, settings).of(lang).voice.speak(it) })
 
     fun languages(context: Context, settings: Settings): Languages {
         if (kit == null) {

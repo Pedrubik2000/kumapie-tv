@@ -14,8 +14,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * What kumapie does differently per language (kumapie_language_map.md), behind one interface: [Spaced] for languages
- * written with spaces (German, English), [Japanese]. Callers ask [Languages] for one and don't branch on the language.
+ * What kumapie does per language (kumapie_language_map.md), behind one interface: [Japanese]. Callers ask [Languages]
+ * for one and don't branch on the language.
  */
 sealed interface Language {
     val lang: Lang
@@ -27,7 +27,7 @@ sealed interface Language {
     val missing: String?
     /** The popup's headwords for a tap (Yomitan dictionaries). */
     suspend fun lookup(tap: Tap): List<Headword>
-    /** The same word as dictionary entries with senses (Wiktionary online when the dictionaries have nothing); empty when the popup is all there is. */
+    /** The same word as dictionary entries with senses ; empty when the popup is all there is. */
     suspend fun entries(tap: Tap): List<DictEntry>
     /** Says the word: a person's recording first, else [voice]. */
     fun say(hw: Headword)
@@ -78,72 +78,6 @@ data class Tap(val text: String, val offset: Int, val length: Int = 0, val key: 
 data class Headword(val expression: String, val reading: String, val terms: List<YomitanDictionaries.Term>) {
     val frequencies get() = terms.flatMap { it.frequencies }.distinctBy { it.first }
     val pitches get() = terms.flatMap { it.pitches }.distinctBy { it.first }
-}
-
-/** German and English: words are what the episode's segments say; meanings from the Yomitan dictionaries, recordings from Wiktionary. */
-class Spaced(context: Context, settings: Settings, override val lang: Lang, private val dictionary: Dictionary, private val scope: CoroutineScope,
-             private val spacy: Spacy,
-             /** Prefix of this language's marks in Progress ("en:"); German's are bare, as they always were. */
-             private val markPrefix: String = "",
-             /** German: notes judged by their tags (Core 1000 and mined words by Word, Nicos Weg skipped), as morphs on the PC. */
-             private val judgeByTags: Boolean = false) : Language {
-    private val appContext = context.applicationContext
-    /** spaCy: German de_core_news_lg, English en_core_web_md. */
-    override val model = GermanModel(appContext, lang)
-    override val parserId get() = "${model.name}-${GermanModel.VERSION}"
-    override val known = KnownWords(context, settings, this)
-    override val voice by lazy { Voice(appContext, lang) }
-    override val missing: String? get() = null
-    private var player: android.media.MediaPlayer? = null
-
-    override fun cardKeys(note: AnkiCards.Note) = CardIndex.spacedKeys(note)
-
-    override fun judgedField(note: AnkiCards.Note): String? = when {
-        !judgeByTags -> if (note.fields["Word"].isNullOrBlank()) "Sentence" else "Word"
-        note.hasTag(KnownWords.CORE1000) || note.hasTag(KnownWords.MINED_WORD) -> "Word"
-        note.hasTag(KnownWords.NICOS_WEG) -> null
-        else -> "Sentence"
-    }
-
-    /** spaCy ([spacy], the same model as morphs on the PC): each field's inflections. */
-    override fun wordKeys(fields: List<String>): List<Set<String>> {
-        val parsed = org.json.JSONArray(spacy(model.dir.path, org.json.JSONArray(fields).toString()))
-        return (0 until parsed.length()).map { i ->
-            val morphs = parsed.getJSONArray(i)
-            (0 until morphs.length()).map { morphs.getJSONArray(it).getString(1) }.toSet()
-        }
-    }
-
-    override suspend fun lookup(tap: Tap): List<Headword> = withContext(Dispatchers.IO) {
-        if (tap.word.isBlank()) return@withContext emptyList()
-        dictionary.yomitanTerms(tap.word, tap.key, tap.lemma, lang).groupBy { it.expression }.map { (e, ts) -> Headword(e, "", ts) }
-    }
-
-    override suspend fun entries(tap: Tap): List<DictEntry> =
-        if (tap.word.isBlank()) emptyList() else dictionary.lookup(tap.word, tap.key, tap.lemma, lang = lang)
-
-    override fun markKey(word: String) = markPrefix + word
-    override fun wordOfMark(key: String) = markWord(key, markPrefix)
-
-    /** A person's recording (Wiktionary / Wikimedia Commons, kept for offline) first, the device voice only without one or when it doesn't play. */
-    override fun say(hw: Headword) {
-        val word = hw.expression
-        scope.launch {
-            val rec = withContext(Dispatchers.IO) { dictionary.recording(word, lang.code) }
-            val started = rec != null && runCatching {
-                player?.release()
-                player = android.media.MediaPlayer().apply {
-                    setOnPreparedListener { it.start() }
-                    setOnCompletionListener { it.release(); if (player === it) player = null }
-                    setOnErrorListener { _, _, _ -> voice.speak(word); true }
-                    setDataSource(rec)
-                    prepareAsync()
-                }
-            }.isSuccess
-            if (!started) voice.speak(word)
-            else if (rec!!.startsWith("http")) launch(Dispatchers.IO) { dictionary.keepRecording(word, rec, lang.code) }
-        }
-    }
 }
 
 /** Japanese: Sudachi's word at the tap, then Yomitan's longest match ([JapaneseLookup]); recordings from JapanesePod101. */
@@ -293,7 +227,7 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
         withContext(Dispatchers.Default) { finder.forms(text, offset) }
 
     override fun markKey(word: String) = word
-    override fun wordOfMark(key: String) = markWord(key, null)
+    override fun wordOfMark(key: String) = markWord(key)
 
     override fun say(hw: Headword) {
         // As written, so the voice gives the accent (箸 vs 橋; Pedro 2026-10-24); the reading only for a word it misreads.
@@ -301,20 +235,12 @@ class Japanese(context: Context, settings: Settings, val yomitan: YomitanDiction
     }
 }
 
-/**
- * spaCy, run by the app (Chaquopy works in one module per app): python/german.py's parse_fields(model folder, fields
- * as a JSON list) -> per field, a JSON list of [lemma, inflection] pairs.
- */
-typealias Spacy = (modelDir: String, fieldsJson: String) -> String
-
 /** Every language kumapie plays, built once each. */
-class Languages(context: Context, settings: Settings, yomitan: YomitanDictionaries, dictionary: Dictionary, spacy: Spacy) {
+class Languages(context: Context, settings: Settings, yomitan: YomitanDictionaries) {
     /** Word audio plays from here (the main thread). */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    val german = Spaced(context, settings, Lang.GERMAN, dictionary, scope, spacy, judgeByTags = true)
-    val english = Spaced(context, settings, Lang.ENGLISH, dictionary, scope, spacy, markPrefix = "en:")
     val japanese = Japanese(context, settings, yomitan, scope)
-    val all: List<Language> = listOf(german, japanese, english)
+    val all: List<Language> = listOf(japanese)
 
     fun of(lang: Lang): Language = all.firstOrNull { it.lang == lang } ?: japanese
     fun of(code: String): Language = of(Lang.of(code))
@@ -332,15 +258,7 @@ private val PREFIXED = Regex("^[a-z]{2}:")
 /** A Latin letter (German/English words; fullwidth ＫＯ isn't one). */
 private val LATIN = Regex("[A-Za-zÀ-ɏ]")
 
-/**
- * The word of Progress mark [key] when it is the language's with mark [prefix] ("en:"; "" German, whose marks are bare;
- * null Japanese, told by its script), else null.
- */
-internal fun markWord(key: String, prefix: String?): String? = when {
-    // Also 3, ～, ＫＯ (no Latin letter): German claims those bare marks too, harmless; without this Japanese lost them on
-    // every sync and they came back red (user 2026-11-16).
-    prefix == null -> key.takeIf { !PREFIXED.containsMatchIn(it) && (JAPANESE_TEXT.containsMatchIn(it) || !LATIN.containsMatchIn(it)) }
-    prefix.isNotEmpty() -> key.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)
-    PREFIXED.containsMatchIn(key) || JAPANESE_TEXT.containsMatchIn(key) -> null
-    else -> key
-}
+/** The word of Progress mark [key] when it is Japanese's (told by its script), else null: the German and English marks left in Progress stay out. */
+internal fun markWord(key: String): String? =
+    // Also 3, ～, ＫＯ (no Latin letter): without this Japanese lost them on every sync and they came back red (user 2026-11-16).
+    key.takeIf { !PREFIXED.containsMatchIn(it) && (JAPANESE_TEXT.containsMatchIn(it) || !LATIN.containsMatchIn(it)) }

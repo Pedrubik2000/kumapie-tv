@@ -173,7 +173,6 @@ private fun SectionContent(library: Library, key: String, onSaved: () -> Unit, o
         "words" -> KnownWordsSection(library, learning)
         "dicts" -> {
             YomitanSection(library, learning)
-            if ("de" in learning) { HorizontalDivider(Modifier.padding(vertical = 8.dp)); DictionarySection(library) }
         }
         "watching" -> {
             var blur by remember { mutableStateOf(settings.blurUnwatched) }
@@ -372,55 +371,6 @@ private fun YomitanSection(library: Library, learning: Set<String> = emptySet())
             confirmButton = { androidx.compose.material3.TextButton(onClick = { scope.launch(Dispatchers.IO) { dicts.delete(d.folder) }; deleting = null }) { Text(tr("Delete")) } },
             dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = null }) { Text(tr("Cancel")) } })
     }
-}
-
-/** The offline dictionary (download / update), the device's voices, and the data's attribution. */
-@Composable
-private fun DictionarySection(library: Library) {
-    val dictionary = library.dictionary
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val state by remember { dictionary.state() }.collectAsState(initial = null)
-    var built by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(state) { built = withContext(Dispatchers.IO) { dictionary.built() } }
-    var voice by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) { // every language in use, not only German (kumapie_plan.md item 32)
-        val langs = library.languages.all
-        langs.forEach { it.voice } // starts the speech engines
-        kotlinx.coroutines.delay(1500)
-        voice = langs.joinToString(separator = "\n") { it.voice.describe() }
-    }
-
-    Text(tr("Word audio"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-    when {
-        state != null -> Text(tr("Recordings list: %s", state), fontSize = 15.sp)
-        built != null -> Text(tr("Recordings list: offline, built %s (which German words have a person's recording).", built), fontSize = 15.sp)
-        else -> Text(tr("Which German words have a person's recording on Wikimedia Commons: a small list (about 3 MB), once."), fontSize = 15.sp)
-    }
-    if (state == null) OutlinedButton(onClick = { dictionary.download() }) {
-        Text(if (built == null) tr("Download the recordings list") else tr("Update the recordings list"))
-    }
-    if (voice.isNotEmpty()) Text(voice, fontSize = 14.sp, color = Colors.dim)
-    // Better offline voices than the device's (local/NeuralVoices.kt), one download each, on Wi-Fi.
-    val voices = remember { io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices(context) }
-    library.languages.all.map { it.lang }.filter { it in io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices.VOICES }.forEach { l ->
-        val spec = io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices.VOICES.getValue(l)
-        val vState by remember(l) { voices.state(l) }.collectAsState(initial = null)
-        var vReady by remember(l) { mutableStateOf(voices.isReady(l)) }
-        LaunchedEffect(vState) { vReady = voices.isReady(l) }
-        when {
-            vReady -> Text(tr("%1\$s words without a recording: %2\$s's voice, on this device.", l.displayName, spec.name), fontSize = 14.sp)
-            vState != null -> Text(tr("%1\$s voice: %2\$s", l.displayName, vState), fontSize = 14.sp, color = Colors.dim)
-            else -> OutlinedButton(onClick = { voices.download(l) }) {
-                Text(tr("Download %1\$s's %2\$s voice (about %3\$d MB, on Wi-Fi)", spec.name, l.displayName, spec.mb))
-            }
-        }
-    }
-    OutlinedButton(onClick = {
-        runCatching { context.startActivity(android.content.Intent("com.android.settings.TTS_SETTINGS")) }
-    }) { Text(tr("Speech settings")) }
-    Text(tr("Words are read by a person's recording when Wikimedia Commons has one, else by this voice."),
-        fontSize = 13.sp, color = Colors.dim)
-    Text(io.github.pedrubik2000.kumapie.lang.Dictionary.ATTRIBUTION, fontSize = 12.sp, color = Colors.dim)
 }
 
 /** New episodes made on the tablet: the Soniox key (kept only in kumapie's private settings) and the English source. */

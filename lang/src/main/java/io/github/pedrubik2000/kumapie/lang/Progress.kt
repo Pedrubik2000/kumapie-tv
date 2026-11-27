@@ -267,7 +267,7 @@ class Progress internal constructor(dir: File, private val settings: Settings?) 
             return io.github.pedrubik2000.kumapie.data.Stats(
                 days = m.watch, today = now, week = week, total = total,
                 streak = streak, scenesSeen = shows.sumOf { s -> s.episodes.sumOf { it.seen } }, scenesTotal = shows.sumOf { s -> s.episodes.sumOf { it.scenes } },
-                lookups = m.lookups.values.sum(), wordsLookedUp = m.lookups.size, topLookups = top, markedKnown = m.marked.count { k -> markWord(k, null)?.let { Noise.isNoise(it, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) } != true },
+                lookups = m.lookups.values.sum(), wordsLookedUp = m.lookups.size, topLookups = top, markedKnown = m.marked.count { k -> markWord(k)?.let { Noise.isNoise(it, io.github.pedrubik2000.kumapie.data.Lang.JAPANESE) } != true },
                 shows = shows.map { s -> io.github.pedrubik2000.kumapie.data.ShowProgress(s.title, s.episodes.sumOf { it.seen }, s.episodes.sumOf { it.scenes }) } // lines heard of lines: the PC's count
                     .sortedByDescending { it.seen },
             )

@@ -82,7 +82,7 @@ class Improve(private val library: Library, lang: String) {
                 val line = scene.cues.indexOfFirst { c -> c.segments.any { it.word == key } }
                 if (line < 0) continue
                 val surface = scene.cues[line].segments.first { it.word == key }.text
-                val (sentence, cues) = if (japanese != null) scene.cues[line].text.trim() to listOf(scene.cues[line]) else Miner.sentence(scene, line)
+                val (sentence, cues) = Miner.sentence(scene, line)
                 if (sentence.trim() == s.sentence.trim()) continue // the card's own sentence
                 val unknown = io.github.pedrubik2000.kumapie.data.unknownIn(cues, detail.words)
                 out += Candidate(show, episode, detail, scene, line, surface, sentence, library.miner.english(scene, cues), unknown)
@@ -91,9 +91,9 @@ class Improve(private val library: Library, lang: String) {
         return out.sortedWith(compareBy({ it.unknown }, { it.sentence.length }))
     }
 
-    /** A person's recording of the card's word (Wiktionary, or NHK/JapanesePod101/Forvo for Japanese), else null. */
+    /** A person's recording of the card's word (NHK/JapanesePod101/Forvo), else null. */
     suspend fun recording(s: Struggling): File? = runCatching {
-        japanese?.audio?.recording(s.word, s.reading.orEmpty()) ?: (language as? Spaced)?.let { library.miner.recording(s.word, it) }
+        japanese?.audio?.recording(s.word, s.reading.orEmpty())
     }.getOrNull()
 
     /**

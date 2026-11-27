@@ -43,7 +43,7 @@ class WordsKnownTest {
             WordSync.words = WordSync.elsewhere(dev.events, dev.carded, dev.name, cards.map(::key).toSet(), { fsrs }, now)
             val index = CardIndex("ja").apply { build(cards.mapIndexed { i, w -> note(i + 1L, w) }, cs, queue, ::keys) }
             val imported = dev.known["ja"]?.second.orEmpty()
-            return index.known(imported, dev.view().marked.mapNotNull { markWord(it, null) }.toSet(), { it in imported }, { null })
+            return index.known(imported, dev.view().marked.mapNotNull { markWord(it) }.toSet(), { it in imported }, { null })
         }
     }
 

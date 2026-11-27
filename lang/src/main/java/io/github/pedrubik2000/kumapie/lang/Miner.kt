@@ -52,7 +52,6 @@ import kotlin.coroutines.resumeWithException
 class Miner(
     private val context: Context,
     private val languages: Languages,
-    private val dictionary: Dictionary,
     /** The PC (kumapie-server) now, which cuts what this device can't decode ([cutOnPc]); "" = none. */
     private val serverNow: () -> String = { "" },
 ) {
@@ -95,35 +94,7 @@ class Miner(
 
     /** Adds the card; answers a line for the user ("Added to Deutsch Mined"). */
     suspend fun mine(r: Request, progress: (String) -> Unit): String = lock.withLock { withContext(Dispatchers.IO) {
-        // German and English cards share the layout (🐻 German / 🐻 English); Japanese has Kaishi's.
-        val language = when (val l = languages.of(r.episode.lang)) { is Japanese -> return@withContext mineJapanese(r, l, progress); is Spaced -> l }
-        val lang = language.lang
-        val known = language.known
-        val pkg = known.ankiApp() ?: error(tr("No kuma3 Anki on this device."))
-        if (!known.hasPermission(pkg)) error(tr("kumapie may not use Anki yet: allow it in Settings."))
-        // A fresh kuma3 (Giovanna, Jackson): the note type comes from kumapie's copy of Pedro's.
-        val (mid, fieldNames) = anki.noteType(pkg, known.noteTypes) ?: anki.addBundledNoteType(pkg, lang)
-            ?: error(tr("The %s note type isn't in Anki.", lang.displayName))
-        val slug = slug(r.episode.show)
-        val fields = cutScene(r, pkg, fieldNames, "Mined", progress = progress)
-        val tags = mutableListOf(slug, "kumapie")
-        r.word?.let { w ->
-            val audio = wordAudio(w.surface, language)?.let { addAudio(pkg, it, "kumapie-${slug(w.surface)}") }
-            val written = sameAs(w.surface, lang) ?: w.key?.takeIf { ' ' in it } ?: w.surface
-            fields["Word"] = esc(written) + (w.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
-            if (audio != null) fields["Word Audio"] = "[audio:$audio]"
-            fields[KnownWords.DEF_BI] = definition(written, w)
-            // The episode's own definition (PC episodes), else the one picked from a monolingual dictionary.
-            (w.definition?.targetText?.takeIf { it.isNotBlank() } ?: w.mono?.takeIf { it.isNotBlank() })?.let { fields[KnownWords.DEF_MONO] = esc(it) }
-            tags += lang.tag("word")
-        } ?: tags.add(lang.tag("sentence"))
-
-        val missing = (listOf("Sentence", if ("Video" in fieldNames) "Video" else "Sentence Audio") + if (r.word != null) listOf(KnownWords.DEF_BI, KnownWords.DEF_MONO) else emptyList())
-            .filter { it !in fieldNames }
-        if (missing.isNotEmpty()) error(tr("The note type has no field %s.", missing.joinToString()))
-        val deck = anki.deck(pkg, lang.deck)
-        lastNote = anki.addNote(pkg, mid, fieldNames.map { fields[it] ?: "" }, tags, deck)
-        tr("Added to %s", lang.deck) + (r.word?.let { ": ${it.surface}" } ?: "")
+        mineJapanese(r, languages.japanese, progress)
     } }
 
     /**
@@ -166,7 +137,7 @@ class Miner(
     private suspend fun cutScene(r: Request, pkg: String, fieldNames: Collection<String>, how: String, reading: String? = null,
                                  progress: (String) -> Unit = {}): HashMap<String, String> = withContext(Dispatchers.IO) {
         val japanese = languages.of(r.episode.lang) is Japanese
-        val (sentence, cues) = if (japanese) r.scene.cues[r.line].text.trim() to listOf(r.scene.cues[r.line]) else sentence(r.scene, r.line)
+        val (sentence, cues) = sentence(r.scene, r.line)
         val slug = slug(r.episode.show)
         dir.mkdirs()
         val fields = HashMap<String, String>()
@@ -256,13 +227,6 @@ class Miner(
         var reading: String? = null
         if (word != null) when (language) {
             is Japanese -> reading = japaneseWord(fields, word, language, pkg).let { (expression, r) -> r?.takeIf { word.surface == expression } }
-            is Spaced -> {
-                val written = sameAs(word.surface, lang) ?: word.key?.takeIf { ' ' in it } ?: word.surface
-                fields["Word"] = esc(written) + (word.lemma?.takeIf { !it.equals(written, true) }?.let { "[→ ${esc(it)}]" } ?: "")
-                wordAudio(word.surface, language)?.let { fields["Word Audio"] = "[audio:${addAudio(pkg, it, "kumapie-${slug(word.surface)}")}]" }
-                fields[KnownWords.DEF_BI] = definition(written, word)
-                word.mono?.takeIf { it.isNotBlank() }?.let { fields[KnownWords.DEF_MONO] = esc(it) }
-            }
         }
         val surface = word?.surface
         val at = if (language is Japanese && surface != null) sentence.indexOf(surface) else -1
@@ -316,10 +280,6 @@ class Miner(
         audio?.let { fields["Word Audio"] = "[audio:${addAudio(pkg, it, "kumapie-ja-${expression}")}]" }
         return expression to reading
     }
-
-    /** The word [surface] is the same as in your personal dictionary: its card is that word's. */
-    private fun sameAs(surface: String, lang: io.github.pedrubik2000.kumapie.data.Lang) =
-        PersonalDictionary.get(context).entry(lang.code, surface)?.target?.takeIf { it.isNotEmpty() }
 
     /** Opus (Ogg) can be written here: Android 10+ with an Opus encoder. */
     @OptIn(UnstableApi::class)
@@ -477,32 +437,6 @@ class Miner(
         }
     }
 
-    /** A person's recording (saved or fetched), else the device's voice saying it; null if neither works. */
-    suspend fun wordAudio(surface: String, language: Spaced = languages.german): File? {
-        recording(surface, language)?.let { return it }
-        val wav = File(dir, "word.wav").apply { delete() }
-        return if (language.voice.toFile(surface, wav)) wav else null
-    }
-
-    /** A person's recording of [surface] (saved, or fetched now), else null. */
-    suspend fun recording(surface: String, language: Spaced): File? = withContext(Dispatchers.IO) {
-        val recording = dictionary.recording(surface, language.lang.code) ?: return@withContext null
-        if (!recording.startsWith("http")) return@withContext File(recording)
-        dir.mkdirs()
-        val out = File(dir, "word.mp3").apply { delete() }
-        val ok = runCatching {
-            val conn = URL(recording).openConnection() as HttpURLConnection
-            conn.setRequestProperty("User-Agent", AssetWorker.USER_AGENT)
-            try {
-                if (conn.responseCode != 200) error("HTTP ${conn.responseCode}")
-                conn.inputStream.use { input -> out.outputStream().use { input.copyTo(it) } }
-            } finally {
-                conn.disconnect()
-            }
-        }.isSuccess
-        if (ok) out else null
-    }
-
     /**
      * A rating's new scene (kumapie_plan.md 37b): each of [notes] (the rated word's own Mined cards) takes [r]'s line
      * ([sceneFields], "Rated in kumapie"), unless it has that sentence already. Word, definitions, word audio, tags and
@@ -514,7 +448,7 @@ class Miner(
         val language = languages.of(r.episode.lang)
         val pkg = SrsCards.PKG
         val japanese = language is Japanese
-        val text = plain(if (japanese) r.scene.cues[r.line].text else sentence(r.scene, r.line).first)
+        val text = plain(r.scene.cues[r.line].text)
         val stale = anki.notes(pkg, "nid:" + notes.joinToString(",")).filter { plain(it.fields["Sentence"].orEmpty()) != text }
         if (stale.isEmpty()) return@withContext 0
         // Every field of the note type (an own card keeps only its filled ones: one from the PC has no media yet).
@@ -537,14 +471,6 @@ class Miner(
     private fun plain(field: String) = android.text.Html.fromHtml(field, 0).toString()
         .replace(Regex("""\[[^\]]*]"""), "").replace(Regex("""\s+"""), "")
 
-    /** The Core 1000 layout of the bilingual definition: "<b>word</b> (lemma)", the meaning, an example. */
-    private fun definition(written: String, w: Word): String {
-        val lemma = w.lemma?.takeIf { !it.equals(written, true) }?.let { " (${esc(it)})" } ?: ""
-        val example = w.example?.let { "<br>${esc(it.first)} = ${esc(it.second)}" } ?: ""
-        val gloss = if (w.gloss.isBlank()) "" else "<br><b>${esc(w.gloss)}</b>" // a card made without a meaning
-        return "<span style=\"font-size:1.4em\"><b>${esc(written)}</b>$lemma</span>$gloss$example"
-    }
-
     /** The English of those cues: the scene's English lines that overlap them, else all of them. */
     fun english(scene: Scene, cues: List<Cue>): String {
         val start = cues.first().start
@@ -559,24 +485,7 @@ class Miner(
     fun slug(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "_").trim('_')
 
     companion object {
-        /**
-         * The whole sentence cue [line] is part of: subtitle cues split sentences ("Aber warum…" / "fühle ich mich …" /
-         * "ausgelaugt?"), so the scene's cues are joined and cut at sentence ends (. ! ? followed by a capital); "…"
-         * before a small letter goes on. Answers the sentence and its cues.
-         */
-        fun sentence(scene: Scene, line: Int): Pair<String, List<Cue>> {
-            val cues = scene.cues
-            fun ends(i: Int): Boolean {
-                val text = cues[i].text.trimEnd()
-                val next = cues.getOrNull(i + 1)?.text?.trimStart() ?: return true
-                return text.isEmpty() || (text.last() in ".!?…\"»“" && next.firstOrNull()?.isUpperCase() != false)
-            }
-            var first = line
-            while (first > 0 && !ends(first - 1)) first--
-            var last = line
-            while (last < cues.lastIndex && !ends(last)) last++
-            val part = cues.subList(first, last + 1)
-            return part.joinToString(" ") { it.text.trim() } to part
-        }
+        /** The line [line] and its cue: Japanese lines are one sentence each. */
+        fun sentence(scene: Scene, line: Int): Pair<String, List<Cue>> = scene.cues[line].text.trim() to listOf(scene.cues[line])
     }
 }

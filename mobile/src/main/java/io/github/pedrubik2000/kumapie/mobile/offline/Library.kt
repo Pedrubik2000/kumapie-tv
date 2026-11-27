@@ -9,7 +9,6 @@ import io.github.pedrubik2000.kumapie.data.Backend
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
-import io.github.pedrubik2000.kumapie.lang.Dictionary
 import io.github.pedrubik2000.kumapie.lang.Languages
 import io.github.pedrubik2000.kumapie.lang.Miner
 import io.github.pedrubik2000.kumapie.lang.NoPcBackend
@@ -48,11 +47,6 @@ class Library(context: Context, val settings: Settings) {
         if (settings.owner.isNotBlank()) io.github.pedrubik2000.kumapie.mobile.local.SyncWorker.run { schedule(context); now(context) }
         io.github.pedrubik2000.kumapie.lang.YomitanUpdateWorker.schedule(context)
         if (io.github.pedrubik2000.kumapie.mobile.local.Subscriptions(context).all().isNotEmpty()) io.github.pedrubik2000.kumapie.mobile.local.SubscriptionWorker.schedule(context)
-    }
-    /** Meanings without the PC: Yomitan dictionaries, else the offline Wiktionary file, Wiktionary online (cached), recordings. */
-    val dictionary = kit.dictionary.also { d ->
-        // The word recordings (a few MB a language) come by themselves: nobody has to find the button.
-        if (Dictionary.RECORDINGS.any { !d.recordingsFile(it).exists() }) d.download()
     }
     /** What each language does its own way: lookups, word audio, known words. */
     val languages: Languages = kit.languages
@@ -333,15 +327,9 @@ class Library(context: Context, val settings: Settings) {
     }
 
     /**
-     * A person's recording of the word in the episode's language first (saved, or from Wikimedia Commons, then saved);
-     * a computer voice only without one: the PC's that a download brought, else the device's. Offline, a recording not
-     * saved yet fails to play and the player says the word with the device voice.
+     * The word's audio: the PC's that a download brought, else the device's voice.
      */
     private fun wordAudio(surface: String, lang: String): String {
-        dictionary.recording(surface, lang)?.let { recording ->
-            if (recording.startsWith("http")) background.launch { dictionary.keepRecording(surface, recording, lang) }
-            return recording
-        }
         downloads.wordFile(surface).takeIf { it.exists() }?.let { return it.path }
         return "tts:$surface"
     }

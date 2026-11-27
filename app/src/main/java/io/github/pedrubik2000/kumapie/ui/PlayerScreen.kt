@@ -322,6 +322,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
                     isFocusable = false
                     subtitleView?.visibility = android.view.View.GONE // kumapie draws the lines; a stream's own track can be on (its fit)
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    setBackgroundColor(android.graphics.Color.BLACK)
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                     this.player = player
                 }.also { playerView = it }

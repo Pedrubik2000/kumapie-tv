@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 internal object SettingsFocus { var returning = false }
 
 @Composable
-fun SettingsScreen(settings: Settings, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
+internal fun SettingsScreen(settings: Settings, api: io.github.pedrubik2000.kumapie.data.Discovery, nav: RailNav, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit,
                    onButtons: () -> Unit = {}) {
     val focus = remember { FocusRequester() }
     val buttons = remember { FocusRequester() }
@@ -52,18 +52,21 @@ fun SettingsScreen(settings: Settings, onSaved: () -> Unit, onUpdate: (Updater.R
         colouring = false
         fromColouring = true
     })
-    Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 64.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Title(tr("Settings"), fontSize = 32.sp)
-        TvAniList(settings, focus)
-        ServerSettings(settings, onSaved)
-        CheckSetup(settings)
-        if (settings.server.isEmpty()) AloneSources(settings)
-        TvPreferences(settings, buttons, colour, onColouring = { colouring = true }) { SettingsFocus.returning = true; onButtons() }
-        TvNotForMe(settings)
-        TvDictionaries(settings)
-        TvExport()
-        if (settings.server.isEmpty()) TvSync(settings)
-        TvAbout(settings, onUpdate)
+    TvPage(api, RailAt.SETTINGS, nav, toContent = focus) {
+        val scrolled by remember { androidx.compose.runtime.derivedStateOf { scroll.value > 0 } } // not scroll.value: that recomposes all of Settings every scroll frame
+        ReportsScroll(scrolled, scroll.canScrollForward)
+        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(end = 32.dp, top = 8.dp, bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            TvAniList(settings, focus)
+            ServerSettings(settings, onSaved)
+            CheckSetup(settings)
+            if (settings.server.isEmpty()) AloneSources(settings)
+            TvPreferences(settings, buttons, colour, onColouring = { colouring = true }) { SettingsFocus.returning = true; onButtons() }
+            TvNotForMe(settings)
+            TvDictionaries(settings)
+            TvExport()
+            if (settings.server.isEmpty()) TvSync(settings)
+            TvAbout(settings, onUpdate)
+        }
     }
     LaunchedEffect(Unit) {
         if (fromColouring) {
@@ -156,9 +159,8 @@ private fun AloneSources(settings: Settings) {
     Heading(tr("Torrents"), Modifier.padding(top = 24.dp))
     Text(tr("Downloads the video on this device and shares pieces with others while it plays. Your IP address is visible to them: a VPN is wise."), color = Colors.dim)
     var torrents by remember(fromPhone) { mutableStateOf(settings.torrents) }
-    Button(onClick = { torrents = !torrents; settings.streamTorrents(torrents); addons = settings.addons }) {
-        Text(tr("Stream torrents without Real-Debrid: %s", if (torrents) tr("on") else tr("off")))
-    }
+    Choice(tr("Stream torrents without Real-Debrid"), onOff(torrents)) { torrents = !torrents }
+    Debounced(torrents, fromPhone) { settings.streamTorrents(it); addons = settings.addons }
     Heading(tr("Jimaku"), Modifier.padding(top = 24.dp))
     Text(tr("Japanese subtitles for a stream that has none of its own: your free API key from jimaku.cc."), color = Colors.dim)
     var key by remember(fromPhone) { mutableStateOf(settings.jimakuKey) }
@@ -173,42 +175,31 @@ private fun AloneSources(settings: Settings) {
 private fun TvPreferences(settings: Settings, buttons: FocusRequester, colour: FocusRequester, onColouring: () -> Unit, onButtons: () -> Unit) {
     Heading(tr("Buttons and help"), Modifier.padding(top = 24.dp))
     var showHelp by remember { mutableStateOf(settings.showHelp) }
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Button(onClick = onButtons, modifier = Modifier.focusRequester(buttons)) { Text(tr("Change buttons")) }
-        Button(onClick = { showHelp = !showHelp; settings.showHelp = showHelp }) {
-            Text(tr("Help screen and key hints: %s", if (showHelp) tr("on") else tr("off")))
-        }
-    }
-    Heading(tr("Menu language"), Modifier.padding(top = 24.dp))
+    Button(onClick = onButtons, modifier = Modifier.focusRequester(buttons)) { Text(tr("Change buttons")) }
+    Choice(tr("Help screen and key hints"), onOff(showHelp)) { showHelp = !showHelp; settings.showHelp = showHelp }
     val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        listOf("" to tr("The TV's language"), "en" to "English", "es" to "Español").forEach { (code, label) ->
-            Button(onClick = {
-                if (code == settings.menuLanguage) return@Button
-                settings.menuLanguage = code
-                if (code.isNotEmpty()) settings.speaks = code
-                activity?.recreate()
-            }) { Text((if (settings.menuLanguage == code) "✓ " else "") + label) }
-        }
+    val menus = listOf("" to tr("The TV's language"), "en" to "English", "es" to "Español")
+    var menu by remember { mutableStateOf(settings.menuLanguage) }
+    Choice(tr("Menu language"), (menus.firstOrNull { it.first == menu } ?: menus[0]).second) { by ->
+        menu = menus[(menus.indexOfFirst { it.first == menu }.coerceAtLeast(0) + by).mod(menus.size)].first
+    }
+    Debounced(menu) { code ->
+        if (code == settings.menuLanguage) return@Debounced
+        settings.menuLanguage = code
+        if (code.isNotEmpty()) settings.speaks = code
+        activity?.recreate()
     }
     Heading(tr("No spoilers"), Modifier.padding(top = 24.dp))
     var blur by remember { mutableStateOf(settings.blurUnwatched) }
-    Button(onClick = { blur = !blur; settings.blurUnwatched = blur }) {
-        Text(tr("Blur episodes I haven't watched: %s", if (blur) tr("on") else tr("off")))
-    }
-    Heading(tr("Word colouring"), Modifier.padding(top = 24.dp))
-    Button(onClick = onColouring, modifier = Modifier.focusRequester(colour)) {
-        Text(tr("Word colouring: %s", if (settings.plainWords) tr("off (lookup only)") else tr("on")))
-    }
+    Choice(tr("Blur episodes I haven't watched"), onOff(blur)) { blur = !blur; settings.blurUnwatched = blur }
+    Choice(tr("Word colouring"), if (settings.plainWords) tr("off (lookup only)") else tr("on"), Modifier.focusRequester(colour), onOpen = onColouring)
     Heading(tr("Japanese subtitles"), Modifier.padding(top = 24.dp))
     var font by remember { mutableStateOf(settings.japaneseFont) }
-    Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-        Button(onClick = {
-            font = JapaneseFonts.NAMES[(JapaneseFonts.NAMES.indexOf(font) + 1) % JapaneseFonts.NAMES.size]
+    Choice(tr("Font"), JapaneseFonts.label(font)) { by ->
+            font = JapaneseFonts.NAMES[(JapaneseFonts.NAMES.indexOf(font) + by).mod(JapaneseFonts.NAMES.size)]
             settings.japaneseFont = font
-        }) { Text(tr("Font: %s", JapaneseFonts.label(font))) }
-        Text(JapaneseFonts.SAMPLE, fontSize = 26.sp, color = Colors.text, fontFamily = JapaneseFonts.family(font))
     }
+    Text(JapaneseFonts.SAMPLE, fontSize = 26.sp, color = Colors.text, fontFamily = JapaneseFonts.family(font), maxLines = 1, softWrap = false)
 }
 
 @Composable
@@ -220,10 +211,8 @@ private fun TvAbout(settings: Settings, onUpdate: (Updater.Release) -> Unit) {
     val usbHere = remember { io.github.pedrubik2000.kumapie.lang.CardMedia.usbDir(context) != null }
     var onUsb by remember { mutableStateOf(settings.prefs.getBoolean(io.github.pedrubik2000.kumapie.lang.CardMedia.USB, false)) }
     if (!usbHere) Text(tr("Kept on this TV (no USB drive plugged in)."), color = Colors.dim)
-    else Button(onClick = {
-        onUsb = !onUsb
-        scope.launch(kotlinx.coroutines.Dispatchers.IO) { io.github.pedrubik2000.kumapie.lang.CardMedia.setUsb(context, onUsb) }
-    }) { Text(if (onUsb) tr("Kept on: the USB drive") else tr("Kept on: this TV")) }
+    else Choice(tr("Kept on"), if (onUsb) tr("USB drive") else tr("This TV")) { onUsb = !onUsb }
+    if (usbHere) Debounced(onUsb) { on -> kotlin.concurrent.thread { io.github.pedrubik2000.kumapie.lang.CardMedia.setUsb(context, on) } } // copies files: one job at a time (CardMedia), after the last step
     Heading(tr("Updates"), Modifier.padding(top = 24.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Button(onClick = {
@@ -284,4 +273,26 @@ private fun TvExport() {
         }
     }) { Text(tr("Export everything")) }
     if (status.isNotEmpty()) Text(status, color = Colors.dim)
+}
+
+/** An option choice: Discover's ‹ value › stepper (two values flip, more cycle). */
+/** An option row: the stepper (OK steps forward too), or with [onOpen] a row that opens a sub-screen on OK. */
+@Composable
+internal fun Choice(label: String, value: String, modifier: Modifier = Modifier, onOpen: (() -> Unit)? = null, onStep: (Int) -> Unit = {}) =
+    StepRow(label, value, modifier.width(640.dp), onStep, {}, onOpen = onOpen, valueMax = 240.dp, stepOnOk = true, wrap = true)
+
+internal fun onOff(on: Boolean) = if (on) tr("on") else tr("off")
+
+/** Applies a heavy setting ~1.5 s after its last step, only when it differs from what was last applied (also when the page is left first). */
+@Composable
+internal fun <T> Debounced(value: T, source: Any? = null, apply: (T) -> Unit) { // [source]: where the value comes from; when it changes from outside, that new value counts as applied
+    val applied = remember { arrayOf<Any?>(value, source) } // one holder for the coroutine and onDispose: [0] last applied, [1] the source it was read from
+    if (applied[1] != source) { applied[1] = source; applied[0] = value }
+    val latest by androidx.compose.runtime.rememberUpdatedState(value)
+    val act by androidx.compose.runtime.rememberUpdatedState(apply)
+    LaunchedEffect(value) {
+        kotlinx.coroutines.delay(1_500)
+        if (value != applied[0]) { applied[0] = value; act(value) }
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { if (latest != applied[0]) { applied[0] = latest; act(latest) } } }
 }

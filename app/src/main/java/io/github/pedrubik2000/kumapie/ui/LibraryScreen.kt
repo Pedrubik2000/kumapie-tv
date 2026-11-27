@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +53,7 @@ fun LibraryScreen(api: Discovery, settings: Settings, onHome: () -> Unit, onDisc
             lists == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
             else -> LibraryBody(lists, settings, entry, rail, api, jiten, live, back, onOpen)
         }
+        PageHeader(tr("Library"), modifier = Modifier.padding(start = RAIL))
         DiscoverRail(api, RailNav(onHome, {}, onDiscover, onReview, onStats, onSettings), RailAt.LIBRARY, focus = rail, toRows = entry.takeIf { !loggedIn || all != null })
         HintBar()
     }
@@ -58,10 +61,8 @@ fun LibraryScreen(api: Discovery, settings: Settings, onHome: () -> Unit, onDisc
 
 @Composable
 private fun LoggedOut(onLogin: () -> Unit, entry: FocusRequester) {
-    Column(Modifier.padding(start = RAIL, top = 96.dp)) {
-        Title(tr("Library"), fontSize = 26.sp)
-        LoginLine(Modifier.padding(top = 16.dp), Modifier.focusRequester(entry), onLogin)
-    }
+    EmptyState(androidx.compose.material.icons.Icons.Default.VideoLibrary, tr("Log in with AniList to see your lists here"), button = tr("Log in"), onButton = onLogin, buttonModifier = Modifier.focusRequester(entry),
+        modifier = Modifier.padding(start = RAIL, top = PAGE_BODY))
     LaunchedEffect(Unit) { entry.focusSoon() }
 }
 
@@ -99,7 +100,7 @@ private fun LibraryBody(all: List<Mine>, settings: Settings, entry: FocusRequest
             LibraryPicker(open, { picker = it; last = it }, librarySource(current, current.of(all), filters, apply), display?.let { libraryLine(it.list, it.filters, it.view) }, items.size.toString()) { picker = null }
         } else {
             LibraryColumn(all, current, filters, entry, nav.grid.takeIf { items.isNotEmpty() }, { rail[tr("Library")] ?: FocusRequester.Default },
-                { l -> if (list != null || l != LibraryList.WATCHING) { list = l; LibraryMemory.list = l } }, apply, links, Modifier.padding(start = RAIL, top = 28.dp, bottom = 16.dp))
+                { l -> if (list != null || l != LibraryList.WATCHING) { list = l; LibraryMemory.list = l } }, apply, links, Modifier.padding(start = RAIL, top = PAGE_BODY, bottom = 16.dp))
             LibraryGrid(display, items, grid, focus, nav, entry, levels, settings, current, { inGrid = it }, onOpen)
         }
     }

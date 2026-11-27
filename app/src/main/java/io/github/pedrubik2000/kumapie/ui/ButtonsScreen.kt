@@ -134,7 +134,7 @@ private fun CaptureOverlay(action: Action, onDone: (Binding?) -> Unit) {
             .focusable(),
         contentAlignment = Alignment.Center,
     ) {
-        Column(Modifier.arcadePanel().padding(36.dp),
+        Column(Modifier.dialogPanel().padding(36.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(action.text(), fontSize = 24.sp, color = Colors.text)
             Text(if (held) tr("Holding… let go to save it as a long press") else tr("Press a button (hold it for a long press)"),

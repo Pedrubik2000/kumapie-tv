@@ -72,10 +72,10 @@ internal fun TvCrashDialog(send: suspend () -> Delivery, mark: () -> Unit, close
     val ok = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
     val no = { mark(); close() }
     androidx.compose.ui.window.Dialog(onDismissRequest = no, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = no)
+        Box(Modifier.fillMaxSize().background(Color(0x66000000)).onBackKey(onBack = no)
             .onPreviewKeyEvent { it.key in ok && (System.nanoTime() - openedAt) / 1_000_000 < guardMs },
             contentAlignment = Alignment.Center) {
-            Column(Modifier.width(720.dp).arcadePanel().padding(32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.width(720.dp).dialogPanel().padding(32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 when (val p = phase) {
                     "ask" -> {
                         Text(question, color = Colors.text, fontSize = 22.sp)

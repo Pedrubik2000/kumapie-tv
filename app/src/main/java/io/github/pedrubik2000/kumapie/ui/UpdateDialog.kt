@@ -78,8 +78,8 @@ fun UpdateDialog(release: Updater.Release, onClose: () -> Unit) {
     // Its own window: drawn over Home in the same one, Home took the focus when its titles came in later and the remote
     // moved behind the dialog (Chromecast, 2026-11-18).
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-    Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
-        Column(Modifier.width(640.dp).heightIn(max = 460.dp).arcadePanel().padding(32.dp),
+    Box(Modifier.fillMaxSize().background(Color(0x66000000)).onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
+        Column(Modifier.width(640.dp).heightIn(max = 460.dp).dialogPanel().padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Title("kumapie ${release.version} ", tr("is out"), fontSize = 26.sp)
             Text(tr("You have %s.", BuildConfig.VERSION_NAME), color = Colors.dim)

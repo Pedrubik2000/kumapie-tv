@@ -113,7 +113,7 @@ private fun Duel(env: DiscoverEnv, game: Knockout, pair: Pair<Int, Int>, byId: M
 
 @Composable
 private fun DuelCard(m: Mine, level: TitleDifficulty?, reason: String?, modifier: Modifier, onClick: () -> Unit) {
-    Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.DUEL).height(336.dp).semantics { contentDescription = m.shown() }) {
+    Card(scale = noGrow(), onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.DUEL).height(336.dp).semantics { contentDescription = m.shown() }) {
         Column(Modifier.fillMaxSize().background(Arcade.slab)) {
             Cover(m.banner.ifEmpty { m.cover }, "", Modifier.fillMaxWidth().height(110.dp), showTitle = false, alignment = Alignment.TopCenter, description = null)
             Row(Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

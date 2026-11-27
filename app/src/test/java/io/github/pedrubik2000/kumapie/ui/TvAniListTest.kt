@@ -40,7 +40,7 @@ class TvAniListTest {
 
     private fun press(k: Key) { rule.onRoot().performKeyInput { pressKey(k) }; rule.waitForIdle() }
 
-    private fun open() = rule.setContent { SettingsScreen(Settings(LocalContext.current), onSaved = {}, onUpdate = {}) }
+    private fun open() = rule.setContent { SettingsScreen(Settings(LocalContext.current), testApi(Settings(LocalContext.current)), NO_NAV, onSaved = {}, onUpdate = {}) }
 
     @Test fun stateLineSaysLoggedInLoggedOutOrExpired() {
         assertEquals("Not logged in", AniListAccount.summary("", "", false))
@@ -58,7 +58,7 @@ class TvAniListTest {
         rule.onNodeWithText(AniListAccount.why()).assertExists()
         val top = { t: String -> rule.onNodeWithText(t).fetchSemanticsNode().boundsInRoot.top }
         assertTrue(top("AniList") < top("Server"))
-        assertTrue(top("Settings") < top("AniList"))
+        assertTrue(top("SETTINGS") < top("AniList"))
     }
 
     @Test fun logInShowsTheQrPageWithOnlyTheAniListPart() {
@@ -112,7 +112,7 @@ class TvAniListTest {
         rule.setContent {
             val context = LocalContext.current
             if (inButtons.value) Button(onClick = { inButtons.value = false }) { androidx.tv.material3.Text("Back from buttons") }
-            else SettingsScreen(Settings(context), onSaved = {}, onUpdate = {}, onButtons = { inButtons.value = true })
+            else SettingsScreen(Settings(context), testApi(Settings(context)), NO_NAV, onSaved = {}, onUpdate = {}, onButtons = { inButtons.value = true })
         }
         rule.waitUntil(5_000) { focused() == "Log in with AniList" }
         rule.onNodeWithText("Change buttons").requestFocus()

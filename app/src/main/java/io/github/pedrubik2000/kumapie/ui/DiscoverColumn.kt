@@ -28,12 +28,11 @@ import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.i18n.tr
 
 @Composable
-internal fun DiscoverColumn(mode: DiscoverMode, entry: FocusRequester, link: Link, toRail: () -> FocusRequester, onMode: (DiscoverMode) -> Unit,
+internal fun DiscoverColumn(mode: DiscoverMode, entry: FocusRequester, link: Link, toRail: () -> FocusRequester, onMode: (DiscoverMode) -> Unit, backToRail: Boolean,
                             modifier: Modifier, extras: @Composable ColumnScope.(Modifier) -> Unit) {
     val firstRow = remember { FocusRequester() }
     val sides = Modifier.fillMaxWidth().focusProperties { if (link.ready) right = link.to; left = toRail() }
-    Column(modifier.width(PANEL_WIDTH).arcadePanel().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Title(tr("Discover"), fontSize = 26.sp)
+    Column(modifier.width(PANEL_WIDTH).onBackKey(backToRail) { runCatching { toRail().requestFocus() } }.sideColumn().verticalScroll(rememberScrollState()).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         DiscoverMode.entries.forEachIndexed { i, m ->
             val place = if (m == mode) Modifier.focusRequester(entry) else if (i == 0) Modifier.focusRequester(firstRow) else Modifier
             val toLine = if (i == 0) Modifier.focusProperties { up = MissingKeyLine.up(if (m == mode) entry else firstRow) } else Modifier

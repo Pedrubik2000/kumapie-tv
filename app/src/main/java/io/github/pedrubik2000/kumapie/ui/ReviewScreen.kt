@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +37,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Api
+import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.SrsCard
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.ReviewSource
@@ -50,7 +53,7 @@ fun pcReview(api: Api, lang: String) = ReviewSource({ api.srsDue(lang).cards }, 
  * (learning steps come back in minutes).
  */
 @Composable
-fun ReviewScreen(source: ReviewSource, server: Boolean = true) {
+internal fun ReviewScreen(source: ReviewSource, api: Discovery, nav: RailNav, lang: String, server: Boolean = true) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var cards by remember { mutableStateOf<List<SrsCard>?>(null) }
@@ -85,21 +88,14 @@ fun ReviewScreen(source: ReviewSource, server: Boolean = true) {
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(48.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Title(tr("Review"))
-            Box(Modifier.weight(1f))
-            cards?.let { Text(tr("%1\$d left · %2\$d done", it.size - i, done), color = Colors.dim, style = Arcade.label,
-                modifier = Modifier.padding(end = 56.dp)) } // clear of the accent stripe in the corner
-        }
+    TvPage(api, RailAt.REVIEW, nav, null, cards?.let { tr("%1\$d left · %2\$d done", it.size - i, done) }, lang) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             when {
                 error != null -> ErrorBox(error!!, onRetry = { error = null; load() }, onSettings = null, server = server)
                 cards == null -> Text(tr("Loading…"), color = Colors.dim)
-                card == null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Title(tr("All done for now"), fontSize = 28.sp)
-                    Text(tr("Hold ↑ on a word while watching to add it here."), color = Colors.dim, modifier = Modifier.padding(top = 12.dp))
-                }
+                card == null -> { val ok = remember { FocusRequester() }
+                    EmptyState(androidx.compose.material.icons.Icons.Default.Style, tr("All done for now"), tr("Hold ↑ on a word while watching to add it here."), tr("Open Continue watching"), nav.onHome, Modifier.focusRequester(ok))
+                    LaunchedEffect(Unit) { ok.focusSoon() } }
                 else -> Front(card, shown, onShow = { shown = true }, onListen = ::play, onRate = ::rate)
             }
         }

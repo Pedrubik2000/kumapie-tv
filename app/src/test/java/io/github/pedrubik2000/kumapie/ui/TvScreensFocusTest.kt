@@ -135,10 +135,10 @@ class TvOnboardingTest {
     }
 
     @Test fun settingsHaveTheDictionariesEntryUnderTheFont() {
-        rule.setContent { SettingsScreen(Settings(LocalContext.current), onSaved = {}, onUpdate = {}) }
+        rule.setContent { SettingsScreen(Settings(LocalContext.current), testApi(Settings(LocalContext.current)), NO_NAV, onSaved = {}, onUpdate = {}) }
         rule.onNodeWithText("Japanese dictionaries").assertExists()
         rule.onNodeWithText("Free on this TV:", substring = true).assertExists()
-        rule.onNodeWithText("Font:", substring = true).requestFocus()
+        rule.onNodeWithText("Font").requestFocus()
         rule.press(Key.DirectionDown)
         assertEquals("Add a dictionary from your phone (QR code)", rule.focusedTitle())
         rule.press(Key.DirectionCenter)
@@ -200,7 +200,7 @@ class TvReviewTest {
         val card = io.github.pedrubik2000.kumapie.data.SrsCard("師匠", "フランメ「師匠」", "", "ししょう · master", "new", "", 1,
             android.net.Uri.fromFile(picture).toString())
         val rated = mutableListOf<Int>()
-        rule.setContent { ReviewScreen(io.github.pedrubik2000.kumapie.lang.ReviewSource({ listOf(card) }, { _, r -> rated += r }), server = false) }
+        rule.setContent { ReviewScreen(io.github.pedrubik2000.kumapie.lang.ReviewSource({ listOf(card) }, { _, r -> rated += r }), testApi(Settings(LocalContext.current)), NO_NAV, "ja", server = false) }
         rule.waitUntil(5_000) { rule.focusedTitle() == "Show" }
         rule.onNodeWithText("Show").assertIsDisplayed()
         rule.press(Key.DirectionCenter)

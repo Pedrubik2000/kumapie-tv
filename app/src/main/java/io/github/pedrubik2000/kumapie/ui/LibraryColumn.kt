@@ -48,8 +48,7 @@ internal fun LibraryColumn(all: List<Mine>, list: LibraryList, filters: LibraryF
     val counts = remember(all) { LibraryList.entries.associateWith { it.of(all).size } }
     val sides = Modifier.fillMaxWidth().focusProperties { toGrid?.let { right = it }; left = toRail() }
     var text by remember { mutableStateOf(filters.query) }
-    Column(modifier.width(PANEL_WIDTH).arcadePanel().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Title(tr("Library"), fontSize = 26.sp)
+    Column(modifier.width(PANEL_WIDTH).onBackKey { runCatching { toRail().requestFocus() } }.sideColumn().verticalScroll(rememberScrollState()).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         TvTextField(text, { text = it }, onDone = { onFilters(filters.copy(query = text.trim())) },
             sides.onFocusChanged { if (!it.isFocused && text.trim() != filters.query) onFilters(filters.copy(query = text.trim())) }, placeholder = tr("Search my %d titles", all.size))
         Section("ANILIST")

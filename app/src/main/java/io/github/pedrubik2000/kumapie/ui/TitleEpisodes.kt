@@ -107,7 +107,7 @@ private fun focusEpisode(focus: TitleFocus, entry: Boolean): Modifier =
 @Composable
 private fun EpisodeTile(thumb: String, name: String, caption: String, look: TileLook, modifier: Modifier, onLongClick: (() -> Unit)?, onClick: () -> Unit) {
     Column(Modifier.width(TILE_WIDTH)) {
-        Card(onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab),
+        Card(scale = noGrow(), onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab),
             colors = arcadeCardColors(), modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f).semantics { text = AnnotatedString(name) }) {
             Box(Modifier.fillMaxSize().background(Arcade.slab)) {
                 var failed by remember(thumb) { mutableStateOf(false) }

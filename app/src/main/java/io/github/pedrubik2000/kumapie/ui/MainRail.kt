@@ -32,7 +32,7 @@ import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.i18n.tr
 
-internal enum class RailAt { HOME, LIBRARY, DISCOVER }
+internal enum class RailAt { HOME, LIBRARY, DISCOVER, REVIEW, STATS, SETTINGS }
 
 internal class RailNav(val onHome: () -> Unit, val onLibrary: () -> Unit, val onDiscover: () -> Unit,
                        val onReview: () -> Unit, val onStats: () -> Unit, val onSettings: () -> Unit)
@@ -60,10 +60,10 @@ internal fun BoxScope.MainRail(api: Discovery, lang: String?, at: RailAt?, nav: 
         item(Icons.Default.Home, tr("Home"), RailAt.HOME, nav.onHome),
         item(Icons.Default.VideoLibrary, tr("Library"), RailAt.LIBRARY, nav.onLibrary),
         item(Icons.Default.Explore, tr("Discover"), RailAt.DISCOVER, nav.onDiscover).takeIf { lang == "ja" },
-        due?.let { item(Icons.Default.Style, tr("Review"), null, nav.onReview, badge = it) },
-        item(Icons.Default.BarChart, tr("Stats"), null, nav.onStats),
+        due?.let { item(Icons.Default.Style, tr("Review"), RailAt.REVIEW, nav.onReview, badge = it) },
+        item(Icons.Default.BarChart, tr("Stats"), RailAt.STATS, nav.onStats),
         extra,
-        item(Icons.Default.Settings, tr("Settings"), null, nav.onSettings),
+        item(Icons.Default.Settings, tr("Settings"), RailAt.SETTINGS, nav.onSettings),
     ), focus, toRows, Modifier.align(Alignment.TopStart).padding(top = 100.dp), onFocused, onHasFocus)
 }
 

@@ -124,7 +124,8 @@ The system is plain on purpose: no custom typeface, no decorative ornament, no s
 
 **Key Characteristics:**
 - Violet-black ground, one-step-lighter surfaces, depth by tone only.
-- Bear brown is the single action/progress/selection accent.
+- Bear brown is the single action/progress/selection accent on phone and tablet; the TV has its own palette (see "TV look").
+
 - Word and level colours are information, never decoration.
 - Show art carries the colour; missing art gets a muted name-hued neutral poster, never an episode frame.
 - Resume first: the last episode is the largest thing on Home on every device.
@@ -154,6 +155,18 @@ A dark, desaturated violet field with one warm brown accent and a small, strictl
 
 **The Colour Means Something Rule.** Where words are shown (subtitles, word lists, cards, the i+N level badges), green, yellow, red and blue mean word state and level and nothing else; orange only marks counts and "today" in stats and help. Outside words, colour is free to carry other meaning: a title's difficulty badge has its own six-colour scale (blue, green, lime, orange, red, purple, easiest to hardest) that follows Jiten's label (Beginner, Easy, Average, Hard, Expert, Insane), never the percentage: 61% that says Hard is orange. The scale is used for nothing but difficulty. Colour is still never decoration or chrome.
 
+## TV look (as shipped, v0.44)
+
+The TV app does not use the violet/brown palette above. Everything on TV comes from Home and `Arcade.kt`:
+
+- **Ground:** #07090D on every screen, flat (no glow). Show art fades in only behind Home and Discover.
+- **Surface:** #14171D for tiles, menus, the hint bar and the dialog (24dp corners, 1dp white-18% edge). A glass pill is the ground at 55% with a 1dp white-18% edge.
+- **Accent:** ice blue #9CC9FF for progress, stats numbers and bars, and the current rail page. Orange #FFAA4D only for "today" and the difficulty percent.
+- **Focus, one language:** buttons, menu rows and steppers fill white with dark text; cards, posters and stat tiles get a 3dp white outline with no grow; rail circles fill white with a black icon. Only one thing looks focused at a time.
+- **Choices:** the `‹ value ›` stepper (`StepRow`) everywhere a value is picked, Settings included (Left/Right changes it, no popup).
+- **Pages:** the icon rail is on every top-level screen (Home, Library, Discover, Review, Stats, Settings) with the current page ringed in blue. A caps overline with the page name sits at the 124dp content edge with a meta line top-right (`PageHeader`). One empty state (`EmptyState`: circle icon, title, one line, one pill). Key hints bottom-right (`HintBar`).
+- **Back:** page content -> rail -> Home -> exit; Left at the content's left edge also reaches the rail.
+
 ## Typography
 
 **Display Font:** none; platform default (Roboto on TV; the device's system font on phone and tablet)
@@ -171,7 +184,7 @@ A dark, desaturated violet field with one warm brown accent and a small, strictl
 - **Body Small** (body-small): poster sub-lines (easy share · left), tile episode and time lines.
 
 ### Named Rules
-**The Material Roles Rule.** Use the Material type roles by name; never set raw sizes on Home text. The one raw size is the TV text field (20sp).
+**The Material Roles Rule.** Use the Material type roles by name; never set raw sizes on Home text. The one raw size is the TV text field (16sp).
 
 ## Layout
 
@@ -186,7 +199,7 @@ Single scroll column on phone; a resume column beside the library on wide screen
 
 ## Elevation & Depth
 
-Flat. Depth comes from tone alone: Violet Night ground, Dusk Surface containers, and show art as the brightest layer. Art fades into its card through a vertical scrim (transparent at 45-50% to the card or ground colour at the bottom), so titles read as part of the card. TV focus adds scale (1.1) and a brown border, not a shadow.
+Flat. Depth comes from tone alone: Violet Night ground, Dusk Surface containers, and show art as the brightest layer. Art fades into its card through a vertical scrim (transparent at 45-50% to the card or ground colour at the bottom), so titles read as part of the card. TV focus is a white outline (cards) or a white fill (buttons, rows, rail), not a shadow; see "TV look".
 
 ### Named Rules
 **The Tone-Not-Shadow Rule.** No drop shadows on Home surfaces; a container is one tonal step up from its ground, and focus is shown by scale and border.
@@ -212,14 +225,14 @@ Every other show in progress, one row each.
 
 ### Poster
 - 2:3 art, 10dp radius, title (Title Small, two lines) and an easy line (Body Small, muted) beneath. A neutral poster (the title on a name-derived hue at 35% saturation, 32% value) sits under the image and shows when art is missing. Never an episode frame.
-- **TV:** 110dp Card, Body Large title on one line; focus grows it 10% with a brown border.
+- **TV:** 110dp Card, title on one line; focus is the 3dp white outline, no grow.
 
 ### Progress Bar
 - 4dp tall, 2dp radius, Dusk Surface track, brown fill. Used for episode progress everywhere.
 
 ### Chips
 - **Language:** Material filter chips, outlined when unselected; selected fills brown with black label. Shown only when the library has two or more languages.
-- **TV:** language switches are TV buttons; the selected one fills brown with Violet Night text.
+- **TV:** the language switch is a glass pill that fills white with dark text when focused.
 
 ### Tabs
 - Material primary scrollable tab row on a transparent container: brown indicator and label when selected, muted lilac otherwise, a Dusk Surface divider. Media types in a fixed order (Anime, Shows, Movies, YouTube, Visual novels, Other), only those with shows.
@@ -231,7 +244,7 @@ Every other show in progress, one row each.
 - **TV:** a header row of buttons (profile, Stats, Settings) right of the wordmark.
 
 ### Inputs / Fields
-- **TV text field:** Dusk Surface, 8dp radius, 12/16dp padding; a 2dp brown border and brown cursor when focused.
+- **TV text field:** #14171D surface, 12dp radius, 1dp line; a 2dp white outline when focused (ice-blue cursor).
 
 ## Do's and Don'ts
 
@@ -240,7 +253,6 @@ Every other show in progress, one row each.
 - **Do** use Dusk Surface for every container and keep secondary actions on it, so brown stays for play, progress and selection.
 - **Do** draw a neutral poster under every poster image.
 - **Do** switch to the rail only at 600dp wide and 560dp tall, and split resume/library only from 840dp.
-- **Do** leave room for TV focus growth (10%) in row padding.
 
 ### Don't:
 - **Don't** give green, yellow, red or blue another meaning where words are shown, use orange as a word colour, or use any of them as decoration.

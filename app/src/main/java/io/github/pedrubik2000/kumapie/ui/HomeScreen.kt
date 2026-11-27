@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -114,7 +115,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
             when {
                 error != null -> Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error, onRetry = { attempt++ }, onSettings = onSettings) }
                 shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
-                lang == null -> Text(tr("No shows on the server yet."), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
+                lang == null -> EmptyState(androidx.compose.material.icons.Icons.Default.VideoLibrary, tr("No shows on the server yet."), modifier = Modifier.padding(start = RAIL, top = 100.dp))
                 data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover,
                     onHide = { s, e -> hidden = ContinueHidden.hide(settings.prefs, profile, s, e) }, onUnhide = { hidden = ContinueHidden.unhide(settings.prefs, profile, it.id) }) { contentFocused || railFocused }
             }

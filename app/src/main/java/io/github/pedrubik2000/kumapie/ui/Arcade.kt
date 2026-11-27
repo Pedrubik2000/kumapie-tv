@@ -72,7 +72,7 @@ import kotlin.math.tan
 object Arcade {
     val accent = Color(0xFF9CC9FF)   // ice blue: ticks, numbers, the selected choice
     val background = Color(0xFF07090D) // the page
-    val band = Color(0xFF14171D)     // panels and dialogs: opaque glass over the page
+    val band = Color(0xFF14171D)     // the one container colour: tiles, dialogs, menus, the hint bar
     // Glass fill. The phone's is white 12 % over a blurred, dimmed picture; a TV has no blur and its backdrops are bright,
     // where white glass left white text unreadable (the title page, 2026-11-17): dark glass, the page at 55 %.
     val slab = Color(0xFF07090D).copy(alpha = 0.55f)
@@ -326,3 +326,9 @@ fun HintBar(hints: List<Hint>, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** Card focus is the 3 dp white outline only: no grow (rows and grids never clip). */
+@Composable fun noGrow() = CardDefaults.scale(focusedScale = 1f)
+
+/** The one dialog: the container colour, 24 dp corners, a thin edge. */
+fun Modifier.dialogPanel(): Modifier = background(Arcade.band, RoundedCornerShape(24.dp)).border(1.dp, Arcade.line, RoundedCornerShape(24.dp))

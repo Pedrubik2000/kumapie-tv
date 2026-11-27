@@ -87,13 +87,13 @@ class TvWordColouringTest {
     }
 
     @Test fun backFromTheScreenReturnsToSettingsOnTheButton() {
-        rule.setContent { SettingsScreen(Settings(RuntimeEnvironment.getApplication()), onSaved = {}, onUpdate = {}) }
-        rule.onNodeWithText("Word colouring: on", substring = true).requestFocus()
+        rule.setContent { SettingsScreen(Settings(RuntimeEnvironment.getApplication()), testApi(Settings(RuntimeEnvironment.getApplication())), NO_NAV, onSaved = {}, onUpdate = {}) }
+        rule.onNodeWithText("Word colouring", substring = true).requestFocus()
         press(Key.DirectionCenter)
         rule.onNodeWithText("Colour words in subtitles").assertExists()
         press(Key.Back)
         rule.waitForIdle()
-        assertEquals(true, focused()?.startsWith("Word colouring: "))
+        assertEquals(true, focused()?.startsWith("Word colouring"))
     }
 
     @Test fun afterKeepFocusIsBackOnTheRadioAndBackCallsOnBackOnce() {

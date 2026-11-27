@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import io.github.pedrubik2000.kumapie.data.Api
+import io.github.pedrubik2000.kumapie.data.Discovery
 import io.github.pedrubik2000.kumapie.data.Stats
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -51,7 +53,7 @@ import java.util.Locale
  * ([io.github.pedrubik2000.kumapie.lang.Progress.stats], as the phone's).
  */
 @Composable
-fun StatsScreen(load: suspend () -> Stats, onSettings: () -> Unit) {
+internal fun StatsScreen(load: suspend () -> Stats, onSettings: () -> Unit, api: Discovery, nav: RailNav) {
     var stats by remember { mutableStateOf<Stats?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -59,30 +61,31 @@ fun StatsScreen(load: suspend () -> Stats, onSettings: () -> Unit) {
         error = null
         runCatching { load() }.onSuccess { stats = it }.onFailure { error = it.message ?: it.toString() }
     }
-    when {
-        error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings)
-        stats == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(tr("Loading…"), color = Colors.dim) }
-        else -> StatsContent(stats!!)
+    val first = remember { FocusRequester() }
+    TvPage(api, RailAt.STATS, nav, stats?.let { tr("%s this week", hoursMinutes(it.week)) }, toContent = first.takeIf { stats != null }) {
+        when {
+            error != null -> ErrorBox(error!!, onRetry = { attempt++ }, onSettings = onSettings)
+            stats == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(tr("Loading…"), color = Colors.dim) }
+            else -> StatsContent(stats!!, first)
+        }
     }
 }
 
 @Composable
-private fun StatsContent(s: Stats) {
-    val first = remember { FocusRequester() }
+private fun StatsContent(s: Stats, first: FocusRequester) {
     val today = io.github.pedrubik2000.kumapie.lang.Progress.today() // the study day, as the server counts it
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 56.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        item {
-            Section(Modifier.focusRequester(first)) {
-                Title(tr("Stats"), fontSize = 30.sp)
-                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Tile(tr("Today"), hoursMinutes(s.today))
+    Column(Modifier.fillMaxSize()) {
+    // The first row is outside the lazy list so it is always there for the rail's Right and the first focus.
+    Row(Modifier.padding(top = 8.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Tile(tr("Today"), hoursMinutes(s.today), Modifier.focusRequester(first))
                     Tile(tr("Last 7 days"), hoursMinutes(s.week))
                     Tile(tr("Total"), hoursMinutes(s.total))
                     Tile(tr("Streak"), if (s.streak == 1) tr("1 day") else tr("%d days", s.streak))
-                }
-            }
-        }
+    }
+    val list = androidx.compose.foundation.lazy.rememberLazyListState()
+    ReportsScroll(false, list.canScrollForward) // no top fade: it would dim the tile row, which never scrolls (ponytail: the list's top edge stays a hard cut; give the LazyColumn its own fade if it shows)
+    LazyColumn(Modifier.weight(1f), state = list, contentPadding = PaddingValues(end = 48.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
             Section {
                 Heading(tr("The last year"))
@@ -98,7 +101,7 @@ private fun StatsContent(s: Stats) {
             }
         }
         item {
-            Section {
+            Section(scroll = false) {
                 Heading(tr("Lines and words"))
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Tile(tr("Lines heard"), tr("%1\$d of %2\$d", s.scenesSeen, s.scenesTotal))
@@ -138,25 +141,21 @@ private fun StatsContent(s: Stats) {
             }
         }
     }
+    }
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
 }
 
-/** A focusable block, so the D-pad can scroll the page; a thin ring shows where you are. */
+/** A block of the page. Without tiles it takes focus itself (no visible ring), so the D-pad can scroll the page. */
 @Composable
-private fun Section(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    Column(
-        modifier.fillMaxWidth()
-            .onFocusChanged { focused = it.isFocused }
-            .focusable()
-            .border(2.dp, if (focused) Colors.accent.copy(alpha = 0.6f) else Color.Transparent)
-            .padding(16.dp),
-    ) { content() }
-}
+private fun Section(modifier: Modifier = Modifier, scroll: Boolean = true, content: @Composable () -> Unit) =
+    Column(modifier.fillMaxWidth().let { if (scroll) it.focusable() else it }) { content() }
 
+/** A plain container tile; Home's card outline when focused. */
 @Composable
-private fun Tile(label: String, value: String) {
-    Column(Modifier.background(Arcade.slab, RowSlab).padding(horizontal = 26.dp, vertical = 12.dp)) {
+private fun Tile(label: String, value: String, modifier: Modifier = Modifier) {
+    var focused by remember { mutableStateOf(false) }
+    Column(modifier.onFocusChanged { focused = it.isFocused }.focusable().background(Arcade.band, RowSlab).border(1.dp, Arcade.line, RowSlab).tvOutline(focused, RowSlab)
+        .padding(horizontal = 26.dp, vertical = 12.dp)) {
         Text(value, fontSize = 26.sp, color = Colors.accent, style = Arcade.label)
         Text(label, fontSize = 13.sp, color = Colors.dim, style = Arcade.label)
     }

@@ -2,6 +2,15 @@ package io.github.pedrubik2000.kumapie.i18n
 
 /** The TV app (Giovanna's and Jackson's profiles show it in Spanish). */
 internal val esTv: Map<String, String> = mapOf(
+    // Page shell and steppers
+    "Open Continue watching" to "Abrir Seguir viendo",
+    "Help screen and key hints" to "Pantalla de ayuda y pistas de botones",
+    "Blur episodes I haven't watched" to "Difuminar los episodios que no he visto",
+    "Font" to "Fuente",
+    "Kept on" to "Se guardan en",
+    "USB drive" to "memoria USB",
+    "This TV" to "esta TV",
+    "%s this week" to "%s esta semana",
     "Stats" to "Estadísticas",
     "Settings" to "Ajustes",
     "Loading…" to "Cargando…",

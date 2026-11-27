@@ -484,6 +484,8 @@ class TvDiscoverFocusTest {
         press(RIGHT, Key.Back.keyCode)
         assertTrue(focused()?.startsWith("Browse") == true)
         assertEquals(0, home)
+        press(Key.Back.keyCode) // the column goes to the rail first
+        assertEquals(0, home)
         press(Key.Back.keyCode)
         assertEquals(1, home)
     }

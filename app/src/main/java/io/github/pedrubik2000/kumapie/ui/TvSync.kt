@@ -67,17 +67,17 @@ internal fun TvSync(settings: Settings) {
         Button(onClick = { if (address.isNotBlank()) pair(address.trim()) }, modifier = Modifier.focusRequester(pairButton)) { Text(tr("Pair")) }
     }
     if (message.isNotEmpty()) Text(message, color = Colors.text)
-    Button(onClick = {
-        answers = !answers
-        settings.prefs.edit().putBoolean(DeviceSync.ANSWERS, answers).apply()
-        if (answers) SyncListener.start(context) else { SyncListener.stop(context); SyncService.stop(context) }
-    }) { Text(if (answers) tr("✓ This device answers the others") else tr("This device answers the others")) }
+    Choice(tr("This device answers the others"), onOff(answers)) { answers = !answers }
+    Debounced(answers) {
+        settings.prefs.edit().putBoolean(DeviceSync.ANSWERS, it).apply()
+        if (it) SyncListener.start(context) else { SyncListener.stop(context); SyncService.stop(context) }
+    }
     if (answers) {
-        Button(onClick = {
-            background = !background
-            settings.prefs.edit().putBoolean(DeviceSync.BACKGROUND, background).apply()
-            if (background) SyncService.start(context) else SyncService.stop(context)
-        }) { Text(if (background) tr("✓ Also while kumapie is closed (a notification; Wi-Fi only)") else tr("Also while kumapie is closed (a notification; Wi-Fi only)")) }
+        Choice(tr("Also while kumapie is closed (a notification; Wi-Fi only)"), onOff(background)) { background = !background }
+        Debounced(background) {
+            settings.prefs.edit().putBoolean(DeviceSync.BACKGROUND, it).apply()
+            if (it) SyncService.start(context) else SyncService.stop(context)
+        }
         asking.forEach { a -> Button(onClick = { DeviceSync.allow(context, a) }) { Text(tr("Allow %1\$s (code %2\$s)", a.device, a.code)) } }
     }
 }

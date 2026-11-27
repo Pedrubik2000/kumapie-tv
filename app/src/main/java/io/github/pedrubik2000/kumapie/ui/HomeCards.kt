@@ -49,7 +49,7 @@ internal fun Shelf(title: String, inset: Dp = 16.dp, state: LazyListState = reme
 @Composable
 internal fun Poster(image: String, title: String, line: String, progress: Float?, modifier: Modifier, level: TitleDifficulty? = null, width: Dp = 110.dp, onClick: () -> Unit) {
     Column(Modifier.width(width)) {
-        Card(onClick = onClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.COVER).fillMaxWidth().aspectRatio(2f / 3f)) {
+        Card(scale = noGrow(), onClick = onClick, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.COVER).fillMaxWidth().aspectRatio(2f / 3f)) {
             Box(Modifier.fillMaxSize()) {
                 Cover(image, title.replace('.', ' ').replace('_', ' '), Modifier.fillMaxSize(), fontSize = 13.sp, description = title)
                 level?.let { DifficultyTag(it, Modifier.align(Alignment.TopStart).padding(6.dp)) }
@@ -72,7 +72,7 @@ private val CARD_FADE = Brush.verticalGradient(0.5f to Color.Transparent, 1f to 
 @Composable
 internal fun ResumeCard(s: Show, e: Episode, modifier: Modifier, width: Dp, picture: String? = null, airs: String? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     Column(Modifier.width(width)) {
-        Card(onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.CONTINUE).fillMaxWidth().aspectRatio(16f / 9f)) {
+        Card(scale = noGrow(), onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(), modifier = modifier.hint(HintKind.CONTINUE).fillMaxWidth().aspectRatio(16f / 9f)) {
             Box(Modifier.fillMaxSize()) {
                 Cover(picture ?: s.poster, s.title, Modifier.fillMaxSize(), showTitle = false, alignment = Alignment.TopCenter)
                 Box(Modifier.fillMaxSize().background(CARD_FADE))

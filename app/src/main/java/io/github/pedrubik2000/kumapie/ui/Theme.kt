@@ -100,7 +100,7 @@ fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Un
         onValueChange = onValueChange,
         readOnly = !editing,
         singleLine = true,
-        textStyle = TextStyle(color = Colors.text, fontSize = 20.sp),
+        textStyle = TextStyle(color = Colors.text, fontSize = 16.sp),
         cursorBrush = SolidColor(Colors.accent),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { editing = false; onDone() }, onGo = { editing = false; onDone() }),
@@ -118,12 +118,12 @@ fun TvTextField(value: String, onValueChange: (String) -> Unit, onDone: () -> Un
                     else -> false
                 }
             }
-            .background(Colors.surface, RoundedCornerShape(8.dp))
-            .border(2.dp, if (focused) Colors.accent else Colors.surface, RoundedCornerShape(8.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .background(Arcade.band, RoundedCornerShape(12.dp))
+            .border(if (focused) 2.dp else 1.dp, if (focused) Color.White else Arcade.line, RoundedCornerShape(12.dp)) // the container surface; white outline when focused
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         decorationBox = { inner ->
             androidx.compose.foundation.layout.Box {
-                if (value.isEmpty()) androidx.tv.material3.Text(placeholder, color = Colors.dim, fontSize = 20.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (value.isEmpty()) androidx.tv.material3.Text(placeholder, color = Colors.dim, fontSize = 16.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 inner()
             }
         },
@@ -138,3 +138,9 @@ object DifficultyColours {
     val red = Color(0xFFD33B3B)
     val purple = Color(0xFF8A47C9)
 }
+
+/** Focus on a tile that is not a card (a stats section): Home's focused-card outline, 3 dp white in the tile's own radius. */
+fun Modifier.tvOutline(focused: Boolean, shape: androidx.compose.ui.graphics.Shape): Modifier = border(3.dp, if (focused) Color.White else Color.Transparent, shape)
+
+/** A column beside the content (Library, Discover filters): Home's glass surface, no edge. */
+fun Modifier.sideColumn(): Modifier = background(Arcade.slab, RoundedCornerShape(22.dp))

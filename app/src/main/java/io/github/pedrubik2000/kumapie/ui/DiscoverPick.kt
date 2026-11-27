@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -63,18 +66,16 @@ internal fun PickContent(env: DiscoverEnv, picks: Picks?, ranked: Ranked?, state
 
 @Composable
 private fun EmptyPick(env: DiscoverEnv, undo: Undo?, state: PickState) {
-    Column(Modifier.padding(start = CONTENT_START, top = 100.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(tr("Nothing left to pick right now. Add titles to your Planning list on AniList, or open Browse."), color = Colors.dim)
-        if (undo != null) {
-            Button(onClick = { state.toHome = state.undoLast() }, modifier = Modifier.hint(HintKind.CHOOSE).focusRequester(env.link.to).focusProperties { left = env.entry }) { Text("↶ " + tr("Undo")) }
-            LaunchedEffect(Unit) { env.link.to.focusSoon() }
-        }
-    }
+    EmptyState(androidx.compose.material.icons.Icons.Default.Explore, tr("Nothing left to pick right now. Add titles to your Planning list on AniList, or open Browse."), button = if (undo != null) "↶ " + tr("Undo") else null,
+        onButton = { state.toHome = state.undoLast() }, buttonModifier = Modifier.hint(HintKind.CHOOSE).focusRequester(env.link.to).focusProperties { left = env.entry },
+        modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
+    if (undo != null) LaunchedEffect(Unit) { env.link.to.focusSoon() }
 }
 
 @Composable
 internal fun LoginPrompt(env: DiscoverEnv) =
-    LoginLine(Modifier.padding(start = CONTENT_START, top = 100.dp), Modifier.focusRequester(env.link.to).focusProperties { left = env.entry }, env.onSettings)
+    EmptyState(androidx.compose.material.icons.Icons.Default.VideoLibrary, tr("Log in with AniList to see your lists here"), button = tr("Log in"), onButton = env.onSettings,
+        buttonModifier = Modifier.focusRequester(env.link.to).focusProperties { left = env.entry }, modifier = Modifier.padding(start = CONTENT_START, top = 100.dp))
 
 @Composable
 private fun PickBig(env: DiscoverEnv, m: Mine, ranked: Ranked?, state: PickState) {
@@ -84,7 +85,7 @@ private fun PickBig(env: DiscoverEnv, m: Mine, ranked: Ranked?, state: PickState
         HeroBackdrop(heroPicture(target, env.api), { FADE_SHORT }, Modifier.fillMaxWidth().height(460.dp))
         Row(Modifier.fillMaxWidth().padding(start = CONTENT_START, top = 56.dp, end = 40.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             PickText(env, m, ranked, state, cover, Modifier.weight(1f))
-            Card(onClick = { env.open(m.found(), "cover") }, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), colors = arcadeCardColors(),
+            Card(scale = noGrow(), onClick = { env.open(m.found(), "cover") }, shape = arcadeCardShape(PosterSlab), border = arcadeCardBorder(PosterSlab), colors = arcadeCardColors(),
                 modifier = Modifier.hint(HintKind.COVER).width(140.dp).aspectRatio(2f / 3f).focusRequester(cover).focusProperties { left = env.link.to; up = MissingKeyLine.up(cover) }) {
                 Cover(m.cover, m.shown(), Modifier.fillMaxSize(), fontSize = 13.sp, description = m.shown())
             }

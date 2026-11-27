@@ -27,12 +27,21 @@ object CardMedia {
 
     /** Card media to the USB drive ([on]) or back to this device, the files already there moved along. */
     fun setUsb(context: Context, on: Boolean) {
+        wantUsb = on
+        synchronized(usbLock) { move(context, wantUsb) } // one move at a time, and each one reads the latest wish: the last choice wins whatever order the jobs get the lock
+    }
+
+    @Volatile private var wantUsb = false
+
+    private fun move(context: Context, on: Boolean) {
         val from = dir(context)
         Settings(context).prefs.edit().putBoolean(USB, on).apply()
         val to = dir(context)
         if (from == to) return
         from.listFiles()?.forEach { f -> runCatching { f.copyTo(File(to, f.name), overwrite = true); f.delete() } }
     }
+
+    private val usbLock = Any()
 
     /** The app's folder on a removable drive (a USB stick), null when none is plugged in. */
     fun usbDir(context: Context): File? = context.getExternalFilesDirs(null).drop(1)

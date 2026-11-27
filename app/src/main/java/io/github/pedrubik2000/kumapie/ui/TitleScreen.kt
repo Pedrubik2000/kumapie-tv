@@ -280,7 +280,7 @@ private fun PickFiles(api: Discovery, page: TitlePage, pick: Pair<String, String
 @Composable
 private fun Line(i: Int, text: String, line: String, onClick: () -> Unit) {
     val first = remember { FocusRequester() }
-    Card(onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)) {
+    Card(scale = noGrow(), onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)) {
         Column(Modifier.padding(12.dp)) {
             Text(text, color = Colors.text, fontSize = 18.sp)
             Text(line, color = Colors.dim, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -36,6 +37,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -129,34 +131,36 @@ internal fun <T : Any> CommitSoon(stepper: Stepper<T>) {
 
 private fun openKey(e: KeyEvent, onOpen: () -> Unit): Boolean {
     if (e.key != Key.DirectionCenter && e.key != Key.Enter && e.key != Key.NumPadEnter) return false
-    if (e.type == KeyEventType.KeyDown) onOpen()
+    if (e.type == KeyEventType.KeyUp) onOpen() // on key-up like a Button: the page it opens takes focus before the key is let go, and the key-up would hit its first switch
     return true
 }
 
-private fun stepKey(e: KeyEvent, onStep: (Int) -> Unit): Boolean {
-    val by = when (e.key) { Key.DirectionLeft -> -1; Key.DirectionRight -> 1; else -> return false }
-    if (e.type == KeyEventType.KeyDown) onStep(by)
+private fun stepKey(e: KeyEvent, stepOnOk: Boolean, onStep: (Int) -> Unit): Boolean {
+    val by = when (e.key) { Key.DirectionLeft -> -1; Key.DirectionRight -> 1; Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> if (stepOnOk) 1 else return false; else -> return false }
+    // A held key repeats: only the first press steps (an accidental Left flips a setting once, not back and forth).
+    if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) onStep(by)
     return true
 }
 
 @Composable
-internal fun StepRow(label: String, value: String, modifier: Modifier, onStep: (Int) -> Unit, onLeave: () -> Unit, flat: Boolean = false, onOpen: (() -> Unit)? = null) {
+internal fun StepRow(label: String, value: String, modifier: Modifier, onStep: (Int) -> Unit, onLeave: () -> Unit, flat: Boolean = false, onOpen: (() -> Unit)? = null, valueMax: Dp = 136.dp,
+                     stepOnOk: Boolean = false, wrap: Boolean = false) {
     var focused by remember { mutableStateOf(false) }
-    RowFace(label, value, focused, flat, open = onOpen != null, modifier = modifier.hint(if (onOpen != null) HintKind.ROW else HintKind.VALUE)
+    RowFace(label, value, focused, flat, open = onOpen != null, valueMax = valueMax, wrap = wrap, modifier = modifier.hint(if (onOpen == null) HintKind.VALUE else if (stepOnOk) HintKind.SELECT else HintKind.ROW)
         .onFocusChanged { if (focused && !it.isFocused) onLeave(); focused = it.isFocused }
-        .onKeyEvent { if (onOpen != null) openKey(it, onOpen) else stepKey(it, onStep) }
+        .onKeyEvent { if (onOpen != null) openKey(it, onOpen) else stepKey(it, stepOnOk, onStep) }
         .semantics(mergeDescendants = true) {}
         .focusable())
 }
 
 @Composable
-private fun RowFace(label: String, value: String, focused: Boolean, flat: Boolean, modifier: Modifier, open: Boolean = false) {
-    Row(modifier.fillMaxWidth().height(40.dp)
+private fun RowFace(label: String, value: String, focused: Boolean, flat: Boolean, modifier: Modifier, open: Boolean = false, valueMax: Dp = 136.dp, wrap: Boolean = false) {
+    Row(modifier.fillMaxWidth().heightIn(min = 40.dp)
         .background(if (focused) Color.White else if (flat) Color.Transparent else Arcade.slab, CircleShape)
         .border(1.dp, if (focused) Color.White else if (flat) Color.Transparent else Arcade.line, CircleShape)
-        .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = if (focused) Color.Black else WHITE_DIM, fontSize = 15.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(if (open) "$value  ›" else "‹  $value  ›", color = if (focused) Color.Black else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 136.dp))
+        .padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = if (focused) Color.Black else WHITE_DIM, fontSize = 15.sp, maxLines = if (wrap) 2 else 1, softWrap = wrap, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(if (open) "$value  ›" else "‹  $value  ›", color = if (focused) Color.Black else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = valueMax))
     }
 }
 

@@ -103,8 +103,8 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
 private fun MarkMenu(ep: Episode, count: Int, onClose: () -> Unit, onMark: (whole: Boolean, watched: Boolean) -> Unit) {
     val focus = remember { FocusRequester() }
     val season = ep.season?.let { tr("Season %d", it) } ?: tr("All episodes")
-    Box(Modifier.fillMaxSize().background(Color(0xCC000000)).swallowHeldOk().onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
-        Column(Modifier.width(560.dp).arcadePanel().padding(32.dp),
+    Box(Modifier.fillMaxSize().background(Color(0x66000000)).swallowHeldOk().onBackKey(onBack = onClose), contentAlignment = Alignment.Center) {
+        Column(Modifier.width(560.dp).dialogPanel().padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Title(ep.title, fontSize = 24.sp)
             Button(onClick = { onMark(false, !ep.watched) }, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
@@ -126,7 +126,7 @@ private fun MarkMenu(ep: Episode, count: Int, onClose: () -> Unit, onMark: (whol
 
 @Composable
 private fun EpisodeCard(ep: Episode, blur: Boolean, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier = Modifier) {
-    Card(onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(EpisodeSlab), border = arcadeCardBorder(EpisodeSlab), modifier = modifier.fillMaxWidth()) {
+    Card(scale = noGrow(), onClick = onClick, onLongClick = onLongClick, shape = arcadeCardShape(EpisodeSlab), border = arcadeCardBorder(EpisodeSlab), modifier = modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(model = ep.thumb, contentDescription = null, contentScale = ContentScale.Crop,
                 // No spoilers: an episode's picture stays blurred until it is watched (as on the phone).

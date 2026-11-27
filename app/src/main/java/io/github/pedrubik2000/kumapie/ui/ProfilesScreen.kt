@@ -48,7 +48,7 @@ fun ProfilesScreen(api: Api, last: String, onPick: (Profile) -> Unit, onSettings
             Row(Modifier.padding(top = 48.dp), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
                 people!!.forEachIndexed { i, p ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Card(onClick = { onPick(p) }, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab),
+                        Card(scale = noGrow(), onClick = { onPick(p) }, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab),
                             modifier = Modifier.size(160.dp).let { if (p.id == last || (i == 0 && people!!.none { it.id == last })) it.focusRequester(focus) else it }) {
                             Box(Modifier.fillMaxSize().background(COLORS[i % COLORS.size]), contentAlignment = Alignment.Center) {
                                 Text(p.name.take(1), fontSize = 72.sp, color = Color.White, style = Arcade.label)

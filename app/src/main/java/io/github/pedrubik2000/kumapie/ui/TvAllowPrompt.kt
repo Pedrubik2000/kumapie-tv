@@ -66,10 +66,10 @@ internal fun TvAllowPrompt(hold: Boolean, onSettings: () -> Unit, paceMs: Long =
     val openedAt = remember(name, a) { System.nanoTime() }
     val ok = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
     androidx.compose.ui.window.Dialog(onDismissRequest = no, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Color(0xCC000000)).onBackKey(onBack = no)
+        Box(Modifier.fillMaxSize().background(Color(0x66000000)).onBackKey(onBack = no)
             .onPreviewKeyEvent { it.key in ok && (System.nanoTime() - openedAt) / 1_000_000 < guardMs },
             contentAlignment = Alignment.Center) {
-            Column(Modifier.width(640.dp).arcadePanel().padding(32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.width(640.dp).dialogPanel().padding(32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(line, color = Colors.text, fontSize = 20.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (name != null) Button(onClick = no, modifier = Modifier.focusRequester(focus)) { Text(tr("OK"), fontSize = 16.sp) }

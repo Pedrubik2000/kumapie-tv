@@ -111,7 +111,7 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
                 DiscoverMode.BROWSE -> BrowseContent(env, browse, live)
             }
         }
-        DiscoverColumn(mode, entry, link, { rail[tr("Discover")] ?: FocusRequester.Default }, { hold.pick.modeChanged(hold.mode, it); hold.mode = it }, Modifier.padding(start = RAIL, top = 28.dp, bottom = 16.dp)) { sides ->
+        DiscoverColumn(mode, entry, link, { rail[tr("Discover")] ?: FocusRequester.Default }, { hold.pick.modeChanged(hold.mode, it); hold.mode = it }, !clearSearch, Modifier.padding(start = RAIL, top = PAGE_BODY, bottom = 16.dp)) { sides ->
             when (mode) {
                 DiscoverMode.PICK -> NextPicks(picks?.next.orEmpty(), levels, sides) { pick.chosen = it.anilistId }
                 DiscoverMode.BROWSE -> BrowseFilterRows(browse, loggedIn, sides)
@@ -119,6 +119,7 @@ private fun DiscoverBody(api: Discovery, settings: Settings, jiten: JitenQueue?,
             }
         }
         }
+        PageHeader(tr("Discover"), modifier = Modifier.padding(start = RAIL))
         DiscoverRail(api, edges, RailAt.DISCOVER, rail, entry)
         HintBar()
     }

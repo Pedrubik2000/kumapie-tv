@@ -84,7 +84,8 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
               /** A mouse over a word (the PC): the word and its screen rectangle, null when it leaves; only on a change. */
               onHover: ((SubtitleTap.Word?, Rect?) -> Unit)? = null,
               /** Long press and drag on paused subtitles: the selected text of one line (the personal dictionary, phone/tablet). */
-              onSelect: ((String) -> Unit)? = null) {
+              onSelect: ((String) -> Unit)? = null,
+              bottomGap: androidx.compose.ui.unit.Dp = 40.dp) {
     // The position moves every 40 ms, the lines shown a few times a scene: read inside derivedStateOf, the subtitles
     // recompose (and measure their text) only when their lines change, not 25 times a second.
     val lines by remember(ctl, picker) { derivedStateOf { shown(ctl, picker) } }
@@ -158,7 +159,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val padH = 28.dp
         val padV = 14.dp
-        val bottom = 40.dp
+        val bottom = bottomGap
         val boxWidth = minOf(maxWidth - 64.dp, 900.dp)
         // While picking, leave room above for the meaning box.
         val share = if (picking) 0.55f else if (paused) 2f / 3f else 1f / 3f

@@ -297,6 +297,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
         }
     }
     BackHandler(onBack = onClose)
+    val subtitleGap = rememberSubtitleGap(player)
 
     Box(
         Modifier.fillMaxSize()
@@ -330,7 +331,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
             modifier = Modifier.fillMaxSize(),
         )
         if ((!ctl.playing || picker.isOpen) && !options) TopBar(ctl, title = shortTitle(ctl.episode.show))
-        Subtitles(ctl, picker, onAnchor = { anchor = it }, aboveBox = true)
+        Subtitles(ctl, picker, onAnchor = { anchor = it }, aboveBox = true, bottomGap = subtitleGap)
         if (picker.isOpen && picker.cardOpen) anchor?.let {
             val japanese = ctl.lang == Lang.JAPANESE
             // Japanese: the wide two-column card over the room above the picked line, less the screen margin and the

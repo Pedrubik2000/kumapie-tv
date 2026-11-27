@@ -327,6 +327,8 @@ fun HintBar(hints: List<Hint>, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable fun noGrow() = CardDefaults.scale(focusedScale = 1f)
+private val NO_GROW = CardDefaults.scale(focusedScale = 1.001f)
+
+fun noGrow() = NO_GROW
 
 fun Modifier.dialogPanel(): Modifier = background(Arcade.band, RoundedCornerShape(24.dp)).border(1.dp, Arcade.line, RoundedCornerShape(24.dp))

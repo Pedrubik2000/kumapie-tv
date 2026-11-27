@@ -92,8 +92,8 @@ class TvHomeFocusTest {
         rule.setContent {
             val settings = Settings(LocalContext.current)
             if (screen == "library") LibraryScreen(Api("http://127.0.0.1:${server.address.port}"), settings, onHome = { screen = "home" }, onDiscover = {}, onReview = {}, onSettings = {}, onOpen = {})
-            else if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro",
-                onShow = {}, onPlay = { _, _ -> }, onSettings = {}, onStats = { home = false }, onProfiles = {},
+            else if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p",
+                onShow = {}, onPlay = { _, _ -> }, onSettings = {}, onStats = { home = false },
                 onLibrary = { screen = "library" }, onDiscover = { discoverCalls++ }, jiten = queue, lists = { null })
         }
         if (settle) rule.waitUntil(5_000) { focused() == RESUME }
@@ -129,8 +129,8 @@ class TvHomeFocusTest {
         rule.setContent {
             val settings = Settings(LocalContext.current)
             val t = tick
-            if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro", onShow = { opened = "show:" + it.id }, onPlay = { _, _ -> home = false },
-                onSettings = {}, onStats = {}, onProfiles = {}, onLibrary = {}, onDiscover = {}, onDiscovered = { home = false },
+            if (home) HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", onShow = { opened = "show:" + it.id }, onPlay = { _, _ -> home = false },
+                onSettings = {}, onStats = {}, onLibrary = {}, onDiscover = {}, onDiscovered = { home = false },
                 lists = { if (t < 0) emptyList() else null }, memory = memory)
         }
         rule.waitUntil(5_000) { focused() == RESUME }
@@ -326,8 +326,8 @@ class TvHomeFocusTest {
     @Test fun withNothingInProgressTheFirstFocusIsFindSomethingToWatchAndOkOpensDiscover() {
         showsBody = """{"shows":[${show("c", "Gamma", "shows", episode("c1", null, 0))}]}"""
         rule.setContent {
-            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), Settings(LocalContext.current), "p", "Pedro", onShow = {}, onPlay = { _, _ -> },
-                onSettings = {}, onStats = {}, onProfiles = {}, onDiscover = { discoverCalls++ }, lists = { null })
+            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), Settings(LocalContext.current), "p", onShow = {}, onPlay = { _, _ -> },
+                onSettings = {}, onStats = {}, onDiscover = { discoverCalls++ }, lists = { null })
         }
         rule.waitUntil(5_000) { focused() == "Find something to watch" }
         press(OK)
@@ -378,8 +378,8 @@ class TvHomeFocusTest {
         rule.setContent {
             val settings = Settings(LocalContext.current)
             val t = tick
-            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", "Pedro", onShow = {}, onPlay = { _, _ -> }, onSettings = {},
-                onStats = {}, onProfiles = {}, onLibrary = {}, onDiscover = {}, lists = { if (t < 0) emptyList() else null })
+            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), settings, "p", onShow = {}, onPlay = { _, _ -> }, onSettings = {},
+                onStats = {}, onLibrary = {}, onDiscover = {}, lists = { if (t < 0) emptyList() else null })
         }
         rule.waitUntil(5_000) { focused() == until }
     }
@@ -488,8 +488,8 @@ class TvHomeFocusTest {
     private fun openEmptyHome() {
         showsBody = """{"shows":[${show("c", "Gamma", "shows", episode("c1", null, 0))}]}"""
         rule.setContent {
-            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), Settings(LocalContext.current), "p", "Pedro", onShow = {}, onPlay = { _, _ -> },
-                onSettings = {}, onStats = {}, onProfiles = {}, onDiscover = { discoverCalls++ }, lists = { null })
+            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), Settings(LocalContext.current), "p", onShow = {}, onPlay = { _, _ -> },
+                onSettings = {}, onStats = {}, onDiscover = { discoverCalls++ }, lists = { null })
         }
         rule.waitUntil(5_000) { focused() == "Find something to watch" }
     }
@@ -679,8 +679,8 @@ class TvHomeFocusTest {
         logIn(mine("1", "Alpha", "CURRENT", progress = 0, episodes = 12, next = 1, nextAt = System.currentTimeMillis() / 1000 + 3 * 86400))
         showsBody = """{"shows":[${show("kitsu:1", "Alpha", "stream", episode("a1", 300.0, 200))},${show("b", "Beta", "anime", episode("b1", 500.0, 100))}]}"""
         rule.setContent {
-            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), Settings(LocalContext.current), "p", "Pedro", onShow = { opened = "show:" + it.id },
-                onPlay = { s, _ -> opened = "play:" + s.id }, onDiscovered = { opened = "found:" + it.id }, onSettings = {}, onStats = {}, onProfiles = {}, lists = { null })
+            HomeScreen(Api("http://127.0.0.1:${server.address.port}"), Settings(LocalContext.current), "p", onShow = { opened = "show:" + it.id },
+                onPlay = { s, _ -> opened = "play:" + s.id }, onDiscovered = { opened = "found:" + it.id }, onSettings = {}, onStats = {}, lists = { null })
         }
         rule.waitUntil(5_000) { focused() == RESUME }
         rule.onNodeWithText("COMING SOON").assertExists()

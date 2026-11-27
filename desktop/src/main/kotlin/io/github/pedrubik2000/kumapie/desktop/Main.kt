@@ -146,8 +146,8 @@ private sealed interface Screen {
 fun App() {
     val settings = remember { Settings(android.content.Context()) }
     val bridge = remember { Bridge(SERVER) }
-    // The person: the server's first sync person (Pedro), as the page does.
-    val person by produceState<String?>(null) { value = runCatching { Api(SERVER).people().first().id }.getOrDefault("") }
+    // The person: Pedro.
+    val person = "pedro"
     var shows by remember { mutableStateOf<List<Show>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }

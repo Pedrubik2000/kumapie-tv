@@ -144,11 +144,6 @@ class Api(private val base: String, private val person: String = "") : Backend, 
         post("/api/tv/progress", body.toString())
     }
 
-    /** The people with kumapie, for the TV's "Who's watching?". */
-    suspend fun people(): List<Profile> = JSONArray(get("/api/tv/people")).objects().map {
-        Profile(it.getString("id"), it.getString("name"), it.optString("menu", "en"))
-    }
-
     /** Everything the PC recorded (TV), as kumapie's progress JSON (see the phone app's Progress). */
     suspend fun history(): String = get("/api/tv/history$whose")
 
@@ -432,9 +427,6 @@ class Api(private val base: String, private val person: String = "") : Backend, 
 }
 
 private const val CHUNK = 8 shl 20 // an upload request: 8 MB
-
-/** A person on the TV's "Who's watching?": [id] as the PC knows them ("giovanna"), [menu] "en" / "es". */
-data class Profile(val id: String, val name: String, val menu: String)
 
 /** [Api.srsDue]: due and new cards, reviews done today, the cards in order. */
 data class SrsDue(val due: Int, val new: Int, val today: Int, val cards: List<SrsCard>)

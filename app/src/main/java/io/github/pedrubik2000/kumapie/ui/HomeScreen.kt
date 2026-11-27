@@ -79,8 +79,8 @@ suspend fun liveLists(settings: Settings): List<Mine>? =
     settings.withAniList { token -> AniListLists.refresh(settings.prefs, settings.anilist, token) }
 
 @Composable
-fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String, onShow: (Show) -> Unit,
-               onPlay: (Show, Episode) -> Unit, onSettings: () -> Unit, onStats: () -> Unit, onProfiles: () -> Unit,
+fun HomeScreen(api: Discovery, settings: Settings, profile: String, onShow: (Show) -> Unit,
+               onPlay: (Show, Episode) -> Unit, onSettings: () -> Unit, onStats: () -> Unit,
                onReview: (String) -> Unit = {}, onDiscover: () -> Unit = {}, onDiscovered: (Found) -> Unit = {}, onLibrary: () -> Unit = {},
                jiten: JitenQueue? = null, lists: suspend (Settings) -> List<Mine>? = ::liveLists, memory: HomeMemory = remember { HomeMemory() }) {
     var attempt by remember { mutableIntStateOf(0) }
@@ -100,7 +100,6 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
     val railFocus = remember { mutableMapOf<String, FocusRequester>() }
     val first = remember { FocusRequester() }
     val rail = RailNav({}, onLibrary, onDiscover, { lang?.let(onReview) }, onStats, onSettings)
-    val profileItem: RailItem? = null
     val settle = remember(data) { { if (focus.back == null) focus.target = data?.resume; Unit } }
     var contentFocused by remember { mutableStateOf(false) }
     var railFocused by remember { mutableStateOf(false) }
@@ -123,7 +122,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
         }
         RailBackdrop()
         HomeHeader(totals, langs, lang) { next -> picked = next; settings.prefs.edit().putString("home_lang_$profile", next).apply() }
-        MainRail(api, lang, RailAt.HOME, rail, railFocus, first.takeIf { data != null && !empty }, profileItem, settle) { railFocused = it }
+        MainRail(api, lang, RailAt.HOME, rail, railFocus, first.takeIf { data != null && !empty }, settle) { railFocused = it }
         HomeHintBar(focus)
     }
 }

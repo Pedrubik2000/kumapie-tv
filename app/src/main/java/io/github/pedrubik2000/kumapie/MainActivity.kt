@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.Episode
 import io.github.pedrubik2000.kumapie.data.Gate
-import io.github.pedrubik2000.kumapie.data.Profile
 import io.github.pedrubik2000.kumapie.i18n.Tr
 import io.github.pedrubik2000.kumapie.data.Settings
 import io.github.pedrubik2000.kumapie.data.Show
@@ -27,7 +26,6 @@ import io.github.pedrubik2000.kumapie.ui.Colors
 import io.github.pedrubik2000.kumapie.ui.HomeScreen
 import io.github.pedrubik2000.kumapie.ui.KumapieTheme
 import io.github.pedrubik2000.kumapie.ui.PlayerScreen
-import io.github.pedrubik2000.kumapie.ui.ProfilesScreen
 import io.github.pedrubik2000.kumapie.ui.SettingsScreen
 import io.github.pedrubik2000.kumapie.ui.ShowScreen
 import io.github.pedrubik2000.kumapie.ui.StatsScreen
@@ -46,6 +44,8 @@ sealed interface Screen {
     data class Review(val lang: String) : Screen
     data object Library : Screen
 }
+
+private const val PERSON = "pedro"
 
 var Settings.profile: String
     get() = prefs.getString("profile", "") ?: ""
@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
         io.github.pedrubik2000.kumapie.lang.CrashCollector.install(this)
         io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-tv-")
         val settings = Settings(this)
-        val restarted = Restart.consume(settings)
+        Restart.consume(settings)
         io.github.pedrubik2000.kumapie.data.AniListSync(settings.prefs).retry()
         io.github.pedrubik2000.kumapie.data.TitleLevels.start(applicationContext)
         fromAdb(intent, settings)
@@ -81,7 +81,7 @@ class MainActivity : ComponentActivity() {
             io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs).goingNow()) }.apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start() }, 8000)
         io.github.pedrubik2000.kumapie.data.Jimaku.cache = cacheDir
         @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-        setContent { KumapieTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides io.github.pedrubik2000.kumapie.ui.TvScroll) { App(settings, restarted) } } }
+        setContent { KumapieTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides io.github.pedrubik2000.kumapie.ui.TvScroll) { App(settings) } } }
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun App(settings: Settings, restarted: Boolean = false) {
+fun App(settings: Settings) {
     remember { io.github.pedrubik2000.kumapie.ui.SettingsFocus.returning = false }
     val context = androidx.compose.ui.platform.LocalContext.current
     var server by remember { mutableStateOf(settings.server) }
@@ -125,7 +125,7 @@ fun App(settings: Settings, restarted: Boolean = false) {
         when {
             gate == Gate.ONBOARDING -> io.github.pedrubik2000.kumapie.ui.TvOnboarding(settings, onDone = { server = settings.server; onboarded = true })
             server.isEmpty() -> AloneScreens(settings, stack, onSaved = { server = settings.server }, onUpdate = { update = it })
-            else -> PcScreens(settings, server, stack, restarted, onSaved = { server = settings.server }, onUpdate = { update = it })
+            else -> PcScreens(settings, server, stack, onSaved = { server = settings.server }, onUpdate = { update = it })
         }
         update?.let { UpdateDialog(it, onClose = { update = null }) }
         io.github.pedrubik2000.kumapie.ui.TvAllowPrompt(hold = stack.lastOrNull() is Screen.Player, onSettings = { stack.add(Screen.Settings) })
@@ -153,39 +153,29 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
         Screen.Library -> io.github.pedrubik2000.kumapie.ui.LibraryScreen(aloneApi, settings,
             onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) }, onDiscover = { stack.goTop(Screen.Discover()) }, onReview = { stack.goTop(Screen.Review("ja")) },
             onSettings = { stack.goTop(Screen.Settings) }, onOpen = { stack.add(Screen.Discover(it)) }, onStats = { stack.goTop(Screen.Stats) })
-        else -> HomeScreen(aloneApi, settings, "", "",
+        else -> HomeScreen(aloneApi, settings, "",
             onShow = { s -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, s.episodes.first()))) },
             onPlay = { s, e -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e))) },
-            onSettings = { stack.goTop(Screen.Settings) }, onStats = { stack.goTop(Screen.Stats) }, onProfiles = {}, onReview = { stack.goTop(Screen.Review(it)) },
+            onSettings = { stack.goTop(Screen.Settings) }, onStats = { stack.goTop(Screen.Stats) }, onReview = { stack.goTop(Screen.Review(it)) },
             onDiscover = { stack.goTop(Screen.Discover()) }, onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.goTop(Screen.Library) }, memory = homeMemory)
     } }
     if (stack.last().let { it == Screen.Home || it is Screen.Discover }) io.github.pedrubik2000.kumapie.ui.RdMissingLine(settings) { stack.add(Screen.Settings) }
 }
 
 @Composable
-private fun PcScreens(settings: Settings, server: String, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, restarted: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
+private fun PcScreens(settings: Settings, server: String, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var profile by remember {
-        val menu = settings.menuLanguage
-        settings.profile = "pedro"
-        Tr.use(menu)
+    remember {
+        settings.profile = PERSON
+        Tr.use(settings.menuLanguage)
         settings.speaks = if (Tr.spanish) "es" else "en"
-        mutableStateOf<Profile?>(Profile("pedro", "Pedro", menu.ifEmpty { "en" }))
     }
-    var auto by remember { mutableStateOf(restarted) }
-    val homeMemory = remember(server, profile) { io.github.pedrubik2000.kumapie.ui.HomeMemory() }
-    val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }
+    val homeMemory = remember(server) { io.github.pedrubik2000.kumapie.ui.HomeMemory() }
+    val api = remember(server) { Api(server, PERSON) }
     LaunchedEffect(api) { api.findLan() }
     val screen = stack.last()
-    if (profile == null && screen != Screen.Settings) {
-        ProfilesScreen(api, settings.profile, auto = if (auto) settings.profile else "", onPick = {
-            settings.profile = it.id
-            Tr.use(it.menu)
-            settings.speaks = if (it.menu == "es") "es" else "en"
-            profile = it
-        }, onSettings = { stack.goTop(Screen.Settings) })
-    } else StackEntry(screen) { when (screen) {
-        Screen.Home -> HomeScreen(api, settings, profile?.id.orEmpty(), profile?.name.orEmpty(),
+    StackEntry(screen) { when (screen) {
+        Screen.Home -> HomeScreen(api, settings, PERSON,
             onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e ->
                 when (val r = io.github.pedrubik2000.kumapie.data.route(s, e, hasPc = true)) {
                     io.github.pedrubik2000.kumapie.data.Route.Player -> stack.add(Screen.Player(s, e))
@@ -194,7 +184,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
                 }
             },
             onSettings = { stack.goTop(Screen.Settings) }, onStats = { stack.goTop(Screen.Stats) },
-            onProfiles = { profile = null; auto = false }, onReview = { stack.goTop(Screen.Review(it)) }, onDiscover = { stack.goTop(Screen.Discover()) },
+            onReview = { stack.goTop(Screen.Review(it)) }, onDiscover = { stack.goTop(Screen.Discover()) },
             onDiscovered = { stack.add(Screen.Discover(it)) }, onLibrary = { stack.goTop(Screen.Library) }, memory = homeMemory)
         is Screen.Discover -> io.github.pedrubik2000.kumapie.ui.DiscoverScreen(api, settings, screen.open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
             onReview = { stack.goTop(Screen.Review("ja")) }, onSettings = { stack.goTop(Screen.Settings) }, onLibrary = { stack.goTop(Screen.Library) }, onStats = { stack.goTop(Screen.Stats) }, onDiscover = { stack.goTop(Screen.Discover()) })
@@ -207,7 +197,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
         is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,
             onClose = { stack.removeAt(stack.lastIndex); if (Restart.wanted(settings)) context.startActivity(StreamActivity.restartIntent(context)) })
         Screen.Buttons -> ButtonsScreen(settings)
-        Screen.Settings -> SettingsScreen(settings, api, if (profile == null) stack.homeNav() else stack.railNav(), onButtons = { stack.add(Screen.Buttons) },
+        Screen.Settings -> SettingsScreen(settings, api, stack.railNav(), onButtons = { stack.add(Screen.Buttons) },
             onSaved = onSaved, onUpdate = onUpdate)
     } }
 }

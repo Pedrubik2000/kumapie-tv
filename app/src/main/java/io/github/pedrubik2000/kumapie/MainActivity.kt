@@ -146,14 +146,14 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
         Screen.Stats -> StatsScreen({ io.github.pedrubik2000.kumapie.lang.Progress.of(context).stats() }, onSettings = { stack.goTop(Screen.Settings) }, aloneApi, stack.railNav())
         is Screen.Review -> (stack.last() as Screen.Review).lang.let { lang -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(io.github.pedrubik2000.kumapie.lang.ownReview(context, lang), aloneApi, stack.railNav(lang), lang, server = false) }
         is Screen.Discover -> {
-            val addons = remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }
+            val addons = aloneApi
             io.github.pedrubik2000.kumapie.ui.DiscoverScreen(addons, settings, (stack.last() as Screen.Discover).open, onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) },
                 onReview = { stack.goTop(Screen.Review("ja")) }, onSettings = { stack.goTop(Screen.Settings) }, onLibrary = { stack.goTop(Screen.Library) }, onStats = { stack.goTop(Screen.Stats) }, onDiscover = { stack.goTop(Screen.Discover()) })
         }
-        Screen.Library -> io.github.pedrubik2000.kumapie.ui.LibraryScreen(remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }, settings,
+        Screen.Library -> io.github.pedrubik2000.kumapie.ui.LibraryScreen(aloneApi, settings,
             onHome = { while (stack.size > 1) stack.removeAt(stack.lastIndex) }, onDiscover = { stack.goTop(Screen.Discover()) }, onReview = { stack.goTop(Screen.Review("ja")) },
             onSettings = { stack.goTop(Screen.Settings) }, onOpen = { stack.add(Screen.Discover(it)) }, onStats = { stack.goTop(Screen.Stats) })
-        else -> HomeScreen(remember(settings.addons) { io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs) }, settings, "", "",
+        else -> HomeScreen(aloneApi, settings, "", "",
             onShow = { s -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, s.episodes.first()))) },
             onPlay = { s, e -> stack.add(Screen.Discover(io.github.pedrubik2000.kumapie.data.streamFound(s, e))) },
             onSettings = { stack.goTop(Screen.Settings) }, onStats = { stack.goTop(Screen.Stats) }, onProfiles = {}, onReview = { stack.goTop(Screen.Review(it)) },

@@ -9,12 +9,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class LangDefaultTest {
-    @Test fun anUnknownOrMissingLanguageIsJapanese() {
+    @Test fun anUnknownOrMissingLanguageIsJapanese() { // German and English episodes left on a device open as Japanese, never crash
         assertEquals(Lang.JAPANESE, Lang.of(null))
         assertEquals(Lang.JAPANESE, Lang.of(""))
         assertEquals(Lang.JAPANESE, Lang.of("xx"))
-        assertEquals(Lang.GERMAN, Lang.of("de"))
-        assertEquals(Lang.ENGLISH, Lang.of("en"))
+        assertEquals(Lang.JAPANESE, Lang.of("de"))
+        assertEquals(Lang.JAPANESE, Lang.of("en"))
     }
 
     @Test fun everyWayAJapaneseEpisodeIsMadeCarriesItsLanguage() {

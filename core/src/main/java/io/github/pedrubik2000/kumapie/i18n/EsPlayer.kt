@@ -79,7 +79,6 @@ internal val esPlayer: Map<String, String> = mapOf(
     "Download the recommended %s dictionaries in Settings to see meanings here." to
         "Descarga en Ajustes los diccionarios recomendados de %s para ver aquí los significados.",
     "All meanings (%d)" to "Todos los significados (%d)",
-    "From Wiktionary online, saved on this device." to "De Wiktionary en línea, guardado en este dispositivo.",
     "Download the Japanese words dictionary (Sudachi) in Settings first." to
         "Primero descarga en Ajustes el diccionario de palabras japonesas (Sudachi).",
     "Not in your %s dictionaries." to "No está en tus diccionarios de %s.",

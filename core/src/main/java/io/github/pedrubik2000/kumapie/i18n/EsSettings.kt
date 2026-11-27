@@ -100,12 +100,7 @@ internal val esSettings: Map<String, String> = mapOf(
     "Word colours (off: plain subtitles, lookup still works)" to "Colores de palabras (apagado: subtítulos sin color, la consulta sigue)",
     "%1\$s: ready (%2\$s)." to "%1\$s: listo (%2\$s).",
     "German model" to "Modelo de alemán",
-    "English model" to "Modelo de inglés",
     "Japanese dictionary" to "Diccionario de japonés",
-    "German words" to "Palabras en alemán",
-    "The German model (about 550 MB, once) finds each word's form like morphs on the PC." to
-        "El modelo de alemán (unos 550 MB, una vez) encuentra la forma de cada palabra como morphs en la PC.",
-    "Download the German model" to "Descargar el modelo de alemán",
     "No kuma3 Anki or AnkiDroid on this device." to "No hay kuma3 Anki ni AnkiDroid en este dispositivo.",
     "Allow reading Anki" to "Permitir leer Anki",
     "Choosing an Anki app opens it in the background to read its cards." to "Elegir una app de Anki la abre en segundo plano para leer sus tarjetas.",
@@ -140,8 +135,6 @@ internal val esSettings: Map<String, String> = mapOf(
     "Download Jiten's word splitter" to "Descargar el divisor de palabras de Jiten",
     "Download Jiten's word splitter from the PC" to "Descargar el divisor de palabras de Jiten desde la PC",
     "Splitting episodes again: %1\$d of %2\$d" to "Dividiendo episodios de nuevo: %1\$d de %2\$d",
-    "English words" to "Palabras en inglés",
-    "Download the English model (about 40 MB)" to "Descargar el modelo de inglés (unos 40 MB)",
 
     // Yomitan dictionaries (%s = the language name, lowercase in Spanish)
     "German" to "Alemán",
@@ -168,16 +161,7 @@ internal val esSettings: Map<String, String> = mapOf(
 
     // Word audio
     "Word audio" to "Audio de palabras",
-    "Recordings list: %s" to "Lista de grabaciones: %s",
-    "Recordings list: offline, built %s (which German words have a person's recording)." to
-        "Lista de grabaciones: sin conexión, creada %s (qué palabras en alemán tienen la grabación de una persona).",
-    "Which German words have a person's recording on Wikimedia Commons: a small list (about 3 MB), once." to
-        "Qué palabras en alemán tienen la grabación de una persona en Wikimedia Commons: una lista pequeña (unos 3 MB), una vez.",
-    "Download the recordings list" to "Descargar la lista de grabaciones",
-    "Update the recordings list" to "Actualizar la lista de grabaciones",
     "Speech settings" to "Ajustes de voz",
-    "Words are read by a person's recording when Wikimedia Commons has one, else by this voice." to
-        "Las palabras se leen con la grabación de una persona si Wikimedia Commons la tiene; si no, con esta voz.",
 
     // Unlock
     "If the separate Unlock Cards app is still on, turn it off so only one opens." to

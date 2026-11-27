@@ -443,7 +443,7 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
         parakeetJaState != null -> Text(tr("Parakeet ja: %s", parakeetJaState), fontSize = 13.sp, color = Colors.dim)
         else -> OutlinedButton(onClick = { parakeetJa.download() }) { Text(tr("Download Parakeet ja for Japanese YouTube (about 655 MB, once)")) }
     }
-    Text(tr("%s subtitles", tr(io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationName)), fontSize = 15.sp)
+    Text(tr("%s subtitles", tr(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE.translationName)), fontSize = 15.sp)
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         androidx.compose.material3.FilterChip(selected = english == "soniox", label = { Text(tr("Soniox (best, no extra cost)")) },
@@ -457,7 +457,7 @@ private fun NewEpisodesSection(library: Library, learning: Set<String>) {
     }
     if (english == "soniox" && transcriber == "parakeet") {
         Text(tr("With Parakeet there is no Soniox: the %s then comes from Google's translator.",
-            io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationDisplayName), fontSize = 13.sp, color = Colors.dim)
+            io.github.pedrubik2000.kumapie.data.Lang.JAPANESE.translationDisplayName), fontSize = 13.sp, color = Colors.dim)
     }
     if (english == "gemma") when {
         gemmaReady -> Text(tr("Gemma: ready. It takes about 3 seconds a line (some 15 minutes for a 10-minute video) in the background."),

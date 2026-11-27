@@ -121,7 +121,6 @@ fun DictionaryPanel(library: Library, ctl: SceneController, picker: WordPicker, 
                 shown.forEachIndexed { i, e -> Entry(e, all, fits?.takeIf { it.first == i }?.second) }
                 val more = found.size > shown.size || (!all && shown.any { it.senses.size > 3 })
                 if (more) TextButton(onClick = { all = true }) { Text(tr("All meanings (%d)", found.sumOf { it.senses.size }), fontSize = 14.sp) }
-                if (found.any { it.online }) Text(tr("From Wiktionary online, saved on this device."), color = Colors.dim, fontSize = 12.sp)
             }
         }
     }

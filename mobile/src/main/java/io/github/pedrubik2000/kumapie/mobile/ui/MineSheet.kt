@@ -307,7 +307,7 @@ private fun sourceName(source: String) = when (source) {
 }
 
 /** The person's translation language mid-sentence: "English", or "español" in Spanish menus. */
-private fun translationName(): String = io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationDisplayName
+private fun translationName(): String = io.github.pedrubik2000.kumapie.data.Lang.JAPANESE.translationDisplayName
     .let { if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) it.lowercase() else it }
 
 /** Mining outlives the sheet: closing it before "Added" still adds the card and colours the word. */

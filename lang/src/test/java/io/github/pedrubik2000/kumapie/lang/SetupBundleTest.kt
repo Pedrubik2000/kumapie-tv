@@ -45,7 +45,7 @@ class SetupBundleTest {
         "anilist_token" to "TOKEN", "anilist_user" to "pedro", "anilist_format" to "POINT_10", "anilist_viewer" to "pedro",
         "rd_token" to "RD", "jimaku_key" to "JK", "addons" to "https://x/realdebrid=RD/manifest.json",
         "plain_words" to true, "anki_source" to "kuma3", "anki_decks_ja" to "Core", "jiten_choice_ja" to "1000|a,b",
-        "ui_lang" to "es", "speaks" to "es", "learning" to setOf("ja", "de"),
+        "ui_lang" to "es", "speaks" to "es", "learning" to setOf("ja"),
         "alone_saved" to "x", "alone_pos_1" to 5.toString(), "sync_answers" to true, "owner" to "pedro", "server" to "",
     ))
 
@@ -277,7 +277,7 @@ class SetupBundleTest {
         SetupBundle.write(client, got(hub()), setOf("keys", "languages"), anki = true)
         assertEquals("RD", client.getString("rd_token", null))
         assertEquals("es", client.getString("ui_lang", null))
-        assertEquals(setOf("ja", "de"), client.getStringSet("learning", null))
+        assertEquals(setOf("ja"), client.getStringSet("learning", null))
         assertNull(client.getString("anilist_token", null))
         assertFalse(client.contains("plain_words"))
         assertEquals(setOf("keys", "languages"), client.getStringSet("onb_copied", null))

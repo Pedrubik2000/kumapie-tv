@@ -14,7 +14,7 @@ class RecommendedTest {
 
     @Test fun jpdbIsInTheJapaneseSets() {
         for (key in listOf("ja", "ja-es")) assertEquals(key, Recommended.JPDB, Recommended.SETS.getValue(key).last())
-        for (key in listOf("de", "en", "en-es")) assertFalse(key, Recommended.JPDB in Recommended.SETS.getValue(key))
+        assertEquals(setOf("ja", "ja-es"), Recommended.SETS.keys)
         assertEquals("a link to Kuuube's release, no data", "JPDBv2㋕", Recommended.ZIPS[Recommended.JPDB])
     }
 

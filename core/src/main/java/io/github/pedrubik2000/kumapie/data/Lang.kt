@@ -4,12 +4,11 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import java.util.Locale
 
 /**
- * A language kumapie plays: what an episode is spoken in ([code]) and what its translation is in
- * (kumapie_languages_plan.md: German, then Japanese, then English); [of] answers Japanese for episodes that don't say
- * (older ones, the PC's /api/tv).
+ * A language kumapie plays: what an episode is spoken in ([code]) and what its translation is in (Japanese only since
+ * the scope plan, 2026-11-27); [of] answers Japanese for every code, older German episodes included.
  */
 data class Lang(
-    /** ISO 639-1: the episode's `lang`, the audio track to keep, Wiktionary's section. */
+    /** ISO 639-1: the episode's `lang`, the audio track to keep. */
     val code: String,
     val name: String,
     /** The device voice. */
@@ -18,7 +17,7 @@ data class Lang(
     val noteTypes: List<String>,
     /** Where mined cards go. */
     val deck: String,
-    /** Anki tags: "_de::word", "_de::sentence", "_de::core1000". */
+    /** Anki tags: "_ja::word", "_ja::sentence". */
     val tagPrefix: String,
 ) {
     fun tag(name: String) = "$tagPrefix::$name"
@@ -34,11 +33,8 @@ data class Lang(
     companion object {
         // A word's own cards are only the ones in its language's Mined deck (user, 2026-10-11: not JPDB, grammar or
         // other decks). The note types only say which format a mined card gets (the first one in Anki).
-        val GERMAN = Lang("de", "German", Locale.GERMANY, listOf("🐻 German", "🇩🇪 MvJ"), "Deutsch Mined", "_de")
         val JAPANESE = Lang("ja", "Japanese", Locale.JAPAN, listOf("🐻 Japanese", "🇯🇵 MvJ+"), "Japanese Mined", "_ja")
-        /** Pedro's English (accent work); no translation track. */
-        val ENGLISH = Lang("en", "English", Locale.US, listOf("🐻 English", "🇺🇸 MvJ"), "English Mined", "_en")
-        val ALL = listOf(GERMAN, JAPANESE, ENGLISH)
+        val ALL = listOf(JAPANESE)
         val SHOWN = listOf(JAPANESE)
 
         /**

@@ -12,13 +12,8 @@ internal val esOther: Map<String, String> = mapOf(
     "Failed: %s" to "Error: %s",
     "unknown error" to "error desconocido",
     "Unpacking…" to "Descomprimiendo…",
-    "the word recordings list" to "la lista de grabaciones de palabras",
-    "the download is not the recordings list" to "la descarga no es la lista de grabaciones",
     "couldn't move the dictionary into place" to "no se pudo colocar el diccionario en su lugar",
     "the download is damaged, trying again" to "la descarga está dañada, se reintenta",
-    "the %s model" to "el modelo de idioma (%s)",
-    "the download is not a spaCy model" to "la descarga no es un modelo de spaCy",
-    "couldn't move the model into place" to "no se pudo colocar el modelo en su lugar",
     "the Japanese dictionary" to "el diccionario de japonés",
     "The Japanese dictionary isn't downloaded yet." to "El diccionario de japonés aún no está descargado.",
     "the download has no Sudachi dictionary" to "la descarga no tiene el diccionario de Sudachi",
@@ -53,7 +48,6 @@ internal val esOther: Map<String, String> = mapOf(
     "Parsing %d notes…" to "Analizando %d notas…",
     "That Anki isn't set up yet: open it once, then read Anki again." to
         "Ese Anki aún no está configurado: ábrelo una vez y luego vuelve a leer Anki.",
-    "Colours come from the PC until Anki is read here." to "Los colores vienen de la PC hasta que se lea Anki aquí.",
     "Anki not read yet." to "Anki aún no se ha leído.",
     "just now" to "justo ahora",
     "%d min ago" to "hace %d min",
@@ -61,11 +55,6 @@ internal val esOther: Map<String, String> = mapOf(
     "%1\$d known, %2\$d new (%3\$d notes, read %4\$s)." to
         "%1\$d conocidas, %2\$d nuevas (%3\$d notas, leído %4\$s).",
     // Voice
-    "No %s voice yet: install one in the speech engine's settings." to
-        "Aún no hay voz (%s): instala una en los ajustes del motor de voz.",
-    "%1\$s voice: installed, works offline (%2\$s)." to "Voz (%1\$s): instalada, funciona sin conexión (%2\$s).",
-    "%1\$s voice: needs internet. Install the %1\$s voice data in the speech engine's settings." to
-        "Voz (%1\$s): necesita internet. Instala los datos de voz (%1\$s) en los ajustes del motor de voz.",
     // Yomitan dictionaries (Hoshidicts)
     "Importing %s…" to "Importando %s…",
     "can't read %s" to "no se puede leer %s",

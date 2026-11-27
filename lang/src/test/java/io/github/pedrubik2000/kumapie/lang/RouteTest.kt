@@ -37,7 +37,7 @@ class RouteTest {
 
     @Test fun libraryShowGoesToPlayer() {
         val e = ep(ready = true)
-        val show = Show("show-1", "Dark", "shows", "", listOf(e), "de")
+        val show = Show("show-1", "Dark", "shows", "", listOf(e), "ja")
         assertEquals(Route.Player, route(show, e, hasPc = true))
         assertEquals(Route.Player, route(show, e, hasPc = false))
     }

@@ -92,7 +92,6 @@ internal val esAdd: Map<String, String> = mapOf(
     "Add your Soniox key in Settings first." to "Primero agrega tu clave de Soniox en Ajustes.",
     "Download the speech model (Parakeet) in Settings first." to "Primero descarga el modelo de voz (Parakeet) en Ajustes.",
     "Download the translation model (Gemma) in Settings first." to "Primero descarga el modelo de traducción (Gemma) en Ajustes.",
-    "Download the %s model in Settings first." to "Primero descarga el modelo de idioma (%s) en Ajustes.",
     "Downloading…" to "Descargando…",
     "Putting the video together…" to "Armando el video…",
     "Reading the subtitles inside the video…" to "Leyendo los subtítulos dentro del video…",

@@ -31,11 +31,6 @@ class NoiseTest {
         assertEquals("b", Noise.white(w.copy(card = "b")).shown)
     }
 
-    @Test fun otherLanguagesAreNeverNoise() {
-        assertFalse(Noise.isNoise("ぞ", Lang.GERMAN))
-        assertFalse(Noise.isNoise("20", Lang.ENGLISH))
-    }
-
     /** A noise word is known for colouring (with or without a list) and is left out of the count. */
     @Test fun noiseIsKnownButNotCounted() {
         val index = CardIndex("ja")

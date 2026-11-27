@@ -321,9 +321,9 @@ class Library(context: Context, val settings: Settings) {
     fun poster(showId: String, url: String): Any = downloads.poster(showId).takeIf { it.exists() } ?: url
 
     /** The player's backend; [lang] is the episode's language, so its marks go to that language's list. */
-    fun backend(lang: String = "de"): Backend {
+    fun backend(lang: String = "ja"): Backend {
         val here = NoPcBackend(progress, lang, { languages.ofWord(it, lang) }, { surface, l -> wordAudio(surface, l) }, { languages.of(lang).voice.speak(it) }, ::syncLater)
-        return if (settings.server.isEmpty()) here else OfflineBackend(api, downloads, pending, here) { languages.ofWord(it, lang).lang.code == "de" }
+        return if (settings.server.isEmpty()) here else OfflineBackend(api, downloads, pending, here)
     }
 
     /**
@@ -344,8 +344,6 @@ private class OfflineBackend(
     private val downloads: Downloads,
     private val pending: Pending,
     private val here: NoPcBackend,
-    /** The PC only knows German marks. */
-    private val german: (String) -> Boolean,
 ) : Backend by here {
 
     /** The PC gets only the position, so the TV resumes there (its history is part of Progress as the "pc" note). */
@@ -353,14 +351,6 @@ private class OfflineBackend(
         here.progress(episode, pos, watched, ranges, done)
         pending.add(Pending.progress(episode, pos, 0.0))
         pending.flush(api)
-    }
-
-    override suspend fun markKnown(word: String, known: Boolean, scene: String): String {
-        val mine = here.markKnown(word, known, scene)
-        if (!german(word)) return mine
-        if (pending.flush(api) && runCatching { api.markKnown(word, known) }.isSuccess) return mine
-        pending.add(Pending.known(word, known))
-        return mine
     }
 
     override fun definitionAudio(scene: String, line: Int, word: String): String =

@@ -171,7 +171,7 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
             }
         }
         if (!pcOnly) {
-        Text(tr("%s subtitles", tr(io.github.pedrubik2000.kumapie.data.Lang.GERMAN.translationName)), fontSize = 14.sp, color = Colors.dim)
+        Text(tr("%s subtitles", tr(io.github.pedrubik2000.kumapie.data.Lang.JAPANESE.translationName)), fontSize = 14.sp, color = Colors.dim)
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOfNotNull(

@@ -1,7 +1,6 @@
 package io.github.pedrubik2000.kumapie.lang
 
 import io.github.pedrubik2000.kumapie.data.Lang
-import io.github.pedrubik2000.kumapie.i18n.tr
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -16,7 +15,7 @@ import kotlin.coroutines.resume
  * works offline once the engine's voice for it is installed (Settings shows whether it is, with a button to the
  * engine's settings).
  */
-class Voice(context: Context, private val lang: Lang = Lang.GERMAN,
+class Voice(context: Context, private val lang: Lang = Lang.JAPANESE,
             /** Japanese: the reading of a word written exactly so, for a voice that may misread it. */
             private val readingOf: (String) -> String? = { null }) {
     private val cache = File(context.cacheDir, "voice").apply { mkdirs() }
@@ -89,16 +88,5 @@ class Voice(context: Context, private val lang: Lang = Lang.GERMAN,
     companion object {
         /** A better offline voice the app has downloaded (kumapie mobile's NeuralVoices): text (and its reading, if known) into a WAV, false when it has none. */
         @Volatile var neural: ((Lang, String, String?, File) -> Boolean)? = null
-    }
-
-    /** For Settings: whether a German voice works without internet. */
-    fun describe(): String {
-        if (!ready) return tr("No %s voice yet: install one in the speech engine's settings.", lang.displayName)
-        val voices = runCatching { tts.voices?.filter { it.locale.language == lang.code } }.getOrNull().orEmpty()
-        val offline = voices.any {
-            !it.isNetworkConnectionRequired && TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in it.features.orEmpty()
-        }
-        return if (offline) tr("%1\$s voice: installed, works offline (%2\$s).", lang.displayName, tts.defaultEngine)
-        else tr("%1\$s voice: needs internet. Install the %1\$s voice data in the speech engine's settings.", lang.displayName)
     }
 }

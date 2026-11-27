@@ -173,6 +173,7 @@ private fun SectionContent(library: Library, key: String, onSaved: () -> Unit, o
         "words" -> KnownWordsSection(library, learning)
         "dicts" -> {
             YomitanSection(library, learning)
+            HorizontalDivider(Modifier.padding(vertical = 8.dp)); VoiceSection()
         }
         "watching" -> {
             var blur by remember { mutableStateOf(settings.blurUnwatched) }
@@ -371,6 +372,29 @@ private fun YomitanSection(library: Library, learning: Set<String> = emptySet())
             confirmButton = { androidx.compose.material3.TextButton(onClick = { scope.launch(Dispatchers.IO) { dicts.delete(d.folder) }; deleting = null }) { Text(tr("Delete")) } },
             dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = null }) { Text(tr("Cancel")) } })
     }
+}
+
+/** The offline Japanese word voice (local/NeuralVoices.kt), one download on Wi-Fi, and the device's speech settings. */
+@Composable
+private fun VoiceSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val voices = remember { io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices(context) }
+    val lang = io.github.pedrubik2000.kumapie.data.Lang.JAPANESE
+    val spec = io.github.pedrubik2000.kumapie.mobile.local.NeuralVoices.VOICES.getValue(lang)
+    val state by remember { voices.state(lang) }.collectAsState(initial = null)
+    var ready by remember { mutableStateOf(voices.isReady(lang)) }
+    LaunchedEffect(state) { ready = voices.isReady(lang) }
+    Text(tr("Word audio"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+    when {
+        ready -> Text(tr("%1\$s words without a recording: %2\$s's voice, on this device.", lang.displayName, spec.name), fontSize = 14.sp)
+        state != null -> Text(tr("%1\$s voice: %2\$s", lang.displayName, state), fontSize = 14.sp, color = Colors.dim)
+        else -> OutlinedButton(onClick = { voices.download(lang) }) {
+            Text(tr("Download %1\$s's %2\$s voice (about %3\$d MB, on Wi-Fi)", spec.name, lang.displayName, spec.mb))
+        }
+    }
+    OutlinedButton(onClick = {
+        runCatching { context.startActivity(android.content.Intent("com.android.settings.TTS_SETTINGS")) }
+    }) { Text(tr("Speech settings")) }
 }
 
 /** New episodes made on the tablet: the Soniox key (kept only in kumapie's private settings) and the English source. */

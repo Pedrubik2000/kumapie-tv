@@ -182,17 +182,17 @@ class SrsCards(private val context: Context) : Cards {
     // ------------------------------------------------------------------ mining (text only)
 
     override fun noteType(pkg: String, names: List<String>): Pair<Long, List<String>>? =
-        Lang.ALL.indexOfFirst { l -> names.any { it in l.noteTypes } }.takeIf { it >= 0 }?.let { it.toLong() to fields(Lang.ALL[it]) }
+        if (names.any { it in Lang.JAPANESE.noteTypes }) JAPANESE_ID to fields() else null
 
-    override fun addBundledNoteType(pkg: String, lang: Lang) = Lang.ALL.indexOf(lang).toLong() to fields(lang)
+    override fun addBundledNoteType(pkg: String, lang: Lang) = JAPANESE_ID to fields()
 
-    override fun deck(pkg: String, name: String): Long = Lang.ALL.indexOfFirst { it.deck == name }.toLong().also { require(it >= 0) { "no deck $name" } }
+    override fun deck(pkg: String, name: String): Long = JAPANESE_ID.also { require(name == Lang.JAPANESE.deck) { "no deck $name" } }
 
     /** The line's audio and picture, small, in [CardMedia] (this device or its USB drive); answers the name fields use. */
     override fun addMedia(pkg: String, file: File, preferredName: String) = CardMedia.put(context, file, preferredName)
 
     override fun addNote(pkg: String, mid: Long, fields: List<String>, tags: List<String>, deck: Long): Long =
-        mine(Lang.ALL[deck.toInt()], fields(Lang.ALL[mid.toInt()]).zip(fields).toMap(), tags.joinToString(" "))
+        mine(Lang.JAPANESE, fields().zip(fields).toMap(), tags.joinToString(" "))
 
     /** The id of the card [mine] would refuse as a duplicate (same Word), else null: the provider answers it instead of throwing. */
     fun existing(lang: Lang, f: Map<String, String>): Long? = store(lang)?.cards()?.firstOrNull { it.word == text(f["Word"]) }?.id
@@ -263,8 +263,9 @@ class SrsCards(private val context: Context) : Cards {
         private fun String.unescape() = replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
         /** Pedro's note types' fields (Miner checks them); German / English got an Image too (own cards: a picture, no clip). */
-        private fun fields(lang: Lang) = if (lang == Lang.JAPANESE)
+        /** The note type and deck ids kuma3-style callers got when German was first and Japanese second: kept. */
+        private const val JAPANESE_ID = 1L
+        private fun fields() =
             listOf("Sentence", "Sentence Audio", "Word", "Word Audio", KnownWords.DEF_BI, KnownWords.DEF_MONO, "Definition Audio", "am-study-morphs", "Image", "Notes", "Context")
-        else listOf("Sentence", "Video", "Word", "Word Audio", KnownWords.DEF_BI, KnownWords.DEF_MONO, "Definition Audio", "am-study-morphs", "Image", "Notes", "Context")
     }
 }

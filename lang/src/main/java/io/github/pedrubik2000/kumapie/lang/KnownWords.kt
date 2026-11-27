@@ -20,8 +20,7 @@ import java.io.File
 /**
  * Which words of a language Pedro knows, worked out on the device from his Anki (kuma3 Anki) the way morphs does on
  * the PC, so the subtitles' colours no longer need the PC:
- * - German notes' fields are parsed by spaCy (same model as the PC) into morphs, keyed by inflection; Japanese
- *   notes' by Sudachi ([JapaneseModel]), keyed by dictionary form;
+ * - notes' fields are split by Sudachi ([JapaneseModel]) into words, keyed by dictionary form;
  * - a word is **known** (white) when one of its cards was reviewed at least once (the same for every card source),
  *   its note is tagged known-manually, or it was marked known in the app;
  *   else **unknown** (red; no orange "learning", user 2026-10-11).
@@ -33,7 +32,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     private val srs get() = Cards.get(context).srs
     /** This language's parser is downloaded. */
     val modelReady: Boolean get() = language.model.isReady
-    private val dir = File(context.filesDir, if (lang == Lang.GERMAN) "known" else "known-${lang.code}").apply { mkdirs() }
+    private val dir = File(context.filesDir, "known-${lang.code}").apply { mkdirs() }
     private val savedFile = File(dir, "words.json")
     private val parseCache = File(dir, "parses.json")
     private val keysCache = File(dir, "cardkeys.json")
@@ -579,7 +578,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
     private fun fromAnki() = if (ankiKnown.words.none { !noise(it) }) "" else " " + tr("%d known from Anki.", ankiKnown.words.count { !noise(it) })
 
     private fun describe(): String {
-        val snap = snapshot ?: return (if (lang == Lang.GERMAN) tr("Colours come from the PC until Anki is read here.") else tr("Anki not read yet.")) + fromAnki()
+        val snap = snapshot ?: return tr("Anki not read yet.") + fromAnki()
         var known = 0
         for (w in snap.words.keys) if (!noise(w) && status(w) == "k") known++
         val ago = (System.currentTimeMillis() - snap.time) / 60_000
@@ -621,10 +620,6 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             })
         }
 
-        val CORE1000 = Lang.GERMAN.tag("core1000")
-        /** Word cards mined in kumapie ([Miner]): judged by their Word field, like Core 1000. */
-        val MINED_WORD = Lang.GERMAN.tag("word")
-        const val NICOS_WEG = "Nicos_Weg_A1"
 
         /**
          * [repaint]'s rule for one painted word [p]: [pcColours] drops the "u" card states (no card of its own) so the

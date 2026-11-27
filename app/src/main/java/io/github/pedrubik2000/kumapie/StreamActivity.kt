@@ -260,7 +260,7 @@ class StreamActivity : ComponentActivity() {
                 s.build(context, io.github.pedrubik2000.kumapie.ui.TvMining.languages(context, settings), (p.duration.takeIf { it > 0 } ?: 0L) / 1000.0, { p.currentPosition / 1000.0 }) {
                     note = tr("Words: downloading the Japanese dictionary (once)…")
                 }
-            }.getOrElse { note = it.message; return@LaunchedEffect }
+            }.getOrElse { note = wordsFailed(it); return@LaunchedEffect }
         }
         var ctl by remember { mutableStateOf<io.github.pedrubik2000.kumapie.player.SceneController?>(null) }
         LaunchedEffect(live.fitted, live.pieces, live.english, live.englishOpen, ctl, ctl?.scenes) { ctl?.let { s.fitLanded(it::shift); s.piecesLanded(it::shift); s.englishLanded(it) } }
@@ -274,6 +274,12 @@ class StreamActivity : ComponentActivity() {
             } else AlonePlain(p, live.line, if (reconnecting) tr("Reconnecting…") else note ?: label?.takeIf { showLabel }, started, buffering)
             if (torrent) io.github.pedrubik2000.kumapie.ui.TorrentWait(p, started, remember(link) { waitInfo(link, id, show) }, settings, shown, live.noLines, ::finish) { buffering = it }
         }
+    }
+
+    private fun wordsFailed(e: Throwable): String {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        android.util.Log.w("kumapie", "words failed", e)
+        return tr("Words couldn't load (%1\$s). The video plays on.", e.message ?: e.javaClass.simpleName)
     }
 
     private fun waitInfo(link: Uri, id: String, show: String): io.github.pedrubik2000.kumapie.ui.WaitInfo {

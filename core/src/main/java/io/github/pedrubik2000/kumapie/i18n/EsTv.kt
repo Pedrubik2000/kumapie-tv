@@ -273,6 +273,7 @@ internal val esTv: Map<String, String> = mapOf(
     "May not play here: %1\$s" to "Puede que no se reproduzca aquí: %1\$s",
     "No Japanese subtitles: none in this file, none on Jimaku" to "Sin subtítulos en japonés: ni en este archivo ni en Jimaku",
     "Jimaku's subtitles" to "Subtítulos de Jimaku",
+    "Words couldn't load (%1\$s). The video plays on." to "No se pudieron cargar las palabras (%1\$s). El video sigue.",
     "fitted" to "ajustados",
     "not fitted to this video" to "sin ajustar a este video",
     "Jimaku has subtitles for this episode, none in Japanese" to "Jimaku tiene subtítulos para este episodio, ninguno en japonés",

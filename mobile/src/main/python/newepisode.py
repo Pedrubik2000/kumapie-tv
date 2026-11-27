@@ -1,8 +1,7 @@
 """A new episode made on the device (called from Kotlin, local/ProcessWorker.kt), the way the PC's pipeline does it:
 audio -> Soniox (dojo skills/scripts/transcribe.py) -> German cues (srt_spaced.py) -> scenes (tools/feed/feed.py's
-exchanges) with their words (spaCy, german.py) -> the episode JSON the player reads (services/feed/tv.py's format).
+exchanges) with their words (Sudachi, from Kotlin) -> the episode JSON the player reads (services/feed/tv.py's format).
 The English cues come from Kotlin (the device's translator) or from Soniox's translation."""
-import difflib
 import hashlib
 import json
 import re
@@ -11,13 +10,8 @@ import time
 import requests
 
 import srt_spaced
-from german import _morphemizer
-from morphemizer import VERB_POS
 
 SONIOX_API = "https://api.soniox.com/v1"
-MAX_GAP = 1.5   # [feed] max_gap: silence that ends an exchange (only used to tell a German line's language, [build])
-MAX_SECS = 15   # [feed] max_secs: longer runs are split at their biggest pause
-PAD = 0.3       # [feed] pad
 SAME = 0.05     # cues that start within this of each other are shown together: one line ([build])
 
 
@@ -158,60 +152,6 @@ def unsplit(cues):
     return kept, out
 
 
-def split_run(run, max_secs):
-    if len(run) == 1 or run[-1][1] - run[0][0] <= max_secs:
-        return [run]
-    best = max(range(1, len(run)),
-               key=lambda i: run[i][0] - run[i - 1][1] + (1.0 if run[i - 1][2].rstrip()[-1:] in ".!?。！？" else 0)
-               - 0.001 * abs(i - len(run) / 2))
-    return split_run(run[:best], max_secs) + split_run(run[best:], max_secs)
-
-
-def exchanges(cues):
-    runs = []
-    for c in cues:
-        # A sung line (jimaku.SONG) and a said one never share a scene: Skip intro / ending goes by whole scenes.
-        if runs and c[0] - runs[-1][-1][1] <= MAX_GAP and c[2].startswith("♪") == runs[-1][-1][2].startswith("♪"):
-            runs[-1].append(c)
-        else:
-            runs.append([c])
-    pieces = [p for r in runs for p in split_run(r, MAX_SECS)]
-    out = []
-    for i, p in enumerate(pieces):
-        before = pieces[i - 1][-1][1] if i else 0.0
-        after = pieces[i + 1][0][0] if i + 1 < len(pieces) else p[-1][1] + PAD
-        out.append((p, round(max(p[0][0] - PAD, before, 0.0), 3), round(min(p[-1][1] + PAD, after), 3)))
-    return out
-
-
-def is_german(text, english):
-    letters = [ch for ch in text if ch.isalpha()]
-    if not letters or sum(ch.isascii() or ch in "äöüÄÖÜß" for ch in letters) < 0.8 * len(letters):
-        return False
-    norm = lambda s: re.sub(r"\W+", " ", s.lower()).strip()
-    return not english or difflib.SequenceMatcher(None, norm(text), norm(english)).ratio() < 0.8
-
-
-def parse(mz, texts):
-    """Cue texts -> per cue [[surface, offset, inflection or None, lemma or None]] (feed.make_parser)."""
-    out = []
-    for text, doc in zip(texts, mz.nlp.pipe([mz.prepare(t) for t in texts], batch_size=256)):
-        toks = mz.tokens(doc)
-        for t, tok in zip(doc, list(toks)):
-            if mz.join_separable_verbs and t.dep_ in ("svp", "prt") and t.head.pos_ in VERB_POS and t.head.i != t.i:
-                toks[t.i] = type(tok)(tok.text, tok.lemma, tok.pos, tok.dep, toks[t.head.i].morph, tok.skipped)
-        low, pos, row = text.lower(), 0, []
-        for tok in toks:
-            at = low.find(tok.text.lower(), pos)
-            surface = text[at:at + len(tok.text)] if at >= 0 else tok.text
-            if at >= 0:
-                pos = at + len(tok.text)
-            m = tok.morph
-            row.append([surface, at, m.inflection if m else None, m.lemma if m else None])
-        out.append(row)
-    return out
-
-
 def segments(text, tokens):
     out, pos = [], 0
     for surface, at, infl, _ in sorted(tokens, key=lambda t: t[1]):
@@ -237,18 +177,19 @@ def nearest(scenes, line):
     return max(range(len(scenes)), key=lambda i: score(scenes[i])) if scenes else -1
 
 
-def build(model_dir: str, episode_id: str, show: str, title: str, duration: float, video: str,
-          cues_json: str, english_json: str, lang: str = "de", parsed_json: str = "") -> str:
+def build(episode_id: str, show: str, title: str, duration: float, video: str,
+          cues_json: str, english_json: str, lang: str, parsed_json: str) -> str:
     """Target-language and English cues -> the episode JSON: every subtitle line as a "scene" of its own (the line is
     kumapie's only unit, kumapie_plan.md "no more scenes"; the JSON keeps the key so older files and builds still
-    read), its words as segments, the translation lines that overlap it, every word. German is parsed here (spaCy); other languages come parsed from Kotlin ([parsed_json]: per cue, in order,
-    [[surface, offset, dictionary form or None, None]]: Sudachi for Japanese)."""
+    read), its words as segments, the translation lines that overlap it, every word. The words come parsed from Kotlin
+    ([parsed_json]: per cue, in order, [[surface, offset, dictionary form or None, None]]: Sudachi for Japanese)."""
     cues = [tuple(c) for c in json.loads(cues_json)]
     english = json.loads(english_json)
     kept, cues = unsplit(cues) if lang == "ja" else (range(len(cues)), cues)
-    given = json.loads(parsed_json) if parsed_json else None
-    given = iter([given[i] for i in kept]) if given is not None else None
-    mz = _morphemizer(model_dir) if given is None else None
+    if not parsed_json:
+        raise RuntimeError("kumapie makes Japanese episodes only")
+    given = json.loads(parsed_json)
+    parsed = iter([given[i] for i in kept])
     scenes, words, lemmas = [], {}, {}
     plan = []
     # Pieces shown together are one line: downloaded subtitles cut a subtitle into cues with the same start (a
@@ -261,18 +202,9 @@ def build(model_dir: str, episode_id: str, show: str, title: str, duration: floa
             lines.append([c])
     # A line's translation: the English lines it overlaps most (else the closest line gets them).
     owner = [nearest([(p,) for p in lines], e) for e in english]
-    # German only (spaCy): is a line in the episode's language? Told by its whole exchange, a short line alone can't.
-    german_of = []
-    for p, _, _ in (exchanges(cues) if given is None else []):
-        a, b = p[0][0], p[-1][1]
-        german_of += [is_german(" ".join(c[2] for c in p), " ".join(e[2] for e in english if min(b, e[1]) > max(a, e[0])))] * len(p)
-    at = 0  # the line's first cue among all of them
     for i, p in enumerate(lines):
         en = [[e[0], e[1], re.sub(r"\s*\([^)]*\)", "", e[2]).strip()] for e, o in zip(english, owner) if o == i]
-        plan.append((i, p, round(p[0][0], 3), round(max(c[1] for c in p), 3), en, german_of[at] if given is None else True))
-        at += len(p)
-    texts = [c[2] for (_, p, _, _, _, g) in plan if g for c in p]
-    parsed = iter(parse(mz, texts)) if given is None else given
+        plan.append((i, p, round(p[0][0], 3), round(max(c[1] for c in p), 3), en, True))
     for i, p, start, end, en, german in plan:
         sid = hashlib.sha1(f"{episode_id}|{start:.3f}|{end:.3f}".encode()).hexdigest()[:12]
         sc_cues = []
@@ -292,18 +224,10 @@ def build(model_dir: str, episode_id: str, show: str, title: str, duration: floa
                        "resume": None, "scenes": scenes, "words": words}, ensure_ascii=False)
 
 
-def text_segments(model_dir: str, texts_json: str) -> str:
-    """Any texts (a book's paragraphs) -> per text [[surface, inflection or None]], split as episode cues are
-    (the reader's words and their known-word keys)."""
-    texts = json.loads(texts_json)
-    mz = _morphemizer(model_dir)
-    return json.dumps([segments(t, toks) for t, toks in zip(texts, parse(mz, texts))], ensure_ascii=False)
-
-
-if __name__ == "__main__":  # self-check: .venv python newepisode.py (kumapie-server's venv has spaCy)
+if __name__ == "__main__":  # self-check: python newepisode.py
     assert unsplit([(1, 2, "a"), (1.5, 2.5, "b"), (2, 3, "a"), (3.04, 4, "a")]) == \
         ([0, 1, 3], [(1, 3, "a"), (1.5, 2.5, "b"), (3.04, 4, "a")])
-    ep = json.loads(build("", "ep", "Show", "1", 30.0, "", json.dumps([[1.0, 2.5, "ねこ"], [2.6, 4.0, "いぬ だ"], [20.0, 21.0, "♪ うた"], [20.0, 22.0, "♪ うた"]]),
+    ep = json.loads(build("ep", "Show", "1", 30.0, "", json.dumps([[1.0, 2.5, "ねこ"], [2.6, 4.0, "いぬ だ"], [20.0, 21.0, "♪ うた"], [20.0, 22.0, "♪ うた"]]),
                           json.dumps([[1.1, 2.4, "A cat"], [2.7, 3.9, "It's a dog (barks)"], [4.5, 5.0, "Hm"]]), "ja",
                           json.dumps([[["ねこ", 0, "猫", None]], [["いぬ", 0, "犬", None], ["だ", 3, "だ", None]], [], []])))
     sc = ep["scenes"]

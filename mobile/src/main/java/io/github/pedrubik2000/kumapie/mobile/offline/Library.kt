@@ -40,11 +40,6 @@ class Library(context: Context, val settings: Settings) {
     val pending = Pending(context)
     /** The language layer, shared with the TV's code and every Library of this app run (the condensed-audio service's too). */
     private val kit = run {
-        // spaCy in Chaquopy's Python (python/german.py): Python lives in this app module, not in :lang.
-        io.github.pedrubik2000.kumapie.lang.LangKit.spacy = { modelDir, fieldsJson ->
-            if (!com.chaquo.python.Python.isStarted()) com.chaquo.python.Python.start(com.chaquo.python.android.AndroidPlatform(appContext))
-            com.chaquo.python.Python.getInstance().getModule("german").callAttr("parse_fields", modelDir, fieldsJson).toString()
-        }
         io.github.pedrubik2000.kumapie.lang.LangKit.get(context, settings)
     }
     /** Imported Yomitan dictionaries (Settings > Dictionaries), for every language. */

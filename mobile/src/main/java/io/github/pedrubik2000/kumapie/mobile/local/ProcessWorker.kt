@@ -339,7 +339,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 JSONArray(tokens.map { t -> JSONArray().put(t.surface).put(t.begin).put(if (t.isWord) t.base else JSONObject.NULL).put(JSONObject.NULL) })
             }).toString()
         }
-        val episode = py.getModule("newepisode").callAttr("build", model.dir.path, id, show, title, duration,
+        val episode = py.getModule("newepisode").callAttr("build", id, show, title, duration,
             video.path, cues, englishCues, lang.code, parsed).toString()
             // Split by Jiten already: the re-split after the splitter's download (JapaneseModelWorker) leaves it alone.
             .let { if (jiten) JSONObject(it).put("splitter", JitenSplitter.ID).toString() else it }

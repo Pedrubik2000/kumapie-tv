@@ -190,8 +190,8 @@ object TorrentEngine {
                     val next = progress(s)
                     tick(next, when {
                         !waiting -> null
-                        next.phase == TorrentPhase.PEERS -> tr("Finding peers…") + if (next.peers > 0) " · " + tr("%d peers", next.peers) else ""
-                        else -> tr("Downloading %1\$d%% · %2\$s/s · %3\$d peers", next.percent, megabytes(next.rate), next.peers)
+                        next.phase == TorrentPhase.PEERS -> tr("Finding peers…") + if (next.peers > 0) " · " + peerCount(next.peers) else ""
+                        else -> tr("Downloading %1\$d%% · %2\$s/s", next.percent, megabytes(next.rate)) + " · " + peerCount(next.peers)
                     })
                     if (++ticks % LOG_EVERY == 0) android.util.Log.i(LOG, "down ${next.rate / 1000} kB/s peers ${next.peers} seeds ${s.optInt("seeds")} ahead ${next.ahead shr 10} kB cache ${s.optLong("cacheSize") shr 20} MB")
                 }

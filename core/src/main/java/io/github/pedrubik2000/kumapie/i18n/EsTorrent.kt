@@ -3,7 +3,7 @@ package io.github.pedrubik2000.kumapie.i18n
 internal val esTorrent: Map<String, String> = mapOf(
     "Finding peers…" to "Buscando fuentes…",
     "%d peers" to "%d fuentes",
-    "Downloading %1\$d%% · %2\$s/s · %3\$d peers" to "Descargando %1\$d%% · %2\$s/s · %3\$d fuentes",
+    "Downloading %1\$d%% · %2\$s/s" to "Descargando %1\$d%% · %2\$s/s",
     "The torrent engine did not start." to "El motor de torrents no arrancó.",
     "No peers found for this video. Try another source." to "No se encontraron fuentes para este video. Prueba otro origen.",
     "Found peers but they sent nothing. Try another source." to "Hay fuentes, pero no enviaron nada. Prueba otro origen.",

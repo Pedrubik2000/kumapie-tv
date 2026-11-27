@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -130,7 +131,7 @@ private fun WaitScreen(info: WaitInfo, status: TorrentStatus, words: WaitWords?,
     Box(Modifier.fillMaxSize().background(PAGE).then(keys).focusRequester(focus).focusable(!text.failed)) {
         WaitBackdrop(info.backdrop)
         Row(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp), verticalAlignment = Alignment.Top) {
-            WaitLeft(info, status, text, if (panel) Modifier.weight(1f) else Modifier.widthIn(max = 560.dp), onBack)
+            WaitLeft(info, status, text, if (panel) Modifier.weight(1f).wrapContentWidth(Alignment.Start).widthIn(max = 560.dp) else Modifier.widthIn(max = 560.dp), onBack)
             if (panel) {
                 Spacer(Modifier.width(32.dp))
                 if (info.noSpoilers) SimilarPanel(similar, info, Modifier.padding(top = 24.dp).width(440.dp).height(440.dp))

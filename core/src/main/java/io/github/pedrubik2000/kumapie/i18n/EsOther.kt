@@ -14,6 +14,7 @@ internal val esOther: Map<String, String> = mapOf(
     "Unpacking…" to "Descomprimiendo…",
     "couldn't move the dictionary into place" to "no se pudo colocar el diccionario en su lugar",
     "the download is damaged, trying again" to "la descarga está dañada, se reintenta",
+    "Japanese only" to "Solo japonés",
     "the Japanese dictionary" to "el diccionario de japonés",
     "The Japanese dictionary isn't downloaded yet." to "El diccionario de japonés aún no está descargado.",
     "the download has no Sudachi dictionary" to "la descarga no tiene el diccionario de Sudachi",

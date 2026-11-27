@@ -115,12 +115,13 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         type = inputData.getString(TYPE)
         match = inputData.getString(MATCH)
         height = inputData.getInt(HEIGHT, 720)
-        lang = Lang.of(inputData.getString(LANG))
+        lang = Lang.JAPANESE
         transcriber = inputData.getString(TRANSCRIBER) ?: settings.transcriber
         english = inputData.getString(ENGLISH) ?: settings.englishSource
         val id = idFor(url)
         runCatching { setForeground(foreground(tr("Starting…"), 0f)) }
         return try {
+            if (inputData.getString(LANG) != "ja") error(tr("Japanese only"))
             Result.success(workDataOf(STAGE to withContext(Dispatchers.IO) { process(id, url, show) }, SHOWN to shown))
         } catch (e: Throwable) {
             Log.w("kumapie", "process $url: $e")
@@ -652,6 +653,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         fun again(context: Context, failed: Data) {
             val input = Data.Builder().putAll(failed.keyValueMap.filterKeys { it.startsWith(AGAIN) }.mapKeys { it.key.removePrefix(AGAIN) }).build()
             val url = input.getString(URL) ?: return
+            if (input.getString(LANG) != "ja") return
             enqueue(context, url, input.getString(SHOW), input.getInt(HEIGHT, 720), Lang.of(input.getString(LANG)),
                 input.getString(TRANSCRIBER) ?: "soniox", input.getString(ENGLISH) ?: "device", input.getBoolean(PART, false),
                 input.getString(KIND), input.getInt(COUNT, 10), input.getString(LABEL), input.getString(TYPE), input.getString(MATCH),

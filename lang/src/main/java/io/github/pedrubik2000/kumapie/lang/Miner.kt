@@ -94,6 +94,7 @@ class Miner(
 
     /** Adds the card; answers a line for the user ("Added to Deutsch Mined"). */
     suspend fun mine(r: Request, progress: (String) -> Unit): String = lock.withLock { withContext(Dispatchers.IO) {
+        if (r.episode.lang != "ja") error(tr("Japanese only"))
         mineJapanese(r, languages.japanese, progress)
     } }
 
@@ -445,6 +446,7 @@ class Miner(
      * Answers how many notes changed.
      */
     suspend fun recontext(notes: List<Long>, r: Request): Int = withContext(Dispatchers.IO) {
+        if (r.episode.lang != "ja") return@withContext 0
         val language = languages.of(r.episode.lang)
         val pkg = SrsCards.PKG
         val japanese = language is Japanese

@@ -78,9 +78,9 @@ class MainActivity : ComponentActivity() {
         io.github.pedrubik2000.kumapie.torrent.TorrentEngine.sweep(this)
         // kumapie-vX.Y.Z-mobile.apk (sorts after kumapie-tv-*, see release.yml)
         io.github.pedrubik2000.kumapie.lang.CrashCollector.install(this)
-        io.github.pedrubik2000.kumapie.lang.OldStores.purge(filesDir).takeIf { it.isNotEmpty() }?.let { android.util.Log.i("kumapie", "old stores deleted: ${it.joinToString()}") }
         io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-v")
         val settings = Settings(this)
+        io.github.pedrubik2000.kumapie.lang.OldStores.purge(filesDir, settings.owner).takeIf { it.isNotEmpty() }?.let { android.util.Log.i("kumapie", "old stores deleted: ${it.joinToString()}") }
         io.github.pedrubik2000.kumapie.data.AniListSync(settings.prefs).retry()
         if (settings.server.isBlank()) io.github.pedrubik2000.kumapie.lang.JapaneseModel(applicationContext).warm() // no PC: streams' words
         io.github.pedrubik2000.kumapie.data.Jimaku.cache = cacheDir // an episode's lines kept for the next time it opens

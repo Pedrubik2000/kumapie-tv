@@ -493,7 +493,7 @@ private fun FollowedChannels(library: Library) {
                 val hours = ((to - from) % 24 + 24) % 24
                 Text(tr("%1\$d an hour · up to %2\$d a night", s.perRun, s.perRun * hours) + " · " + (if (s.lastCheck > 0) tr("checked %s", android.text.format.DateUtils.getRelativeTimeSpanString(s.lastCheck)) else tr("not checked yet")),
                     fontSize = 13.sp, color = Colors.dim)
-                if (io.github.pedrubik2000.kumapie.data.Lang.of(s.lang) !in io.github.pedrubik2000.kumapie.data.Lang.SHOWN) Text(tr("paused · not Japanese"), fontSize = 13.sp, color = Colors.dim)
+                if (s.lang != "ja") Text(tr("paused · not Japanese"), fontSize = 13.sp, color = Colors.dim)
             }
             listOf(1, 5, 10).forEach { n ->
                 androidx.compose.material3.FilterChip(selected = s.perRun == n, label = { Text("$n") }, modifier = Modifier.padding(start = 4.dp),

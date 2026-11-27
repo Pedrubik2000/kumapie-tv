@@ -82,7 +82,7 @@ internal fun ReviewScreen(source: ReviewSource, api: Discovery, nav: RailNav, la
         busy = true
         scope.launch {
             runCatching { source.rate(c, r) }
-                .onSuccess { done++; if (i + 1 < cards!!.size) { i++; shown = false } else load() }
+                .onSuccess { done++; DueTick.n++; if (i + 1 < cards!!.size) { i++; shown = false } else load() }
                 .onFailure { error = it.message ?: it.toString() }
             busy = false
         }
@@ -107,7 +107,7 @@ private fun Front(card: SrsCard, shown: Boolean, onShow: () -> Unit, onListen: (
     val first = remember(card.word, shown) { FocusRequester() }
     Column(Modifier.widthIn(max = 1100.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         CardPicture(card.image, Modifier.weight(1f, fill = false).padding(bottom = 20.dp).heightIn(max = 300.dp)) // own cards: the line's frame
-        Text(marked(card.sentence, card.word), fontSize = 34.sp, color = Colors.text, textAlign = TextAlign.Center)
+        Text(marked(card.sentence, card.word), fontSize = 34.sp, lineHeight = 46.sp, color = Colors.text, textAlign = TextAlign.Center)
         if (shown) {
             Column(Modifier.padding(top = 28.dp).background(Arcade.slab).padding(horizontal = 32.dp, vertical = 18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {

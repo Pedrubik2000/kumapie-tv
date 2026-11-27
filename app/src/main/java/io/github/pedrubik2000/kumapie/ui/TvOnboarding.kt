@@ -182,17 +182,13 @@ private fun caption(nav: StepNav, step: String, needed: Boolean = true) =
 private fun LanguageStep(settings: Settings, lang: String, onLang: (String) -> Unit, onContinue: () -> Unit) {
     val first = remember { FocusRequester() }
     TvStepHeader(null, tr("Languages"))
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        listOf("" to tr("The TV's language"), "en" to "English", "es" to "Español").forEachIndexed { i, (code, label) ->
-            Button(onClick = {
-                onLang(code)
-                settings.menuLanguage = code
-                if (code.isNotEmpty()) settings.speaks = code
-            }, modifier = (if (i == 0) Modifier.focusRequester(first) else Modifier).hint(HintKind.CHOOSE)) {
-                Text((if (lang == code) "✓ " else "") + label)
-            }
-        }
-    }
+    val menus = listOf("" to tr("The TV's language"), "en" to "English", "es" to "Español")
+    StepRow(tr("Menu language"), (menus.firstOrNull { it.first == lang } ?: menus[0]).second, Modifier.width(640.dp).focusRequester(first), onStep = { by ->
+        val code = menus[(menus.indexOfFirst { it.first == lang }.coerceAtLeast(0) + by).mod(menus.size)].first
+        onLang(code)
+        settings.menuLanguage = code
+        if (code.isNotEmpty()) settings.speaks = code
+    }, onLeave = {}, valueMax = 240.dp, wrap = true)
     TvContinue(tr("Continue") + " ›", onClick = onContinue)
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
 }

@@ -65,6 +65,7 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
     val focus = remember { FocusRequester() }
     val list = rememberLazyListState()
 
+    Box(Modifier.fillMaxSize()) {
     Row(Modifier.fillMaxSize().padding(start = 48.dp, top = 32.dp, bottom = 32.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.width(300.dp)) {
             Box(Modifier.fillMaxWidth(if (show.description.isBlank()) 0.87f else 0.55f).aspectRatio(2f / 3f).clip(PosterSlab)) {
@@ -79,9 +80,11 @@ fun ShowScreen(api: Api, settings: Settings, initial: Show, onEpisode: (Show, Ep
             itemsIndexed(episodes, key = { _, e -> e.id }) { i, ep ->
                 val hold = rememberOpenOnRelease { menu = ep }
                 EpisodeCard(ep, blur = settings.blurUnwatched && !ep.watched, onClick = { onEpisode(show, ep) },
-                    onLongClick = hold::arm, modifier = (if (i == start) Modifier.focusRequester(focus) else Modifier).then(hold.key))
+                    onLongClick = hold::arm, modifier = (if (i == start) Modifier.focusRequester(focus) else Modifier).then(hold.key).hint(HintKind.EPISODE))
             }
         }
+    }
+    HintBar()
     }
     LaunchedEffect(show.id, start) { // the episode must be laid out before it can take the focus
         if (episodes.isNotEmpty()) { list.scrollToItem(start); focus.focusSoon() }

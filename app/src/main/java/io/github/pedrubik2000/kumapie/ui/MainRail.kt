@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,11 +42,15 @@ internal class RailNav(val onHome: () -> Unit, val onLibrary: () -> Unit, val on
 internal fun RailBackdrop() = Box(Modifier.fillMaxHeight().width(RAIL).background(Brush.horizontalGradient(
     0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
 
+internal object DueTick {
+    var n by androidx.compose.runtime.mutableIntStateOf(0)
+}
+
 @Composable
 private fun rememberDue(api: Discovery, lang: String?): Int? {
     val context = LocalContext.current
-    val due by produceState<Int?>(null, api, lang) { value = lang?.let { runCatching {
-        if (api is Api) api.srsDue(it).let { d -> d.due + d.new } else io.github.pedrubik2000.kumapie.lang.ownDueCount(context, it) }.getOrNull() } }
+    val due by produceState<Int?>(null, api, lang, DueTick.n) { value = lang?.let { runCatching {
+        if (api is Api) api.srsDue(it).let { d -> d.due + d.new } else io.github.pedrubik2000.kumapie.lang.ownDueCount(context, it) }.getOrNull() ?: value } }
     return due
 }
 

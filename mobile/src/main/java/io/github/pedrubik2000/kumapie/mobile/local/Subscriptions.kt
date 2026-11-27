@@ -131,7 +131,7 @@ class SubscriptionWorker(context: Context, params: WorkerParameters) : Coroutine
         val qjs = File(applicationContext.applicationInfo.nativeLibraryDir, "libqjs.so").path
         // Videos already here or already queued (made here: their source link).
         val have = (local.entries().map { ProcessWorker.idFor(it.source) } + subs.sentToPc()).toMutableSet()
-        for (sub in subs.all().filter { it.here }) runCatching { // the others download on their own device
+        for (sub in subs.all().filter { it.here && Lang.of(it.lang) in Lang.SHOWN }) runCatching { // the others download on their own device
             if (ProcessWorker.isTikTok(sub.url)) { // this device's Python can't list TikTok: the PC does, once a night
                 // ponytail: only the newest [perRun] (the PC skips those it has); older ones aren't fetched back
                 if (System.currentTimeMillis() - sub.lastCheck < 20 * 3_600_000L) return@runCatching

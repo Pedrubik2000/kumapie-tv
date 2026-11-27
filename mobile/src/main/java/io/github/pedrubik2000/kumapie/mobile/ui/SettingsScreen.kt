@@ -304,8 +304,8 @@ private fun YomitanSection(library: Library, learning: Set<String> = emptySet())
     val dicts = library.yomitan
     val scope = rememberCoroutineScope()
     val all by dicts.all.collectAsState()
-    val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { learning.isEmpty() || it.code in learning }
-    var lang by remember { mutableStateOf(langs.firstOrNull() ?: io.github.pedrubik2000.kumapie.data.Lang.GERMAN) }
+    val langs = io.github.pedrubik2000.kumapie.data.Lang.SHOWN
+    var lang by remember { mutableStateOf(langs.first()) }
     var said by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<io.github.pedrubik2000.kumapie.lang.YomitanDictionaries.Dict?>(null) }
@@ -519,6 +519,7 @@ private fun FollowedChannels(library: Library) {
                 val hours = ((to - from) % 24 + 24) % 24
                 Text(tr("%1\$d an hour · up to %2\$d a night", s.perRun, s.perRun * hours) + " · " + (if (s.lastCheck > 0) tr("checked %s", android.text.format.DateUtils.getRelativeTimeSpanString(s.lastCheck)) else tr("not checked yet")),
                     fontSize = 13.sp, color = Colors.dim)
+                if (io.github.pedrubik2000.kumapie.data.Lang.of(s.lang) !in io.github.pedrubik2000.kumapie.data.Lang.SHOWN) Text(tr("paused · not Japanese"), fontSize = 13.sp, color = Colors.dim)
             }
             listOf(1, 5, 10).forEach { n ->
                 androidx.compose.material3.FilterChip(selected = s.perRun == n, label = { Text("$n") }, modifier = Modifier.padding(start = 4.dp),
@@ -581,19 +582,11 @@ internal fun MenuLanguage(settings: Settings) {
             })
         }
     }
-    // Whose device: its episodes go to that person's PC library and to their other devices. No PC: nobody to sync
-    // with, and a stranger's phone shouldn't list the family.
     if (settings.server.isEmpty()) return
     Text(tr("This device belongs to"), color = Colors.text, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
     Text(tr("Episodes made here go to the PC, and the PC's new episodes come here (on Wi-Fi)."), color = Colors.dim, fontSize = 14.sp)
-    // The PC's people, as the TV's "Who's watching?" (the family's three when it doesn't answer).
-    var people by remember { mutableStateOf(listOf("pedro" to "Pedro", "giovanna" to "Giovanna", "jackson" to "Jackson")) }
-    LaunchedEffect(settings.server) {
-        runCatching { io.github.pedrubik2000.kumapie.data.Api(settings.server).people() }.getOrNull()
-            ?.takeIf { it.isNotEmpty() }?.let { p -> people = p.map { it.id to it.name } }
-    }
     var owner by remember { mutableStateOf(settings.owner) }
-    var asking by remember { mutableStateOf<Pair<String, String>?>(null) } // the owner picked, waiting for Yes
+    var asking by remember { mutableStateOf<Pair<String, String>?>(null) }
     fun setOwner(key: String) {
         owner = key
         settings.owner = key
@@ -603,9 +596,8 @@ internal fun MenuLanguage(settings: Settings) {
         }
     }
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        (people + ("" to tr("Nobody (no sync)"))).forEach { (key, label) ->
+        listOf("pedro" to "Pedro", "" to tr("Nobody (no sync)")).forEach { (key, label) ->
             androidx.compose.material3.FilterChip(selected = owner == key, label = { Text(label) }, onClick = {
-                // A first owner is set at once; moving the device to someone else (or to nobody) asks first.
                 if (owner.isBlank() || key == owner) setOwner(key) else asking = key to label
             })
         }

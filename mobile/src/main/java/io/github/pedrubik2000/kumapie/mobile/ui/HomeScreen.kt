@@ -111,8 +111,7 @@ import io.github.pedrubik2000.kumapie.ui.NeutralPoster
  * kumapie_plan.md "for other people").
  */
 fun io.github.pedrubik2000.kumapie.data.Settings.learning(): Set<String> =
-    prefs.getStringSet("learning", null)?.takeIf { it.isNotEmpty() }
-        ?: if (server.isEmpty()) setOf("ja") else io.github.pedrubik2000.kumapie.data.Lang.ALL.map { it.code }.toSet()
+    io.github.pedrubik2000.kumapie.data.Lang.SHOWN.map { it.code }.toSet()
 
 internal class Dest(val icon: ImageVector, val label: String, val go: () -> Unit, val badge: Int = 0, val short: String = label)
 
@@ -205,7 +204,7 @@ fun HomeScreen(
     /** An episode of "Continue watching": straight to the player, where it was left. */
     onPlay: (Show, Episode) -> Unit = { s, _ -> onShow(s) },
     /** The language Home, the feed and i+1 show ([io.github.pedrubik2000.kumapie.data.Lang.code]). */
-    homeLang: String = "de",
+    homeLang: String = "ja",
     onHomeLang: (String) -> Unit = {},
     /** A link shared to kumapie (YouTube): opens "Add an episode" with it. */
     sharedLink: String? = null,
@@ -240,7 +239,7 @@ fun HomeScreen(
     val (main, extra) = destinations(homeLang, onDiscover, onFeed, onDownloads, onStats, onImprove, onSearch, onReview) { onSettings(null) }
 
     val all = shows.orEmpty()
-    val langs = io.github.pedrubik2000.kumapie.data.Lang.ALL.filter { l -> all.any { it.lang == l.code } || (l.code == "ja" && library.settings.server.isEmpty()) }
+    val langs = io.github.pedrubik2000.kumapie.data.Lang.SHOWN
     // The chosen language without shows (a parent's phone has only English; the default is German): the first that has some.
     val lang = if (shows == null || all.any { it.lang == homeLang }) homeLang else langs.firstOrNull()?.code ?: homeLang
     LaunchedEffect(lang) { if (lang != homeLang) onHomeLang(lang) }

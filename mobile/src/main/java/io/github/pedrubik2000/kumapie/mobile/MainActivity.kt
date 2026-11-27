@@ -173,7 +173,7 @@ fun App(library: Library, sharedLink: String? = null, openSearch: Boolean = fals
     var shows by remember { mutableStateOf<List<Show>>(emptyList()) }
     // Home's language: Home, the feed and the i+1 list show only its shows.
     // Without a PC: Japanese (Discover is there), the only language at launch.
-    var homeLang by remember { mutableStateOf(settings.prefs.getString("home_lang", null) ?: if (settings.server.isEmpty()) "ja" else "de") }
+    var homeLang by remember { mutableStateOf("ja") }
     val langShows = shows.filter { it.lang == homeLang }
 
     LaunchedEffect(Unit) { // opened straight on another screen (an intent): Home, which loads the shows, isn't shown

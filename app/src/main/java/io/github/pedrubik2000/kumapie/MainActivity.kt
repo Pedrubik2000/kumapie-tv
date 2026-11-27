@@ -165,7 +165,13 @@ private fun AloneScreens(settings: Settings, stack: androidx.compose.runtime.sna
 @Composable
 private fun PcScreens(settings: Settings, server: String, stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>, restarted: Boolean, onSaved: () -> Unit, onUpdate: (Updater.Release) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var profile by remember { mutableStateOf<Profile?>(null) }
+    var profile by remember {
+        val menu = settings.menuLanguage
+        settings.profile = "pedro"
+        Tr.use(menu)
+        settings.speaks = if (Tr.spanish) "es" else "en"
+        mutableStateOf<Profile?>(Profile("pedro", "Pedro", menu.ifEmpty { "en" }))
+    }
     var auto by remember { mutableStateOf(restarted) }
     val homeMemory = remember(server, profile) { io.github.pedrubik2000.kumapie.ui.HomeMemory() }
     val api = remember(server, profile) { Api(server, profile?.id.orEmpty()) }

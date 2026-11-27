@@ -48,8 +48,8 @@ fun AddEpisodeSheet(library: Library, sharedLink: String?, homeLang: String = "d
     val matchKey = match?.let { it.getString("source") + ":" + it.getString("id") }
     var height by remember { mutableStateOf(library.settings.videoHeight) }
     // Only the languages this device learns (a parent's phone: English, no chips); the Home language first.
-    val langs = remember { listOf(Lang.GERMAN, Lang.JAPANESE, Lang.ENGLISH).filter { it.code in library.settings.learning() } }
-    var lang by remember { mutableStateOf(langs.firstOrNull { it.code == homeLang } ?: langs.firstOrNull() ?: Lang.GERMAN) }
+    val langs = remember { Lang.SHOWN }
+    var lang by remember { mutableStateOf(langs.firstOrNull { it.code == homeLang } ?: langs.first()) }
     // Language names mid-sentence: "German", but "alemán" in Spanish.
     fun named(l: String) = if (io.github.pedrubik2000.kumapie.i18n.Tr.spanish) l.lowercase() else l
     val spoken = named(lang.displayName)

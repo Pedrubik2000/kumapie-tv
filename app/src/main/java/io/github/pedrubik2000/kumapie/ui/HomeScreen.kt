@@ -85,7 +85,7 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
                jiten: JitenQueue? = null, lists: suspend (Settings) -> List<Mine>? = ::liveLists, memory: HomeMemory = remember { HomeMemory() }) {
     var attempt by remember { mutableIntStateOf(0) }
     val (shows, error) = loadShows(api, attempt)
-    val langs = if (api !is Api) listOf("ja") else Lang.ALL.map { it.code }.filter { c -> shows.orEmpty().any { it.lang == c } }
+    val langs = Lang.SHOWN.map { it.code }
     var picked by remember(profile) { mutableStateOf(settings.prefs.getString("home_lang_$profile", null)) }
     val lang = picked?.takeIf { it in langs } ?: langs.firstOrNull()
     val streams = loadStreams(api, lang, shows)
@@ -95,11 +95,12 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
     }
     var hidden by remember(settings, profile) { mutableStateOf(ContinueHidden.read(settings.prefs, profile)) }
     val data = rememberHomeData(settings, lists, shows, lang, streams, hidden)
+    val empty = lang == null || (data != null && api is Api && shows.orEmpty().none { it.lang == lang } && data.names.isEmpty() && data.loggedIn)
     val focus = remember(data != null) { HomeFocus(data?.resume, memory) }
     val railFocus = remember { mutableMapOf<String, FocusRequester>() }
     val first = remember { FocusRequester() }
     val rail = RailNav({}, onLibrary, onDiscover, { lang?.let(onReview) }, onStats, onSettings)
-    val profileItem = RailItem(Icons.Default.Person, who, back = false, onClick = onProfiles).takeIf { api is Api }
+    val profileItem: RailItem? = null
     val settle = remember(data) { { if (focus.back == null) focus.target = data?.resume; Unit } }
     var contentFocused by remember { mutableStateOf(false) }
     var railFocused by remember { mutableStateOf(false) }
@@ -115,14 +116,14 @@ fun HomeScreen(api: Discovery, settings: Settings, profile: String, who: String,
             when {
                 error != null -> Box(Modifier.padding(start = RAIL, end = 32.dp)) { ErrorBox(error, onRetry = { attempt++ }, onSettings = onSettings) }
                 shows == null || streams == null -> Text(tr("Loading…"), color = Colors.dim, modifier = Modifier.padding(start = RAIL, top = 100.dp))
-                lang == null -> EmptyState(androidx.compose.material.icons.Icons.Default.VideoLibrary, tr("No shows on the server yet."), modifier = Modifier.padding(start = RAIL, top = 100.dp))
+                empty -> EmptyState(androidx.compose.material.icons.Icons.Default.VideoLibrary, tr("No shows on the server yet."), modifier = Modifier.padding(start = RAIL, top = 100.dp))
                 data != null -> HomeBody(data, focus, api, rememberLevels(rememberQueue(jiten)), first, railFocus, onShow, onPlay, onDiscovered, onSettings, onDiscover,
                     onHide = { s, e -> hidden = ContinueHidden.hide(settings.prefs, profile, s, e) }, onUnhide = { hidden = ContinueHidden.unhide(settings.prefs, profile, it.id) }) { contentFocused || railFocused }
             }
         }
         RailBackdrop()
         HomeHeader(totals, langs, lang) { next -> picked = next; settings.prefs.edit().putString("home_lang_$profile", next).apply() }
-        MainRail(api, lang, RailAt.HOME, rail, railFocus, first.takeIf { data != null }, profileItem, settle) { railFocused = it }
+        MainRail(api, lang, RailAt.HOME, rail, railFocus, first.takeIf { data != null && !empty }, profileItem, settle) { railFocused = it }
         HomeHintBar(focus)
     }
 }

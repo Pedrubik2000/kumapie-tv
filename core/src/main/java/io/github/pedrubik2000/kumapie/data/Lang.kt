@@ -5,7 +5,7 @@ import java.util.Locale
 
 /**
  * A language kumapie plays: what an episode is spoken in ([code]) and what its translation is in
- * (kumapie_languages_plan.md: German, then Japanese, then English); [of] answers German for episodes that don't say
+ * (kumapie_languages_plan.md: German, then Japanese, then English); [of] answers Japanese for episodes that don't say
  * (older ones, the PC's /api/tv).
  */
 data class Lang(
@@ -39,6 +39,7 @@ data class Lang(
         /** Pedro's English (accent work); no translation track. */
         val ENGLISH = Lang("en", "English", Locale.US, listOf("🐻 English", "🇺🇸 MvJ"), "English Mined", "_en")
         val ALL = listOf(GERMAN, JAPANESE, ENGLISH)
+        val SHOWN = listOf(JAPANESE)
 
         /**
          * The language the person speaks, "en" or "es" (Settings > I speak; by default the phone's): Pedro English,
@@ -46,6 +47,6 @@ data class Lang(
          */
         @Volatile var speaker: String = "en"
 
-        fun of(code: String?): Lang = ALL.firstOrNull { it.code == code } ?: GERMAN
+        fun of(code: String?): Lang = ALL.firstOrNull { it.code == code } ?: JAPANESE
     }
 }

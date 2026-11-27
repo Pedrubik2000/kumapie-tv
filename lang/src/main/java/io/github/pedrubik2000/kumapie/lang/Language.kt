@@ -316,7 +316,7 @@ class Languages(context: Context, settings: Settings, yomitan: YomitanDictionari
     val japanese = Japanese(context, settings, yomitan, scope)
     val all: List<Language> = listOf(german, japanese, english)
 
-    fun of(lang: Lang): Language = all.firstOrNull { it.lang == lang } ?: german
+    fun of(lang: Lang): Language = all.firstOrNull { it.lang == lang } ?: japanese
     fun of(code: String): Language = of(Lang.of(code))
     /** The language of a word marked in a [code] episode: kana or kanji in it means Japanese. */
     fun ofWord(word: String, code: String): Language = if (JAPANESE_TEXT.containsMatchIn(word)) japanese else of(code)

@@ -3,6 +3,7 @@ package io.github.pedrubik2000.kumapie.i18n
 /** The TV app (Giovanna's and Jackson's profiles show it in Spanish). */
 internal val esTv: Map<String, String> = mapOf(
     "Open Continue watching" to "Abrir Seguir viendo",
+    "paused · not Japanese" to "en pausa · no es japonés",
     "Help screen and key hints" to "Pantalla de ayuda y pistas de botones",
     "Blur episodes I haven't watched" to "Difuminar los episodios que no he visto",
     "Font" to "Fuente",

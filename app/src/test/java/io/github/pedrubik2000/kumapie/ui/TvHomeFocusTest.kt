@@ -88,7 +88,7 @@ class TvHomeFocusTest {
     private var screen by mutableStateOf("home")
     private var tick by mutableStateOf(0)
 
-    private fun openHome(queue: JitenQueue? = null) {
+    private fun openHome(queue: JitenQueue? = null, settle: Boolean = true) {
         rule.setContent {
             val settings = Settings(LocalContext.current)
             if (screen == "library") LibraryScreen(Api("http://127.0.0.1:${server.address.port}"), settings, onHome = { screen = "home" }, onDiscover = {}, onReview = {}, onSettings = {}, onOpen = {})
@@ -96,7 +96,7 @@ class TvHomeFocusTest {
                 onShow = {}, onPlay = { _, _ -> }, onSettings = {}, onStats = { home = false }, onProfiles = {},
                 onLibrary = { screen = "library" }, onDiscover = { discoverCalls++ }, jiten = queue, lists = { null })
         }
-        rule.waitUntil(5_000) { focused() == RESUME }
+        if (settle) rule.waitUntil(5_000) { focused() == RESUME }
     }
 
     private fun focused(): String? = rule.onAllNodes(isFocused()).fetchSemanticsNodes().firstOrNull()?.config?.let { c ->
@@ -420,7 +420,7 @@ class TvHomeFocusTest {
         rule.waitUntil(5_000) { focused() == "Find something to watch" }
     }
 
-    @Test fun rightOnTheHeaderLanguageButtonDoesNotJumpToTheRememberedRow() {
+    @Test fun onlyJapaneseShowsSoThereIsNoHeaderLanguageButton() {
         showsBody = """{"shows":[${listOf(
             show("a", "Alpha", "anime", episode("a1", 300.0, 200)),
             show("e", "Epsilon", "shows", episode("e1", null, 0)).replace("\"lang\":\"ja\"", "\"lang\":\"en\""),
@@ -428,12 +428,16 @@ class TvHomeFocusTest {
         openHome()
         press(DOWN)
         assertEquals("Alpha", focused())
-        rule.onNode(androidx.compose.ui.test.hasText("▾", substring = true)).requestFocus()
-        rule.waitForIdle()
-        val at = focused()
-        assert(at != null && at.contains("▾")) { "$at" }
-        press(RIGHT)
-        assertEquals(at, focused())
+        rule.onAllNodes(androidx.compose.ui.test.hasText("▾", substring = true)).fetchSemanticsNodes().let { assertEquals(0, it.size) }
+        assertEquals(false, hasCard("Epsilon"))
+    }
+
+    @Test fun withoutJapaneseShowsTheServerSaysSo() {
+        logIn(mine("1", "Frieren", "COMPLETED", progress = 12, episodes = 12))
+        showsBody = """{"shows":[${show("e", "Epsilon", "shows", episode("e1", null, 0)).replace("\"lang\":\"ja\"", "\"lang\":\"en\"")}]}"""
+        openHome(settle = false)
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("No shows on the server yet.").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(false, hasCard("Epsilon"))
     }
 
     @Test fun aRowAboveTheRememberedOneDisappearingStillReturnsToTheSameRow() {

@@ -111,7 +111,7 @@ fun Subtitles(ctl: SceneController, picker: WordPicker, onAnchor: (Rect?) -> Uni
         german.forEachIndexed { i, cue ->
             if (i > 0) append('\n')
             val lineIndex = scene.cues.indexOf(cue)
-            val selectedSeg = if (picking && lineIndex == picker.line) picker.seg else -1
+            val selectedSeg = if (picking && lineIndex == picker.line && picker.seg < cue.segments.size) picker.seg else -1
             val start = length
             var at = start
             cue.segments.forEachIndexed { s, seg ->

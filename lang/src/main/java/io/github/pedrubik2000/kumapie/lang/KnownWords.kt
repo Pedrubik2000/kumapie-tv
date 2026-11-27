@@ -5,6 +5,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import android.content.Context
 import android.util.Log
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
+import io.github.pedrubik2000.kumapie.data.joinCardedScenes
 import io.github.pedrubik2000.kumapie.data.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -410,7 +411,7 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      * marked known (`m`) stay known, as on the PC. Before Anki has been read here: [unread].
      */
     fun apply(split: EpisodeDetail): EpisodeDetail {
-        val episode = PersonalDictionary.get(context).join(language.joinNames(split))
+        val episode = withCarded(PersonalDictionary.get(context).join(language.joinNames(split)))
         val pcMarked = episode.words.filterValues { it.marked }.keys
         if (!marked.containsAll(pcMarked)) setMarked(marked + pcMarked)
         val snap = snapshot ?: return unread(episode, marked)
@@ -442,6 +443,8 @@ class KnownWords(val context: Context, private val settings: Settings, private v
      * (the phone, which coloured it with [apply]; an episode built on the device, all red from the builder, 2026-11-18).
      */
     fun repaint(ctl: io.github.pedrubik2000.kumapie.player.SceneController, pcColours: Boolean) {
+        if (language is Japanese) joinCardedScenes(ctl.scenes, ::carded).takeIf { it != ctl.scenes }
+            ?.let { ctl.rejoin(it, PersonalDictionary.newKeys(it, ctl.words.keys)) }
         val written = if (language !is Japanese) emptyMap() else ctl.episode.scenes.asSequence().flatMap { it.cues }.flatMap { it.segments }
             .filter { it.word != null }.groupBy({ it.word!! }, { it.text })
         for (k in ctl.words.keys.toList()) ctl.words[k]?.let { w ->
@@ -453,6 +456,11 @@ class KnownWords(val context: Context, private val settings: Settings, private v
             if (m != w) ctl.words[k] = m
         }
     }
+
+    private fun carded(text: String) = cardIndex.state(text).let { it != null && it != "u" }
+
+    private fun withCarded(e: EpisodeDetail): EpisodeDetail = if (language !is Japanese) e else
+        joinCardedScenes(e.scenes, ::carded).let { s -> e.copy(scenes = s, words = e.words + PersonalDictionary.newKeys(s, e.words.keys).associateWith { io.github.pedrubik2000.kumapie.data.Word("u", "", marked = it in e.marked) }) }
 
     /** A word marked known in the app (or unmarked); answers its status now. */
     @Synchronized fun mark(word: String, known: Boolean): String {

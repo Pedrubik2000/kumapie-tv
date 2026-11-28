@@ -230,7 +230,7 @@ private fun TitleScreen(library: Library, title: Found, onWatch: (Map<String, St
                         null, if (wide) 296.dp else 240.dp, if (watched) "✓" else if (ready) "▶" else "", onLongClick = { menu = e.getString("id") }) { play(e) }
                 DropdownMenu(expanded = menu == e.getString("id"), onDismissRequest = { menu = null }) {
                     DropdownMenuItem(text = { Text(tr("Other files")) }, onClick = { menu = null; page.others(e) })
-                    DropdownMenuItem(text = { Text(if (watched) tr("Mark not watched") else tr("Mark watched")) }, onClick = { menu = null; scope.launch { page.mark(e) } })
+                    DropdownMenuItem(text = { Text(if (watched) tr("Mark not watched") else tr("Mark watched")) }, onClick = { menu = null; scope.launch { page.mark(e); io.github.pedrubik2000.kumapie.lang.DeviceSync.soon(context.applicationContext) } })
                 }
                 }
         }

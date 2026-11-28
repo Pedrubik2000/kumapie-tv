@@ -48,11 +48,11 @@ class SyncDebounceTest {
         assertEquals(2, runs.get())
     }
 
-    @Test fun resumeSyncsOnlyWhenTheLastGoodOneIsOverFifteenMinutesOld() {
+    @Test fun openingTheAppSyncsUnlessTheLastGoodOneIsUnderAMinuteOld() {
         var now = 10_000_000L
-        val last = now - 14 * 60_000
+        val last = now - 50_000
         assertFalse(DeviceSync.due(last, now))
-        now += 2 * 60_000
+        now += 20_000
         assertTrue(DeviceSync.due(last, now))
         assertTrue(DeviceSync.due(0L, now)) // never synced
     }

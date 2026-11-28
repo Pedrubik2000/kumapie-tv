@@ -204,7 +204,7 @@ internal fun TitleScreen(api: Discovery, title: Found, rail: @Composable BoxScop
         }
         if (cardOn) AniListCard(ani, edits, finished, page.next?.optInt("number")?.takeIf { it > 0 }, focus,
             Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 32.dp), syncState)
-        if (page.meta != null && !side) EpisodeRow(page, settings.blurUnwatched, focus, play, { e -> scope.launch { page.mark(e) } },
+        if (page.meta != null && !side) EpisodeRow(page, settings.blurUnwatched, focus, play, { e -> scope.launch { page.mark(e); io.github.pedrubik2000.kumapie.lang.DeviceSync.soon(context.applicationContext) } },
             Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp + if (settings.showHelp) HINT_ROOM else 0.dp))
         rail()
         HintBar()

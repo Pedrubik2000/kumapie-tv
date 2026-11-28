@@ -176,7 +176,7 @@ object DeviceSync {
         if (settings.server.isEmpty() && with(settings) != null) requested(context)
     }
 
-    internal fun due(lastOk: Long, now: Long): Boolean = now - lastOk > EVERY_MS
+    internal fun due(lastOk: Long, now: Long): Boolean = now - lastOk > EVERY_MS / 15
 
     private val sync = SyncDebounce(CoroutineScope(SupervisorJob() + Dispatchers.IO)) {
         wanted?.let { c ->

@@ -40,7 +40,7 @@ internal class RailNav(val onHome: () -> Unit, val onLibrary: () -> Unit, val on
 
 @Composable
 internal fun RailBackdrop() = Box(Modifier.fillMaxHeight().width(RAIL).background(Brush.horizontalGradient(
-    0f to Colors.background.copy(alpha = 0.92f), 0.7f to Colors.background.copy(alpha = 0.75f), 1f to Color.Transparent)))
+    0f to Colors.background, 0.65f to Colors.background, 1f to Color.Transparent)))
 
 internal object DueTick {
     var n by androidx.compose.runtime.mutableIntStateOf(0)

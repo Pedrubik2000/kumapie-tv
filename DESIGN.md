@@ -164,7 +164,7 @@ The TV app does not use the violet/brown palette above. Everything on TV comes f
 - **Accent:** ice blue #9CC9FF for progress, stats numbers and bars, and the current rail page. Orange #FFAA4D only for "today" and the difficulty percent.
 - **Focus, one language:** buttons, menu rows and steppers fill white with dark text; cards, posters and stat tiles get a 3dp white outline with no grow; rail circles fill white with a black icon. Only one thing looks focused at a time.
 - **Choices:** the `‹ value ›` stepper (`StepRow`) everywhere a value is picked, Settings included (Left/Right changes it, no popup).
-- **Pages:** the icon rail is on every top-level screen (Home, Library, Discover, Review, Stats, Settings) with the current page ringed in blue. A caps overline with the page name sits at the 124dp content edge with a meta line top-right (`PageHeader`). One empty state (`EmptyState`: circle icon, title, one line, one pill). Key hints bottom-right (`HintBar`).
+- **Pages:** the icon rail is on every top-level screen (Home, Library, Discover, Review, Stats, Settings) with the current page ringed in blue. A caps overline with the page name sits at the 124dp content edge with a meta line top-right (`PageHeader`). One empty state (`EmptyState`: circle icon, title, one line, one pill). Key hints bottom-right (`HintBar`). Rows scroll under the rail and fade out before its icons: the rail's backdrop is the ground colour, solid behind the circles (to 80dp) and gone by the 124dp content edge (`RailBackdrop`); nothing shows through the icons.
 - **Back:** page content -> rail -> Home -> exit; Left at the content's left edge also reaches the rail.
 
 ## Typography

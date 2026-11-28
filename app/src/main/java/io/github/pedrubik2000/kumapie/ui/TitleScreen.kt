@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
@@ -265,18 +266,22 @@ private fun PickFiles(api: Discovery, page: TitlePage, pick: Pair<String, String
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val groups = remember(page.files) { page.files?.let { page.fileGroups(it) } }
+    val count = groups?.sumOf { it.second.size } ?: 0
     Column {
-        Heading(pick.second)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Heading(pick.second.removePrefix(page.title.name).trim().toIntOrNull()?.let { tr("Episode %1\$d", it) } ?: pick.second, Modifier.weight(1f), maxLines = 1)
+            if (count > 0) Text(if (count == 1) tr("1 file") else tr("%1\$d files", count), color = Colors.dim, fontSize = 14.sp)
+        }
         when {
             groups == null -> Text(if (api is Api) tr("Asking Torrentio…") else tr("Asking your addons…"), color = Colors.dim)
             groups.isEmpty() -> Text(tr("No files found for this"), color = Colors.dim)
             else -> {
-                Text(tr("%1\$d files", groups.sumOf { it.second.size }), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
                 val first = groups.first().second.first()
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 12.dp, horizontal = 4.dp)) {
-                    groups.forEach { (heading, rows) ->
-                        if (heading.isNotEmpty()) item { Eyebrow(heading.uppercase()) }
-                        items(rows) { r -> FileLine(r === first, r) { scope.launch { context.startActivity(StreamActivity.intent(context, page.pick(pick, r.f))) } } }
+                val list = rememberLazyListState()
+                LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 12.dp, horizontal = 4.dp)) {
+                    groups.forEachIndexed { g, (heading, rows) ->
+                        if (heading.isNotEmpty()) item { Box(Modifier.padding(top = if (g == 0) 0.dp else 16.dp)) { Eyebrow(heading.uppercase()) } }
+                        items(rows) { r -> FileLine(r === first, r, { scope.launch { list.animateScrollToItem(0) } }) { scope.launch { context.startActivity(StreamActivity.intent(context, page.pick(pick, r.f))) } } }
                     }
                 }
             }
@@ -287,28 +292,31 @@ private fun PickFiles(api: Discovery, page: TitlePage, pick: Pair<String, String
 private class FileRow(val f: JSONObject, val facts: StreamFacts, val missing: List<String>)
 
 private fun TitlePage.fileGroups(files: List<JSONObject>): List<Pair<String, List<FileRow>>> {
-    val rows = files.map { f -> FileRow(f, streamFacts(f.optString("label"), f.optString("about")), missing(f)) }.groupBy { it.facts.instant }
-    return listOf(true to tr("Instant · on Real-Debrid"), false to tr("Download first"), null to "")
+    val rows = files.map { f -> FileRow(f, streamFacts(f.optString("label"), f.optString("about"), f.optString("file"), if (f.has("now")) f.optBoolean("now") else null), missing(f)) }.groupBy { it.facts.instant }
+    return listOf(true to tr("Instant"), false to tr("Download first"), null to "")
         .mapNotNull { (k, h) -> rows[k]?.let { r -> (if (rows.size == 1 && k == null) "" else h) to r.sortedBy { it.missing.isNotEmpty() } } }
 }
 
 @Composable
-private fun FileLine(first: Boolean, r: FileRow, onClick: () -> Unit) {
+private fun FileLine(first: Boolean, r: FileRow, onFirstFocus: () -> Unit, onClick: () -> Unit) {
     val focus = remember { FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
     val facts = r.facts
-    Card(scale = noGrow(), onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(),
-        modifier = Modifier.fillMaxWidth().then(if (first) Modifier.focusRequester(focus) else Modifier)) {
+    Card(scale = noGrow(), onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab),
+        modifier = Modifier.fillMaxWidth().then(if (first) Modifier.focusRequester(focus) else Modifier)
+            .onFocusChanged { focused = it.isFocused; if (first && it.isFocused) onFirstFocus() }) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(facts.quality, color = if (r.missing.isEmpty()) Colors.text else Colors.dim, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, modifier = Modifier.width(76.dp))
             Column {
                 Text(buildAnnotatedString {
                     append(facts.title)
-                    withStyle(SpanStyle(Colors.dim)) { facts.tags.forEach { append(" · $it") } }
-                }, color = Colors.text, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    withStyle(SpanStyle(Colors.dim, fontWeight = FontWeight.Normal)) { facts.tags.forEach { append(" · $it") } }
+                }, color = Colors.text, fontSize = 20.sp, style = Arcade.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val peers = facts.seeders?.let { if (it == 1) tr("1 peer") else tr("%d peers", it) }
                 val line = listOfNotNull(facts.size.ifEmpty { null }, peers, facts.site.ifEmpty { null }).joinToString(" · ")
-                if (line.isNotEmpty()) Text(line, color = Colors.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (line.isNotEmpty()) Text(line, color = Colors.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                if (focused && facts.file.isNotEmpty()) Text(facts.file, color = Colors.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (r.missing.isNotEmpty()) Text("✗ " + tr("May not play here: %1\$s", r.missing.joinToString(", ")), color = Colors.unknown, fontSize = 14.sp)
             }
         }

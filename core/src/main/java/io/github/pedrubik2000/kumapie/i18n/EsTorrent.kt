@@ -65,7 +65,8 @@ internal val esTorrent: Map<String, String> = mapOf(
     "Stream torrents without Real-Debrid" to "Ver torrents sin Real-Debrid",
     "Stream torrents without Real-Debrid: it downloads the video on this device and shares pieces with others while it plays. Your IP address is visible to them: a VPN is wise." to
         "Ver torrents sin Real-Debrid: descarga el video en este dispositivo y comparte partes con otros mientras se reproduce. Ellos pueden ver tu dirección IP: conviene usar una VPN.",
-    "Instant · on Real-Debrid" to "Al instante · en Real-Debrid",
+    "Instant" to "Al instante",
     "Download first" to "Primero se descarga",
     "%1\$d files" to "%1\$d archivos",
+    "1 file" to "1 archivo",
 )

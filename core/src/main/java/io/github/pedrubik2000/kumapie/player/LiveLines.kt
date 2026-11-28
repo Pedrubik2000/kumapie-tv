@@ -73,6 +73,12 @@ class LiveLines(
     val refCount get() = refs.size
     private var shown = emptyList<androidx.media3.common.text.Cue>() // the last group: a line ending under another isn't a new one
     private var tried = 0 // refs.size [fit] last ran on
+    private var seeded = false
+    private var pending: List<Long>? = null
+
+    fun seed(startsMs: List<Long>) {
+        if (startsMs.isNotEmpty()) pending = startsMs
+    }
     private var triedOthers = false
 
     init {
@@ -149,9 +155,17 @@ class LiveLines(
         if (got.isEmpty()) { noLines = needJimaku; return@coroutineScope }
         if (needJimaku) source = "jimaku"
         while (true) {
-            if (fitted == null && refs.size >= MIN_REFS && refs.size % 2 == 0 && refs.size != tried) {
+            pending?.let { ms ->
+                pending = null
+                if (fitted == null) { ms.forEach { addRef(refs, heard, it, it / 1000.0) }; seeded = true; tried = -1 }
+            }
+            if (fitted == null && refs.size >= MIN_REFS && (refs.size % 2 == 0 || tried < 0) && refs.size != tried) {
                 tried = refs.size
-                fit(refs, starts)?.let { if (replaceable(hand(), offset, guess)) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
+                val all = refs.toList()
+                val (to, whole) = starts to seeded
+                val f = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { first(all, to, whole) }
+                if (whole) { pieced = all.size; if (f.pieces == null) otherCut = true else pieces = f.pieces }
+                f.offset?.let { if (replaceable(hand(), offset, guess)) offset = it; fitted = it; android.util.Log.i("LiveLines", "fitted $it s from ${refs.size} lines") }
             }
             // The first file never fits (another script, or a loose one): the next ranked files against the lines heard so
             // far; one that fits replaces it (its new [lines] remake the episode's words).
@@ -159,7 +173,12 @@ class LiveLines(
                 triedOthers = true
                 for (i in 1..3) {
                     val other = japanese(runCatching { others(i) }.getOrDefault(emptyList())).takeIf { it.isNotEmpty() } ?: break
-                    val f = fit(refs.toList(), other.map { it.first }) ?: continue
+                    val all = refs.toList()
+                    val whole = seeded
+                    val f = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { first(all, other.map { it.first }, whole).offset } ?: continue
+                    pieced = 0
+                    otherCut = false
+                    pieces = emptyList()
                     android.util.Log.i("LiveLines", "file ${i + 1} fitted $f s from ${refs.size} lines (the first didn't)")
                     starts = other.map { it.first }
                     lines = other
@@ -178,7 +197,7 @@ class LiveLines(
             val at = player.currentPosition / 1000.0
             unfitted = otherCut || pieces.lastOrNull { it.first <= at }?.let { it.second == null } == true
             if (source == "jimaku") {
-                val t = at - offset
+                val t = at - offset - pieceShift(pieces, fitted, at)
                 line = lines.lastOrNull { it.first <= t }?.takeIf { t < it.second }?.third
             }
             delay(100)
@@ -221,6 +240,16 @@ class LiveLines(
             }
             return out to still
         }
+
+        class First(val offset: Double?, val pieces: List<Pair<Double, Double?>>?)
+
+        fun first(refs: List<Double>, starts: List<Double>, whole: Boolean): First {
+            val p = if (whole) pieces(refs, starts) else null
+            return First(p?.firstOrNull()?.second ?: fit(refs, starts), p)
+        }
+
+        fun pieceShift(pieces: List<Pair<Double, Double?>>, fitted: Double?, at: Double): Double =
+            if (fitted == null) 0.0 else (pieces.lastOrNull { it.first <= at && it.second != null }?.second ?: fitted) - fitted
 
         fun addRef(refs: MutableList<Double>, heard: MutableSet<Long>, startMs: Long, at: Double): Boolean =
             heard.add(startMs).also { if (it) refs.add(refs.binarySearch(at).let { i -> if (i < 0) -i - 1 else i }, at) }

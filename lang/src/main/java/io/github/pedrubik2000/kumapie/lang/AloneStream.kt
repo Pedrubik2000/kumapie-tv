@@ -9,6 +9,7 @@ import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.player.LiveLines
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class AloneStream(
     private val prefs: SharedPreferences, private val addons: Addons?, private val player: ExoPlayer,
@@ -31,6 +32,18 @@ class AloneStream(
         it.offset = prefs.getFloat(offKey(id, file), 0f).toDouble() + startNudge
         it.guess = it.offset
         it.hand = { handed(prefs, id) }
+    }
+
+    /**
+     * The file's own line starts from its index, so the fit doesn't wait to hear them ([MkvIndex]); nothing when the
+     * file can't say. Not cancelled on leave: a pause in the first seconds would lose it for the whole episode.
+     */
+    init {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            val starts = MkvIndex.starts(video)
+            android.util.Log.i("kumapie", "mkv index: " + starts.size + " line starts, " + (android.os.SystemClock.elapsedRealtime() - t0) + " ms after open")
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { live.seed(starts) }
+        }
     }
 
     private var lastMs = 0L

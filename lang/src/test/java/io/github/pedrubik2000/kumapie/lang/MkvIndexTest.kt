@@ -18,8 +18,8 @@ class MkvIndexTest {
     private fun el(id: Long, content: ByteArray) = id(id) + byteArrayOf(1) + bytes(content.size.toLong(), 7) + content
     private fun num(id: Long, v: Long) = el(id, bytes(v, 8))
     private fun str(id: Long, v: String) = el(id, v.toByteArray())
-    private fun track(n: Long, type: Long, codec: String, name: String, lang: String) =
-        el(0xAE, num(0xD7, n) + num(0x83, type) + str(0x86, codec) + str(0x536E, name) + str(0x22B59C, lang))
+    private fun track(n: Long, type: Long, codec: String, name: String, lang: String, frameNs: Long = 0) =
+        el(0xAE, num(0xD7, n) + num(0x83, type) + str(0x86, codec) + str(0x536E, name) + str(0x22B59C, lang) + if (frameNs > 0) num(0x23E383, frameNs) else ByteArray(0))
     private fun cue(ms: Long, track: Long) = el(0xBB, num(0xB3, ms) + el(0xB7, num(0xF7, track) + num(0xF1, 0)))
 
     private val lineMs = listOf(4_610L, 9_000L, 12_500L, 20_000L, 26_250L, 31_000L)
@@ -29,7 +29,7 @@ class MkvIndexTest {
 
     private fun file(subs: ByteArray, padding: Int = 0): ByteArray {
         val info = el(0x1549A966, num(0x2AD7B1, 1_000_000))
-        val tracks = el(0x1654AE6B, track(1, 1, "V_AV1", "", "und") + track(2, 2, "A_OPUS", "", "jpn") + subs)
+        val tracks = el(0x1654AE6B, track(1, 1, "V_AV1", "", "und", 41_708_333) + track(2, 2, "A_OPUS", "", "jpn", 20_000_000) + subs)
         val cluster = el(0x1F43B675, ByteArray(5_000))
         val void = el(0xEC, ByteArray(padding))
         fun seekHead(tracksAt: Long, cuesAt: Long) = el(0x114D9B74,
@@ -59,6 +59,20 @@ class MkvIndexTest {
         assertNull(MkvIndex.dialogue(MkvIndex.tracks(track(3, 17, "S_TEXT/ASS", "Signs & Songs", "eng"))))
         assertNull(MkvIndex.dialogue(MkvIndex.tracks(track(3, 17, "S_HDMV/PGS", "English", "eng") + track(4, 17, "S_TEXT/ASS", "English", "eng"))))
         assertNull(MkvIndex.dialogue(MkvIndex.tracks(english + track(5, 17, "S_TEXT/ASS", "Signs", "jpn"))))
+    }
+
+    @Test fun theFrameRateIsTheVideoTracksAndOnlyASaneOne() {
+        assertEquals(25f, requireNotNull(MkvIndex.frameRate(MkvIndex.tracks(track(2, 2, "A_AAC", "", "jpn", 21_333_333) + track(1, 1, "V_AV1", "", "und", 40_000_000)))), 0.001f)
+        assertNull(MkvIndex.frameRate(MkvIndex.tracks(track(1, 1, "V_AV1", "", "und"))))
+        assertNull(MkvIndex.frameRate(MkvIndex.tracks(track(1, 1, "V_AV1", "", "und", 1_000_000))))
+        assertNull(MkvIndex.frameRate(MkvIndex.tracks(english)))
+    }
+
+    @Test fun aFileWithoutLinesToFitStillSaysItsFrameRate() = serve(file(track(3, 17, "S_TEXT/ASS", "", "jpn")), ranges = true) { url, asked ->
+        val index = MkvIndex.read(url)
+        assertTrue(index.starts.isEmpty())
+        assertEquals(23.976f, requireNotNull(index.frameRate), 0.001f)
+        assertEquals(1, asked.size)
     }
 
     @Test fun notMatroskaOrCutShort() {
@@ -91,7 +105,9 @@ class MkvIndexTest {
     }
 
     @Test fun overHttpRanges() = serve(file(english, padding = 300_000), ranges = true) { url, asked ->
-        assertEquals(lineMs + 60_000L, MkvIndex.starts(url))
+        val index = MkvIndex.read(url)
+        assertEquals(lineMs + 60_000L, index.starts)
+        assertEquals(23.976f, requireNotNull(index.frameRate), 0.001f)
         assertEquals(3, asked.size)
         assertEquals("0-262143", asked[0])
     }

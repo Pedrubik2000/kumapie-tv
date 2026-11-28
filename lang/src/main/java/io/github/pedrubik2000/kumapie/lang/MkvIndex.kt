@@ -14,11 +14,15 @@ import java.net.URL
  * muxers index the video only), a Japanese track (its own lines are shown, nothing to fit), a server without Range.
  * Times are whole milliseconds cut as ExoPlayer cuts them, so a line heard later is the same one, not a second one.
  * ponytail: text tracks only (S_TEXT/...): a picture track (PGS) has a block where a line ends too. Add when a file needs it.
- * ponytail: the first offset is the first [LiveLines.pieces] stretch's (240 s windows): a cold open of under 8 lines
- * timed apart from the rest takes the rest's offset. A fit on the earliest lines alone, as a stretch of its own, if a file needs it.
+ * ponytail: the first offset is the first [LiveLines.pieces] stretch's, one per 240 s window and never cut inside
+ * one: a cold open timed apart from the rest takes the rest's offset (and reads "fitted") when it has under 8 lines
+ * or fewer lines than the rest of its window. A fit on the earliest lines alone, as a stretch of its own, if a file needs it.
  */
 object MkvIndex {
-    class Track(val number: Long, val type: Long, val codec: String, val name: String, val language: String, val forced: Boolean)
+    class Track(val number: Long, val type: Long, val codec: String, val name: String, val language: String, val forced: Boolean, val frameNs: Long = 0)
+
+    /** [starts]: the dialogue track's line starts (ms); [frameRate]: the video track's, from its frame duration (null: not said, or not a video's rate). */
+    class Index(val starts: List<Long>, val frameRate: Float?)
 
     /** [cues] / [tracksAt]: where those elements start in the file (null: not in the SeekHead); [tracks]: already in the head read. */
     class Head(val cues: Long?, val tracksAt: Long?, val scale: Long, val tracks: List<Track>?)
@@ -84,7 +88,7 @@ object MkvIndex {
         val parts = elements(b, t.from, t.to)
         fun one(id: Long) = parts.firstOrNull { it.id == id }
         Track(one(TRACK_NUMBER)?.let { number(b, it) } ?: 0, one(TRACK_TYPE)?.let { number(b, it) } ?: 0, one(CODEC)?.let { text(b, it) }.orEmpty(),
-            one(NAME)?.let { text(b, it) }.orEmpty(), (one(LANGUAGE_BCP47) ?: one(LANGUAGE))?.let { text(b, it) } ?: "eng", one(FORCED)?.let { number(b, it) } == 1L)
+            one(NAME)?.let { text(b, it) }.orEmpty(), (one(LANGUAGE_BCP47) ?: one(LANGUAGE))?.let { text(b, it) } ?: "eng", one(FORCED)?.let { number(b, it) } == 1L, one(FRAME_DURATION)?.let { number(b, it) } ?: 0)
     }
 
     /**
@@ -121,14 +125,24 @@ object MkvIndex {
         return out
     }
 
-    /** The line starts (ms) of [url]'s dialogue track (see the class); empty when the file can't say. Blocking: call off the main thread. */
-    fun starts(url: String): List<Long> = runCatching {
-        if (!url.startsWith("http")) return emptyList()
-        val h = head(read(url, 0, HEAD) ?: return emptyList()) ?: return emptyList()
-        val tracks = h.tracks ?: element(url, h.tracksAt ?: return emptyList(), MAX_TRACKS)?.let { tracks(it) } ?: return emptyList()
-        val track = dialogue(tracks) ?: return emptyList()
-        spoken(times(element(url, h.cues ?: return emptyList(), MAX_CUES) ?: return emptyList(), track.number, h.scale))
-    }.getOrDefault(emptyList())
+    /** The frames per second of [tracks]' video track; null when it doesn't say, or says something no video is (under 10, over 121). */
+    fun frameRate(tracks: List<Track>): Float? =
+        tracks.firstOrNull { it.type == VIDEO && it.frameNs > 0 }?.let { 1e9f / it.frameNs }?.takeIf { it > 10f && it < 121f }
+
+    /** What [url]'s head and index say (see the class); nothing when the file can't say. Blocking: call off the main thread. */
+    fun read(url: String): Index = runCatching {
+        val none = Index(emptyList(), null)
+        if (!url.startsWith("http")) return none
+        val h = head(read(url, 0, HEAD) ?: return none) ?: return none
+        val tracks = h.tracks ?: element(url, h.tracksAt ?: return none, MAX_TRACKS)?.let { tracks(it) } ?: return none
+        val fps = frameRate(tracks)
+        val track = dialogue(tracks) ?: return Index(emptyList(), fps)
+        val cues = runCatching { element(url, h.cues ?: return Index(emptyList(), fps), MAX_CUES) }.getOrNull() ?: return Index(emptyList(), fps)
+        Index(spoken(times(cues, track.number, h.scale)), fps)
+    }.getOrDefault(Index(emptyList(), null))
+
+    /** The line starts (ms) of [url]'s dialogue track. */
+    fun starts(url: String): List<Long> = read(url).starts
 
     /** The content of the element that starts at byte [at] of [url]; null over [max] bytes or cut off. */
     private fun element(url: String, at: Long, max: Int): ByteArray? = open(url, at, null)?.use { s ->
@@ -187,6 +201,8 @@ object MkvIndex {
     private const val CUE_POSITIONS = 0xB7L
     private const val CUE_TRACK = 0xF7L
     private const val SUBTITLES = 17L
+    private const val VIDEO = 1L
+    private const val FRAME_DURATION = 0x23E383L
     private const val HEAD = 256 * 1024
     private const val MAX_TRACKS = 1024 * 1024
     private const val MAX_CUES = 8 * 1024 * 1024

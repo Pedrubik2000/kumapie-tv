@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.tv.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -255,9 +256,7 @@ class StreamActivity : ComponentActivity() {
         LaunchedEffect(s) { s.keepPlace() }
         LaunchedEffect(live) { live.run() }
         LaunchedEffect(live.noLines) { if (live.noLines && note == null) note = tr("No Japanese subtitles: none in this file, none on Jimaku") }
-        val label = shiftLabel(live)
-        var showLabel by remember { mutableStateOf(false) }
-        LaunchedEffect(label) { showLabel = label != null; delay(5000); showLabel = false }
+        val label = shownLabel(live)
         val context = androidx.compose.ui.platform.LocalContext.current
         var shown by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.EpisodeDetail?>(null) }
         LaunchedEffect(live.lines) {
@@ -272,13 +271,15 @@ class StreamActivity : ComponentActivity() {
         LaunchedEffect(live.fitted, live.pieces, live.english, live.englishOpen, ctl, ctl?.scenes) { ctl?.let { s.fitLanded(it::shift); s.piecesLanded(it::shift); s.englishLanded(it) } }
         val ready = shown?.takeIf { started }
         remember(live, started, buffering, ready) { alone = live.takeIf { started && !buffering && ready == null } }
-        Box(Modifier.fillMaxSize()) {
-            if (ready != null) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            val view = io.github.pedrubik2000.kumapie.ui.StreamVideo(p, ready == null, started, buffering, s.frameRate.value)
+            remember(view, ready) { aloneView = view.takeIf { ready == null } }
+            if (ready != null && view != null) {
                 remember(ready) { alone = null; note = null }
                 val backend = remember { io.github.pedrubik2000.kumapie.ui.TvMining.backend(context, settings, ready.lang) }
-                androidx.compose.runtime.key(ready) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ready, onClose = ::finish, player = p, onController = { ctl = it }) }
+                androidx.compose.runtime.key(ready) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ready, onClose = ::finish, player = p, onController = { ctl = it }, video = view) }
                 TopNote(note?.takeIf { it == notReady() })
-            } else AlonePlain(p, live.line, if (reconnecting) tr("Reconnecting…") else note ?: label?.takeIf { showLabel }, started, buffering)
+            } else AlonePlain(live.line, if (reconnecting) tr("Reconnecting…") else note ?: label, buffering, io.github.pedrubik2000.kumapie.ui.rememberSubtitleGap(p), settings.japaneseFont)
             if (torrent) io.github.pedrubik2000.kumapie.ui.TorrentWait(p, started, remember(link) { waitInfo(link, id, show) }, settings, shown, live.noLines, ::finish) { buffering = it }
         }
     }
@@ -298,27 +299,26 @@ class StreamActivity : ComponentActivity() {
             io.github.pedrubik2000.kumapie.data.Backdrops.saved(this, io.github.pedrubik2000.kumapie.data.Addons.titleOf(id)), hide)
     }
 
+    @Composable
+    private fun shownLabel(live: LiveLines): String? {
+        val label = shiftLabel(live)
+        var show by remember { mutableStateOf(false) }
+        LaunchedEffect(label) { show = label != null; delay(5000); show = false }
+        return label?.takeIf { show }
+    }
+
     private fun shiftLabel(live: LiveLines): String? = when {
         live.source != "jimaku" -> null
         else -> tr("Jimaku's subtitles") + (if (live.offset == 0.0) "" else " · " + "%+.1f s".format(live.offset)) +
             (io.github.pedrubik2000.kumapie.lang.AloneStream.fitNote(live) ?: if (live.offset == live.fitted) tr("fitted") else null).let { if (it == null) "" else " · $it" } + " · ▲▼"
     }
 
-    private fun gate(view: PlayerView, started: Boolean, buffering: Boolean) {
-        view.useController = started && !buffering
-        view.isFocusable = started
-        view.descendantFocusability = if (started) android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS else android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
-        if (started && !buffering && !view.hasFocus()) view.requestFocus()
-    }
-
     @Composable
-    private fun AlonePlain(p: Player, line: String?, top: String?, focus: Boolean, buffering: Boolean) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; aloneView = this } },
-                Modifier.fillMaxSize(), update = { gate(it, focus, buffering) }, onRelease = { it.player = null })
+    private fun AlonePlain(line: String?, top: String?, buffering: Boolean, gap: androidx.compose.ui.unit.Dp, font: String) {
+        Box(Modifier.fillMaxSize()) {
             line?.let {
-                Text(it, color = Color.White, fontSize = 30.sp, lineHeight = 40.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).background(Color(0x99000000)).padding(16.dp, 8.dp))
+                Text(it, color = Color.White, fontSize = 34.sp, lineHeight = 41.5.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    fontFamily = io.github.pedrubik2000.kumapie.ui.JapaneseFonts.family(font), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = gap).widthIn(max = 900.dp).background(Color(0xB3000000), androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).padding(28.dp, 14.dp))
             }
             top?.takeIf { !buffering }?.let {
                 Text(it, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(24.dp)

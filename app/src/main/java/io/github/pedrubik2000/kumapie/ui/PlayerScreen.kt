@@ -114,7 +114,7 @@ fun rememberPlayer(video: String, resume: Double?, lang: String? = null): ExoPla
 @Composable
 fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Settings, episode: EpisodeDetail, onClose: () -> Unit, onPlayer: (ExoPlayer) -> Unit = {},
                 player: ExoPlayer = rememberPlayer(episode.video, episode.resume, episode.lang),
-                onController: (SceneController) -> Unit = {}) {
+                onController: (SceneController) -> Unit = {}, video: PlayerView? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     remember { onPlayer(player) }
@@ -219,38 +219,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
     }
 
     val view = LocalView.current
-    // Films without judder: while a video plays, the TV's display mode (same resolution) whose refresh rate is a whole
-    // multiple of the video's frame rate (23.976 fps → 23.976 Hz, 25 → 50), back to the TV's own mode after. The TV
-    // goes black 1-2 s at each switch (Pedro: yes, 2026-11-18). Media3's own switch only does seamless ones; 60 → 24
-    // isn't. Nothing happens on a TV without such a mode (bedroom TV: 60 Hz only) or when the mode already fits.
-    // The frame rate: the file's, else (MKV: Media3 leaves it unset, every stream from Discover) measured over the
-    // first 75 frames shown (~3 s; MKV times are whole ms, so fewer can't tell 23.976 from 24).
-    DisposableEffect(player) {
-        val window = generateSequence(view.context) { (it as? android.content.ContextWrapper)?.baseContext }
-            .firstNotNullOfOrNull { it as? android.app.Activity }?.window
-        fun match(fps: Float) {
-            val display = view.display ?: return
-            if (window == null || fps <= 0f) return
-            val now = display.mode
-            val same = display.supportedModes.filter { it.physicalWidth == now.physicalWidth && it.physicalHeight == now.physicalHeight }
-            val id = modeForFrameRate(fps, now.modeId, same.map { it.modeId to it.refreshRate })
-            android.util.Log.i("kumapie", "video $fps fps: display mode ${id ?: "kept"}")
-            if (id != null) window.attributes = window.attributes.apply { preferredDisplayModeId = id }
-        }
-        val times = ArrayList<Long>() // on the playback thread
-        var done = false
-        val meta = androidx.media3.exoplayer.video.VideoFrameMetadataListener { us, _, format, _ ->
-            if (done) return@VideoFrameMetadataListener
-            val fps = if (format.frameRate > 0f) format.frameRate else { times += us; if (times.size < 75) return@VideoFrameMetadataListener; frameRateOf(times) }
-            done = true
-            if (fps != null) view.post { match(fps) }
-        }
-        player.setVideoFrameMetadataListener(meta)
-        onDispose {
-            player.clearVideoFrameMetadataListener(meta)
-            window?.let { it.attributes = it.attributes.apply { preferredDisplayModeId = 0 } } // the TV's own mode again
-        }
-    }
+    if (video == null) MatchFrameRate(player)
     DisposableEffect(Unit) {
         view.keepScreenOn = true
         onDispose {
@@ -315,7 +284,7 @@ fun ScenePlayer(api: io.github.pedrubik2000.kumapie.data.Backend, settings: Sett
             }
             .focusable(),
     ) {
-        AndroidView(
+        if (video != null) remember(video) { playerView = video } else AndroidView(
             factory = {
                 PlayerView(it).apply {
                     useController = false

@@ -40,11 +40,14 @@ class AloneStream(
      */
     init {
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            val starts = MkvIndex.starts(video)
-            android.util.Log.i("kumapie", "mkv index: " + starts.size + " line starts, " + (android.os.SystemClock.elapsedRealtime() - t0) + " ms after open")
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { live.seed(starts) }
+            val index = MkvIndex.read(video)
+            android.util.Log.i("kumapie", "mkv index: " + index.starts.size + " line starts, " + index.frameRate + " fps, " + (android.os.SystemClock.elapsedRealtime() - t0) + " ms after open")
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { live.seed(index.starts); frameRate.value = index.frameRate }
         }
     }
+
+    /** The video's frame rate as its file says it, known before a frame is shown: the TV's display mode can change while the stream still loads. */
+    val frameRate = androidx.compose.runtime.mutableStateOf<Float?>(null)
 
     private var lastMs = 0L
     private var lastDurationMs = 0L

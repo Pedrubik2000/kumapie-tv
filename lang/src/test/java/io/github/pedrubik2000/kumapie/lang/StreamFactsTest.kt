@@ -32,6 +32,12 @@ class StreamFactsTest {
         assertEquals(listOf("WEB"), streamFacts("Torrentio 1080p", "Raw (2016) [1080p] [WEBRip] [YTS.MX]").tags)
 
     @Test fun thePcsShape() = assertEquals(
-        StreamFacts(false, "1080p", "Erai-raws", listOf("HEVC"), "1.3 GB", 41, "NyaaSi", "[Erai-raws] Ore Monogatari!! - 09 [1080p].mkv"),
+        StreamFacts(false, "1080p", "Erai-raws", listOf("HEVC"), "1.3 GB · 4.5 Mbps", 41, "NyaaSi", "[Erai-raws] Ore Monogatari!! - 09 [1080p].mkv"),
         streamFacts("1080p · 1.3 GB · 4.5 Mbps · ⏳ Real-Debrid downloads it first", "HEVC · AAC\n👤 41 · ⚙️ NyaaSi\n📄 [Erai-raws] Ore Monogatari!! - 09 [1080p].mkv", now = false))
+
+    @Test fun theFilesSizeBeatsOneInTheTorrentsName() =
+        assertEquals("1.1 GB", streamFacts("[RD+] Torrentio 1080p", "[Judas] Show (Season 1) [1080p][HEVC] [24.5 GB]\nShow - 09.mkv\n👤 5 💾 1.1 GB ⚙️ NyaaSi").size)
+
+    @Test fun aCometFileMaybeNotCachedHasNoGroup() =
+        assertEquals(null, streamFacts("1080p · 2 GB · ⏳ maybe not on Real-Debrid", "👤 3", now = false).instant)
 }

@@ -300,11 +300,9 @@ private fun TitlePage.fileGroups(files: List<JSONObject>): List<Pair<String, Lis
 @Composable
 private fun FileLine(first: Boolean, r: FileRow, onFirstFocus: () -> Unit, onClick: () -> Unit) {
     val focus = remember { FocusRequester() }
-    var focused by remember { mutableStateOf(false) }
     val facts = r.facts
     Card(scale = noGrow(), onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab),
-        modifier = Modifier.fillMaxWidth().then(if (first) Modifier.focusRequester(focus) else Modifier)
-            .onFocusChanged { focused = it.isFocused; if (first && it.isFocused) onFirstFocus() }) {
+        modifier = Modifier.fillMaxWidth().then(if (first) Modifier.focusRequester(focus).onFocusChanged { if (it.isFocused) onFirstFocus() } else Modifier)) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(facts.quality, color = if (r.missing.isEmpty()) Colors.text else Colors.dim, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, modifier = Modifier.width(76.dp))
@@ -316,7 +314,7 @@ private fun FileLine(first: Boolean, r: FileRow, onFirstFocus: () -> Unit, onCli
                 val peers = facts.seeders?.let { if (it == 1) tr("1 peer") else tr("%d peers", it) }
                 val line = listOfNotNull(facts.size.ifEmpty { null }, peers, facts.site.ifEmpty { null }).joinToString(" · ")
                 if (line.isNotEmpty()) Text(line, color = Colors.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-                if (focused && facts.file.isNotEmpty()) Text(facts.file, color = Colors.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (facts.file.isNotEmpty()) Text(facts.file, color = Colors.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (r.missing.isNotEmpty()) Text("✗ " + tr("May not play here: %1\$s", r.missing.joinToString(", ")), color = Colors.unknown, fontSize = 14.sp)
             }
         }

@@ -5,7 +5,9 @@ data class StreamFacts(val instant: Boolean?, val quality: String, val title: St
 
 private val QUALITY = Regex("""\b(2160p|4K|1080p|720p|576p|480p)\b""", RegexOption.IGNORE_CASE)
 private val GROUP = Regex("""^\[([^\]]{2,30})\]""")
-private val SIZE = Regex("""(?:💾\s*)?\b(\d[\d.,]*\s*[KMGT]i?B)\b""")
+private val SIZE = Regex("""\b(\d[\d.,]*\s*[KMGT]i?B)\b""")
+private val FILE_SIZE = Regex("""💾\s*(\d[\d.,]*\s*[KMGT]i?B)""")
+private val RATE = Regex("""\b(\d[\d.]*\s*Mbps)\b""")
 private val SEEDS = Regex("""👤\s*(\d+)""")
 private val SITE = Regex("""⚙️?\s*([^\n👤💾⚙·]+)""")
 private val PC_FILE = Regex("""📄\s*(.+)""")
@@ -25,7 +27,7 @@ private val TAGS = listOf(
 
 fun streamFacts(label: String, about: String, file: String = "", now: Boolean? = null): StreamFacts {
     val all = "$label\n$about"
-    val instant = now ?: when {
+    val instant = if ("maybe not on" in label) null else now ?: when {
         CACHED.containsMatchIn(label) -> true
         UNCACHED.containsMatchIn(label) -> false
         else -> null
@@ -40,6 +42,6 @@ fun streamFacts(label: String, about: String, file: String = "", now: Boolean? =
     val tags = TAGS.mapNotNull { (re, tag) -> tag.takeIf { re.containsMatchIn(all) } }.distinct()
         .let { t -> if ("BD Remux" in t) t - "BD" else t }
     return StreamFacts(instant, QUALITY.find(all)?.value?.lowercase()?.replace("4k", "2160p").orEmpty(), title, tags,
-        SIZE.find(all)?.groupValues?.get(1).orEmpty(), SEEDS.find(about)?.groupValues?.get(1)?.toIntOrNull(),
+        listOfNotNull((FILE_SIZE.find(about) ?: SIZE.find(label))?.groupValues?.get(1), RATE.find(label)?.groupValues?.get(1)).joinToString(" · "), SEEDS.find(about)?.groupValues?.get(1)?.toIntOrNull(),
         site.takeUnless { it == title }.orEmpty(), name.takeUnless { it == title }.orEmpty())
 }

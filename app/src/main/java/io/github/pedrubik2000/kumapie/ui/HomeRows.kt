@@ -139,7 +139,7 @@ internal fun HomeBody(d: HomeData, focus: HomeFocus, api: Discovery, levels: Lev
         menu?.let { m ->
             ContinueMenuView(m, onRemove = {
                 val next = if (m.index + 1 < d.going.size) m.index + 1 else m.index - 1
-                focus.memory.last = d.going.getOrNull(next)?.let { Spot(0, next.coerceAtMost(m.index), it.first.id) }
+                focus.memory.last = d.going.getOrNull(next)?.let { focus.spot(0, next.coerceAtMost(m.index), it.first.id) }
                 menu = null
                 removed = Removed(m.show, m.episode, m.index)
                 onHide(m.show, m.episode)

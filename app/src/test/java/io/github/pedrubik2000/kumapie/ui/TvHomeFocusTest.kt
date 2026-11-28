@@ -152,6 +152,25 @@ class TvHomeFocusTest {
         rule.onNodeWithText("CONTINUE WATCHING · 2 OF 2").assertExists()
     }
 
+    private fun focusedLeft() = rule.onAllNodes(isFocused()).fetchSemanticsNodes().first().boundsInRoot.left
+
+    @Test fun backFromACardLeavesItsRowScrolledWhereItWas() {
+        showsBody = """{"shows":[${listOf("Alpha", "Beta", "Gamma", "Delta", "Epsilon").mapIndexed { i, n -> show("s$i", n, "anime", episode("e$i", 300.0, 500L - i)) }.joinToString(",")}]}"""
+        openReturning()
+        press(DOWN, RIGHT, RIGHT)
+        assertEquals("Gamma", focused())
+        val left = focusedLeft()
+        openAndComeBack(card = "Gamma")
+        rule.waitForIdle()
+        assertEquals("the cards before it went under the rail", left, focusedLeft())
+        press(RIGHT, RIGHT)
+        assertEquals("Epsilon", focused())
+        val scrolled = focusedLeft()
+        openAndComeBack(card = "Epsilon")
+        rule.waitForIdle()
+        assertEquals(scrolled, focusedLeft())
+    }
+
     @Test fun theCardStaysFocusedWhenHomeRefreshesWithEqualContentAfterTheReturn() {
         openReturning()
         openAndComeBack(DOWN, RIGHT, card = "Beta")

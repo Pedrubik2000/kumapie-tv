@@ -52,7 +52,7 @@ import io.github.pedrubik2000.kumapie.data.resumeLine
 import io.github.pedrubik2000.kumapie.i18n.tr
 import kotlinx.coroutines.delay
 
-class Spot(val at: Int, val index: Int, val key: Any)
+class Spot(val at: Int, val index: Int, val key: Any, val first: Int = index, val offset: Int = 0)
 
 @Stable
 class HomeMemory {
@@ -80,13 +80,20 @@ class HomeFocus(first: HeroTarget?, val memory: HomeMemory = HomeMemory()) {
             .onFocusChanged { if (it.isFocused && memory.last?.let { m -> "${m.at}:${m.key}" } != id) memory.last = null }
     }
 
-    fun leaving(at: Int, index: Int, key: Any) { memory.last = Spot(at, index, key) }
+    fun spot(at: Int, index: Int, key: Any): Spot = rows[at].let { Spot(at, index, key, it?.firstVisibleItemIndex ?: index, it?.firstVisibleItemScrollOffset ?: 0) }
+
+    fun leaving(at: Int, index: Int, key: Any) { memory.last = spot(at, index, key) }
+
+    private suspend fun show(s: Spot, frame: Int) {
+        runCatching { if (frame < RESTORE_FRAMES / 2) rows[s.at]?.scrollToItem(s.first, s.offset) else rows[s.at]?.scrollToItem(s.index) }
+    }
 
     fun refocus(at: Int, key: Any): Boolean = cards["$at:$key"]?.let { runCatching { it.requestFocus() }.getOrDefault(false) } == true
 
     suspend fun bring(at: Int, index: Int, key: Any) {
+        val s = spot(at, index, key)
         repeat(RESTORE_FRAMES) {
-            runCatching { rows[at]?.scrollToItem(index) }
+            show(s, it)
             withFrameNanos { }
             if (refocus(at, key)) return
         }
@@ -97,7 +104,7 @@ class HomeFocus(first: HeroTarget?, val memory: HomeMemory = HomeMemory()) {
         repeat(RESTORE_FRAMES) {
             if (memory.last !== s) return true
             runCatching { list.scrollToItem(s.at) }
-            runCatching { rows[s.at]?.scrollToItem(s.index) }
+            show(s, it)
             withFrameNanos { }
             if (refocus(s.at, s.key)) {
                 if (memory.last === s) memory.last = null

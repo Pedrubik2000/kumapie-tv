@@ -92,9 +92,11 @@ internal fun rememberWaitExtras(info: WaitInfo, settings: Settings, episode: Epi
                 if (!known.ready) known.refreshDue()
                 val p = io.github.pedrubik2000.kumapie.lang.Progress
                 val total = p.homeTotal(Lang.JAPANESE.code, p.of(context).merged, emptyList(), known.knownCount()).takeIf { it.total > 0 }
-                val still = last.still(kept?.rows.orEmpty(), shown = known::shown)
+                val langs = TvMining.languages(context, settings)
+                val named = named(langs)
+                val still = last.still(kept?.rows.orEmpty().filterNot { named(it.word) }, shown = known::shown)
                 android.util.Log.i("kumapie", "wait words: ${still.size} still to learn of ${kept?.rows?.size ?: 0} kept from ${kept?.id} (${file.name})")
-                WaitExtras(total, kept?.number, still)
+                WaitExtras(total, kept?.number, WaitPick.fill(WaitWords(still, 0, 0), langs.japanese, TvMining.yomitan).rows)
             }.onFailure { android.util.Log.w("kumapie", "wait words: not read", it) }.getOrNull()
         }
     }
@@ -103,8 +105,7 @@ internal fun rememberWaitExtras(info: WaitInfo, settings: Settings, episode: Epi
         kotlinx.coroutines.delay(KEEP_AFTER_MS)
         withContext(Dispatchers.Default) {
             runCatching {
-                val langs = TvMining.languages(context, settings)
-                val rows = WaitPick.fill(WaitPick.pick(ep, last.KEEP, named(langs)), langs.japanese, TvMining.yomitan).rows
+                val rows = WaitPick.pick(ep, last.KEEP).rows
                 file.parentFile?.mkdirs()
                 file.writeText(last.encode(info.number, info.id, rows))
                 android.util.Log.i("kumapie", "wait words: kept ${rows.size} of ${info.id} (${file.name})")

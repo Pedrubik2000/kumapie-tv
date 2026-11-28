@@ -73,8 +73,11 @@ object WaitPick {
  * The words of the last episode of a show (of its season) a person watched, kept on the device for the wait before
  * the next one (Pedro, 2026-11-28: the waiting screen "looks boring"; he picked "While you wait"): the ones still not
  * known are shown again, in the colour their cards give them now. A text file: `number|episode id`, then one word a
- * line, `word|STATE|reading|gloss`. Whoever shows them checks the episode was watched to its end: the file is written
- * a while into an episode, and its words would spoil one that was only opened.
+ * line, `word|STATE|offset|length|its line`. Whoever shows them checks the episode was watched to its end: the file is
+ * written a while into an episode, and its words would spoil one that was only opened.
+ * Keeping them looks nothing up: the bedroom TV's 32-bit process is at its memory's end once a video plays (a native
+ * out-of-memory crash there on 2026-11-28 and 2026-11-26), so readings and meanings are found when they are shown,
+ * on the wait, before the next video ([WaitPick.fill]).
  */
 object WaitLast {
     const val KEEP = 12
@@ -94,7 +97,7 @@ object WaitLast {
     private fun clean(text: String) = text.replace('|', '/').replace('\n', ' ')
 
     fun encode(number: Int?, id: String, rows: List<WaitWord>): String =
-        (listOf("${number ?: 0}|${clean(id)}") + rows.map { listOf(it.word, it.state.name, it.reading, it.gloss).joinToString("|", transform = ::clean) }).joinToString("\n")
+        (listOf("${number ?: 0}|${clean(id)}") + rows.map { listOf(it.word, it.state.name, it.offset.toString(), it.length.toString(), it.text).joinToString("|", transform = ::clean) }).joinToString("\n")
 
     /** Null when [text] isn't such a file. */
     fun decode(text: String): Kept? {
@@ -102,18 +105,17 @@ object WaitLast {
         val head = lines.firstOrNull()?.split('|')?.takeIf { it.size == 2 && it[1].isNotEmpty() } ?: return null
         val number = head[0].toIntOrNull() ?: return null
         return Kept(number.takeIf { it > 0 }, head[1], lines.drop(1).mapNotNull { line ->
-            val p = line.split('|')
+            val p = line.split('|', limit = 5)
             val state = WaitState.entries.firstOrNull { it.name == p.getOrNull(1) }
-            if (p.size < 4 || state == null || p[0].isEmpty()) null else WaitWord(p[0], state, reading = p[2], gloss = p[3])
+            val (offset, length) = (p.getOrNull(2)?.toIntOrNull() ?: -1) to (p.getOrNull(3)?.toIntOrNull() ?: -1)
+            if (p.size < 5 || state == null || p[0].isEmpty() || offset < 0 || length <= 0 || offset + length > p[4].length) null
+            else WaitWord(p[0], state, text = p[4], offset = offset, length = length)
         })
     }
 
-    /**
-     * The kept [rows] to show again: each in the state [shown] gives its word now ([KnownWords.shown]: "k" known, so
-     * it goes), the ones with a meaning first (a device without dictionaries has none).
-     */
+    /** The kept [rows] to show again: each in the state [shown] gives its word now ([KnownWords.shown]: "k" known, so it goes). */
     fun still(rows: List<WaitWord>, max: Int = SHOWN, shown: (String) -> String?): List<WaitWord> =
-        rows.mapNotNull { r -> WaitPick.state(shown(r.word))?.let { r.copy(state = it) } }.sortedBy { it.gloss.isEmpty() }.take(max)
+        rows.mapNotNull { r -> WaitPick.state(shown(r.word))?.let { r.copy(state = it) } }.take(max)
 }
 
 fun waitSummary(words: WaitWords?, noLines: Boolean): String {

@@ -110,13 +110,14 @@ class WaitNamesAndTitleTest {
     }
 
     @org.junit.Test fun theLastEpisodesWordsComeBackUntilKnown() {
-        val rows = listOf(WaitWord("一級魔法使い", WaitState.NEW, "いっきゅうまほうつかい", "first-class mage"), WaitWord("試験", WaitState.DUE, "しけん", "exam | test"),
-            WaitWord("杖", WaitState.MINED, "つえ", "staff, cane"), WaitWord("名前", WaitState.NEW, "", ""))
+        val rows = listOf(WaitWord("一級魔法使い", WaitState.NEW, text = "一級魔法使いの試験|だ", offset = 0, length = 6), WaitWord("試験", WaitState.DUE, text = "一級魔法使いの試験|だ", offset = 7, length = 2),
+            WaitWord("杖", WaitState.MINED, text = "杖を持て", offset = 0, length = 1), WaitWord("名前", WaitState.NEW, text = "名前は？", offset = 0, length = 2))
         val kept = requireNotNull(WaitLast.decode(WaitLast.encode(26, "kitsu:46474:26", rows)))
         org.junit.Assert.assertEquals(26, kept.number)
         org.junit.Assert.assertEquals("kitsu:46474:26", kept.id)
         org.junit.Assert.assertEquals(rows.map { it.word }, kept.rows.map { it.word })
-        org.junit.Assert.assertEquals("exam / test", kept.rows[1].gloss)
+        org.junit.Assert.assertEquals("一級魔法使いの試験/だ", kept.rows[1].text)
+        org.junit.Assert.assertEquals("試験", kept.rows[1].let { it.text.substring(it.offset, it.offset + it.length) })
         val now = mapOf("一級魔法使い" to "b", "試験" to "k", "杖" to "d", "名前" to "u")
         val still = WaitLast.still(kept.rows) { now[it] }
         org.junit.Assert.assertEquals(listOf("一級魔法使い", "杖", "名前"), still.map { it.word })
@@ -125,6 +126,7 @@ class WaitNamesAndTitleTest {
         org.junit.Assert.assertNull(WaitLast.decode("not a file"))
         org.junit.Assert.assertNull(WaitLast.decode("26"))
         org.junit.Assert.assertNull(requireNotNull(WaitLast.decode(WaitLast.encode(null, "tt123", rows))).number)
+        org.junit.Assert.assertTrue(requireNotNull(WaitLast.decode("26|kitsu:1:26\n杖|NEW|3|9|杖\n杖|NEW|x|1|杖\n杖|OLD|0|1|杖")).rows.isEmpty())
     }
 
     @org.junit.Test fun oneFileASeason() {

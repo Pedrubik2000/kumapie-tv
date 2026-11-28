@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
         io.github.pedrubik2000.kumapie.lang.CrashCollector.install(this)
         io.github.pedrubik2000.kumapie.data.Startup.updates(BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, "kumapie-tv-")
         val settings = Settings(this)
-        Restart.consume(settings)
+        Restart.consume(settings)?.let(::startActivity)
         io.github.pedrubik2000.kumapie.data.AniListSync(settings.prefs).retry()
         io.github.pedrubik2000.kumapie.data.TitleLevels.start(applicationContext)
         fromAdb(intent, settings)

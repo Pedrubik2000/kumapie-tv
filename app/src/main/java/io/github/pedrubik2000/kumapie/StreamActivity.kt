@@ -76,6 +76,7 @@ class StreamActivity : ComponentActivity() {
         val settings = Settings(this)
         if (savedInstanceState?.getBoolean(LEAVING) == true) return restart(settings)
         if (intent.hasExtra(RESTART)) return if (intent.getStringExtra(RESTART) == token && Restart.wanted(settings)) restart(settings) else finish()
+        if (Restart.owed && callingActivity == null && Restart.wanted(settings)) { leaving = true; return Restart.pay(this, settings) }
         val video = intent.data?.toString()
         val start = video?.let(Uri::parse)?.takeIf { it.scheme == "kumapie" && it.host in setOf("play", "watch") }?.let { StreamStart.of(query(it), settings.prefs) }
         if (start is StreamStart.Alone) {
@@ -349,7 +350,7 @@ class StreamActivity : ComponentActivity() {
     override fun finish() {
         if (leaving) return
         val settings = Settings(this)
-        if (!chained && player != null && callingActivity == null && Restart.wanted(settings)) return restart(settings)
+        if (!chained && player != null && callingActivity == null && Restart.wanted(settings)) Restart.owed = true
         player?.let { p ->
             val pos = p.currentPosition
             val duration = p.duration.takeIf { it > 0 } ?: 0L

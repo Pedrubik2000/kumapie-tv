@@ -28,7 +28,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -95,8 +94,9 @@ private fun rememberPlayerState(player: Player): Int {
 @Composable
 internal fun TorrentWait(
     player: Player, started: Boolean, info: WaitInfo, settings: Settings, episode: EpisodeDetail?, noLines: Boolean, onBack: () -> Unit,
-    torrent: Boolean = true, onBuffering: (Boolean) -> Unit = {},
+    torrent: Boolean = true, live: io.github.pedrubik2000.kumapie.player.LiveLines? = null, onBuffering: (Boolean) -> Unit = {},
 ) {
+    val extras = rememberWaitExtras(info, settings, episode)
     val state = rememberPlayerState(player)
     val buffering = state == Player.STATE_BUFFERING
     val status = (if (torrent && (!started || buffering)) TorrentEngine.status.collectAsState().value else null) ?: TorrentStatus()
@@ -106,19 +106,26 @@ internal fun TorrentWait(
     LaunchedEffect(showBuffer) { onBuffering(showBuffer) }
     if (!started) {
         BackHandler(onBack = onBack)
-        WaitScreen(info, status, words, similar, noLines, onBack, if (torrent && state != Player.STATE_READY) waitText(status) else io.github.pedrubik2000.kumapie.torrent.gettingReadyText())
+        val step = when {
+            state != Player.STATE_READY -> tr("Opening the video…")
+            live == null || live.lines.isEmpty() -> tr("Finding the Japanese subtitles…")
+            else -> live.fitted?.let { tr("Subtitles fitted %s · colouring the words…", "%+.1f s".format(it)) } ?: tr("Colouring the words…")
+        }
+        WaitScreen(info, status, words, similar, noLines, onBack, if (torrent && state != Player.STATE_READY) waitText(status) else io.github.pedrubik2000.kumapie.torrent.gettingReadyText(step), extras)
     } else if (showBuffer) {
         BufferingOverlay(player, status, if (info.noSpoilers) "" else info.release)
     }
 }
 
 @Composable
-private fun WaitScreen(info: WaitInfo, status: TorrentStatus, words: WaitWords?, similar: SimilarState, noLines: Boolean, onBack: () -> Unit, text: WaitText) {
+private fun WaitScreen(info: WaitInfo, status: TorrentStatus, words: WaitWords?, similar: SimilarState, noLines: Boolean, onBack: () -> Unit, text: WaitText, extras: WaitExtras?) {
+    val last = extras?.takeIf { words == null && it.rows.isNotEmpty() }
     val focus = remember { FocusRequester() }
     LaunchedEffect(text.failed) { if (!text.failed) focus.requestFocus() }
     similar.root = focus
-    val pick = similar.current
-    val panel = !info.noSpoilers || pick != null
+    val pick = similar.current.takeIf { last == null }
+    val extra = last ?: extras?.takeIf { words == null && it.total != null && !info.noSpoilers }
+    val panel = extra != null || !info.noSpoilers || pick != null
     val keys = Modifier.onKeyEvent {
         val down = it.type == KeyEventType.KeyDown
         when {
@@ -134,7 +141,8 @@ private fun WaitScreen(info: WaitInfo, status: TorrentStatus, words: WaitWords?,
             WaitLeft(info, status, text, if (panel) Modifier.weight(1f).wrapContentWidth(Alignment.Start).widthIn(max = 560.dp) else Modifier.widthIn(max = 560.dp), onBack)
             if (panel) {
                 Spacer(Modifier.width(32.dp))
-                if (info.noSpoilers) SimilarPanel(similar, info, Modifier.padding(top = 24.dp).width(440.dp).height(440.dp))
+                if (extra != null) WhilePanel(extra, info.number, Modifier.padding(top = 24.dp).width(400.dp).heightIn(max = 470.dp))
+                else if (info.noSpoilers) SimilarPanel(similar, info, Modifier.padding(top = 24.dp).width(440.dp).height(440.dp))
                 else WordsPanel(info.number, words, noLines, Modifier.padding(top = 24.dp).width(340.dp).heightIn(max = 460.dp))
             }
         }
@@ -159,8 +167,9 @@ private fun WaitLeft(info: WaitInfo, status: TorrentStatus, text: WaitText, modi
 
 @Composable
 private fun WaitBackdrop(url: String?) {
-    if (url != null) coil3.compose.AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().blur(24.dp))
-    Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(PAGE.copy(alpha = 0.92f), PAGE.copy(alpha = 0.7f)))))
+    if (url != null) coil3.compose.AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to PAGE.copy(alpha = 0.62f), 0.5f to PAGE.copy(alpha = 0.86f), 1f to PAGE.copy(alpha = 0.95f))))
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to PAGE.copy(alpha = 0.9f))))
 }
 
 @Composable

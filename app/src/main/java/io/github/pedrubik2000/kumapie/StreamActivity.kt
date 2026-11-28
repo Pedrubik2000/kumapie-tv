@@ -280,7 +280,7 @@ class StreamActivity : ComponentActivity() {
                 androidx.compose.runtime.key(ready) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ready, onClose = ::finish, player = p, onController = { ctl = it }, video = view) }
                 TopNote(note?.takeIf { it == notReady() })
             } else AlonePlain(live.line, if (reconnecting) tr("Reconnecting…") else note ?: label, buffering, io.github.pedrubik2000.kumapie.ui.rememberSubtitleGap(p), settings.japaneseFont)
-            io.github.pedrubik2000.kumapie.ui.TorrentWait(p, started, remember(link) { waitInfo(link, id, show) }, settings, shown, live.noLines, ::finish, torrent) { buffering = it }
+            io.github.pedrubik2000.kumapie.ui.TorrentWait(p, started, remember(link) { waitInfo(link, id, show) }, settings, shown, live.noLines, ::finish, torrent, live) { buffering = it }
         }
     }
 

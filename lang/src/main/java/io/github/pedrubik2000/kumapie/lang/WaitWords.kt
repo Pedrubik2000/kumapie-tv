@@ -24,7 +24,9 @@ object WaitPick {
     private const val GLOSS_MAX = 40
     private val STOP = setOf("だって", "でも", "それ", "これ", "あれ", "ここ", "そこ", "ああ", "ええ", "うん", "はい")
 
-    fun state(w: Word): WaitState? = when (w.shown) {
+    fun state(w: Word): WaitState? = state(w.shown)
+
+    fun state(shown: String?): WaitState? = when (shown) {
         "u", "l" -> WaitState.NEW
         "d" -> WaitState.DUE
         "b" -> WaitState.MINED
@@ -65,6 +67,53 @@ object WaitPick {
         val gloss = head?.let { runCatching { WordCard.japaneseChoices(yomitan, it, null).choices.firstOrNull()?.gloss }.getOrNull() }.orEmpty()
         r.copy(reading = if (r.word.any { it.code in 0x3400..0x9FFF }) head?.reading.orEmpty() else "", gloss = gloss.substringBefore(';').take(GLOSS_MAX).trim())
     })
+}
+
+/**
+ * The words of the last episode of a show (of its season) a person watched, kept on the device for the wait before
+ * the next one (Pedro, 2026-11-28: the waiting screen "looks boring"; he picked "While you wait"): the ones still not
+ * known are shown again, in the colour their cards give them now. A text file: `number|episode id`, then one word a
+ * line, `word|STATE|reading|gloss`. Whoever shows them checks the episode was watched to its end: the file is written
+ * a while into an episode, and its words would spoil one that was only opened.
+ */
+object WaitLast {
+    const val KEEP = 12
+    const val SHOWN = 5
+
+    class Kept(val number: Int?, val id: String, val rows: List<WaitWord>)
+
+    /** [id] without its episode: `kitsu:46474:27` -> `kitsu:46474`, `tt123:2:5` -> `tt123:2`; a film's id as it is. */
+    fun season(id: String): String {
+        val parts = id.split(':')
+        val film = parts.size <= (if (parts[0] == "kitsu") 2 else 1) || parts.last().toIntOrNull() == null
+        return if (film) id else parts.dropLast(1).joinToString(":")
+    }
+
+    fun file(dir: java.io.File, id: String) = java.io.File(dir, "wait_words/" + season(id).replace(Regex("[^A-Za-z0-9]+"), "_") + ".txt")
+
+    private fun clean(text: String) = text.replace('|', '/').replace('\n', ' ')
+
+    fun encode(number: Int?, id: String, rows: List<WaitWord>): String =
+        (listOf("${number ?: 0}|${clean(id)}") + rows.map { listOf(it.word, it.state.name, it.reading, it.gloss).joinToString("|", transform = ::clean) }).joinToString("\n")
+
+    /** Null when [text] isn't such a file. */
+    fun decode(text: String): Kept? {
+        val lines = text.lines()
+        val head = lines.firstOrNull()?.split('|')?.takeIf { it.size == 2 && it[1].isNotEmpty() } ?: return null
+        val number = head[0].toIntOrNull() ?: return null
+        return Kept(number.takeIf { it > 0 }, head[1], lines.drop(1).mapNotNull { line ->
+            val p = line.split('|')
+            val state = WaitState.entries.firstOrNull { it.name == p.getOrNull(1) }
+            if (p.size < 4 || state == null || p[0].isEmpty()) null else WaitWord(p[0], state, reading = p[2], gloss = p[3])
+        })
+    }
+
+    /**
+     * The kept [rows] to show again: each in the state [shown] gives its word now ([KnownWords.shown]: "k" known, so
+     * it goes), the ones with a meaning first (a device without dictionaries has none).
+     */
+    fun still(rows: List<WaitWord>, max: Int = SHOWN, shown: (String) -> String?): List<WaitWord> =
+        rows.mapNotNull { r -> WaitPick.state(shown(r.word))?.let { r.copy(state = it) } }.sortedBy { it.gloss.isEmpty() }.take(max)
 }
 
 fun waitSummary(words: WaitWords?, noLines: Boolean): String {

@@ -108,4 +108,30 @@ class WaitNamesAndTitleTest {
         assertEquals("Looking for the words in the subtitles…", waitSummary(null, false))
         assertEquals("No Japanese subtitles for this episode", waitSummary(null, true))
     }
+
+    @org.junit.Test fun theLastEpisodesWordsComeBackUntilKnown() {
+        val rows = listOf(WaitWord("一級魔法使い", WaitState.NEW, "いっきゅうまほうつかい", "first-class mage"), WaitWord("試験", WaitState.DUE, "しけん", "exam | test"),
+            WaitWord("杖", WaitState.MINED, "つえ", "staff, cane"), WaitWord("名前", WaitState.NEW, "", ""))
+        val kept = requireNotNull(WaitLast.decode(WaitLast.encode(26, "kitsu:46474:26", rows)))
+        org.junit.Assert.assertEquals(26, kept.number)
+        org.junit.Assert.assertEquals("kitsu:46474:26", kept.id)
+        org.junit.Assert.assertEquals(rows.map { it.word }, kept.rows.map { it.word })
+        org.junit.Assert.assertEquals("exam / test", kept.rows[1].gloss)
+        val now = mapOf("一級魔法使い" to "b", "試験" to "k", "杖" to "d", "名前" to "u")
+        val still = WaitLast.still(kept.rows) { now[it] }
+        org.junit.Assert.assertEquals(listOf("一級魔法使い", "杖", "名前"), still.map { it.word })
+        org.junit.Assert.assertEquals(listOf(WaitState.MINED, WaitState.DUE, WaitState.NEW), still.map { it.state })
+        org.junit.Assert.assertEquals(1, WaitLast.still(kept.rows, max = 1) { "u" }.size)
+        org.junit.Assert.assertNull(WaitLast.decode("not a file"))
+        org.junit.Assert.assertNull(WaitLast.decode("26"))
+        org.junit.Assert.assertNull(requireNotNull(WaitLast.decode(WaitLast.encode(null, "tt123", rows))).number)
+    }
+
+    @org.junit.Test fun oneFileASeason() {
+        org.junit.Assert.assertEquals("kitsu:46474", WaitLast.season("kitsu:46474:27"))
+        org.junit.Assert.assertEquals("kitsu:46474", WaitLast.season("kitsu:46474"))
+        org.junit.Assert.assertEquals("tt123:2", WaitLast.season("tt123:2:5"))
+        org.junit.Assert.assertEquals("tt123", WaitLast.season("tt123"))
+        org.junit.Assert.assertEquals("wait_words/kitsu_46474.txt", WaitLast.file(java.io.File("d"), "kitsu:46474:27").path.replace('\\', '/').removePrefix("d/"))
+    }
 }

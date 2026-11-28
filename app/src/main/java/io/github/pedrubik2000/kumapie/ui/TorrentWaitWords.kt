@@ -64,12 +64,84 @@ internal fun rememberWaitWords(episode: EpisodeDetail?, settings: Settings, off:
     LaunchedEffect(episode, off) {
         val ep = episode?.takeUnless { off } ?: return@LaunchedEffect
         val langs = withContext(Dispatchers.Default) { TvMining.languages(context, settings) }
-        val named = { w: String -> langs.japanese.autoKnown(w) || (WaitPick.katakanaOnly(w) && TvMining.yomitan.query(Lang.JAPANESE, w).isEmpty()) }
+        val named = named(langs)
         val picked = withContext(Dispatchers.Default) { WaitPick.pick(ep, isName = named) }
         words = picked
         words = withContext(Dispatchers.Default) { WaitPick.fill(picked, langs.japanese, TvMining.yomitan) }
     }
     return words
+}
+
+private fun named(langs: io.github.pedrubik2000.kumapie.lang.Languages) =
+    { w: String -> langs.japanese.autoKnown(w) || (WaitPick.katakanaOnly(w) && runCatching { TvMining.yomitan.query(Lang.JAPANESE, w).isEmpty() }.getOrDefault(false)) }
+
+internal class WaitExtras(val total: io.github.pedrubik2000.kumapie.data.LangTotal?, val number: Int?, val rows: List<WaitWord>)
+
+@Composable
+internal fun rememberWaitExtras(info: WaitInfo, settings: Settings, episode: EpisodeDetail?): WaitExtras? {
+    val context = LocalContext.current
+    var extras by remember { mutableStateOf<WaitExtras?>(null) }
+    val last = io.github.pedrubik2000.kumapie.lang.WaitLast
+    val file = remember(info.id) { last.file(context.filesDir, info.id) }
+    LaunchedEffect(file) {
+        extras = withContext(Dispatchers.IO) {
+            runCatching {
+                val seen = settings.prefs.getStringSet("alone_seen", emptySet()).orEmpty()
+                val kept = file.takeIf { it.exists() }?.let { last.decode(it.readText()) }?.takeIf { it.id in seen }
+                val known = tvLanguages(context, settings).of(Lang.JAPANESE.code).known
+                if (!known.ready) known.refreshDue()
+                val p = io.github.pedrubik2000.kumapie.lang.Progress
+                val total = p.homeTotal(Lang.JAPANESE.code, p.of(context).merged, emptyList(), known.knownCount()).takeIf { it.total > 0 }
+                val still = last.still(kept?.rows.orEmpty(), shown = known::shown)
+                android.util.Log.i("kumapie", "wait words: ${still.size} still to learn of ${kept?.rows?.size ?: 0} kept from ${kept?.id} (${file.name})")
+                WaitExtras(total, kept?.number, still)
+            }.onFailure { android.util.Log.w("kumapie", "wait words: not read", it) }.getOrNull()
+        }
+    }
+    LaunchedEffect(episode) {
+        val ep = episode ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(KEEP_AFTER_MS)
+        withContext(Dispatchers.Default) {
+            runCatching {
+                val langs = TvMining.languages(context, settings)
+                val rows = WaitPick.fill(WaitPick.pick(ep, last.KEEP, named(langs)), langs.japanese, TvMining.yomitan).rows
+                file.parentFile?.mkdirs()
+                file.writeText(last.encode(info.number, info.id, rows))
+                android.util.Log.i("kumapie", "wait words: kept ${rows.size} of ${info.id} (${file.name})")
+            }.onFailure { android.util.Log.w("kumapie", "wait words: not kept", it) }
+        }
+    }
+    return extras
+}
+
+private const val KEEP_AFTER_MS = 20_000L
+
+@Composable
+internal fun WhilePanel(extras: WaitExtras, current: Int?, modifier: Modifier) {
+    Column(modifier.background(GLASS, RoundedCornerShape(16.dp)).padding(horizontal = 20.dp, vertical = 18.dp)) {
+        Text(tr("WHILE YOU WAIT"), color = Colors.dim, fontSize = 12.sp, letterSpacing = 3.sp, fontWeight = FontWeight.Medium)
+        extras.total?.let { t ->
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                Stat(hoursMinutes(t.today), tr("Today").lowercase())
+                Stat(hoursMinutes(t.week), tr("Last 7 days").lowercase())
+                Stat("%,d".format(t.known), tr("Words known").lowercase())
+            }
+        }
+        if (extras.rows.isNotEmpty()) {
+            val from = extras.number
+            Text(if (from == null || from == current) tr("STILL TO LEARN") else tr("FROM EPISODE %d: STILL TO LEARN", from),
+                color = Colors.dim, fontSize = 12.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 18.dp, bottom = 4.dp))
+            extras.rows.forEach { WordRow(it) }
+        }
+    }
+}
+
+@Composable
+private fun Stat(value: String, label: String) {
+    Column {
+        Text(value, color = Colors.text, fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(label, color = Colors.dim, fontSize = 12.sp, maxLines = 1)
+    }
 }
 
 @Composable

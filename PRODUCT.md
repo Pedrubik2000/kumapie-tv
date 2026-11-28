@@ -7,14 +7,14 @@
 android
 
 ## Users
-- **Pedro (primary).** Learns German (beginner), also English and Japanese. Studies only on his Pixel 8a and Galaxy
-  Tab S7+, in short sessions; the PC is a server. Design decisions favour his workflow first.
-- **His parents, Giovanna and Jackson.** Native Spanish speakers learning English from English-language shows and
-  English-dubbed K-dramas, on phones and the TV app, with a Spanish UI. Everything must still work plainly for them.
+- **Pedro.** Learns Japanese, on his Pixel 8a, Galaxy Tab S7+ and the TVs, in short sessions; the PC is an optional
+  server. Design decisions favour his workflow.
+- Japanese is the only language since v0.44.5 (2026-11-27): German, English and the family profiles were removed.
+  The menus stay in English and Spanish.
 
 ## Product Purpose
-Watch your own shows, anime, movies, YouTube and novels in the language you're learning, scene by scene, with every
-word coloured by your Anki (kuma3) cards; look words up, mine them and rate their cards without leaving the player.
+Watch your own shows, anime, movies, YouTube and novels in Japanese, scene by scene, with every
+word coloured by your cards (kumapie's own store); look words up, mine them and rate their cards without leaving the player.
 Success on Home: getting back into what you were watching in one tap.
 
 ## Positioning
@@ -24,15 +24,14 @@ episode carries how easy it is for you right now (share of i+0 scenes, unknown w
 ## Operating Context
 - Phone (portrait, bottom navigation) and tablet (landscape, side rail) in `:mobile`; Android TV in `:app`, driven by
   a remote or gamepad with D-pad focus.
-- Offline first: the mobile app works from what's on the device; the PC server (dojo-feed) syncs episodes and
-  progress and is required for the TV.
-- One language shown at a time on Home, switched when a person learns several.
+- Offline first: the mobile app works from what's on the device; the PC server (dojo-feed) is optional, also on
+  the TV (which needs an AniList login instead).
 
 ## Capabilities and Constraints
-- Home today: language switch, Continue (episodes left partway), rows per media type (anime, shows, movies, YouTube,
+- Home today: Continue (episodes left partway), rows per media type (anime, shows, movies, YouTube,
   visual novels, other), easiest first; per show an easy line ("62% easy · 9 left" / "Finished"); add an episode;
   refresh; offline and error states; navigation to Feed, i+1 scenes, Downloads (with a job badge), Stats, Cards that
-  don't stick (German), Japanese dictionary (Japanese), Settings. TV adds profiles ("Who's watching?").
+  don't stick, Japanese dictionary, Settings. The TV has no profile picker: it is Pedro's.
 - Posters come from AniList/Jikan/Kitsu/TMDB/TVmaze/Wikidata; a neutral poster stands in when there is none. No
   spoilers: unseen episode pictures stay blurred.
 - UI strings in English and Spanish (`tr()`); word colours white/green/blue/red have fixed meanings.
@@ -47,7 +46,7 @@ should be made up.
 2. Difficulty is information: the easy share helps pick what's next, it never nags.
 3. Offline is normal, not an error.
 4. One design for phone, tablet and TV, adapted to each input (touch vs. D-pad focus).
-5. Plain for the parents: big targets, short Spanish labels, no jargon.
+5. Plain: big targets, short labels, no jargon.
 
 ## Feature map (TV, no PC)
 What the TV does for someone with no PC, in their words. Each line is proved on the TV emulator by

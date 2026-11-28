@@ -14,6 +14,7 @@ internal val esTorrent: Map<String, String> = mapOf(
     "The video is no longer on this device: mine words while it plays." to "El video ya no está en este dispositivo: guarda las palabras mientras se reproduce.",
     "Torrents" to "Torrents",
     "STARTING SOON" to "EMPIEZA PRONTO",
+    "Getting the episode ready…" to "Preparando el episodio…",
     "COULDN'T START" to "NO SE PUDO EMPEZAR",
     "%d peers found" to "%d fuentes encontradas",
     "looking for more" to "buscando más",

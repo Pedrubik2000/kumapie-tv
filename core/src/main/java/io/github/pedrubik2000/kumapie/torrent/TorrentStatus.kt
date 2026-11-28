@@ -40,6 +40,8 @@ data class TorrentStatus(
 
 data class WaitText(val label: String, val headline: String, val detail: String, val stats: String, val hint: String, val failed: Boolean)
 
+fun gettingReadyText(): WaitText = WaitText(tr("STARTING SOON"), tr("Getting the episode ready…"), "", "", tr("Usually ready in 10–15 s"), false)
+
 fun peerCount(n: Int): String = if (n == 1) tr("1 peer") else tr("%d peers", n)
 
 fun waitText(s: TorrentStatus): WaitText = when (s.phase) {

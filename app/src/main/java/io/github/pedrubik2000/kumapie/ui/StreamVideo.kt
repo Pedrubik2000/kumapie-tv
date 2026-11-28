@@ -48,6 +48,19 @@ private fun gate(view: PlayerView, controls: Boolean, buffering: Boolean) {
 }
 
 @Composable
+fun rememberReady(player: ExoPlayer, torrent: Boolean, words: Boolean, said: Boolean): Boolean {
+    val loaded = rememberStarted(player, true)
+    var late by remember(player) { mutableStateOf(false) }
+    var went by remember(player) { mutableStateOf(false) }
+    LaunchedEffect(loaded) { if (loaded || !torrent) { kotlinx.coroutines.delay(WORDS_WAIT_MS); late = true } }
+    val ready = if (torrent) loaded && (words || said || late) else said || late || (loaded && words)
+    LaunchedEffect(ready) { if (ready) { went = true; player.playWhenReady = true } }
+    return went
+}
+
+private const val WORDS_WAIT_MS = 25_000L
+
+@Composable
 fun MatchFrameRate(player: ExoPlayer, hint: Float? = null) {
     val view = LocalView.current
     val matched = remember(player) { AtomicBoolean(false) }

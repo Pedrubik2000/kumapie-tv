@@ -95,25 +95,25 @@ private fun rememberPlayerState(player: Player): Int {
 @Composable
 internal fun TorrentWait(
     player: Player, started: Boolean, info: WaitInfo, settings: Settings, episode: EpisodeDetail?, noLines: Boolean, onBack: () -> Unit,
-    onBuffering: (Boolean) -> Unit = {},
+    torrent: Boolean = true, onBuffering: (Boolean) -> Unit = {},
 ) {
-    val buffering = rememberPlayerState(player) == Player.STATE_BUFFERING
-    val status = (if (!started || buffering) TorrentEngine.status.collectAsState().value else null) ?: TorrentStatus()
+    val state = rememberPlayerState(player)
+    val buffering = state == Player.STATE_BUFFERING
+    val status = (if (torrent && (!started || buffering)) TorrentEngine.status.collectAsState().value else null) ?: TorrentStatus()
     val words = rememberWaitWords(episode, settings, info.noSpoilers || started)
     val similar = rememberSimilar(settings, info, info.noSpoilers, !started)
-    val showBuffer = started && buffering
+    val showBuffer = started && buffering && torrent
     LaunchedEffect(showBuffer) { onBuffering(showBuffer) }
     if (!started) {
         BackHandler(onBack = onBack)
-        WaitScreen(info, status, words, similar, noLines, onBack)
+        WaitScreen(info, status, words, similar, noLines, onBack, if (torrent && state != Player.STATE_READY) waitText(status) else io.github.pedrubik2000.kumapie.torrent.gettingReadyText())
     } else if (showBuffer) {
         BufferingOverlay(player, status, if (info.noSpoilers) "" else info.release)
     }
 }
 
 @Composable
-private fun WaitScreen(info: WaitInfo, status: TorrentStatus, words: WaitWords?, similar: SimilarState, noLines: Boolean, onBack: () -> Unit) {
-    val text = waitText(status)
+private fun WaitScreen(info: WaitInfo, status: TorrentStatus, words: WaitWords?, similar: SimilarState, noLines: Boolean, onBack: () -> Unit, text: WaitText) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(text.failed) { if (!text.failed) focus.requestFocus() }
     similar.root = focus

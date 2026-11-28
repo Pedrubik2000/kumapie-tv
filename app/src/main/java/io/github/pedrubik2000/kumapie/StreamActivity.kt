@@ -216,9 +216,9 @@ class StreamActivity : ComponentActivity() {
         val show = link.getQueryParameter("show").orEmpty()
         val scope = androidx.compose.runtime.rememberCoroutineScope()
         val p = rememberPlayer(start.url, start.resumeAt, "ja")
-        remember(p) { player = p; p.playWhenReady = true }
+        remember(p) { player = p }
         val torrent = start.url.startsWith("${io.github.pedrubik2000.kumapie.torrent.TorrentRef.SCHEME}://")
-        val started = io.github.pedrubik2000.kumapie.ui.rememberStarted(p, torrent)
+        var shown by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.EpisodeDetail?>(null) }
         var note by remember { mutableStateOf<String?>(null) }
         var reconnecting by remember { mutableStateOf(false) }
         var buffering by remember { mutableStateOf(false) }
@@ -228,6 +228,7 @@ class StreamActivity : ComponentActivity() {
                 start.url, link.getQueryParameter("file").orEmpty()) { note = it }
         }
         val live = s.live
+        val started = io.github.pedrubik2000.kumapie.ui.rememberReady(p, torrent, shown != null || live.noLines, note != null)
         val startedNow by rememberUpdatedState(started)
         androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_PAUSE) { s.leave() }
         DisposableEffect(p) {
@@ -258,7 +259,6 @@ class StreamActivity : ComponentActivity() {
         LaunchedEffect(live.noLines) { if (live.noLines && note == null) note = tr("No Japanese subtitles: none in this file, none on Jimaku") }
         val label = shownLabel(live)
         val context = androidx.compose.ui.platform.LocalContext.current
-        var shown by remember { mutableStateOf<io.github.pedrubik2000.kumapie.data.EpisodeDetail?>(null) }
         LaunchedEffect(live.lines) {
             if (live.lines.isEmpty()) return@LaunchedEffect
             shown = runCatching {
@@ -280,7 +280,7 @@ class StreamActivity : ComponentActivity() {
                 androidx.compose.runtime.key(ready) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ready, onClose = ::finish, player = p, onController = { ctl = it }, video = view) }
                 TopNote(note?.takeIf { it == notReady() })
             } else AlonePlain(live.line, if (reconnecting) tr("Reconnecting…") else note ?: label, buffering, io.github.pedrubik2000.kumapie.ui.rememberSubtitleGap(p), settings.japaneseFont)
-            if (torrent) io.github.pedrubik2000.kumapie.ui.TorrentWait(p, started, remember(link) { waitInfo(link, id, show) }, settings, shown, live.noLines, ::finish) { buffering = it }
+            io.github.pedrubik2000.kumapie.ui.TorrentWait(p, started, remember(link) { waitInfo(link, id, show) }, settings, shown, live.noLines, ::finish, torrent) { buffering = it }
         }
     }
 

@@ -218,7 +218,7 @@ private fun TitleInfo(page: TitlePage, mine: Mine?, levels: Levels?, kitsu: Stri
     val next = page.next
     LaunchedEffect(levels, kitsu) { if (kitsu != null) withContext(Dispatchers.Default) { levels?.ask(listOf(kitsu), true) } }
     val cardRight = if (!side && toCard) focus.status else FocusRequester.Default
-    Column(Modifier.width(520.dp)) {
+    Column(Modifier.width(if (side) 360.dp else 520.dp)) {
         Eyebrow(factLine(kindText(mine), (mine?.year?.takeIf { it > 0 }?.toString() ?: t.year).ifEmpty { null },
             episodesText(mine?.episodes ?: page.episodes.size)).uppercase())
         TitleLogo(t)

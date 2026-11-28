@@ -34,6 +34,9 @@ import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.StreamStart
 import io.github.pedrubik2000.kumapie.data.next
 import io.github.pedrubik2000.kumapie.data.nextQuery
+import io.github.pedrubik2000.kumapie.data.notAnEpisode
+import io.github.pedrubik2000.kumapie.data.notReady
+import io.github.pedrubik2000.kumapie.data.EPISODE_MIN_MS
 import io.github.pedrubik2000.kumapie.data.watchReady
 import io.github.pedrubik2000.kumapie.data.EpisodeDetail
 import io.github.pedrubik2000.kumapie.data.Settings
@@ -179,6 +182,7 @@ class StreamActivity : ComponentActivity() {
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY && failed == tr("Reconnecting…")) failed = null
                     if (state != Player.STATE_ENDED) return
+                    if (notAnEpisode(p.duration)) { failed = notReady(); return }
                     nextQuery(query(link), upcoming)?.let { chained = true; startActivity(intent(this@StreamActivity, it)); finish() }
                 }
             }
@@ -235,7 +239,7 @@ class StreamActivity : ComponentActivity() {
 
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY || state == Player.STATE_ENDED) reconnecting = false
-                    if (state == Player.STATE_ENDED) scope.launch { playNext(settings, query(link)) { note = it } }
+                    if (state == Player.STATE_ENDED) scope.launch { playNext(settings, query(link), p.duration) { note = it } }
                 }
             }
             p.addListener(listener)
@@ -320,9 +324,9 @@ class StreamActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun playNext(settings: Settings, query: Map<String, String>, say: (String) -> Unit) {
+    private suspend fun playNext(settings: Settings, query: Map<String, String>, durationMs: Long, say: (String) -> Unit) {
         val addons = io.github.pedrubik2000.kumapie.data.Addons(settings.addons, settings.prefs)
-        val next = runCatching { addons.next(query) { say(tr("Next: episode %1\$d…", it)) } }.getOrElse { return say(it.message ?: it.toString()) } ?: return
+        val next = runCatching { addons.next(query, durationMs) { say(tr("Next: episode %1\$d…", it)) } }.getOrElse { return say(it.message ?: it.toString()) } ?: return
         chained = true
         startActivity(intent(this, next))
         finish()
@@ -348,7 +352,7 @@ class StreamActivity : ComponentActivity() {
             val pos = p.currentPosition
             val duration = p.duration.takeIf { it > 0 } ?: 0L
             setResult(RESULT_OK, Intent().putExtra("position", pos.toInt()).putExtra("duration", duration.toInt())
-                .putExtra("end_by", if (duration > 0 && pos >= duration - 2_000) "playback_completion" else "user"))
+                .putExtra("end_by", if (duration >= EPISODE_MIN_MS && pos >= duration - 2_000) "playback_completion" else "user"))
         }
         super.finish()
     }

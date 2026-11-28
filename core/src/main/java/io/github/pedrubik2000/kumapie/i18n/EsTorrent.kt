@@ -69,4 +69,6 @@ internal val esTorrent: Map<String, String> = mapOf(
     "Download first" to "Primero se descarga",
     "%1\$d files" to "%1\$d archivos",
     "1 file" to "1 archivo",
+    "This file isn't ready on your debrid service yet: pick another file, or try again in a few minutes." to
+        "Este archivo aún no está listo en tu servicio debrid: elige otro archivo o vuelve a intentarlo en unos minutos.",
 )

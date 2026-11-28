@@ -46,7 +46,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences, val sync:
     }
 
     fun left(id: String, type: String, positionMs: Long, durationMs: Long) {
-        if (nearEnd(positionMs / 1000.0, durationMs / 1000.0)) done(id, type)
+        if (!notAnEpisode(durationMs) && nearEnd(positionMs / 1000.0, durationMs / 1000.0)) done(id, type)
     }
 
     private suspend fun manifests(): List<Pair<String, JSONObject>> = kotlinx.coroutines.coroutineScope {

@@ -121,13 +121,19 @@ class AniListSyncTest {
 
     @Test fun thresholdFiresOnce() {
         val s = sync()
-        s.watchingAt("kitsu:1:3", "series", 100, 1000)
-        s.watchingAt("kitsu:1:3", "series", 125, 1000)
+        s.watchingAt("kitsu:1:3", "series", 100_000, 1_440_000)
+        s.watchingAt("kitsu:1:3", "series", 180_000, 1_440_000)
         assertEquals(0, asked)
-        s.watchingAt("kitsu:1:3", "series", 126, 1000)
-        s.watchingAt("kitsu:1:3", "series", 500, 1000)
+        s.watchingAt("kitsu:1:3", "series", 180_001, 1_440_000)
+        s.watchingAt("kitsu:1:3", "series", 500_000, 1_440_000)
         assertEquals(1, asked)
         assertEquals("CURRENT", saved.single().third.status)
+    }
+
+    @Test fun aDebridPlaceholderClipIsNotWatching() {
+        val s = sync()
+        s.watchingAt("kitsu:1:4", "series", 7_000, 8_000)
+        assertEquals(0, asked)
     }
 
     @Test fun finishedCountsAndCompletes() {

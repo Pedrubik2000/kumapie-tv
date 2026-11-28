@@ -356,11 +356,12 @@ fun WatchScreen(library: Library, query: Map<String, String>, onNext: (Map<Strin
         val ended = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state != Player.STATE_ENDED) return
+                if (io.github.pedrubik2000.kumapie.data.notAnEpisode(player.duration)) { error = io.github.pedrubik2000.kumapie.data.notReady(); return }
                 // No PC: the next episode's file from the addons (core data/Streaming.kt, shared with the TV); with a PC, its next.
                 if (alone == null) { nextQuery(query, next)?.let(onNext); return }
                 val addons = library.discovery as? io.github.pedrubik2000.kumapie.data.Addons ?: return
                 scope.launch {
-                    runCatching { addons.next(query) { step = tr("Next: episode %1\$d…", it) } }.onSuccess { it?.let(onNext) }.onFailure { error = it.message ?: it.toString() }
+                    runCatching { addons.next(query, player.duration) { step = tr("Next: episode %1\$d…", it) } }.onSuccess { it?.let(onNext) }.onFailure { error = it.message ?: it.toString() }
                 }
             }
 

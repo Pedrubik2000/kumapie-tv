@@ -81,7 +81,7 @@ class AniListSync(
     }
 
     fun watchingAt(episodeId: String, type: String, positionMs: Long, durationMs: Long) {
-        if (durationMs <= 0 || positionMs <= durationMs / 8 || !fired.add(episodeId)) return
+        if (durationMs <= 0 || notAnEpisode(durationMs) || positionMs <= durationMs / 8 || !fired.add(episodeId)) return
         episodeOf(episodeId, type == "movie")?.let { watching(episodeId, it) }
     }
 

@@ -63,7 +63,14 @@ sealed interface StreamStart {
  * a file of the same release group first, else the first that plays here, else the first ([nextQuery] over [files]).
  * Null: no next to look for (a movie, a whole title); throws when it has no files or the addons fail.
  */
-suspend fun Addons.next(query: Map<String, String>, looking: (Int) -> Unit = {}): Map<String, String>? {
+const val EPISODE_MIN_MS = 60_000L
+
+fun notAnEpisode(durationMs: Long) = durationMs in 1 until EPISODE_MIN_MS
+
+fun notReady() = tr("This file isn't ready on your debrid service yet: pick another file, or try again in a few minutes.")
+
+suspend fun Addons.next(query: Map<String, String>, durationMs: Long, looking: (Int) -> Unit = {}): Map<String, String>? {
+    if (notAnEpisode(durationMs)) error(notReady())
     val type = query["type"] ?: "series"
     val id = query["id"].orEmpty()
     done(id, type)

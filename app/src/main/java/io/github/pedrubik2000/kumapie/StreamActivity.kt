@@ -76,7 +76,7 @@ class StreamActivity : ComponentActivity() {
         val settings = Settings(this)
         if (savedInstanceState?.getBoolean(LEAVING) == true) return restart(settings)
         if (intent.hasExtra(RESTART)) return if (intent.getStringExtra(RESTART) == token && Restart.wanted(settings)) restart(settings) else finish()
-        if (Restart.owed && callingActivity == null && Restart.wanted(settings)) { leaving = true; return Restart.pay(this, settings) }
+        if (Restart.owed && intent.getBooleanExtra(Restart.INSIDE, false) && Restart.wanted(settings)) { leaving = true; return Restart.pay(this, settings) }
         val video = intent.data?.toString()
         val start = video?.let(Uri::parse)?.takeIf { it.scheme == "kumapie" && it.host in setOf("play", "watch") }?.let { StreamStart.of(query(it), settings.prefs) }
         if (start is StreamStart.Alone) {
@@ -382,7 +382,7 @@ class StreamActivity : ComponentActivity() {
 
     companion object {
         fun intent(context: android.content.Context, query: Map<String, String>): Intent = Intent(context, StreamActivity::class.java)
-            .setData(query.entries.fold(Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) -> b.appendQueryParameter(k, v) }.build())
+            .setData(query.entries.fold(Uri.parse("kumapie://watch").buildUpon()) { b, (k, v) -> b.appendQueryParameter(k, v) }.build()).putExtra(Restart.INSIDE, true)
 
         private const val RESTART = "restart"
         private const val LEAVING = "leaving"

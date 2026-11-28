@@ -52,6 +52,21 @@ var Settings.profile: String
     set(value) = prefs.edit().putString("profile", value).apply()
 
 class MainActivity : ComponentActivity() {
+    override fun onResume() {
+        super.onResume()
+        Restart.homeSaved = false
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        Restart.homeSaved = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (Restart.owed && !io.github.pedrubik2000.kumapie.data.Playing.on && !isChangingConfigurations) Restart.quietly(Settings(this))
+    }
+
     override fun onStart() {
         super.onStart()
         io.github.pedrubik2000.kumapie.data.AniListSync(Settings(this).prefs).retry()
@@ -178,7 +193,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
         Screen.Home -> HomeScreen(api, settings, PERSON,
             onShow = { stack.add(Screen.ShowEpisodes(it)) }, onPlay = { s, e ->
                 when (val r = io.github.pedrubik2000.kumapie.data.route(s, e, hasPc = true)) {
-                    io.github.pedrubik2000.kumapie.data.Route.Player -> stack.add(Screen.Player(s, e))
+                    io.github.pedrubik2000.kumapie.data.Route.Player -> if (Restart.owed) context.startActivity(StreamActivity.restartIntent(context)) else stack.add(Screen.Player(s, e))
                     is io.github.pedrubik2000.kumapie.data.Route.Watch -> context.startActivity(StreamActivity.intent(context, r.query))
                     is io.github.pedrubik2000.kumapie.data.Route.Discover -> stack.add(Screen.Discover(r.found))
                 }
@@ -193,7 +208,7 @@ private fun PcScreens(settings: Settings, server: String, stack: androidx.compos
             onSettings = { stack.goTop(Screen.Settings) }, onOpen = { stack.add(Screen.Discover(it)) }, onStats = { stack.goTop(Screen.Stats) })
         is Screen.Review -> io.github.pedrubik2000.kumapie.ui.ReviewScreen(io.github.pedrubik2000.kumapie.ui.pcReview(api, screen.lang), api, stack.railNav(screen.lang), screen.lang)
         Screen.Stats -> StatsScreen({ api.stats() }, onSettings = { stack.goTop(Screen.Settings) }, api, stack.railNav())
-        is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> stack.add(Screen.Player(s, e)) })
+        is Screen.ShowEpisodes -> ShowScreen(api, settings, screen.show, onEpisode = { s, e -> if (Restart.owed) context.startActivity(StreamActivity.restartIntent(context)) else stack.add(Screen.Player(s, e)) })
         is Screen.Player -> PlayerScreen(api, settings, screen.show, screen.episode,
             onClose = { stack.removeAt(stack.lastIndex); if (Restart.wanted(settings)) context.startActivity(StreamActivity.restartIntent(context)) })
         Screen.Buttons -> ButtonsScreen(settings)

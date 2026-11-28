@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit
 
 object Restart {
     const val FORCE = "debug_narrow_restart"
+    const val INSIDE = "kumapie_inside"
     private const val RESTARTED = "restarted_after_video_at"
     private const val RELAUNCH = "relaunch_after_restart"
     private const val FRESH_MS = 60_000L
@@ -55,10 +56,17 @@ object Restart {
     fun wanted(settings: Settings): Boolean = Playable.narrow || BuildConfig.DEBUG && settings.prefs.getBoolean(FORCE, false)
 
     @Volatile var owed = false
+    @Volatile var homeSaved = true
+    private const val SAVE_MAX_MS = 5_000L
 
     fun pay(activity: androidx.activity.ComponentActivity, settings: Settings) {
         settings.prefs.edit().putString(RELAUNCH, activity.intent.toUri(Intent.URI_INTENT_SCHEME)).commit()
         activity.setContent { Box(Modifier.fillMaxSize().background(Color.Black)) { TopNote(tr("Loading…")) } }
+        quietly(settings)
+    }
+
+    fun quietly(settings: Settings) {
+        owed = false
         begin()
         playerDisposed()
         now(settings)
@@ -79,12 +87,12 @@ object Restart {
         val disposedIn = disposedAt.takeIf { it != 0L }?.minus(start) ?: -1L
         fun waiting(): Boolean {
             val at = SystemClock.uptimeMillis() - start
-            return syncAtBegin && DeviceSync.syncing && at < SYNC_MAX_MS || Pending.busy && at < JOBS_MAX_MS
+            return syncAtBegin && DeviceSync.syncing && at < SYNC_MAX_MS || Pending.busy && at < JOBS_MAX_MS || !homeSaved && at < SAVE_MAX_MS
         }
         while (waiting()) Thread.sleep(POLL_MS)
         settings.prefs.edit().putLong(RESTARTED, System.currentTimeMillis()).commit()
         val waited = SystemClock.uptimeMillis() - start
-        android.util.Log.i("kumapie", "restart after video: disposed in $disposedIn ms, waited $waited ms (sync=${DeviceSync.syncing}, jobs=${Pending.busy}), pid ${Process.myPid()}")
+        android.util.Log.i("kumapie", "restart after video: disposed in $disposedIn ms, waited $waited ms (sync=${DeviceSync.syncing}, jobs=${Pending.busy}, home saved=$homeSaved), pid ${Process.myPid()}")
         Process.killProcess(Process.myPid())
     }.start()
 }

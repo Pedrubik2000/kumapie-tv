@@ -20,6 +20,7 @@ object DeviceFile {
     private const val SEEN = "alone_seen"
     internal const val DONE = "alone_off_clean"
     private const val LAST = "alone_last_"
+    private const val MARKS = io.github.pedrubik2000.kumapie.data.SeenMarks.KEY
 
     data class Count(val what: String, val add: Int, val change: Int, val keep: Int)
 
@@ -127,7 +128,7 @@ object DeviceFile {
         for (k in theirs.keys()) {
             val v = theirs.get(k)
             when {
-                k.startsWith(LAST) || k == DONE -> Unit
+                k.startsWith(LAST) || k == DONE || k == MARKS -> Unit
                 k == SAVED -> {
                     val had = JSONArray((mine[k] as? String) ?: "[]").objects()
                     val ids = had.map { it.optString("id") }.toSet()
@@ -146,7 +147,27 @@ object DeviceFile {
                 }
             }
         }
+        unmark(mine, theirs, out)
         return out
+    }
+
+    /**
+     * "Not watched" travels too: [SEEN] alone only ever grows (a union), so an episode un-marked on one device came
+     * back from the next one (Pedro's Frieren 26 and 28, marked by a test on the emulator, 2026-11-28). Each mark made
+     * by hand and each finished episode is kept with its time ([io.github.pedrubik2000.kumapie.data.SeenMarks]); the newer one of the two
+     * devices wins and is applied to the merged set. A device with an older kumapie keeps sending the episode: the
+     * mark removes it again here each time.
+     */
+    private fun unmark(mine: Map<String, Any?>, theirs: JSONObject, out: MutableMap<String, Any>) {
+        val marks = io.github.pedrubik2000.kumapie.data.SeenMarks
+        val had = marks.read(mine[MARKS] as? String)
+        val all = marks.merge(had, marks.read(theirs.optString(MARKS)))
+        if (all.isEmpty()) return
+        if (!marks.same(all, had)) out[MARKS] = marks.write(all)
+        val seen = (mine[SEEN] as? Set<*>).orEmpty().map { it.toString() }.toSet()
+        val merged = (out[SEEN] as? Set<*>)?.map { it.toString() }?.toSet() ?: seen
+        val now = marks.apply(merged, all)
+        if (now != seen) out[SEEN] = now else out.remove(SEEN)
     }
 
     private fun newer(a: JSONObject, b: JSONObject) = age(a).let { x -> age(b).let { y -> x.first > y.first || (x.first == y.first && x.second > y.second) } }

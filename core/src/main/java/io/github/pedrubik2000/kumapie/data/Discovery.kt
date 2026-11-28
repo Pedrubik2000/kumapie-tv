@@ -42,6 +42,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences, val sync:
 
     fun done(id: String, type: String) {
         store.edit().putStringSet(SEEN, store.getStringSet(SEEN, emptySet()).orEmpty() + id).apply()
+        SeenMarks.set(store, id, true)
         sync.episodeDone(id, type)
     }
 
@@ -182,6 +183,7 @@ class Addons(urls: List<String>, private val store: SharedPreferences, val sync:
     override suspend fun seen(id: String, on: Boolean) {
         val now = store.getStringSet(SEEN, emptySet()).orEmpty()
         store.edit().putStringSet(SEEN, if (on) now + id else now - id).apply()
+        SeenMarks.set(store, id, on)
     }
 
     override suspend fun going(): List<Pair<Show, Episode>> = going(saved())

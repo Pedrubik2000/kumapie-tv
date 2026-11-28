@@ -128,6 +128,26 @@ class DeviceFileTest {
         assertEquals(DeviceFile.Count("Cards backed up", 0, 0, 1), p.counts.single { it.what == "Cards backed up" })
     }
 
+    @Test fun notWatchedTravelsToo() {
+        val marks = io.github.pedrubik2000.kumapie.data.SeenMarks
+        fun mark(vararg m: Pair<String, Pair<Boolean, Long>>) = marks.write(m.associate { it.first to io.github.pedrubik2000.kumapie.data.SeenMarks.Mark(it.second.first, it.second.second) })
+        val mine = mapOf<String, Any?>("alone_seen" to setOf("a:1", "a:26", "a:28"))
+        val unmarked = JSONObject().put("alone_seen", JSONArray(listOf("a:1"))).put("alone_marks", mark("a:26" to (false to 100L), "a:28" to (false to 100L)))
+        val got = DeviceFile.streams(mine, unmarked)
+        assertEquals(setOf("a:1"), got["alone_seen"])
+        assertEquals(setOf("a:26", "a:28"), marks.read(got["alone_marks"] as String).keys)
+        val after = mine + got
+        val older = JSONObject().put("alone_seen", JSONArray(listOf("a:1", "a:26", "a:28", "a:2")))
+        assertEquals(setOf("a:1", "a:2"), DeviceFile.streams(after, older)["alone_seen"])
+        val rewatched = JSONObject().put("alone_seen", JSONArray(listOf("a:1", "a:26"))).put("alone_marks", mark("a:26" to (true to 200L)))
+        val again = DeviceFile.streams(after, rewatched)
+        assertEquals(setOf("a:1", "a:26"), again["alone_seen"])
+        val stale = JSONObject().put("alone_seen", JSONArray(listOf("a:1", "a:26"))).put("alone_marks", mark("a:26" to (true to 50L)))
+        assertEquals(null, DeviceFile.streams(after, stale)["alone_seen"])
+        assertEquals(null, DeviceFile.streams(after, stale)["alone_marks"])
+        assertEquals(setOf("a:1", "a:26", "a:28", "a:3"), DeviceFile.streams(mine, JSONObject().put("alone_seen", JSONArray(listOf("a:3"))))["alone_seen"])
+    }
+
     @Test fun streamsTakeTheNewerTitlePlaceOnly() {
         val mine = mapOf<String, Any?>("alone_last_kitsu:1" to """{"id":"kitsu:1:3","at":900}""", "alone_pos_kitsu:1:3" to 100f, "alone_pos_kitsu:1:2" to 1f)
         val theirs = JSONObject().put("alone_last_kitsu:1", """{"id":"kitsu:1:2","at":300}""").put("alone_pos_kitsu:1:2", 500.0)

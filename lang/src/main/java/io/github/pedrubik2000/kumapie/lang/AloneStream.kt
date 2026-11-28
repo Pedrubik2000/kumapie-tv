@@ -106,7 +106,7 @@ class AloneStream(
     }
 
     fun savePlace(positionMs: Long, durationMs: Long) {
-        if (durationMs <= 0) return
+        if (durationMs <= 0 || io.github.pedrubik2000.kumapie.data.notAnEpisode(durationMs)) return
         lastMs = positionMs
         lastDurationMs = durationMs
         sync.watchingAt(id, type, positionMs, durationMs)

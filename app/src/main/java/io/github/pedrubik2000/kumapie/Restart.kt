@@ -28,8 +28,10 @@ object Restart {
     @Volatile private var syncAtBegin = false
 
     fun begin() {
-        disposedAt = 0L
-        disposed = CountDownLatch(1)
+        if (SystemClock.uptimeMillis() - disposedAt > DISPOSE_MAX_MS) {
+            disposedAt = 0L
+            disposed = CountDownLatch(1)
+        }
         syncAtBegin = DeviceSync.syncing
         Playing.drop()
     }

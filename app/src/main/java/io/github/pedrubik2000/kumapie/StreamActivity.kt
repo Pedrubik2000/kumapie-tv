@@ -34,6 +34,7 @@ import io.github.pedrubik2000.kumapie.data.Api
 import io.github.pedrubik2000.kumapie.data.StreamStart
 import io.github.pedrubik2000.kumapie.data.next
 import io.github.pedrubik2000.kumapie.data.nextQuery
+import io.github.pedrubik2000.kumapie.ui.TopNote
 import io.github.pedrubik2000.kumapie.data.notAnEpisode
 import io.github.pedrubik2000.kumapie.data.notReady
 import io.github.pedrubik2000.kumapie.data.EPISODE_MIN_MS
@@ -193,7 +194,7 @@ class StreamActivity : ComponentActivity() {
         LaunchedEffect(live) { live.run() }
         if (shown != null) {
             remember(shown) { live.stop() }
-            return ScenePlayer(api, settings, shown, onClose = ::finish, player = p)
+            return Box(Modifier.fillMaxSize()) { ScenePlayer(api, settings, shown, onClose = ::finish, player = p); TopNote(failed?.takeIf { it == notReady() }) }
         }
         Box(Modifier.fillMaxSize()) {
             AndroidView({ PlayerView(it).apply { player = p; useController = true; subtitleView?.visibility = android.view.View.GONE; requestFocus() } },
@@ -275,6 +276,7 @@ class StreamActivity : ComponentActivity() {
                 remember(ready) { alone = null; note = null }
                 val backend = remember { io.github.pedrubik2000.kumapie.ui.TvMining.backend(context, settings, ready.lang) }
                 androidx.compose.runtime.key(ready) { io.github.pedrubik2000.kumapie.ui.ScenePlayer(backend, settings, ready, onClose = ::finish, player = p, onController = { ctl = it }) }
+                TopNote(note?.takeIf { it == notReady() })
             } else AlonePlain(p, live.line, if (reconnecting) tr("Reconnecting…") else note ?: label?.takeIf { showLabel }, started, buffering)
             if (torrent) io.github.pedrubik2000.kumapie.ui.TorrentWait(p, started, remember(link) { waitInfo(link, id, show) }, settings, shown, live.noLines, ::finish) { buffering = it }
         }

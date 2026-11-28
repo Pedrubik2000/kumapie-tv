@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
@@ -43,7 +43,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Card
@@ -59,7 +63,9 @@ import io.github.pedrubik2000.kumapie.data.Found
 import io.github.pedrubik2000.kumapie.data.Mine
 import io.github.pedrubik2000.kumapie.data.SavedMeta
 import io.github.pedrubik2000.kumapie.data.Settings
+import io.github.pedrubik2000.kumapie.data.StreamFacts
 import io.github.pedrubik2000.kumapie.data.TitlePage
+import io.github.pedrubik2000.kumapie.data.streamFacts
 import io.github.pedrubik2000.kumapie.data.partway
 import io.github.pedrubik2000.kumapie.i18n.tr
 import io.github.pedrubik2000.kumapie.lang.JitenQueue
@@ -258,18 +264,19 @@ private fun TitleSide(api: Discovery, page: TitlePage, focus: TitleFocus, onSett
 private fun PickFiles(api: Discovery, page: TitlePage, pick: Pair<String, String>) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val list = remember(page.files) {
-        page.files?.map { f -> page.missing(f).let { no -> if (no.isEmpty()) f else JSONObject(f.toString()).put("label", "✗ " + tr("May not play here: %1\$s", no.joinToString(", ")) + " · " + f.optString("label")) } }
-    }
+    val groups = remember(page.files) { page.files?.let { page.fileGroups(it) } }
     Column {
         Heading(pick.second)
         when {
-            list == null -> Text(if (api is Api) tr("Asking Torrentio…") else tr("Asking your addons…"), color = Colors.dim)
-            list.isEmpty() -> Text(tr("No files found for this"), color = Colors.dim)
-            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(12.dp)) {
-                itemsIndexed(list) { i, f ->
-                    Line(i, f.optString("label"), f.optString("about")) {
-                        scope.launch { context.startActivity(StreamActivity.intent(context, page.pick(pick, f))) }
+            groups == null -> Text(if (api is Api) tr("Asking Torrentio…") else tr("Asking your addons…"), color = Colors.dim)
+            groups.isEmpty() -> Text(tr("No files found for this"), color = Colors.dim)
+            else -> {
+                Text(tr("%1\$d files", groups.sumOf { it.second.size }), color = Colors.dim, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
+                val first = groups.first().second.first()
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 12.dp, horizontal = 4.dp)) {
+                    groups.forEach { (heading, rows) ->
+                        if (heading.isNotEmpty()) item { Eyebrow(heading.uppercase()) }
+                        items(rows) { r -> FileLine(r === first, r) { scope.launch { context.startActivity(StreamActivity.intent(context, page.pick(pick, r.f))) } } }
                     }
                 }
             }
@@ -277,16 +284,36 @@ private fun PickFiles(api: Discovery, page: TitlePage, pick: Pair<String, String
     }
 }
 
+private class FileRow(val f: JSONObject, val facts: StreamFacts, val missing: List<String>)
+
+private fun TitlePage.fileGroups(files: List<JSONObject>): List<Pair<String, List<FileRow>>> {
+    val rows = files.map { f -> FileRow(f, streamFacts(f.optString("label"), f.optString("about")), missing(f)) }.groupBy { it.facts.instant }
+    return listOf(true to tr("Instant · on Real-Debrid"), false to tr("Download first"), null to "")
+        .mapNotNull { (k, h) -> rows[k]?.let { r -> (if (rows.size == 1 && k == null) "" else h) to r.sortedBy { it.missing.isNotEmpty() } } }
+}
+
 @Composable
-private fun Line(i: Int, text: String, line: String, onClick: () -> Unit) {
-    val first = remember { FocusRequester() }
-    Card(scale = noGrow(), onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)) {
-        Column(Modifier.padding(12.dp)) {
-            Text(text, color = Colors.text, fontSize = 18.sp)
-            Text(line, color = Colors.dim, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+private fun FileLine(first: Boolean, r: FileRow, onClick: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    val facts = r.facts
+    Card(scale = noGrow(), onClick = onClick, shape = arcadeCardShape(RowSlab), border = arcadeCardBorder(RowSlab), colors = arcadeCardColors(),
+        modifier = Modifier.fillMaxWidth().then(if (first) Modifier.focusRequester(focus) else Modifier)) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(facts.quality, color = if (r.missing.isEmpty()) Colors.text else Colors.dim, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, modifier = Modifier.width(76.dp))
+            Column {
+                Text(buildAnnotatedString {
+                    append(facts.title)
+                    withStyle(SpanStyle(Colors.dim)) { facts.tags.forEach { append(" · $it") } }
+                }, color = Colors.text, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val peers = facts.seeders?.let { if (it == 1) tr("1 peer") else tr("%d peers", it) }
+                val line = listOfNotNull(facts.size.ifEmpty { null }, peers, facts.site.ifEmpty { null }).joinToString(" · ")
+                if (line.isNotEmpty()) Text(line, color = Colors.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (r.missing.isNotEmpty()) Text("✗ " + tr("May not play here: %1\$s", r.missing.joinToString(", ")), color = Colors.unknown, fontSize = 14.sp)
+            }
         }
     }
-    if (i == 0) LaunchedEffect(Unit) { first.focusSoon() }
+    if (first) LaunchedEffect(Unit) { focus.focusSoon() }
 }
 
 @Composable

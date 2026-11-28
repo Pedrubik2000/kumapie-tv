@@ -15,6 +15,14 @@ class JapaneseJoinTest {
         return JapaneseModel.join(tokens).filter { it.isWord }.joinToString(" | ") { if (it.surface == it.base) it.surface else "${it.surface}→${it.base}" }
     }
 
+    @Test fun theModernVerbNotTheClassicalOne() {
+        assertEquals("感じる", JapaneseModel.modern("感じ", "感ずる"))
+        assertEquals("信じる", JapaneseModel.modern("信じ", "信ずる"))
+        assertEquals("感ずる", JapaneseModel.modern("感ずる", "感ずる"))
+        assertEquals("感ずる", JapaneseModel.modern("感ぜ", "感ずる"))
+        assertEquals("する", JapaneseModel.modern("し", "する"))
+    }
+
     @Test fun verbsTakeTheirEndings() {
         assertEquals("そう | だ | よ | だって | もう | 届いた→届く | ん | でしょ→です", words(
             "そう/そう/副詞/*", "だ/だ/助動詞/*", "よ/よ/助詞/終助詞", " / /空白/*", "だ/だ/助動詞/*", "って/って/助詞/副助詞",
